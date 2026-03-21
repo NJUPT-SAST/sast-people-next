@@ -1,0 +1,63 @@
+import { PageTitle } from "@/components/route";
+import { Button } from "@/components/ui/button";
+import React, { Suspense } from "react";
+import QRCodeScanner from "@/components/review/qrcodeScanner";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { MannualInput } from "@/components/review/mannualInput";
+import { SelectProblemServer } from "./selectProblem";
+import { Loading } from "@/components/loading";
+import { SelectedRangeDisplay } from "@/components/review/selectedRangeDisplay";
+
+const Review: React.FC = async () => {
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <PageTitle />
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button size="sm" variant="outline">
+              设置阅卷范围
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="w-full md:w-3/4">
+            <SheetHeader className="text-2xl font-semibold">
+              <SheetTitle>设置阅卷范围</SheetTitle>
+            </SheetHeader>
+            <Suspense fallback={<Loading />}>
+              <SelectProblemServer />
+            </Suspense>
+          </SheetContent>
+        </Sheet>
+      </div>
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <SelectedRangeDisplay />
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <p className="text-muted-foreground text-sm">
+              使用摄像头或手动输入
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <MannualInput />
+            <div>
+              <QRCodeScanner />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+};
+
+export default Review;
