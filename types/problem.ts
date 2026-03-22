@@ -10,6 +10,7 @@ export type problemType = {
 
 export const selectProbSchema = z.object({
   flowTypeId: z.number(),
+  flowTitle: z.string().optional(),
   stepId: z.number(),
   problemList: z.array(
     z.object({

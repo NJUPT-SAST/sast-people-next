@@ -77,8 +77,10 @@ describe("QRCodeScanner", () => {
 
     await waitFor(() => {
       expect(useUserInfoById).toHaveBeenCalledWith(9);
-      expect(screen.getByText("学号: 2026001")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "确认" })).toHaveAttribute(
+      expect(screen.getByText("2026001")).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "确认并开始阅卷" }),
+      ).toHaveAttribute(
         "href",
         "/dashboard/review/marking?user=2026001",
       );

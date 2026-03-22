@@ -51,16 +51,16 @@ export const ExperienceInfo = ({
   const { isSubmitting } = form.formState;
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
         <CardTitle>我的能力</CardTitle>
         <CardDescription>
           请与我们分享你目前的兴趣与能力，以便找到最合适的部门
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1">
         <Form {...form}>
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <FormField
               control={form.control}
               name="github"
@@ -116,7 +116,7 @@ export const ExperienceInfo = ({
           </div>
         </Form>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="mt-auto justify-end border-t pt-4">
         <Button
           type="button"
           loading={isSubmitting}

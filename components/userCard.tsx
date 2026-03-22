@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button } from './ui/button';
 import { verifySession } from '@/lib/dal';
-import Link from 'next/link';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import {
   DropdownMenu,
@@ -34,12 +33,14 @@ export const UserCard: React.FC = async () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href="/api/auth/logout" prefetch={false}>
-              <LogOut className="h-4 w-4 mr-2" />
-              退出登录
-            </Link>
-          </DropdownMenuItem>
+          <form action="/api/auth/logout">
+            <DropdownMenuItem asChild>
+              <button type="submit">
+                <LogOut className="h-4 w-4 mr-2" />
+                退出登录
+              </button>
+            </DropdownMenuItem>
+          </form>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
