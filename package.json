@@ -18,7 +18,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.10.0",
+    "@hookform/resolvers": "^5.2.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@react-email/components": "^1.0.10",
