@@ -5,6 +5,7 @@ import { MarkProblemTable } from "./markProblemTable";
 
 const mockToastPromise = jest.fn((promise: Promise<unknown>) => promise);
 const mockToastError = jest.fn();
+const push = jest.fn();
 const stableProblems = [
   { id: 1, name: "算法题", maxPoint: 100 },
   { id: 2, name: "设计题", maxPoint: 50 },
@@ -15,6 +16,7 @@ jest.mock("@/hooks/useLocalProblemList", () => ({
 }));
 
 jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
   useSearchParams: () => ({
     get: () => "2026001",
   }),
@@ -35,11 +37,12 @@ describe("MarkProblemTable", () => {
   beforeEach(() => {
     mockToastPromise.mockClear();
     mockToastError.mockClear();
+    push.mockClear();
     fetchMock.mockReset();
     global.fetch = fetchMock as never;
   });
 
-  it("validates score range before saving and updates a single score", async () => {
+  it("validates score range and submits all scores before returning to the review page", async () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue({
       ok: true,
@@ -60,14 +63,17 @@ describe("MarkProblemTable", () => {
 
     await user.clear(scoreInputs[0]);
     await user.type(scoreInputs[0], "120");
-    await user.click(screen.getByRole("button", { name: /保存/i }));
+    await user.click(screen.getByRole("button", { name: /确认评分并返回扫码页/i }));
     expect(mockToastError).toHaveBeenCalledWith(
-      "更新失败，算法题的得分必须在0到100之间！",
+      "算法题 的得分必须在 0 到 100 之间",
     );
+    expect(push).not.toHaveBeenCalled();
 
     await user.clear(scoreInputs[1]);
     await user.type(scoreInputs[1], "45");
-    await user.click(screen.getAllByRole("button", { name: /更新/i })[1]);
+    await user.clear(scoreInputs[0]);
+    await user.type(scoreInputs[0], "88");
+    await user.click(screen.getByRole("button", { name: /确认评分并返回扫码页/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -77,6 +83,7 @@ describe("MarkProblemTable", () => {
         }),
       );
       expect(mockToastPromise).toHaveBeenCalled();
+      expect(push).toHaveBeenCalledWith("/dashboard/review");
     });
   });
 });

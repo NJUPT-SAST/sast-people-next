@@ -14,6 +14,7 @@ import { MannualInput } from "@/components/review/mannualInput";
 import { SelectProblemServer } from "./selectProblem";
 import { Loading } from "@/components/loading";
 import { SelectedRangeDisplay } from "@/components/review/selectedRangeDisplay";
+import { Separator } from "@/components/ui/separator";
 
 const Review: React.FC = async () => {
   return (
@@ -36,7 +37,7 @@ const Review: React.FC = async () => {
           </SheetContent>
         </Sheet>
       </div>
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Card>
           <CardHeader>
             <SelectedRangeDisplay />
@@ -44,12 +45,21 @@ const Review: React.FC = async () => {
         </Card>
         <Card>
           <CardHeader>
-            <p className="text-muted-foreground text-sm">
-              使用摄像头或手动输入
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium">开始阅卷</p>
+              <p className="text-sm text-muted-foreground">
+                支持手动输入学号或扫码识别，确认考生信息后进入评分页面。
+              </p>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <MannualInput />
+          <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+            <div className="flex flex-col gap-4">
+              <MannualInput />
+              <Separator />
+              <p className="text-xs leading-5 text-muted-foreground">
+                建议先设置阅卷范围，再开始扫描。扫码识别到考生后会先展示学号、姓名和专业供你确认。
+              </p>
+            </div>
             <div>
               <QRCodeScanner />
             </div>

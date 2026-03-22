@@ -65,16 +65,16 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
       ),
     },
   });
-  const { isSubmitting, errors } = basicInfoForm.formState;
+  const { isSubmitting } = basicInfoForm.formState;
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
         <CardTitle>基本信息</CardTitle>
         <CardDescription>个人基本信息</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1">
         <Form {...basicInfoForm}>
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <FormField
               control={basicInfoForm.control}
               name="name"
@@ -190,7 +190,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
           </div>
         </Form>
       </CardContent>
-      <CardFooter className="flex justify-end border-t pt-4">
+      <CardFooter className="mt-auto justify-end border-t pt-4">
         <Button
           onClick={basicInfoForm.handleSubmit(async () => {
             const val = basicInfoForm.getValues();
