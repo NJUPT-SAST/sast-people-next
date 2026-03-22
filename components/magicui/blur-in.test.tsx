@@ -35,7 +35,7 @@ describe("BlurIn", () => {
     const heading = screen.getByRole("heading", { name: "SAST" });
     expect(heading).toHaveClass("custom-class");
     expect(heading).toHaveAttribute("data-duration", "1");
-    expect(heading).toHaveAttribute("data-hidden-filter", "blur(10px)");
+    expect(heading).toHaveAttribute("data-hidden-filter", "blur(20px)");
     expect(heading).toHaveAttribute("data-visible-filter", "blur(0px)");
   });
 

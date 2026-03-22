@@ -1,6 +1,7 @@
 jest.mock("next/font/google", () => ({
   Geist: () => ({ variable: "--font-geist-sans" }),
   Geist_Mono: () => ({ variable: "--font-geist-mono" }),
+  Noto_Serif_SC: () => ({ variable: "--font-noto-serif-sc" }),
 }));
 
 jest.mock("@/components/theme-provider", () => ({
@@ -32,6 +33,7 @@ describe("RootLayout", () => {
     expect(markup).toContain('<html lang="zh-cn">');
     expect(markup).toContain("--font-geist-sans");
     expect(markup).toContain("--font-geist-mono");
+    expect(markup).toContain("--font-noto-serif-sc");
     expect(markup).toContain("antialiased");
     expect(markup).toContain('data-theme-provider="true"');
     expect(markup).toContain("<main>content</main>");
