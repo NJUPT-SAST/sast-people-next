@@ -12,10 +12,11 @@ interface BlurIntProps {
     visible: { filter: string; opacity: number };
   };
   duration?: number;
+  delay?: number;
 }
-const BlurIn = ({ word, className, variant, duration = 1 }: BlurIntProps) => {
+const BlurIn = ({ word, className, variant, duration = 1, delay = 0 }: BlurIntProps) => {
   const defaultVariants = {
-    hidden: { filter: 'blur(10px)', opacity: 0 },
+    hidden: { filter: 'blur(20px)', opacity: 0 },
     visible: { filter: 'blur(0px)', opacity: 1 },
   };
   const combinedVariants = variant || defaultVariants;
@@ -24,7 +25,7 @@ const BlurIn = ({ word, className, variant, duration = 1 }: BlurIntProps) => {
     <motion.h1
       initial="hidden"
       animate="visible"
-      transition={{ duration }}
+      transition={{ duration, delay }}
       variants={combinedVariants}
       className={cn(
         'font-display text-center text-4xl font-bold tracking-[-0.02em] drop-shadow-sm md:text-7xl md:leading-[5rem]',

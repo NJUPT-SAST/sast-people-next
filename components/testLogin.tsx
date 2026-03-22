@@ -12,7 +12,7 @@ export const TestLogin = () => {
   const formStatus = useFormStatus();
   const router = useRouter();
   return (
-    <div className="w-1/2 flex flex-col items-center">
+    <div className="w-full flex flex-col items-center">
       <Separator className="w-full mb-6" />
       <p className="text-xl font-semibold">使用测试帐号登入</p>
       <form
@@ -30,13 +30,13 @@ export const TestLogin = () => {
             },
           );
         }}
-        className="w-3/4 mt-5 flex items-center justify-center gap-3"
+        className="w-full mt-5 flex items-center justify-center gap-3"
       >
         <Input
           disabled={formStatus.pending}
           type="text"
           name="studentId"
-          placeholder="请填写已注册的学号"
+          placeholder="请填写测试学号"
         />
         <FormContentWithStatus />
       </form>

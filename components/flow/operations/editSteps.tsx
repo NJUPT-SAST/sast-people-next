@@ -46,7 +46,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
   const [openEdit, setOpenEdit] = useState(false);
   const { data: stepsData } = useFlowStepsInfoClient(data.id);
   const [localStepList, setLocalStepList] = useState<fullStepType[] | null>(null);
-  const stepList = localStepList ?? stepsData ?? [];
+  const stepList = localStepList ?? (Array.isArray(stepsData) ? stepsData : []);
   const updateStepList = (updater: (prev: fullStepType[]) => fullStepType[]) => {
     setLocalStepList((prev) => updater(prev ?? stepsData ?? []));
   };

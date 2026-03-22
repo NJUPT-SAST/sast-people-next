@@ -14,7 +14,7 @@ let currentSession: {
 } | null = {
   // Default: logged in as admin (user id=1, role=2)
   uid: 1,
-  name: "张管理",
+  name: "管理员",
   role: 2,
   expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
 };

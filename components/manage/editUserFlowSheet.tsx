@@ -45,7 +45,7 @@ export const EditUserFlowSheet = ({
               : '选择流程'}
           </SelectTrigger>
           <SelectContent>
-            {flowList &&
+            {Array.isArray(flowList) &&
               flowList.map((flow, index) => (
                 <SelectItem key={flow.id} value={index.toString()}>
                   {flow.title}

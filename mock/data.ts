@@ -7,7 +7,7 @@
 export const mockUsers = [
   {
     id: 1,
-    name: "张管理",
+    name: "管理员",
     student_id: "B23010101",
     email: "admin@njupt.edu.cn",
     phone: "13800001111",
@@ -23,7 +23,7 @@ export const mockUsers = [
   },
   {
     id: 2,
-    name: "李面试官",
+    name: "讲师",
     student_id: "B23010102",
     email: "interviewer@njupt.edu.cn",
     phone: "13800002222",

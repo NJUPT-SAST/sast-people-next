@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import React from 'react';
 import { Button } from '../ui/button';
-import { QrCode } from 'lucide-react';
+import { QrCode, ShieldCheck } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import originalDayjs from '@/lib/dayjs';
 
@@ -31,20 +31,26 @@ export const ShowQrCode = ({ uid }: { uid: string }) => {
           身份码
         </Button>
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>我的身份码</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-sm">
+        <DialogHeader className="items-center text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+            <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <DialogTitle className="text-xl">我的身份码</DialogTitle>
+          <DialogDescription className="text-center">
             请勿将此二维码分享给他人，请在批改试卷时展示给讲师
           </DialogDescription>
         </DialogHeader>
-        <div className="mt-2 flex flex-col items-center gap-4">
-          <div className="flex w-full justify-center">
-            <QRCode value={qrValue} />
+        <div className="flex flex-col items-center gap-6 py-4">
+          <div className="rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-white p-4 shadow-sm">
+            <QRCode value={qrValue} size={200} />
           </div>
-          <p className="text-2xl text-foreground">
-            <CurrentTime />
-          </p>
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-3xl font-mono font-semibold tracking-widest text-foreground">
+              <CurrentTime />
+            </p>
+            <p className="text-xs text-muted-foreground">实时时间验证</p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -11,7 +11,7 @@ export const GET = async (req: NextRequest) => {
 	const searchParams = req.nextUrl.searchParams;
 	const uid = Number(searchParams.get("uid"));
 	if (!uid) {
-		return NextResponse.json({ status: 400, body: "Invalid uid" });
+		return NextResponse.json({ error: "Invalid uid" }, { status: 400 });
 	}
 	const raw = await db.select().from(userFlow).innerJoin(flow, eq(userFlow.fkFlowId, flow.id)).leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId)).where(eq(userFlow.fkUserId, uid));
 	const flowMap = new Map<number, displayUserFlow>();

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { TicketsPlane } from 'lucide-react';
 import {
   Sidebar,
@@ -28,14 +28,18 @@ interface AppSidebarProps {
 function SidebarNav({ role }: { role: number }) {
   const pathname = usePathname();
   const { setOpenMobile, isMobile } = useSidebar();
+  const prevPathname = useRef(pathname);
 
   const authRoutes = useMemo(() => {
     return role === 0 ? menuItems.slice(0, 2) : menuItems;
   }, [role]);
 
   useEffect(() => {
-    if (isMobile) {
-      setOpenMobile(false);
+    if (prevPathname.current !== pathname) {
+      prevPathname.current = pathname;
+      if (isMobile) {
+        setOpenMobile(false);
+      }
     }
   }, [pathname, isMobile, setOpenMobile]);
 
