@@ -33,12 +33,14 @@ export const UserCard: React.FC = async () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <a href="/api/auth/logout">
-              <LogOut className="h-4 w-4 mr-2" />
-              退出登录
-            </a>
-          </DropdownMenuItem>
+          <form action="/api/auth/logout">
+            <DropdownMenuItem asChild>
+              <button type="submit">
+                <LogOut className="h-4 w-4 mr-2" />
+                退出登录
+              </button>
+            </DropdownMenuItem>
+          </form>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

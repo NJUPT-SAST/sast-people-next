@@ -3,7 +3,7 @@ import { db } from '@/db/drizzle';
 import { user } from '@/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { createSession, deleteSession } from '@/lib/session';
-import { redirect } from 'next/navigation';
+
 import { userType } from '@/types/user';
 
 export async function loginFromX(
@@ -111,5 +111,4 @@ export async function loginFromTest(formData: FormData) {
 
 export async function logout() {
   await deleteSession();
-  redirect('/login');
 }

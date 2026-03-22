@@ -1,23 +1,36 @@
 /**
  * Mock session module - replaces @/lib/session in mock mode.
  * No server-only, no cookies(), no jose dependency.
- * Uses module-level state to track the current session.
+ * Uses globalThis to persist session state across HMR reloads.
  */
 import { SESSION } from "@/const/cookie";
 
-// Module-level session state
-let currentSession: {
+type MockSession = {
   uid: number;
   name: string;
   role: number;
   expiresAt: Date;
-} | null = {
-  // Default: logged in as admin (user id=1, role=2)
-  uid: 1,
-  name: "管理员",
-  role: 2,
-  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
 };
+
+const GLOBAL_KEY = "__sast_mock_session__" as const;
+
+// Use globalThis so session state survives HMR module re-evaluation
+function getSession(): MockSession | null {
+  if (!(GLOBAL_KEY in globalThis)) {
+    // First load: default to logged-in admin
+    (globalThis as Record<string, unknown>)[GLOBAL_KEY] = {
+      uid: 1,
+      name: "管理员",
+      role: 2,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    };
+  }
+  return (globalThis as Record<string, unknown>)[GLOBAL_KEY] as MockSession | null;
+}
+
+function setSession(session: MockSession | null) {
+  (globalThis as Record<string, unknown>)[GLOBAL_KEY] = session;
+}
 
 export async function encrypt(payload: {
   role: number;
@@ -42,7 +55,7 @@ export async function decrypt(session: string | undefined = "") {
   }
 
   // In mock mode, always return the current session (even without a cookie)
-  return currentSession;
+  return getSession();
 }
 
 export async function createSession(
@@ -55,7 +68,7 @@ export async function createSession(
       ? new Date(Date.now() + 12 * 60 * 60 * 1000)
       : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-  currentSession = { uid, name, role, expiresAt };
+  setSession({ uid, name, role, expiresAt });
 
   // In mock mode, also try to set a cookie if we're in a request context
   try {
@@ -77,7 +90,7 @@ export async function createSession(
 }
 
 export async function deleteSession() {
-  currentSession = null;
+  setSession(null);
 
   try {
     const { cookies } = await import("next/headers");
@@ -91,8 +104,10 @@ export async function deleteSession() {
 }
 
 export async function updateSession() {
-  if (!currentSession) return null;
-  currentSession.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const current = getSession();
+  if (!current) return null;
+  current.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  setSession(current);
   console.log("[Mock] Session updated");
 }
 
@@ -100,17 +115,17 @@ export async function updateSession() {
  * Helper: get current mock session (used by dal-mock)
  */
 export function getCurrentMockSession() {
-  return currentSession;
+  return getSession();
 }
 
 /**
  * Helper: set mock session directly (for testing/switching users)
  */
 export function setMockSession(uid: number, name: string, role: number) {
-  currentSession = {
+  setSession({
     uid,
     name,
     role,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  };
+  });
 }
