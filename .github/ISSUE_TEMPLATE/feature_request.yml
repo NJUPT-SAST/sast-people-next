@@ -49,7 +49,6 @@ body:
       description: What area of the project does this feature relate to?
       options:
         - Web Application
-        - Desktop Application (Tauri)
         - UI Components
         - Build / Tooling
         - Documentation

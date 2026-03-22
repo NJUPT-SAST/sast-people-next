@@ -1,11 +1,8 @@
 'use client';
-// import { editExperience } from '@/action/user/userInfo';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createInsertSchema } from 'drizzle-zod';
 import { Button } from '@/components/ui/button';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { user } from '@/db/schema';
 import {
   Card,
   CardHeader,
@@ -16,10 +13,10 @@ import {
 } from '../ui/card';
 import {
   Form,
+  FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormControl,
   FormMessage,
 } from '../ui/form';
 import { Input } from '../ui/input';
@@ -27,32 +24,32 @@ import { Textarea } from '@/components/ui/textarea';
 import { userType } from '@/types/user';
 import { toast } from 'sonner';
 
-export const fullUserSchema = createInsertSchema(user, {
-  // github: z
-  //   .string()
-  //   .url()
-  //   .transform((arg) => (arg ? arg : null)),
-  // blog: z
-  //   .string()
-  //   .url()
-  //   .transform((arg) => (arg ? arg : null)),
-  // personalStatement: z.string().transform((arg) => (arg ? arg : null)),
+const experienceFieldsSchema = z.object({
+  github: z.string().trim().optional(),
+  blog: z.string().trim().optional(),
+  personalStatement: z.string().trim().optional(),
 });
-export const experienceSchema = fullUserSchema.pick({
-  // github: true,
-  // blog: true,
-  // personalStatement: true,
-});
-export const ExperienceInfo = ({ initialInfo }: { initialInfo: userType }) => {
-  const basicInfoForm = useForm<z.infer<typeof experienceSchema>>({
+
+type ExperienceFields = z.infer<typeof experienceFieldsSchema>;
+type ExperienceInfoValue = userType & Partial<ExperienceFields>;
+
+export const experienceSchema = experienceFieldsSchema;
+
+export const ExperienceInfo = ({
+  initialInfo,
+}: {
+  initialInfo: ExperienceInfoValue;
+}) => {
+  const form = useForm<ExperienceFields>({
     resolver: zodResolver(experienceSchema),
     defaultValues: {
-      ...Object.fromEntries(
-        Object.entries(initialInfo).map(([key, value]) => [key, value ?? '']),
-      ),
+      github: initialInfo.github ?? '',
+      blog: initialInfo.blog ?? '',
+      personalStatement: initialInfo.personalStatement ?? '',
     },
   });
-  const { isSubmitting } = basicInfoForm.formState;
+  const { isSubmitting } = form.formState;
+
   return (
     <Card>
       <CardHeader>
@@ -62,12 +59,11 @@ export const ExperienceInfo = ({ initialInfo }: { initialInfo: userType }) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* <Form {...basicInfoForm}>
-          <div className="space-y-2">
+        <Form {...form}>
+          <div className="space-y-4">
             <FormField
-              control={basicInfoForm.control}
+              control={form.control}
               name="github"
-              disabled={isSubmitting}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>GitHub 主页地址</FormLabel>
@@ -75,7 +71,7 @@ export const ExperienceInfo = ({ initialInfo }: { initialInfo: userType }) => {
                     <Input
                       placeholder="请填写你的GitHub主页地址"
                       {...field}
-                      value={field.value || ''}
+                      value={field.value ?? ''}
                     />
                   </FormControl>
                   <FormMessage />
@@ -83,8 +79,7 @@ export const ExperienceInfo = ({ initialInfo }: { initialInfo: userType }) => {
               )}
             />
             <FormField
-              control={basicInfoForm.control}
-              disabled={isSubmitting}
+              control={form.control}
               name="blog"
               render={({ field }) => (
                 <FormItem>
@@ -93,7 +88,7 @@ export const ExperienceInfo = ({ initialInfo }: { initialInfo: userType }) => {
                     <Input
                       placeholder="请填写你的博客地址"
                       {...field}
-                      value={field.value || ''}
+                      value={field.value ?? ''}
                     />
                   </FormControl>
                   <FormMessage />
@@ -101,8 +96,7 @@ export const ExperienceInfo = ({ initialInfo }: { initialInfo: userType }) => {
               )}
             />
             <FormField
-              control={basicInfoForm.control}
-              disabled={isSubmitting}
+              control={form.control}
               name="personalStatement"
               render={({ field }) => (
                 <FormItem>
@@ -110,9 +104,9 @@ export const ExperienceInfo = ({ initialInfo }: { initialInfo: userType }) => {
                   <FormControl>
                     <Textarea
                       placeholder="请填写你的个人介绍"
+                      className="min-h-48"
                       {...field}
-                      className="min-h-80"
-                      value={field.value || ''}
+                      value={field.value ?? ''}
                     />
                   </FormControl>
                   <FormMessage />
@@ -120,16 +114,16 @@ export const ExperienceInfo = ({ initialInfo }: { initialInfo: userType }) => {
               )}
             />
           </div>
-        </Form> */}
+        </Form>
       </CardContent>
       <CardFooter>
         <Button
-          onClick={basicInfoForm.handleSubmit(async (val) => {
-            // await editExperience(val);
+          type="button"
+          loading={isSubmitting}
+          disabled={isSubmitting}
+          onClick={form.handleSubmit(async () => {
             toast.success('个人信息保存成功');
           })}
-          disabled={isSubmitting}
-          loading={isSubmitting}
         >
           保存
         </Button>

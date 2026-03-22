@@ -132,6 +132,7 @@ const config: Config = {
   modulePathIgnorePatterns: [
     "<rootDir>/out/",
     "<rootDir>/.next/",
+    "<rootDir>/tmp/",
   ],
 
   // Activates notifications for test results
@@ -217,7 +218,7 @@ const config: Config = {
     "/node_modules/",
     "/.next/",
     "/out/",
-    "/src-tauri/",
+    "/tmp/",
   ],
 
   // The regexp pattern or array of patterns that Jest uses to detect test files

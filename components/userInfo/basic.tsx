@@ -74,7 +74,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
       </CardHeader>
       <CardContent>
         <Form {...basicInfoForm}>
-          <div className="space-y-2">
+          <div className="space-y-4">
             <FormField
               control={basicInfoForm.control}
               name="name"
@@ -190,7 +190,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
           </div>
         </Form>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex justify-end border-t pt-4">
         <Button
           onClick={basicInfoForm.handleSubmit(async () => {
             const val = basicInfoForm.getValues();

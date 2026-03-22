@@ -1,27 +1,44 @@
 import type { NextConfig } from "next";
+import path from "path";
 
-const isProd = process.env.NODE_ENV === "production";
-const isTauriBuild = !!process.env.TAURI_BUILD;
-const internalHost = process.env.TAURI_DEV_HOST || "localhost";
+const isMock = process.env.NEXT_PUBLIC_MOCK === "true";
 
 const nextConfig: NextConfig = {
-  // Web mode: standalone for Docker deployment; Tauri mode: static export for desktop builds
-  output: isTauriBuild ? "export" : "standalone",
+  output: "standalone",
   images: {
     unoptimized: true,
   },
-  // Tauri dev needs assetPrefix to resolve assets from the dev server
-  assetPrefix: isTauriBuild && !isProd ? `http://${internalHost}:3000` : undefined,
-  // Server actions only work in non-export mode
-  ...(isTauriBuild
-    ? {}
-    : {
-        experimental: {
-          serverActions: {
-            allowedOrigins: ["*.sast.fun", "127.0.0.1", "localhost"],
+  experimental: {
+    serverActions: {
+      allowedOrigins: ["*.sast.fun", "127.0.0.1", "localhost"],
+    },
+  },
+  // Mock mode: replace db, dal, session, and event modules with in-memory mocks
+  ...(isMock
+    ? {
+        // Turbopack resolve aliases (Next.js 16 default bundler)
+        turbopack: {
+          resolveAlias: {
+            "@/db/drizzle": "./mock/drizzle-mock.ts",
+            "@/lib/dal": "./mock/dal-mock.ts",
+            "@/lib/session": "./mock/session-mock.ts",
+            "@/event": "./mock/event-mock.ts",
           },
         },
-      }),
+        // Webpack resolve aliases (fallback when using --webpack flag)
+        webpack: (config) => {
+          config.resolve = config.resolve || {};
+          config.resolve.alias = {
+            ...config.resolve.alias,
+            "@/db/drizzle": path.resolve(__dirname, "mock/drizzle-mock.ts"),
+            "@/lib/dal": path.resolve(__dirname, "mock/dal-mock.ts"),
+            "@/lib/session": path.resolve(__dirname, "mock/session-mock.ts"),
+            "@/event": path.resolve(__dirname, "mock/event-mock.ts"),
+          };
+          return config;
+        },
+      }
+    : {}),
 };
 
 export default nextConfig;

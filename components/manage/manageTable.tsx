@@ -103,8 +103,8 @@ export const ManageTable = ({
         </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table className="min-w-[600px]">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -152,10 +152,10 @@ export const ManageTable = ({
         </Table>
       </div>
 
-      <div className="flex justify-between items-center">
-        <div>
-          显示 {currentPage === 1 ? currentPage : currentPage * 10} - {currentPage === 1 ? currentPage + 9 : currentPage * 10 + 9} 共{' '}
-          {users.length} 结果
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <div className="text-sm text-muted-foreground">
+          显示 {(currentPage - 1) * 10 + 1} - {Math.min(currentPage * 10, totalCount)} 共{' '}
+          {totalCount} 条结果
         </div>
         <div>
           <PaginationComponent

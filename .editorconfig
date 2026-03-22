@@ -37,11 +37,11 @@ indent_size = 2
 [*.html]
 indent_size = 2
 
-# Rust files (Tauri)
+# Rust files
 [*.rs]
 indent_size = 4
 
-# TOML files (Cargo.toml)
+# TOML files
 [*.toml]
 indent_size = 2
 

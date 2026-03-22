@@ -9,7 +9,6 @@ name: CI/CD Pipeline
 # Workflow Structure:
 # ├── quality.yml     - Code quality & security checks (ESLint, TypeScript, audit)
 # ├── test.yml        - Test suite with coverage & Next.js build
-# ├── build-tauri.yml - Tauri desktop app builds (Windows, macOS, Linux)
 # ├── deploy.yml      - Deployment workflows (optional, disabled by default)
 # └── release.yml     - GitHub release creation (triggered by version tags)
 #
@@ -42,8 +41,3 @@ jobs:
     name: Test
     uses: ./.github/workflows/test.yml
 
-  # Step 3: Build Tauri Desktop Apps (after quality & test pass)
-  build-tauri:
-    name: Build Tauri
-    needs: [quality, test]
-    uses: ./.github/workflows/build-tauri.yml

@@ -6,7 +6,6 @@
 - `components/ui/` Reusable UI components (shadcn patterns), e.g., `components/ui/button.tsx`.
 - `lib/` Shared utilities (e.g., `lib/utils.ts`).
 - `public/` Static assets (SVGs, icons).
-- `src-tauri/` Tauri desktop wrapper (Rust code, config, icons).
 - Root configs: `next.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `postcss.config.mjs`, `components.json`.
 
 ## Build, Test, and Development Commands
@@ -15,8 +14,6 @@
 - `pnpm build` — Create a production build.
 - `pnpm start` — Serve the production build.
 - `pnpm lint` — Run ESLint. Use `--fix` to auto-fix.
-- `pnpm tauri dev` — Launch desktop app (requires Rust toolchain).
-- `pnpm tauri build` — Build desktop binaries.
 
 ## Coding Style & Naming Conventions
 
@@ -44,4 +41,3 @@
 
 - Use `.env.local` for secrets; do not commit `.env*` files.
 - Only expose safe client values via `NEXT_PUBLIC_*`.
-- Tauri: minimize capabilities in `src-tauri/tauri.conf.json`; avoid broad filesystem access.

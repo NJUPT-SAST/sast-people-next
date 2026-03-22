@@ -16,6 +16,7 @@ import { useUserInfo } from "@/hooks/useUserInfo";
 import { BasicInfoServer } from "./basicInfo";
 import { ExperienceInfoServer } from "./experienceInfo";
 import { LinkLogin } from "@/components/linkLogin";
+import { Clock, Rocket } from "lucide-react";
 
 export default async function Home({
   searchParams,
@@ -28,14 +29,16 @@ export default async function Home({
   const awaitedSearchParams = await searchParams;
   return (
     <>
-      <div className="flex justify-between">
-        <div className="flex justify-center h-10 flex-col">
+      <div className="flex justify-between items-start pb-4 border-b">
+        <div className="space-y-1">
           <PageTitle />
-          <div className="text-sm text-muted-foreground">
-            上次更新时间：
-            {userInfo.updatedAt &&
-              originalDayjs(userInfo.updatedAt).format("YYYY-MM-DD HH:mm")}
-          </div>
+          {userInfo.updatedAt && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              上次更新：
+              {originalDayjs(userInfo.updatedAt).format("YYYY-MM-DD HH:mm")}
+            </div>
+          )}
         </div>
         {userInfo.phone && (
           <div className="flex items-center">
@@ -45,11 +48,9 @@ export default async function Home({
       </div>
       {userInfo.studentId === null && !awaitedSearchParams.start ? (
         userInfo.role === 0 ? (
-          <div
-            className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm"
-            x-chunk="dashboard-02-chunk-1"
-          >
-            <div className="flex flex-col items-center gap-1 text-center">
+          <div className="flex flex-1 items-center justify-center rounded-xl bg-muted/30 p-8 animate-in fade-in duration-500">
+            <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+              <Rocket className="h-12 w-12 text-muted-foreground/50" />
               <h3 className="text-2xl font-bold tracking-tight">
                 Welcome to SAST Pass
               </h3>
@@ -57,16 +58,14 @@ export default async function Home({
                 看起来是新同学呢，在报名之前介绍一下你自己吧！
               </p>
               <Link href="/dashboard?start=true">
-                <Button className="mt-4">开始编辑资料</Button>
+                <Button className="mt-2">开始编辑资料</Button>
               </Link>
             </div>
           </div>
         ) : (
-          <div
-            className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm"
-            x-chunk="dashboard-02-chunk-1"
-          >
-            <div className="flex flex-col items-center gap-1 text-center">
+          <div className="flex flex-1 items-center justify-center rounded-xl bg-muted/30 p-8 animate-in fade-in duration-500">
+            <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+              <Rocket className="h-12 w-12 text-muted-foreground/50" />
               <h3 className="text-2xl font-bold tracking-tight">
                 Welcome to SAST Pass
               </h3>
@@ -78,7 +77,7 @@ export default async function Home({
           </div>
         )
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Suspense
             fallback={
               <Card>

@@ -47,28 +47,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-
-  # Rust dependencies (Cargo) for Tauri
-  - package-ecosystem: "cargo"
-    directory: "/src-tauri"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "rust"
-    groups:
-      tauri-dependencies:
-        patterns:
-          - "tauri*"
-        update-types:
-          - "minor"
-          - "patch"
-
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"

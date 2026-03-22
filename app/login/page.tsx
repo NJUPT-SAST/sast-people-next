@@ -3,6 +3,8 @@ import { LinkLogin } from "@/components/linkLogin";
 import BlurIn from "@/components/magicui/blur-in";
 import FlickeringGrid from "@/components/magicui/flickering-grid";
 import { TestLogin } from "@/components/testLogin";
+import { Card, CardContent } from "@/components/ui/card";
+import { TicketsPlane } from "lucide-react";
 import Image from "next/image";
 
 const Login = async () => {
@@ -13,7 +15,7 @@ const Login = async () => {
           <div className="absolute top-5 left-5">
             <Image
               src="/images/white-logo.png"
-              alt="123123"
+              alt="SAST Logo"
               width={100}
               height={50}
             />
@@ -37,13 +39,22 @@ const Login = async () => {
             </div>
           </div>
         </div>
-        <div className="h-full flex justify-center items-center flex-col gap-8 col-span-1">
-          <div className="flex gap-2 flex-col items-center">
-            <div className="text-2xl font-semibold">登录到 SAST Pass</div>
-            <div className="text-sm text-gray-500">开启你的科协之旅</div>
-          </div>
-          <LinkLogin isBinding={false} />
-          {process.env.NODE_ENV === "development" && <TestLogin />}
+        <div className="h-full flex justify-center items-center flex-col gap-8 col-span-1 px-6">
+          <Card className="w-full max-w-sm border-0 shadow-none lg:border lg:shadow-sm">
+            <CardContent className="flex flex-col items-center gap-8 pt-6">
+              <div className="flex items-center gap-2 lg:hidden text-primary">
+                <TicketsPlane className="h-8 w-8" />
+              </div>
+              <div className="flex gap-2 flex-col items-center">
+                <div className="text-2xl font-semibold">登录到 SAST Pass</div>
+                <div className="text-sm text-muted-foreground">
+                  开启你的科协之旅
+                </div>
+              </div>
+              <LinkLogin isBinding={false} />
+              {process.env.NODE_ENV === "development" && <TestLogin />}
+            </CardContent>
+          </Card>
         </div>
       </div>
       <FeishuRedirect />
