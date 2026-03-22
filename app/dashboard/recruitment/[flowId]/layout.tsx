@@ -1,5 +1,5 @@
 import { SelectFlow } from "@/components/recruitment/selectFlow";
-import { useFlowList } from "@/hooks/useFlowList";
+import { useFlowList as getFlowList } from "@/hooks/useFlowList";
 import React from "react";
 
 const RegisteredPersonTableLayout = async ({
@@ -12,7 +12,7 @@ const RegisteredPersonTableLayout = async ({
   }>;
 }) => {
   const { flowId } = await params;
-  const flowTypes = await useFlowList();
+  const flowTypes = await getFlowList();
   return (
     <>
       <div className="flex items-center justify-between">

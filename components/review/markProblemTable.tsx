@@ -2,7 +2,7 @@
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Label } from '../ui/label';
 import { RefreshCw, Save } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -20,25 +20,19 @@ export const MarkProblemTable = ({
 }) => {
   const studentId = useSearchParams().get('user');
 
-  const [problemPoints, setProblemPoints] =
-    useState<Array<InferSelectModel<typeof userPoint>>>(points);
+  const [editedScores, setEditedScores] = useState<Record<number, number>>({});
   const problems = useLocalProblemList();
-
-  useEffect(() => {
-    const newProblemPoints: Array<InferSelectModel<typeof userPoint>> = [];
-    problems.forEach((e) => {
-      const index = points.findIndex((p) => p.fkProblemId === e.id);
-      newProblemPoints.push({
-        id: 0,
+  const problemPoints = useMemo<Array<InferSelectModel<typeof userPoint>>>(() => {
+    return problems.map((problem) => {
+      const existed = points.find((p) => p.fkProblemId === problem.id);
+      return {
+        id: existed?.id ?? 0,
         fkUserFlowId: userFlowId,
-        fkProblemId: e.id,
-        points: index === -1 ? 0 : points[index].points,
-      });
+        fkProblemId: problem.id,
+        points: editedScores[problem.id] ?? existed?.points ?? 0,
+      };
     });
-    if (newProblemPoints.length > 0) {
-      setProblemPoints(newProblemPoints);
-    }
-  }, [problems, points, userFlowId]);
+  }, [editedScores, points, problems, userFlowId]);
 
   // If no problems selected, show message
   if (problems.length === 0) {
@@ -147,9 +141,10 @@ export const MarkProblemTable = ({
                       min={0}
                       value={problemPoint.points}
                       onChange={(e) => {
-                        const newProblemPoints = [...problemPoints];
-                        newProblemPoints[index].points = Number(e.target.value);
-                        setProblemPoints(newProblemPoints);
+                        setEditedScores((prev) => ({
+                          ...prev,
+                          [problems[index].id]: Number(e.target.value),
+                        }));
                       }}
                     />
                   </div>

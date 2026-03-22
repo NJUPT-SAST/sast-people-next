@@ -4,7 +4,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { EditProblemsServer } from "./editProblems";
-import useFlowInfo from "@/hooks/useFlowInfo";
+import getFlowInfo from "@/hooks/useFlowInfo";
 
 export default async function EditExamPage({
   searchParams,
@@ -12,7 +12,7 @@ export default async function EditExamPage({
   searchParams: Promise<{ id: string }>;
 }) {
   const awaitedSearchParams = await searchParams;
-  const flowInfo = await useFlowInfo(Number(awaitedSearchParams.id));
+  const flowInfo = await getFlowInfo(Number(awaitedSearchParams.id));
   return (
     <>
       <div className="flex items-center justify-between">

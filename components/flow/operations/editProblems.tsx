@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Copy, PlusIcon, Save, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,10 +49,15 @@ const EditProblems = ({
   const [localProblems, setLocalProblems] = useState<Problem[]>(problems);
   const [currentStep, setCurrentStep] = useState(currentStepId);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const tempIdRef = useRef(-1);
+  const nextTempId = () => {
+    tempIdRef.current -= 1;
+    return tempIdRef.current;
+  };
 
   const addProblem = () => {
     const newProblem: Problem = {
-      id: -Date.now(), // 使用负数作为临时ID
+      id: nextTempId(), // 使用负数作为临时ID
       title: "新题目",
       score: 0,
       fkFlowStepId: currentStep,
@@ -70,7 +75,7 @@ const EditProblems = ({
     const problem = localProblems[index];
     const newProblem: Problem = {
       ...problem,
-      id: -Date.now(), // 使用负数作为临时ID
+      id: nextTempId(), // 使用负数作为临时ID
       title: problem.title.replace(/\d+/, (match) => String(Number(match) + 1)),
     };
     setLocalProblems((prev) => [

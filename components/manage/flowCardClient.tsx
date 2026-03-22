@@ -63,7 +63,7 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
 
   const currentStepIndex = useMemo(() => {
     return flowSteps.findIndex((step) => step.order === flow.currentStepOrder);
-  }, [rawFlowSteps, flow.currentStepOrder]);
+  }, [flowSteps, flow.currentStepOrder]);
 
   const isLastStep = useMemo(() => {
     return currentStepIndex === flow.steps.length - 1;

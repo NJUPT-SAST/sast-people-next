@@ -17,7 +17,7 @@ import { fullFlowSchema } from '@/components/flow/add';
 import { fullStepType } from '@/types/step';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Copy, Navigation, Plus, Trash2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import z from 'zod';
@@ -45,13 +45,11 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
   const { isSubmitting } = editFlowForm.formState;
   const [openEdit, setOpenEdit] = useState(false);
   const { data: stepsData } = useFlowStepsInfoClient(data.id);
-  const [stepList, setStepList] = useState<fullStepType[]>([]);
-
-  useEffect(() => {
-    if (stepsData) {
-      setStepList(stepsData);
-    }
-  }, [stepsData]);
+  const [localStepList, setLocalStepList] = useState<fullStepType[] | null>(null);
+  const stepList = localStepList ?? stepsData ?? [];
+  const updateStepList = (updater: (prev: fullStepType[]) => fullStepType[]) => {
+    setLocalStepList((prev) => updater(prev ?? stepsData ?? []));
+  };
 
   return (
     <Sheet open={openEdit} onOpenChange={setOpenEdit}>
@@ -158,7 +156,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  setStepList((prev) => [
+                  updateStepList((prev) => [
                     ...prev,
                     {
                       title: '',
@@ -194,11 +192,11 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                     <Select
                       value={step.type}
                       onValueChange={(value) => {
-                        setStepList((prev) => [
+                        updateStepList((prev) => [
                           ...prev.slice(0, index),
                           {
                             ...prev[index],
-                            type: value as any,
+                            type: value as fullStepType["type"],
                           },
                           ...prev.slice(index + 1),
                         ]);
@@ -224,7 +222,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                       className="w-full"
                       defaultValue={step.title}
                       onChange={(e) => {
-                        setStepList((prev) => [
+                        updateStepList((prev) => [
                           ...prev.slice(0, index),
                           {
                             ...prev[index],
@@ -243,7 +241,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                       className="w-full"
                       defaultValue={step.description || ''}
                       onChange={(e) => {
-                        setStepList((prev) => [
+                        updateStepList((prev) => [
                           ...prev.slice(0, index),
                           {
                             ...prev[index],
@@ -280,7 +278,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                       className="m-0"
                       onClick={() => {
                         // duplicate the step
-                        setStepList((prev) => [
+                        updateStepList((prev) => [
                           ...prev.slice(0, index + 1),
                           {
                             ...prev[index],
@@ -297,7 +295,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                       variant="ghost"
                       className="m-0"
                       onClick={() => {
-                        setStepList((prev) => prev.filter((_, i) => i !== index));
+                        updateStepList((prev) => prev.filter((_, i) => i !== index));
                       }}
                     >
                       <Trash2 size={18} />
@@ -316,7 +314,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                 const values = editFlowForm.getValues();
                 const typedStepList = stepList.map(step => ({
                   ...step,
-                  type: step.type as any
+                  type: step.type as fullStepType["type"]
                 })) as fullStepType[];
                 console.debug(typedStepList);
                 toast.promise(

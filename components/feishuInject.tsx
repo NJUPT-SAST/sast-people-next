@@ -5,41 +5,76 @@ import Script from 'next/script';
 import React, { useEffect } from 'react';
 import { toast } from 'sonner';
 
+type FeishuSdkConfig = {
+  appId: string;
+  timestamp: number;
+  nonceStr: string;
+  signature: string;
+  onSuccess: (res: unknown) => void;
+  onFail: (err: unknown) => void;
+};
+
+type FeishuSdk = {
+  config: (config: FeishuSdkConfig) => void;
+  ready: (cb: () => void) => void;
+};
+
+type TTRequestAccessResult = {
+  code?: string;
+};
+
+type TTBridge = {
+  requestAccess: (options: {
+    appID: string;
+    scopeList: string[];
+    success: (res: TTRequestAccessResult) => void;
+    fail: (error: unknown) => void;
+  }) => void;
+};
+
+type WindowWithFeishu = Window & {
+  h5sdk?: FeishuSdk;
+  tt?: TTBridge;
+};
+
 export const FeishuSDKInject: React.FC = () => {
   const route = useRouter();
   useEffect(() => {
     try {
-      if ((window as any).h5sdk) {
+      const win = window as WindowWithFeishu;
+      if (win.h5sdk) {
         console.log('[环境]: 飞书浏览器');
         const url = window.location.href;
         axios.get(`/api/auth?url=${url}`).then((res) => {
           console.log(res);
           const { appid, timestamp, nonceStr, signature } = res.data;
-          (window as any).h5sdk.config({
+          win.h5sdk?.config({
             appId: appid,
             timestamp,
             nonceStr,
             signature,
-            onSuccess: (res: any) => {
+            onSuccess: (res: unknown) => {
               console.log(`config success: ${JSON.stringify(res)}`);
             },
             //鉴权失败回调
-            onFail: (err: any) => {
+            onFail: (err: unknown) => {
               throw `config failed: ${JSON.stringify(err)}`;
             },
           });
         });
-        (window as any).h5sdk.ready(() => {
+        win.h5sdk.ready(() => {
           console.log('h5sdk is ready');
-          (window as any).tt.requestAccess({
+          win.tt?.requestAccess({
             appID: 'cli_a640b772ca38500e',
             scopeList: [],
-            success: (res: any) => {
+            success: (res: TTRequestAccessResult) => {
               const { code } = res;
               console.log(`requestAccess success: `, res);
-              route.replace(`/api/auth/feishu?code=${code}`);
+              if (code) {
+                route.replace(`/api/auth/feishu?code=${code}`);
+              }
             },
-            fail: (error: any) => {
+            fail: (error: unknown) => {
               console.error(`requestAccess failed: `, error);
             },
           });
@@ -65,7 +100,8 @@ export const FeishuRedirect = () => {
   const router = useRouter();
 
   useEffect(() => {
-    if ((window as any).h5sdk) {
+    const win = window as WindowWithFeishu;
+    if (win.h5sdk) {
       console.log('[环境]: 飞书浏览器');
       router.replace('/login/feishu');
     }

@@ -1,11 +1,11 @@
 import { EditProblems } from "@/components/flow/operations/editProblems";
-import { useStepWithProblem } from "@/hooks/useStepWithProblem";
-import { useProblems } from "@/hooks/useProblemList";
+import { useStepWithProblem as getStepWithProblem } from "@/hooks/useStepWithProblem";
+import { useProblems as getProblems } from "@/hooks/useProblemList";
 
 export const EditProblemsServer = async ({ id }: { id: string }) => {
-  const { stepList, stepWithProblemId } = await useStepWithProblem(Number(id));
+  const { stepList, stepWithProblemId } = await getStepWithProblem(Number(id));
   const problems = stepWithProblemId
-    ? await useProblems(stepWithProblemId)
+    ? await getProblems(stepWithProblemId)
     : [];
   return (
     <>

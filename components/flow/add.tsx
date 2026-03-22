@@ -82,7 +82,7 @@ export const AddFlow = () => {
         <DialogHeader>
           <DialogTitle>添加流程</DialogTitle>
           <DialogDescription>
-            添加新的流程类型，比如"2023 校科协软研招新笔试"
+            添加新的流程类型，比如&quot;2023 校科协软研招新笔试&quot;
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">

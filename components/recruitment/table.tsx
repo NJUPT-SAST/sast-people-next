@@ -31,6 +31,11 @@ interface DataTableProps<TData, TValue> {
   flowTypeId: number;
 }
 
+type RecruitmentRowLike = {
+  uid: number;
+  stepId: number;
+};
+
 export function DataTable<TData, TValue>({
   columns,
   data,
@@ -38,6 +43,8 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const toRecruitmentRow = (row: { original: unknown }): RecruitmentRowLike =>
+    row.original as RecruitmentRowLike;
   const table = useReactTable({
     data,
     columns,
@@ -75,27 +82,27 @@ export function DataTable<TData, TValue>({
             toast.promise(
               Promise.all([
                 batchSendEmail(
-                  selectedRows.map((row) => (row.original as any).uid),
+                  selectedRows.map((row) => toRecruitmentRow(row).uid),
                   flowTypeId,
                   true,
                 ).then(async () => {
                   await batchEndByUid(
                     flowTypeId,
-                    (selectedRows[0].original as any).stepId,
+                    toRecruitmentRow(selectedRows[0]).stepId,
                     'accepted',
-                    selectedRows.map((row) => (row.original as any).uid),
+                    selectedRows.map((row) => toRecruitmentRow(row).uid),
                   );
                 }),
                 batchSendEmail(
-                  notSelectedRows.map((row) => (row.original as any).uid),
+                  notSelectedRows.map((row) => toRecruitmentRow(row).uid),
                   flowTypeId,
                   false,
                 ).then(async () => {
                   batchEndByUid(
                     flowTypeId,
-                    (notSelectedRows[0].original as any).stepId,
+                    toRecruitmentRow(notSelectedRows[0]).stepId,
                     'rejected',
-                    notSelectedRows.map((row) => (row.original as any).uid),
+                    notSelectedRows.map((row) => toRecruitmentRow(row).uid),
                   );
                 }),
               ]),

@@ -1,6 +1,6 @@
 "use client";
 import { MarkProblemTable } from "@/components/review/markProblemTable";
-import { useUserPointList } from "@/hooks/useUserPointList";
+import { useUserPointList as getUserPointList } from "@/hooks/useUserPointList";
 import { useLocalFlowId } from "@/hooks/useLocalFlowId";
 import { useState, useEffect } from "react";
 import { userPoint } from "@/db/schema";
@@ -25,7 +25,7 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
     const fetchPoints = async () => {
       if (userFlowId && userFlowId > 0) {
         setLoading(true);
-        const data = await useUserPointList(userFlowId);
+        const data = await getUserPointList(userFlowId);
         setPoints(data);
         setLoading(false);
       }

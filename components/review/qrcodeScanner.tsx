@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '../ui/select';
 import { Camera, Pause } from 'lucide-react';
-import { useUserInfoById } from '@/hooks/useUserInfoById';
+import { useUserInfoById as getUserInfoById } from '@/hooks/useUserInfoById';
 import { toast } from 'sonner';
 import { userType } from '@/types/user';
 
@@ -60,7 +60,7 @@ const QRCodeScanner = () => {
     uid,
     time: number,
   }: { uid: number; time: number }) => {
-    const userInfo = await useUserInfoById(uid).catch(() => {
+    const userInfo = await getUserInfoById(uid).catch(() => {
       toast.error('未找到该学生');
       return null;
     });

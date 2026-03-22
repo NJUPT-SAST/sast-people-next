@@ -1,5 +1,5 @@
 import { ManageTable } from "@/components/manage/manageTable";
-import { useUserList } from "@/hooks/useUserList";
+import { useUserList as getUserList } from "@/hooks/useUserList";
 
 export const ManageTableServer = async (props: {
   page?: string;
@@ -10,7 +10,7 @@ export const ManageTableServer = async (props: {
   const pageSize = Number(props.pageSize) || 10;
   const search = props.search || "";
 
-  const { users, totalCount, totalPages } = await useUserList({
+  const { users, totalCount, totalPages } = await getUserList({
     page,
     pageSize,
     search,

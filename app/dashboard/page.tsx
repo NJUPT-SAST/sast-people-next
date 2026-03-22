@@ -12,7 +12,7 @@ import { ShowQrCode } from "@/components/userInfo/showQrCode";
 import originalDayjs from "@/lib/dayjs";
 import Link from "next/link";
 import { Suspense } from "react";
-import { useUserInfo } from "@/hooks/useUserInfo";
+import { useUserInfo as getUserInfo } from "@/hooks/useUserInfo";
 import { BasicInfoServer } from "./basicInfo";
 import { ExperienceInfoServer } from "./experienceInfo";
 import { LinkLogin } from "@/components/linkLogin";
@@ -25,7 +25,7 @@ export default async function Home({
     start: string;
   }>;
 }) {
-  const userInfo = await useUserInfo();
+  const userInfo = await getUserInfo();
   const awaitedSearchParams = await searchParams;
   return (
     <>

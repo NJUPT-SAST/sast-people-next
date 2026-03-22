@@ -65,7 +65,7 @@ export const OfferEmail = ({ name, flowName, accept }: OfferEmailProps) => {
                   <Link href="https://www.feishu.cn/hc/zh-CN/articles/360045688853-%E6%B3%A8%E5%86%8C%E8%B4%A6%E5%8F%B7" style={anchor}>
                     注册说明
                   </Link>
-                  ）并加入"SAST.2025 软多Family"飞书群，和学长及其他新成员一起交流
+                  ）并加入“SAST.2025 软多Family”飞书群，和学长及其他新成员一起交流
                 </Text>
                 <Button
                   style={button}
@@ -101,7 +101,7 @@ export const OfferEmail = ({ name, flowName, accept }: OfferEmailProps) => {
                   我们对每一位参与者都进行了慎重和综合的评估。经过艰难的抉择，我们很遗憾地通知你，本次未能通过我们的考核。我们深知这个结果可能会让你感到失望，但这绝非对你个人能力的否定，你的才华依然闪耀。
                 </Text>
                 <Text style={text}>
-                  我们希望这次经历不会影响你对技术的热爱，并诚挚地邀请你继续参加我们接下来的授课活动。此外，我们的"寒假大作战"活动也依然向你开放，这是你再次展示自己能力并加入我们的另一个机会。
+                  我们希望这次经历不会影响你对技术的热爱，并诚挚地邀请你继续参加我们接下来的授课活动。此外，我们的“寒假大作战”活动也依然向你开放，这是你再次展示自己能力并加入我们的另一个机会。
                 </Text>
                 <Text style={text}>
                   希望你能继续保持这份对技术的热忱，不断精进，再接再厉。我们期待在未来的活动中再次看到你的身影！

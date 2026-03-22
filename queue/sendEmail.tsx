@@ -35,7 +35,7 @@ export const email = async (
   const email = await render(
     <OfferEmail name={name} flowName={flowName} accept={accept} />,
   );
-  let mailOptions = {
+  const mailOptions = {
     from: '"SAST R&D Center" <recruitment@sast.fun>',
     to: emailAddress,
     subject: `SAST 2024 招新结果`,

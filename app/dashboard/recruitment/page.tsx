@@ -1,9 +1,9 @@
 import { SelectFlow } from "@/components/recruitment/selectFlow";
 import { PageTitle } from "@/components/route";
-import { useFlowList } from "@/hooks/useFlowList";
+import { useFlowList as getFlowList } from "@/hooks/useFlowList";
 
 const Recruitment = async () => {
-  const flowTypes = await useFlowList();
+  const flowTypes = await getFlowList();
 
   return (
     <>

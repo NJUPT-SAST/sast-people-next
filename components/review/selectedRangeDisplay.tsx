@@ -4,28 +4,24 @@ import { selectProbSchema, selectProbType } from '@/types/problem';
 import { Badge } from '@/components/ui/badge';
 
 export const SelectedRangeDisplay = () => {
-  const [selectedRange, setSelectedRange] = useState<selectProbType | null>(null);
-
-  const loadSelectedRange = () => {
+  const readSelectedRange = (): selectProbType | null => {
     const selectedProbs = localStorage.getItem('people_selectedProbs');
     if (!selectedProbs) {
-      setSelectedRange(null);
-      return;
+      return null;
     }
     const res = selectProbSchema.safeParse(JSON.parse(selectedProbs));
     if (res.success) {
-      setSelectedRange(res.data);
-    } else {
-      setSelectedRange(null);
+      return res.data;
     }
+    return null;
   };
+  const [selectedRange, setSelectedRange] = useState<selectProbType | null>(
+    () => (typeof window === 'undefined' ? null : readSelectedRange()),
+  );
 
   useEffect(() => {
-    loadSelectedRange();
-
-    // Listen for custom event when review range is updated
     const handleRangeUpdate = () => {
-      loadSelectedRange();
+      setSelectedRange(readSelectedRange());
     };
 
     window.addEventListener('reviewRangeUpdated', handleRangeUpdate);

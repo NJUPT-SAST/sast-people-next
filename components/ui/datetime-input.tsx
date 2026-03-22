@@ -59,18 +59,6 @@ const segmentConfigs = [
   },
 ];
 
-const mergeRefs = (...refs: any) => {
-  return (node: any) => {
-    for (const ref of refs) {
-      if (typeof ref === 'function') {
-        ref(node);
-      } else if (ref) {
-        ref.current = node;
-      }
-    }
-  };
-};
-
 function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
   const { format: formatProp, value: _value, timezone, ...rest } = options;
   const value = useMemo(() => _value ? new Date(_value) : undefined, [_value, timezone]);
@@ -144,8 +132,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         setCurrentSegment(segment);
         setSelection(inputRef, segment);
       }
-    },
-    [segments]
+    }
   );
 
   const onSegmentChange = useEventCallback(
@@ -160,8 +147,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         setCurrentSegment(segment);
         setSelection(inputRef, segment);
       }
-    },
-    [segments, curSegment]
+    }
   );
 
   const onSegmentNumberValueChange = useEventCallback(
@@ -203,8 +189,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         }
       }
       shouldNext ? onSegmentChange('right') : setSelection(inputRef, segment);
-    },
-    [segments, curSegment]
+    }
   );
 
   const onSegmentPeriodValueChange = useEventCallback(
@@ -226,8 +211,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         segment = updatedSegments.find((s) => s.index === segment.index)!;
       }
       setSelection(inputRef, segment);
-    },
-    [segments, curSegment]
+    }
   );
 
   const onSegmentValueRemove = useEventCallback(() => {
@@ -240,7 +224,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
     } else {
       onSegmentChange('left');
     }
-  }, [segments, curSegment]);
+  });
 
   const onKeyDown = useEventCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     const key = event.key;
@@ -271,7 +255,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         event.preventDefault();
         break;
     }
-  }, []);
+  });
 
   const [isFocused, setIsFocused] = useState(false);
   return (
@@ -290,7 +274,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         </Button>
       )}
       <input
-        ref={mergeRefs(inputRef)}
+        ref={inputRef}
         className="font-mono flex-grow min-w-0 bg-transparent py-1 pe-2 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
@@ -336,7 +320,7 @@ interface Segment {
 }
 function parseFormat(formatStr: string, value?: Date) {
   const views: Segment[] = [];
-  let lastPattern: any = '';
+  let lastPattern: SegmentType | null = null;
   let symbols = '';
   let patternIndex = 0;
   let index = 0;
@@ -344,14 +328,15 @@ function parseFormat(formatStr: string, value?: Date) {
     const pattern = segmentConfigs.find((p) => p.symbols.includes(c))!;
     if (!pattern) continue;
     if (pattern.type !== lastPattern) {
-      symbols &&
+      if (symbols && lastPattern) {
         views.push({
           type: lastPattern,
           symbols,
           index: patternIndex,
           value: value ? format(value, symbols) : '',
         });
-      lastPattern = pattern?.type || '';
+      }
+      lastPattern = pattern.type;
       symbols = c;
       patternIndex = index;
     } else {
@@ -359,13 +344,14 @@ function parseFormat(formatStr: string, value?: Date) {
     }
     index++;
   }
-  symbols &&
+  if (symbols && lastPattern) {
     views.push({
       type: lastPattern,
       symbols,
       index: patternIndex,
       value: value ? format(value, symbols) : '',
     });
+  }
   return views;
 }
 
@@ -393,14 +379,16 @@ function safeSetSelection(element: HTMLInputElement, selectionStart: number, sel
     }
   });
 }
-export function useEventCallback<T extends Function>(fn: T, deps: any[]) {
+export function useEventCallback<TArgs extends unknown[], TResult>(
+  fn: (...args: TArgs) => TResult
+) {
   const ref = useRef(fn);
   useIsomorphicLayoutEffect(() => {
     ref.current = fn;
   });
-  return useCallback((...args: any[]) => {
-    return ref.current?.(...args);
-  }, deps);
+  return useCallback((...args: TArgs): TResult => {
+    return ref.current(...args);
+  }, []);
 }
 
 export const useIsomorphicLayoutEffect = typeof document !== 'undefined' ? useLayoutEffect : useEffect;

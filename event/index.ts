@@ -1,8 +1,8 @@
 import 'server-only';
 import offer from './offer';
 
-type EventManager = () => {
-  [key: string]: (...args: any[]) => Promise<unknown>;
+type EventManager = {
+  offer: (userFlowId: number, accept: boolean) => Promise<void>;
 };
 
 
@@ -11,7 +11,7 @@ type EventManager = () => {
  *
  * @returns An object containing the event methods.
  */
-const eventManager: EventManager = () => {
+const eventManager = (): EventManager => {
   return {
     offer,
   };

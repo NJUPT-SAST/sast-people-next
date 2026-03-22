@@ -54,6 +54,14 @@ function Button({
     loading?: boolean
   }) {
   const Comp = asChild ? Slot.Root : "button"
+  const content = loading ? (
+    <>
+      <Loader2 className="animate-spin" />
+      {children}
+    </>
+  ) : (
+    children
+  )
 
   return (
     <Comp
@@ -64,8 +72,7 @@ function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     >
-      {loading && <Loader2 className="animate-spin" />}
-      {children}
+      {content}
     </Comp>
   )
 }

@@ -7,6 +7,8 @@ import { fullStepType } from "@/types/step";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+type FlowStepTypeValue = typeof flowStep.$inferInsert.type;
+
 export const updateFlowStep = async (
   id: number,
   stepList: fullStepType[]
@@ -20,7 +22,7 @@ export const updateFlowStep = async (
       stepList.map((step) => ({
         title: step.title,
         description: step.description,
-        type: step.type as any,
+        type: step.type as FlowStepTypeValue,
         order: step.order,
         fkFlowId: id,
         createdAt: new Date(),

@@ -23,17 +23,25 @@ export async function getAccessToken() {
       app_secret: process.env.APP_SECRET as string,
     },
   });
-  return (res as any).tenant_access_token;
+  const token = (res as { tenant_access_token?: string }).tenant_access_token;
+  if (!token) {
+    throw new Error('get tenant access token failed');
+  }
+  return token;
 }
 
 export async function getAppAccessToken() {
-  let data = await client.auth.appAccessToken.internal({
+  const data = await client.auth.appAccessToken.internal({
     data: {
       app_id: appId,
       app_secret: appSecret,
     },
   });
-  return (data as any).app_access_token;
+  const token = (data as { app_access_token?: string }).app_access_token;
+  if (!token) {
+    throw new Error('get app access token failed');
+  }
+  return token;
 }
 
 export async function getJsapiTicket() {
@@ -50,10 +58,14 @@ export async function getJsapiTicket() {
       },
     },
   );
-  jsapiTicketCache.ticket = (res as any).data.data.ticket;
+  const ticket = res.data?.data?.ticket;
+  if (!ticket) {
+    throw new Error('get jsapi ticket failed');
+  }
+  jsapiTicketCache.ticket = ticket;
   console.log('js api ticket refreshed: ', jsapiTicketCache.ticket);
   jsapiTicketCache.expireTime = Date.now() + 7200;
-  return (res as any).data.data.ticket;
+  return ticket;
 }
 
 export async function getSignature(url: string) {
@@ -84,37 +96,29 @@ export const get_user_access_token = cache(
     avatar: string;
     open_id: string;
     union_id: string;
-    user_access_token: string;
+      user_access_token: string;
   }> => {
-    let data;
-    let appAccessToken = await getAppAccessToken();
-    await axios
-      .post(
-        'https://open.feishu.cn/open-apis/authen/v1/access_token',
-        {
-          grant_type: 'authorization_code',
-          code,
+    const appAccessToken = await getAppAccessToken();
+    const res = await axios.post(
+      'https://open.feishu.cn/open-apis/authen/v1/access_token',
+      {
+        grant_type: 'authorization_code',
+        code,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${appAccessToken}`,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${appAccessToken}`,
-          },
-        },
-      )
-      .then((res) => {
-        // console.log(res.data)
-        data = {
-          name: res.data?.data?.name,
-          avatar: res.data?.data?.avatar_url,
-          open_id: res.data?.data?.open_id,
-          union_id: res.data?.data?.union_id,
-          user_access_token: res.data?.data?.access_token,
-        };
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-    if (!data) {
+      },
+    );
+    const data = {
+      name: res.data?.data?.name,
+      avatar: res.data?.data?.avatar_url,
+      open_id: res.data?.data?.open_id,
+      union_id: res.data?.data?.union_id,
+      user_access_token: res.data?.data?.access_token,
+    };
+    if (!data.user_access_token || !data.open_id || !data.union_id) {
       throw new Error('get user access token failed');
     }
     console.log(data);

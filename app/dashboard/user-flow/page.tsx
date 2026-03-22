@@ -1,14 +1,14 @@
 import { PageTitle } from "@/components/route";
 import SubmitRegister from "@/components/userFlow/submitRegister";
 import React, { Suspense } from "react";
-import { useFlowList } from "@/hooks/useFlowList";
+import { useFlowList as getFlowList } from "@/hooks/useFlowList";
 import { verifySession } from "@/lib/dal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FlowList } from "./flowList";
 
 const Flows = async () => {
   const { uid } = await verifySession();
-  const allFlowList = await useFlowList();
+  const allFlowList = await getFlowList();
   return (
     <>
       <div className="flex items-center justify-between">

@@ -1,7 +1,7 @@
 import { FlowTable, FlowTableColumns } from "@/components/flow/table";
-import { useFlowList } from "@/hooks/useFlowList";
+import { useFlowList as getFlowList } from "@/hooks/useFlowList";
 
 export const FlowTableServer = async () => {
-  const data = await useFlowList();
+  const data = await getFlowList();
   return <FlowTable columns={FlowTableColumns} data={data} />;
 };

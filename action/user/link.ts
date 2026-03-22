@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import crypto from "node:crypto";
 
 export async function redirectSASTLink(isBinding: boolean) {
-  const code_challenge = await useCodeChallenge(isBinding);
+  const code_challenge = await createCodeChallenge(isBinding);
   const redirect_uri = await getCurrentRedirectUri();
   const url = `https://link.sast.fun/auth?client_id=${
     process.env.LINK_CLIENT_ID
@@ -67,7 +67,7 @@ function sha256(buffer: Buffer | string) {
   return crypto.createHash("sha256").update(buffer).digest();
 }
 
-export async function useCodeChallenge(isBinding: boolean) {
+export async function createCodeChallenge(isBinding: boolean) {
   const code_verifier = base64URLEncode(crypto.randomBytes(32));
   const cookieStore = await cookies();
   const code_challenge = base64URLEncode(sha256(code_verifier));

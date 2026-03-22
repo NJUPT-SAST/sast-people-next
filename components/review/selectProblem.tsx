@@ -8,12 +8,12 @@ import {
 } from '@/components/ui/select';
 import { useEffect, useState } from 'react';
 import ProbCheckBox from './probCheckBox';
-import { useProblems } from '@/hooks/useProblemList';
+import { useProblems as getProblems } from '@/hooks/useProblemList';
 import { displayProblemType, selectProbSchema, selectProbType } from '@/types/problem';
 import { displayUserFlow } from '@/types/userflow';
 import { toast } from 'sonner';
 import { useLocalProblemList } from '@/hooks/useLocalProblemList';
-import { useStepWithProblem } from '@/hooks/useStepWithProblem';
+import { useStepWithProblem as getStepWithProblem } from '@/hooks/useStepWithProblem';
 
 const SelectProblem = ({
   flowList,
@@ -34,12 +34,12 @@ const SelectProblem = ({
 
   const handleSelectChange = async (flowId: string) => {
     setSelectedFlow(flowId);
-    const flowSteps = await useStepWithProblem(parseInt(flowId));
+    const flowSteps = await getStepWithProblem(parseInt(flowId));
     if (!flowSteps) {
       return;
     }
     setStepId(flowSteps.stepWithProblemId || 0);
-    const probList = await useProblems(flowSteps.stepWithProblemId || 0);
+    const probList = await getProblems(flowSteps.stepWithProblemId || 0);
     setProbList(probList);
     setSelectedProbs([]);
   };

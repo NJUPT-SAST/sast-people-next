@@ -5,18 +5,19 @@ import React from "react";
 
 export const RenderTable = async ({ flowId }: { flowId: string }) => {
   const data = await calScore(parseInt(flowId));
+  const averageScore =
+    data.length === 0
+      ? 0
+      : data.reduce(
+          (acc, cur) => acc + parseInt(cur.totalScore ?? "0", 10),
+          0,
+        ) / data.length;
   console.log(data);
   return (
     <>
       <p className="text-muted-foreground">
         总人数：{data.length} &nbsp; 平均分：
-        {(
-          data.reduce(
-            (acc: number, cur: any) =>
-              acc + parseInt(cur.totalScore as unknown as string, 10),
-            0,
-          ) / data.length
-        ).toFixed(2)}
+        {averageScore.toFixed(2)}
       </p>
       <DataTable
         columns={columns}

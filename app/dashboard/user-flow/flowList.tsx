@@ -6,12 +6,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMyFlowList } from "@/hooks/useMyFlowList";
+import { useMyFlowList as getMyFlowList } from "@/hooks/useMyFlowList";
 import { Suspense } from "react";
 import { Workflow } from "lucide-react";
 
 export const FlowList = async () => {
-  const myFlowList = await useMyFlowList();
+  const myFlowList = await getMyFlowList();
 
   if (myFlowList.length === 0) {
     return (
