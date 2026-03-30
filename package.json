@@ -33,7 +33,7 @@
     "drizzle-orm": "^0.33.0",
     "drizzle-zod": "^0.5.1",
     "framer-motion": "^12.38.0",
-    "inngest": "^3.52.7",
+    "inngest": "^4.1.0",
     "jose": "^6.2.2",
     "lucide-react": "^0.577.0",
     "next": "16.1.7",
