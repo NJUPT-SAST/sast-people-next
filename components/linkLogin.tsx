@@ -7,7 +7,7 @@ import { redirectSASTLink } from '@/action/user/link';
 export const LinkLogin = ({ isBinding }: { isBinding: boolean }) => {
   return (
     <Button
-      className="py-7 px-16 text-base text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
+      className="py-6 px-12 text-base text-white bg-[#18A058] hover:bg-[#158f4e] rounded-xl shadow-md shadow-[#18A058]/20 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-[#18A058]/30 active:scale-[0.98]"
       onClick={async () => redirectSASTLink(isBinding)}
     >
       <Image

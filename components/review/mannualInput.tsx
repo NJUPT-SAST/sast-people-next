@@ -64,17 +64,18 @@ export const MannualInput = () => {
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-dashed bg-muted/20 p-4">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium">手动输入考生学号</p>
-        <p className="text-xs text-muted-foreground">
-          适用于二维码识别失败或现场需要直接跳转到指定考生。
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <p className="text-sm font-semibold text-foreground">手动输入考生学号</p>
+        <p className="text-xs text-muted-foreground leading-relaxed flex-1">
+          适用于二维码识别失败或现场需要直接跳转到指定考生试卷的情景。
         </p>
       </div>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <Input
           placeholder="请输入考生学号"
           value={studentId}
+          className="bg-transparent"
           onChange={(e) => setStudentId(e.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {

@@ -52,15 +52,19 @@ const Review: React.FC = async () => {
               </p>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-            <div className="flex flex-col gap-4">
+          <CardContent className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:gap-12">
+            <div className="flex flex-col gap-6">
               <MannualInput />
-              <Separator />
-              <p className="text-xs leading-5 text-muted-foreground">
-                建议先设置阅卷范围，再开始扫描。扫码识别到考生后会先展示学号、姓名和专业供你确认。
+              <div className="hidden lg:block relative text-center">
+                <Separator className="absolute top-1/2 left-0 w-full" />
+                <span className="relative bg-card px-2 text-xs text-muted-foreground uppercase">或者</span>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground bg-muted/30 p-3 rounded-lg border">
+                <strong className="font-semibold text-foreground">建议与提示：</strong><br />
+                建议先设置阅卷范围，再开始扫描。扫码识别到考生后会显示学号、姓名和专业供你确认。
               </p>
             </div>
-            <div>
+            <div className="flex flex-col min-w-0">
               <QRCodeScanner />
             </div>
           </CardContent>
