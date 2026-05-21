@@ -59,7 +59,7 @@ describe("Recruitment DataTable", () => {
   it("shows the empty state", () => {
     render(<DataTable columns={columns} data={[]} flowTypeId={7} />);
 
-    expect(screen.getAllByText("No results.")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("暂时没有内容。")[0]).toBeInTheDocument();
   });
 
   it("processes selected and unselected rows on confirm", async () => {
