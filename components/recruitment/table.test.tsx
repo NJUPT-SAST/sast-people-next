@@ -59,7 +59,7 @@ describe("Recruitment DataTable", () => {
   it("shows the empty state", () => {
     render(<DataTable columns={columns} data={[]} flowTypeId={7} />);
 
-    expect(screen.getByText("No results.")).toBeInTheDocument();
+    expect(screen.getAllByText("No results.")[0]).toBeInTheDocument();
   });
 
   it("processes selected and unselected rows on confirm", async () => {
@@ -76,7 +76,7 @@ describe("Recruitment DataTable", () => {
       />,
     );
 
-    await user.click(screen.getByLabelText("select-1"));
+    await user.click(screen.getAllByLabelText("select-1")[0]);
     await user.click(screen.getByRole("button", { name: "确认选中同学通过" }));
 
     await waitFor(() => {

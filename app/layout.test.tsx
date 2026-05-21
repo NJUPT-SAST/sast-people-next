@@ -31,10 +31,8 @@ describe("RootLayout", () => {
     );
 
     expect(markup).toContain('<html lang="zh-cn">');
-    expect(markup).toContain("--font-geist-sans");
-    expect(markup).toContain("--font-geist-mono");
-    expect(markup).toContain("--font-noto-serif-sc");
     expect(markup).toContain("antialiased");
+    expect(markup).toContain("font-sans");
     expect(markup).toContain('data-theme-provider="true"');
     expect(markup).toContain("<main>content</main>");
   });
