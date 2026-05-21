@@ -27,13 +27,15 @@ const Review: React.FC = async () => {
               设置阅卷范围
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-full md:w-3/4">
-            <SheetHeader className="text-2xl font-semibold">
+          <SheetContent className="w-full sm:w-3/4 sm:max-w-2xl overflow-y-auto p-4 sm:p-6 flex flex-col">
+            <SheetHeader className="text-2xl font-semibold px-2 pt-2 pb-2">
               <SheetTitle>设置阅卷范围</SheetTitle>
             </SheetHeader>
-            <Suspense fallback={<Loading />}>
-              <SelectProblemServer />
-            </Suspense>
+            <div className="px-2 pb-32">
+              <Suspense fallback={<Loading />}>
+                <SelectProblemServer />
+              </Suspense>
+            </div>
           </SheetContent>
         </Sheet>
       </div>
@@ -59,7 +61,7 @@ const Review: React.FC = async () => {
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-primary/40 rounded-l-xl" />
                   <p className="text-xs text-primary flex items-center gap-1.5 mb-2 font-semibold">
-                    💡 建议与提示
+                    建议与提示
                   </p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     建议先设置上方的【阅卷范围】，再开始扫描。扫码识别到考生后会显示学号、姓名等基础信息供你二次确认。
