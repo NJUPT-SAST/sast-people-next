@@ -52,20 +52,23 @@ const Review: React.FC = async () => {
               </p>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:gap-12">
-            <div className="flex flex-col gap-6">
-              <MannualInput />
-              <div className="hidden lg:block relative text-center">
-                <Separator className="absolute top-1/2 left-0 w-full" />
-                <span className="relative bg-card px-2 text-xs text-muted-foreground uppercase">或者</span>
+          <CardContent>
+            <div className="grid gap-6 lg:grid-cols-2 lg:gap-8 items-start">
+              <div className="flex flex-col gap-6 rounded-xl border border-border/50 bg-background p-6 shadow-sm">
+                <MannualInput />
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground bg-muted/40 p-4 rounded-lg border border-border/50">
+                  <strong className="font-semibold text-foreground">💡 建议与提示：</strong><br />
+                  建议先设置上方的【阅卷范围】，再开始扫描。扫码识别到考生后会显示学号、姓名等基础信息供你二次确认。
+                </p>
               </div>
-              <p className="text-xs leading-relaxed text-muted-foreground bg-muted/30 p-3 rounded-lg border">
-                <strong className="font-semibold text-foreground">建议与提示：</strong><br />
-                建议先设置阅卷范围，再开始扫描。扫码识别到考生后会显示学号、姓名和专业供你确认。
-              </p>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <QRCodeScanner />
+              <div className="flex flex-col min-w-0 rounded-xl border border-border/50 bg-background p-6 shadow-sm h-full">
+                <QRCodeScanner />
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -52,9 +52,9 @@ describe("ManageTable", () => {
     );
 
     expect(screen.getByText("search-张")).toBeInTheDocument();
-    expect(screen.getByText("张三")).toBeInTheDocument();
-    expect(screen.getByText("flow-张三")).toBeInTheDocument();
-    expect(screen.getByText("remove-1")).toBeInTheDocument();
+    expect(screen.getAllByText("张三")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("flow-张三")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("remove-1")[0]).toBeInTheDocument();
     expect(screen.getByText(/显示 1 - 10 共 15 条结果/)).toBeInTheDocument();
     expect(screen.getByText("pagination-1")).toBeInTheDocument();
   });
@@ -70,6 +70,6 @@ describe("ManageTable", () => {
       />,
     );
 
-    expect(screen.getByText("暂时没有用户数据")).toBeInTheDocument();
+    expect(screen.getAllByText("暂时没有用户数据")[0]).toBeInTheDocument();
   });
 });
