@@ -123,51 +123,51 @@ const QRCodeScanner = () => {
         
         {paused && (
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="flex w-full max-w-sm flex-col gap-5 rounded-2xl border border-border/50 bg-background/95 p-6 shadow-xl backdrop-blur-md">
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="rounded-full bg-primary/10 p-3 text-primary ring-4 ring-primary/5">
-                  <QrCode className="size-6" />
+            <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-border/40 bg-background/80 p-5 shadow-lg backdrop-blur-md">
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className="rounded-full bg-primary/10 p-2.5 text-primary">
+                  <QrCode className="size-5" />
                 </div>
-                <div className="flex flex-col gap-1">
-                  <p className="font-semibold text-foreground">准备开始扫码</p>
+                <div className="flex flex-col gap-0.5">
+                  <p className="font-medium text-sm text-foreground">准备扫描二维码</p>
                   <p className="text-xs text-muted-foreground">
-                    对准考生的身份码以自动输入学号
+                    对准考生身份码自动识别
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2.5 mt-1">
                 <Select
                   value={selectedDevice || undefined}
                   onValueChange={(value) => setSelectedDevice(value)}
                 >
                   <SelectTrigger
-                    className="w-full bg-white dark:bg-zinc-900"
+                    className="w-full h-8 text-xs bg-background/50"
                     disabled={filteredDevices.length === 0}
                   >
-                    <SelectValue placeholder="请选择摄像头设备" />
+                    <SelectValue placeholder="请选择摄像头" />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredDevices.map((device) => (
-                      <SelectItem key={device.deviceId} value={device.deviceId}>
+                      <SelectItem key={device.deviceId} value={device.deviceId} className="text-xs">
                         <div className="flex items-center gap-2 overflow-hidden w-full">
-                          <Camera className="shrink-0 size-3.5 text-muted-foreground" />
-                          <span className="truncate block">{device.label || '未命名摄像头'}</span>
+                          <span className="truncate block">{device.label || '未命名设备'}</span>
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Button
-                  className="w-full font-medium"
+                  size="sm"
+                  className="w-full font-medium h-8 text-xs"
                   onClick={() => setPaused(false)}
                   disabled={!selectedDevice || filteredDevices.length === 0}
                 >
-                  <Camera data-icon="inline-start" className="mr-1.5 size-4" />
+                  <Camera data-icon="inline-start" className="mr-1.5 size-3.5" />
                   开启摄像头
                 </Button>
                 {filteredDevices.length === 0 && (
-                  <p className="text-xs text-center text-destructive/80 mt-1">
-                    请检查浏览器摄像头权限或设备连接状态
+                  <p className="text-[10px] text-center text-destructive/80 mt-1">
+                    未找到可用摄像头权限
                   </p>
                 )}
               </div>

@@ -43,8 +43,8 @@ const Review: React.FC = async () => {
             <SelectedRangeDisplay />
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader>
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b bg-muted/30">
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium">开始阅卷</p>
               <p className="text-sm text-muted-foreground">
@@ -52,21 +52,21 @@ const Review: React.FC = async () => {
               </p>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-6 lg:grid-cols-2 lg:gap-8 items-start">
-              <div className="flex flex-col gap-6 rounded-xl border border-border/50 bg-background p-6 shadow-sm">
+          <CardContent className="p-0">
+            <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border">
+              <div className="flex flex-col gap-8 p-6 lg:p-8 lg:w-[380px] xl:w-[420px] bg-muted/10 shrink-0">
                 <MannualInput />
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator className="w-full" />
-                  </div>
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-primary/40 rounded-l-xl" />
+                  <p className="text-xs text-primary flex items-center gap-1.5 mb-2 font-semibold">
+                    💡 建议与提示
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    建议先设置上方的【阅卷范围】，再开始扫描。扫码识别到考生后会显示学号、姓名等基础信息供你二次确认。
+                  </p>
                 </div>
-                <p className="text-xs leading-relaxed text-muted-foreground bg-muted/40 p-4 rounded-lg border border-border/50">
-                  <strong className="font-semibold text-foreground">💡 建议与提示：</strong><br />
-                  建议先设置上方的【阅卷范围】，再开始扫描。扫码识别到考生后会显示学号、姓名等基础信息供你二次确认。
-                </p>
               </div>
-              <div className="flex flex-col min-w-0 rounded-xl border border-border/50 bg-background p-6 shadow-sm h-full">
+              <div className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col justify-center">
                 <QRCodeScanner />
               </div>
             </div>
