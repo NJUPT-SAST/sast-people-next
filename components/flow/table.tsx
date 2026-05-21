@@ -62,7 +62,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
 }
 
-export function FlowTable<TData, TValue>({
+export function FlowTable<TData extends displayFlow, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
@@ -73,49 +73,81 @@ export function FlowTable<TData, TValue>({
   });
 
   return (
-    <div className="rounded-md border">
-      <Table className="min-w-[672px] scroll-auto">
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                return (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && 'selected'}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+    <div className="rounded-md border bg-card">
+      {/* PC 端表格视图 */}
+      <div className="hidden md:block overflow-x-auto">
+        <Table className="min-w-[800px]">
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id} className="whitespace-nowrap py-3">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  );
+                })}
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                暂时没有内容
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="py-3">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  暂时没有内容
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* 移动端卡片视图 */}
+      <div className="md:hidden flex flex-col divide-y divide-border">
+        {table.getRowModel().rows?.length ? (
+          table.getRowModel().rows.map((row) => (
+            <div key={row.id} className="p-4 space-y-4 transition-colors hover:bg-muted/50">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-base px-1">{row.original.title}</span>
+              </div>
+              <div className="text-sm space-y-2 px-1">
+                <div className="text-muted-foreground break-words">{row.original.description || '-'}</div>
+                <div className="flex justify-between items-center text-muted-foreground pt-2">
+                  <span>开始时间</span>
+                  <span className="text-foreground text-xs font-mono">{originalDayjs(row.original.startedAt).format('YYYY-MM-DD HH:mm')}</span>
+                </div>
+                <div className="flex justify-between items-center text-muted-foreground">
+                  <span>结束时间</span>
+                  <span className="text-foreground text-xs font-mono">{originalDayjs(row.original.endedAt).format('YYYY-MM-DD HH:mm')}</span>
+                </div>
+              </div>
+              <div className="pt-3 flex justify-end gap-3 border-t">
+                <Operations data={row.original} />
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="p-8 text-center text-muted-foreground text-sm">暂时没有内容</div>
+        )}
+      </div>
     </div>
   );
 }
