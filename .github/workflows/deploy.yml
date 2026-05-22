@@ -99,11 +99,11 @@ jobs:
             echo "=========================================="
 
             echo ""
-            echo "[1/5] Loading new image from ${TAR_FILE}..."
+            echo "[1/6] Loading new image from ${TAR_FILE}..."
             docker load -i ${TAR_FILE}
 
             echo ""
-            echo "[2/5] Rotating image tags..."
+            echo "[2/6] Rotating image tags..."
             if docker image inspect "${IMAGE_NAME}:current" >/dev/null 2>&1; then
               if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
                 echo "  Removing old backup image..."
@@ -119,11 +119,21 @@ jobs:
             docker tag "${IMAGE_NAME}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:current"
 
             echo ""
-            echo "[3/5] Starting service..."
+            echo "[3/6] Writing .env from GitHub Secrets..."
+            cat > .env << 'DOTENV'
+            LINK_CLIENT_ID=${{ secrets.LINK_CLIENT_ID }}
+            LINK_CLIENT_SECRET=${{ secrets.LINK_CLIENT_SECRET }}
+            APP_ID=${{ secrets.APP_ID }}
+            APP_SECRET=${{ secrets.APP_SECRET }}
+            DOTENV
+            chmod 600 .env
+
+            echo ""
+            echo "[4/6] Starting service..."
             docker compose up -d --remove-orphans
 
             echo ""
-            echo "[4/5] Health check (timeout: 120s)..."
+            echo "[5/6] Health check (timeout: 120s)..."
             HEALTHY=0
             for i in $(seq 1 24); do
               STATUS=$(docker inspect --format='{{.State.Health.Status}}' sast-people-next 2>/dev/null || echo "starting")
@@ -176,7 +186,7 @@ jobs:
             fi
 
             echo ""
-            echo "[5/5] Cleaning up..."
+            echo "[6/6] Cleaning up..."
             rm ${TAR_FILE}
             docker rmi "${IMAGE_NAME}:latest"
             docker image prune -f
