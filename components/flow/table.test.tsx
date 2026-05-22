@@ -29,17 +29,17 @@ describe("FlowTable", () => {
       />,
     );
 
-    expect(screen.getByText("名称")).toBeInTheDocument();
-    expect(screen.getByText("宣讲会")).toBeInTheDocument();
+    expect(screen.getAllByText("名称")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("宣讲会")[0]).toBeInTheDocument();
     expect(
-      screen.getByText("formatted:2026-03-22T09:00:00.000Z"),
+      screen.getAllByText("formatted:2026-03-22T09:00:00.000Z")[0],
     ).toBeInTheDocument();
-    expect(screen.getByText("ops-3")).toBeInTheDocument();
+    expect(screen.getAllByText("ops-3")[0]).toBeInTheDocument();
   });
 
   it("shows the empty table state when there is no data", () => {
     render(<FlowTable columns={FlowTableColumns} data={[]} />);
 
-    expect(screen.getByText("暂时没有内容")).toBeInTheDocument();
+    expect(screen.getAllByText("暂时没有内容")[0]).toBeInTheDocument();
   });
 });

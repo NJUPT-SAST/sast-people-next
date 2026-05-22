@@ -1,25 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { VConsole } from "@/components/vconsole";
 import { ThemeProvider } from "@/components/theme-provider";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const notoSerifSC = Noto_Serif_SC({
-  variable: "--font-noto-serif-sc",
-  subsets: ["latin"],
-  weight: ["700"],
-});
 
 export const metadata: Metadata = {
   title: "SAST 招新",
@@ -33,9 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-cn" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${notoSerifSC.variable} antialiased`}
-      >
+      <body className="antialiased font-sans">
         <ThemeProvider>
           {children}
           <Toaster />

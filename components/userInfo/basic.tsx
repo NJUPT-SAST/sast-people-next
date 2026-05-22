@@ -153,10 +153,10 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
                   <FormLabel>学院</FormLabel>
                   <FormControl>
                     <Select value={field.value || ""} onValueChange={field.onChange}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="请选择你的学院" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper">
                         {collegeList.map((college) => (
                           <SelectItem key={college} value={college}>
                             {college}

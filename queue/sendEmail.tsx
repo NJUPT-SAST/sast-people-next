@@ -15,8 +15,10 @@ const transporter = createTransport({
 });
 
 export const sendEmail = mqClient.createFunction(
-  { id: 'step/send.email' },
-  { event: 'step/send.email' },
+  { 
+    id: 'step/send.email',
+    triggers: [{ event: 'step/send.email' }]
+  },
   async ({ event, step }) => {
     const { studentID, name, flowName, accept } = event.data;
     // return { studentId: event.data.studentId, name: event.data.name };

@@ -27,27 +27,28 @@ export const EditUserFlowSheet = ({
       <SheetTrigger>
         <Workflow className="mr-2 h-4 w-4" />
       </SheetTrigger>
-      <SheetContent className="w-full md:max-w-[50vw] space-y-5">
-        <SheetHeader>
+      <SheetContent className="w-full sm:max-w-[50vw] sm:w-3/4 overflow-y-auto p-4 sm:p-6 flex flex-col">
+        <SheetHeader className="px-1 pt-2 pb-2">
           <SheetTitle>
             编辑 <span className="text-primary">{userInfo.name}</span> 的流程
           </SheetTitle>
           <SheetDescription>在下方编辑用户的流程</SheetDescription>
         </SheetHeader>
-        <Select
-          onValueChange={(value) => {
-            setSelectedFlow(parseInt(value));
-          }}
-        >
-          <SelectTrigger>
-            {selectedFlow !== undefined
-              ? `${flowList ? flowList[selectedFlow]?.title : ''}`
-              : '选择流程'}
-          </SelectTrigger>
-          <SelectContent>
-            {Array.isArray(flowList) &&
-              flowList.map((flow, index) => (
-                <SelectItem key={flow.id} value={index.toString()}>
+        <div className="flex flex-col gap-5 px-1 pb-32">
+          <Select
+            onValueChange={(value) => {
+              setSelectedFlow(parseInt(value));
+            }}
+          >
+            <SelectTrigger>
+              {selectedFlow !== undefined
+                ? `${flowList ? flowList[selectedFlow]?.title : ''}`
+                : '选择流程'}
+            </SelectTrigger>
+            <SelectContent>
+              {Array.isArray(flowList) &&
+                flowList.map((flow, index) => (
+                  <SelectItem key={flow.id} value={index.toString()}>
                   {flow.title}
                 </SelectItem>
               ))}
@@ -56,6 +57,7 @@ export const EditUserFlowSheet = ({
         {selectedFlow !== undefined && flowList && (
           <FlowCard flow={flowList[selectedFlow]} />
         )}
+        </div>
       </SheetContent>
     </Sheet>
   );

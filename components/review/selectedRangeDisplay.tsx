@@ -18,11 +18,11 @@ const readSelectedRange = (): selectProbType | null => {
 };
 
 export const SelectedRangeDisplay = () => {
-  const [selectedRange, setSelectedRange] = useState<selectProbType | null>(
-    () => (typeof window === 'undefined' ? null : readSelectedRange()),
-  );
+  const [selectedRange, setSelectedRange] = useState<selectProbType | null>(null);
 
   useEffect(() => {
+    setSelectedRange(readSelectedRange());
+    
     const handleRangeUpdate = () => {
       setSelectedRange(readSelectedRange());
     };

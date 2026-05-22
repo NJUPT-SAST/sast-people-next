@@ -58,15 +58,15 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
           编辑流程
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full md:w-3/4 overflow-scroll">
-        <SheetHeader>
+      <SheetContent className="w-full sm:w-3/4 sm:max-w-xl overflow-y-auto p-4 sm:p-6 flex flex-col">
+        <SheetHeader className="px-1 pt-2 pb-2">
           <SheetTitle>流程编辑</SheetTitle>
           <SheetDescription>
             在下方编辑流程的基本信息与流程的步骤
           </SheetDescription>
         </SheetHeader>
         <Form {...editFlowForm}>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-5 px-1 pb-32">
             <FormField
               control={editFlowForm.control}
               name="title"

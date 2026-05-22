@@ -61,7 +61,7 @@ describe("QRCodeScanner", () => {
 
     render(<QRCodeScanner />);
 
-    await user.click(screen.getByRole("button", { name: /开始扫描/i }));
+    await user.click(screen.getByRole("button", { name: /开启摄像头/i }));
 
     await act(async () => {
       onDecodeResult?.({

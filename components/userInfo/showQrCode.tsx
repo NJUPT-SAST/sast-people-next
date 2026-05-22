@@ -33,8 +33,8 @@ export const ShowQrCode = ({ uid }: { uid: string }) => {
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader className="items-center text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
-            <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/20">
+            <ShieldCheck className="h-6 w-6 text-primary" />
           </div>
           <DialogTitle className="text-xl">我的身份码</DialogTitle>
           <DialogDescription className="text-center">
@@ -42,7 +42,7 @@ export const ShowQrCode = ({ uid }: { uid: string }) => {
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-6 py-4">
-          <div className="rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-border bg-white p-3.5 shadow-sm dark:shadow-none">
             <QRCode value={qrValue} size={200} />
           </div>
           <div className="flex flex-col items-center gap-1">
