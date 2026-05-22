@@ -62,7 +62,7 @@ const segmentConfigs = [
 ];
 
 function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
-  const { format: formatProp, value: _value, timezone: _timezone } = options;
+  const { format: formatProp, value: _value, timezone } = options;
   const value = useMemo(() => _value ? new Date(_value) : undefined, [_value, timezone]);
   const form = useFormContext();
   const formatStr = React.useMemo(() => formatProp || 'yyyy-MM-dd HH:mm:ss', [formatProp]);
