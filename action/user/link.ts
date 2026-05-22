@@ -77,9 +77,21 @@ export async function createCodeChallenge(isBinding: boolean) {
   const code_verifier = base64URLEncode(crypto.randomBytes(32));
   const cookieStore = await cookies();
   const code_challenge = base64URLEncode(sha256(code_verifier));
-  cookieStore.set("link_code_verifier", code_verifier);
+  cookieStore.set("link_code_verifier", code_verifier, {
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    maxAge: 600, // 10 minutes
+  });
   if (isBinding) {
-    cookieStore.set(IS_BINDING, "1");
+    cookieStore.set(IS_BINDING, "1", {
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 600,
+    });
   }
   return code_challenge;
 }
