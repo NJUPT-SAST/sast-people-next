@@ -3,13 +3,23 @@ import * as lark from '@larksuiteoapi/node-sdk';
 import axios from 'axios';
 import SHA1 from 'crypto-js/sha1';
 import { cache } from 'react';
-const appId = process.env.APP_ID as string;
-const appSecret = process.env.APP_SECRET as string;
-const client = new lark.Client({
-  appId: process.env.APP_ID as string,
-  appSecret: process.env.APP_SECRET as string,
-  disableTokenCache: false,
-});
+
+let _client: lark.Client | null = null;
+function getClient() {
+  if (!_client) {
+    const appId = process.env.APP_ID;
+    const appSecret = process.env.APP_SECRET;
+    if (!appId || !appSecret) {
+      throw new Error('APP_ID and APP_SECRET are required for Feishu integration');
+    }
+    _client = new lark.Client({
+      appId,
+      appSecret,
+      disableTokenCache: false,
+    });
+  }
+  return _client;
+}
 
 const jsapiTicketCache = {
   ticket: '',
@@ -17,7 +27,7 @@ const jsapiTicketCache = {
 };
 
 export async function getAccessToken() {
-  const res = await client.auth.tenantAccessToken.internal({
+  const res = await getClient().auth.tenantAccessToken.internal({
     data: {
       app_id: process.env.APP_ID as string,
       app_secret: process.env.APP_SECRET as string,
@@ -31,10 +41,10 @@ export async function getAccessToken() {
 }
 
 export async function getAppAccessToken() {
-  const data = await client.auth.appAccessToken.internal({
+  const data = await getClient().auth.appAccessToken.internal({
     data: {
-      app_id: appId,
-      app_secret: appSecret,
+      app_id: process.env.APP_ID as string,
+      app_secret: process.env.APP_SECRET as string,
     },
   });
   const token = (data as { app_access_token?: string }).app_access_token;
@@ -130,7 +140,7 @@ export async function get_user_info(
   user_access_token: string,
   user_id: string,
 ) {
-  const data = await client.contact.user.get(
+  const data = await getClient().contact.user.get(
     {
       path: {
         user_id: user_id,
