@@ -1,9 +1,8 @@
 'use client';
 import axios from 'axios';
-import { redirect, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import React, { useEffect } from 'react';
-import { toast } from 'sonner';
 
 type FeishuSdkConfig = {
   appId: string;
@@ -80,7 +79,7 @@ export const FeishuSDKInject: React.FC = () => {
           });
         });
       }
-    } catch (e) {}
+    } catch (_e) {}
   }, []);
   return (
     <>

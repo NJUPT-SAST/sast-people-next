@@ -1,5 +1,4 @@
 "use server";
-import { verifySession } from "@/lib/dal";
 import { db } from "@/db/drizzle";
 import { flow, user, userFlow } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -82,7 +81,7 @@ export const register = async (flowId: number, uid: number) => {
       }
     }
 
-    const [newFlow] = await tx
+    const [_newFlow] = await tx
       .insert(userFlow)
       .values({
         fkUserId: uid,

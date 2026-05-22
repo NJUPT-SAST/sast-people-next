@@ -1,3 +1,5 @@
 import { sendEmail } from "./sendEmail";
 
-export default [sendEmail];
+const queueFunctions = [sendEmail];
+
+export default queueFunctions;
