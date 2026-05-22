@@ -19,7 +19,6 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { EditUserFlowSheet } from './editUserFlowSheet';
-import { EditUserInfoDialog } from './editUserInfoDialog';
 import { RemoveUserInfoDialog } from './removeUserInfoDialog';
 import { SearchInput } from './searchInput';
 import { userType } from '@/types/user';
