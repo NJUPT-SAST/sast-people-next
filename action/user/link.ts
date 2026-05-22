@@ -28,6 +28,11 @@ export const get_user_access_token = async (
 ) => {
   const formData = new FormData();
   const redirect_uri = await getCurrentRedirectUri();
+  console.log("token request:", {
+    client_id: process.env.LINK_CLIENT_ID?.slice(0, 8) + "...",
+    redirect_uri,
+    code: code?.slice(0, 10) + "...",
+  });
   formData.append("client_id", process.env.LINK_CLIENT_ID!);
   formData.append("client_secret", process.env.LINK_CLIENT_SECRET!);
   formData.append("code", code);
