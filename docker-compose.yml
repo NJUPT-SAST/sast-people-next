@@ -6,6 +6,7 @@ services:
       - "3003:3003"
     restart: unless-stopped
     environment:
+      HOSTNAME: "0.0.0.0"
       APP_ID: ""
       APP_SECRET: ""
     healthcheck:
