@@ -9,6 +9,10 @@ import Image from "next/image";
 const Login = async () => {
   return (
     <>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap"
+      />
       <div className="min-h-screen w-screen flex flex-col lg:grid lg:grid-cols-5 bg-gray-50 lg:bg-white selection:bg-[#18A058] selection:text-white">
         <div className="relative bg-[#18A058] text-white col-span-3 px-8 pt-12 pb-24 lg:p-12 flex lg:justify-center flex-col z-0 overflow-hidden shrink-0">
           <div className="z-10 mb-8 lg:absolute lg:top-10 lg:left-12 lg:mb-0">
@@ -23,12 +27,14 @@ const Login = async () => {
           <div className="space-y-3 lg:space-y-4 z-10 lg:pl-16">
             <BlurIn
               word="开源平等"
-              className="text-left text-4xl lg:text-8xl tracking-widest font-serif font-bold text-white drop-shadow-sm"
+              className="text-left text-4xl lg:text-8xl tracking-[0.15em] text-white drop-shadow-sm"
+              style={{ fontFamily: '"Ma Shan Zheng", cursive', fontWeight: 400 }}
             />
             <BlurIn
               word="薪火相传"
-              className="text-left text-4xl lg:text-8xl tracking-widest font-serif font-bold text-white drop-shadow-sm"
+              className="text-left text-4xl lg:text-8xl tracking-[0.15em] text-white drop-shadow-sm lg:pl-8"
               delay={0.3}
+              style={{ fontFamily: '"Ma Shan Zheng", cursive', fontWeight: 400 }}
             />
           </div>
           <div className="absolute inset-0 pointer-events-none">

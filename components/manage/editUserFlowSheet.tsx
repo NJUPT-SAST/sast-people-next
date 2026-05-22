@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+'use client';
+import React, { useState } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -11,8 +12,7 @@ import { Workflow } from 'lucide-react';
 import { userType } from '@/types/user';
 import { FlowCard } from './flowCardClient';
 import { useFlowListClient } from '@/hooks/useFlowListClient';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '../ui/select';
-import { displayFlow } from '@/types/flow';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
 
 export const EditUserFlowSheet = ({
@@ -20,12 +20,19 @@ export const EditUserFlowSheet = ({
 }: {
   userInfo: Partial<userType>;
 }) => {
-  const { data: flowList } = useFlowListClient(userInfo.id as number);
-  const [selectedFlow, setSelectedFlow] = useState<number>();
+  const { data: flowList, isLoading, error } = useFlowListClient(userInfo.id as number);
+  const [selectedFlowId, setSelectedFlowId] = useState<number>();
+
+  const selectedFlow = selectedFlowId !== undefined && Array.isArray(flowList)
+    ? flowList.find((f) => f.id === selectedFlowId)
+    : undefined;
+
   return (
     <Sheet>
-      <SheetTrigger>
-        <Workflow className="mr-2 h-4 w-4" />
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <Workflow className="h-4 w-4" />
+        </Button>
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-[50vw] sm:w-3/4 overflow-y-auto p-4 sm:p-6 flex flex-col">
         <SheetHeader className="px-1 pt-2 pb-2">
@@ -35,28 +42,28 @@ export const EditUserFlowSheet = ({
           <SheetDescription>在下方编辑用户的流程</SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-5 px-1 pb-32">
-          <Select
-            onValueChange={(value) => {
-              setSelectedFlow(parseInt(value));
-            }}
-          >
-            <SelectTrigger>
-              {selectedFlow !== undefined
-                ? `${flowList ? flowList[selectedFlow]?.title : ''}`
-                : '选择流程'}
-            </SelectTrigger>
-            <SelectContent>
-              {Array.isArray(flowList) &&
-                flowList.map((flow, index) => (
-                  <SelectItem key={flow.id} value={index.toString()}>
-                  {flow.title}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-        {selectedFlow !== undefined && flowList && (
-          <FlowCard flow={flowList[selectedFlow]} />
-        )}
+          {isLoading ? (
+            <p className="text-muted-foreground text-sm">加载中...</p>
+          ) : error ? (
+            <p className="text-destructive text-sm">加载失败，请重试</p>
+          ) : (
+            <Select
+              onValueChange={(value) => setSelectedFlowId(parseInt(value))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="选择流程" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.isArray(flowList) &&
+                  flowList.map((flow) => (
+                    <SelectItem key={flow.id} value={flow.id.toString()}>
+                      {flow.title}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
+          {selectedFlow && <FlowCard flow={selectedFlow} />}
         </div>
       </SheetContent>
     </Sheet>

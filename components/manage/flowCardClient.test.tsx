@@ -82,6 +82,6 @@ describe("manage FlowCard", () => {
     await user.click(screen.getByRole("button"));
 
     expect(reopen).toHaveBeenCalledWith(11);
-    expect(screen.getByText("已通过考核")).toBeInTheDocument();
+    expect(screen.getByText("流程进行中")).toBeInTheDocument();
   });
 });
