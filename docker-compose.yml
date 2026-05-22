@@ -1,7 +1,7 @@
 services:
-  sast-people:
-    image: sast/sast-people:current
-    container_name: sast-people
+  sast-people-next:
+    image: sast/sast-people-next:current
+    container_name: sast-people-next
     ports:
       - "3000:3000"
     restart: unless-stopped
