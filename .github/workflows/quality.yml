@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Display CI/CD Configuration
         shell: bash
@@ -45,12 +45,12 @@ jobs:
           echo "3. See \`CI_CD.md\` for detailed setup instructions" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: "pnpm"

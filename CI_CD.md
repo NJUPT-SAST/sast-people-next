@@ -1,6 +1,6 @@
 # CI/CD
 
-当前仓库的 CI/CD 聚焦于 Web 应用质量保障，不再包含桌面打包流程。
+CI/CD 包含代码质量检查、测试、以及 Docker 镜像构建与部署。
 
 ## 工作流概览
 
@@ -14,14 +14,45 @@
   - Next.js 构建验证
 - `ci.yml`
   - 编排 `quality` 与 `test`
+- `deploy.yml`
+  - 构建 Docker 镜像 → SCP 推送至服务器 → SSH 远程部署
 - `release.yml`
   - 在推送 `v*` 标签时创建 GitHub Draft Release
 
 ## 触发条件
 
-- 推送到 `master` 或 `develop`
-- 向 `master` 或 `develop` 发起 PR
-- 推送版本标签，如 `v1.0.0`
+| 工作流 | 触发 |
+|--------|------|
+| `ci.yml` | push / PR → `master`、`develop` |
+| `deploy.yml` | push → `master`，或手动 `workflow_dispatch` |
+| `release.yml` | 推送 `v*` 标签 |
+
+## 部署流程
+
+1. **Quality + Test** — 必须先通过质量检查和测试
+2. **Docker Build** — 使用 `Dockerfile` 构建镜像，以 Git commit hash 作为版本标签
+3. **SCP Transfer** — 将镜像 tar 文件传输至服务器 `/data/sast-people/`
+4. **SSH Deploy** — 服务器端加载镜像、轮换 backup/current 标签、`docker compose up -d`
+
+### 部署所需 Secrets
+
+| Secret | 说明 |
+|--------|------|
+| `SERVER_HOST` | 目标服务器 IP 或域名 |
+| `SERVER_USER` | SSH 用户名 |
+| `SSH_PRIVATE_KEY` | SSH 私钥 |
+
+## 镜像版本管理
+
+每次部署生成两个标签：
+- `sast/sast-people:latest` — 临时标签，部署后清理
+- `sast/sast-people:<commit-hash>` — 永久版本标签
+
+服务器上维护两个滚动标签：
+- `current` — 当前运行版本
+- `backup` — 上一版本（用于快速回滚）
+
+回滚命令：`docker tag sast/sast-people:backup sast/sast-people:current && docker compose up -d`
 
 ## 本地建议
 
