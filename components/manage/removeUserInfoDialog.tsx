@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React from "react";
 import {
 	Dialog,
 	DialogClose,
@@ -10,7 +10,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "../ui/dialog";
-import { Trash2, UserCog } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { banUser } from "@/action/user/ban";
 import { toast } from "sonner";

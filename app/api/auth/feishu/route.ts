@@ -1,6 +1,6 @@
 import 'server-only';
 import { loginFromX } from '@/action/user/auth';
-import { get_user_access_token, get_user_info } from '@/action/user/feishu';
+import { get_user_access_token } from '@/action/user/feishu';
 import { redirect } from 'next/navigation';
 import { NextRequest, NextResponse } from 'next/server';
 

@@ -1,11 +1,11 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { flow, flowStep, userFlow } from '@/db/schema';
+import { userFlow } from '@/db/schema';
 // TODO: for some status, send email to user
 // import eventManager from '@/event';
 import { verifyRole, verifySession } from '@/lib/dal';
-import { and, asc, desc, eq, gt, inArray, lt, lte, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 export const forward = async (
   userFlowId: number,

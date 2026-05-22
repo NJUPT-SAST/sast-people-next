@@ -19,7 +19,7 @@ export const sendEmail = mqClient.createFunction(
     id: 'step/send.email',
     triggers: [{ event: 'step/send.email' }]
   },
-  async ({ event, step }) => {
+  async ({ event, step: _step }) => {
     const { studentID, name, flowName, accept } = event.data;
     // return { studentId: event.data.studentId, name: event.data.name };
     await email(`${studentID}@njupt.edu.cn`, name, flowName, accept);

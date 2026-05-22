@@ -14,7 +14,6 @@ import { MannualInput } from "@/components/review/mannualInput";
 import { SelectProblemServer } from "./selectProblem";
 import { Loading } from "@/components/loading";
 import { SelectedRangeDisplay } from "@/components/review/selectedRangeDisplay";
-import { Separator } from "@/components/ui/separator";
 
 const Review: React.FC = async () => {
   return (
