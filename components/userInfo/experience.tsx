@@ -23,6 +23,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { userType } from '@/types/user';
 import { toast } from 'sonner';
+import { editExperience } from '@/action/user/userInfo';
 
 const experienceFieldsSchema = z.object({
   github: z.string().trim().optional(),
@@ -31,7 +32,7 @@ const experienceFieldsSchema = z.object({
 });
 
 type ExperienceFields = z.infer<typeof experienceFieldsSchema>;
-type ExperienceInfoValue = userType & Partial<ExperienceFields>;
+export type ExperienceInfoValue = userType & Partial<ExperienceFields>;
 
 export const experienceSchema = experienceFieldsSchema;
 
@@ -121,8 +122,12 @@ export const ExperienceInfo = ({
           type="button"
           loading={isSubmitting}
           disabled={isSubmitting}
-          onClick={form.handleSubmit(async () => {
-            toast.success('个人信息保存成功');
+          onClick={form.handleSubmit(async (values) => {
+            toast.promise(editExperience(values), {
+              loading: '正在保存',
+              success: '个人信息保存成功',
+              error: '个人信息保存失败',
+            });
           })}
         >
           保存

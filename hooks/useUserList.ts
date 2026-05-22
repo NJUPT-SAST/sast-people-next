@@ -18,7 +18,7 @@ export const useUserList = async ({
   sortBy = "createdAt",
   sortOrder = "desc",
 }: UserListParams) => {
-  await verifyRole(2);
+  await verifyRole(1);
   const offset = (page - 1) * pageSize;
 
   let whereConditions: SQL<unknown> | undefined = eq(user.isDeleted, false);
