@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { batchUpsertPoint, upsertPoint } from '@/action/user-flow/user-point/upsert';
 import { findUserFlowId } from '@/action/user-flow/find';
-import { userPoint } from '@/db/schema';
-import { InferInsertModel } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {

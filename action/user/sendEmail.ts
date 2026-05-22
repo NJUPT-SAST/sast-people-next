@@ -1,9 +1,9 @@
 "use server";
 import { db } from "@/db/drizzle";
-import { flow, userFlow } from "@/db/schema";
+import { userFlow } from "@/db/schema";
 import event from "@/event";
 import { verifyRole } from "@/lib/dal";
-import { and, eq, ne, inArray, isNull } from "drizzle-orm";
+import { and, eq, ne, inArray } from "drizzle-orm";
 
 export const batchSendEmail = async (
   uid: number[],

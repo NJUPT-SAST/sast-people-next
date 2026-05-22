@@ -25,7 +25,7 @@ export const updateProblems = async (
 
   // 准备新的问题列表
   const newProblems = Object.entries(problems).flatMap(
-    ([category, categoryProblems]) =>
+    ([_category, categoryProblems]) =>
       categoryProblems.map((p) => ({
         id: p.id,
         fkFlowStepId: stepId,
@@ -50,7 +50,7 @@ export const updateProblems = async (
   // 找出需要插入的新问题
   const problemsToInsert = newProblems
     .filter((p) => p.id < 0)
-    .map(({ id, ...rest }) => rest); // 移除 id 字段
+    .map(({ id: _id, ...rest }) => rest); // 移除 id 字段
 
   // 插入新问题并获取插入后的问题（包括新的 ID）
   let insertedProblems: ProblemType[] = [];

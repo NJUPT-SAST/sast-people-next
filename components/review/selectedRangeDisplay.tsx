@@ -18,11 +18,9 @@ const readSelectedRange = (): selectProbType | null => {
 };
 
 export const SelectedRangeDisplay = () => {
-  const [selectedRange, setSelectedRange] = useState<selectProbType | null>(null);
+  const [selectedRange, setSelectedRange] = useState<selectProbType | null>(readSelectedRange);
 
   useEffect(() => {
-    setSelectedRange(readSelectedRange());
-    
     const handleRangeUpdate = () => {
       setSelectedRange(readSelectedRange());
     };
