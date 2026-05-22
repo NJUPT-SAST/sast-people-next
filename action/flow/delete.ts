@@ -7,7 +7,7 @@ import { flow } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 
 export async function deleteFlow(id: number) {
-  await verifyRole(1);
+  await verifyRole(2);
 
   await db
     .update(flow)

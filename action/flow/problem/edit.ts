@@ -15,7 +15,7 @@ export const updateProblems = async (
   problems: problemType,
   flowId: number,
 ) => {
-  await verifyRole(1);
+  await verifyRole(2);
 
   // 获取当前步骤的所有问题
   const existingProblems = await db

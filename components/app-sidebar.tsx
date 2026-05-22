@@ -31,7 +31,9 @@ function SidebarNav({ role }: { role: number }) {
   const prevPathname = useRef(pathname);
 
   const authRoutes = useMemo(() => {
-    return role === 0 ? menuItems.slice(0, 2) : menuItems;
+    if (role === 0) return menuItems.slice(0, 2);
+    if (role === 1) return menuItems.slice(0, 4);
+    return menuItems;
   }, [role]);
 
   useEffect(() => {
