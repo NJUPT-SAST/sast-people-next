@@ -17,8 +17,10 @@ import { Button } from '../ui/button';
 
 export const EditUserFlowSheet = ({
   userInfo,
+  role,
 }: {
   userInfo: Partial<userType>;
+  role: number;
 }) => {
   const { data: flowList, isLoading, error } = useFlowListClient(userInfo.id as number);
   const [selectedFlowId, setSelectedFlowId] = useState<number>();
@@ -63,7 +65,7 @@ export const EditUserFlowSheet = ({
               </SelectContent>
             </Select>
           )}
-          {selectedFlow && <FlowCard flow={selectedFlow} />}
+          {selectedFlow && <FlowCard flow={selectedFlow} role={role} />}
         </div>
       </SheetContent>
     </Sheet>

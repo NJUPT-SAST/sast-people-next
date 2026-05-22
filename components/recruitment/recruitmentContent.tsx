@@ -14,10 +14,12 @@ export const RecruitmentContent = ({
   flowTypes,
   initialData,
   defaultFlowId,
+  role,
 }: {
   flowTypes: displayFlow[];
   initialData: ExamResult;
   defaultFlowId?: string;
+  role: number;
 }) => {
   const [flowId, setFlowId] = useState(defaultFlowId);
   const [data, setData] = useState(initialData);
@@ -64,6 +66,7 @@ export const RecruitmentContent = ({
               columns={columns}
               data={data}
               flowTypeId={parseInt(flowId)}
+              role={role}
             />
           </>
         )

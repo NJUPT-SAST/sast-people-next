@@ -1,5 +1,6 @@
 "use server";
 import { basicInfoSchema } from "@/components/userInfo/basic";
+import { experienceSchema } from "@/components/userInfo/experience";
 import { db } from "@/db/drizzle";
 import { user } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
@@ -48,13 +49,16 @@ export async function editBasicInfoByUid(
   return { success: true };
 }
 
-// export async function editExperience(values: z.infer<typeof experienceSchema>) {
-// 	const session = await verifySession();
+export async function editExperience(values: z.infer<typeof experienceSchema>) {
+	const session = await verifySession();
 
-// 	await db
-// 		.update(user)
-// 		.set({
-// 			...values,
-// 		})
-// 		.where(eq(user.id, session.uid));
-// }
+	await db
+		.update(user)
+		.set({
+			...values,
+			updatedAt: new Date(),
+		})
+		.where(eq(user.id, session.uid));
+
+	revalidatePath("/dashboard");
+}

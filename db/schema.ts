@@ -38,6 +38,9 @@ export const user = pgTable("user", {
     .array()
     .notNull()
     .default(sql`ARRAY[]::text[]`),
+  github: text("github"),
+  blog: text("blog"),
+  personalStatement: text("personal_statement"),
   linkOpenid: varchar("link_openid", { length: 255 }).unique(),
   feishuOpenid: varchar("feishu_openid", { length: 255 }).unique(),
   role: integer("role").default(0),

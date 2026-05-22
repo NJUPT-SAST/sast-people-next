@@ -7,7 +7,7 @@ import { displayUserFlow } from "@/types/userflow";
 import { fullStepType } from "@/types/step";
 
 export const GET = async (req: NextRequest) => {
-	await verifyRole(1);
+	await verifyRole(2);
 	const searchParams = req.nextUrl.searchParams;
 	const uid = Number(searchParams.get("uid"));
 	if (!uid) {

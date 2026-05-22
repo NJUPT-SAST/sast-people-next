@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef } from 'react';
-import { TicketsPlane } from 'lucide-react';
+import Image from 'next/image';
 import {
   Sidebar,
   SidebarContent,
@@ -31,7 +31,9 @@ function SidebarNav({ role }: { role: number }) {
   const prevPathname = useRef(pathname);
 
   const authRoutes = useMemo(() => {
-    return role === 0 ? menuItems.slice(0, 2) : menuItems;
+    if (role === 0) return [menuItems[0], menuItems[1]];
+    if (role === 1) return [menuItems[0], menuItems[1], menuItems[2], menuItems[3], menuItems[4]];
+    return menuItems;
   }, [role]);
 
   useEffect(() => {
@@ -70,8 +72,21 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <TicketsPlane className="size-4" />
+                <div className="flex items-center justify-center">
+                  <Image
+                    src="/images/logo.png"
+                    alt="SAST"
+                    width={48}
+                    height={24}
+                    className="h-6 w-auto dark:hidden"
+                  />
+                  <Image
+                    src="/images/white-logo.png"
+                    alt="SAST"
+                    width={48}
+                    height={24}
+                    className="hidden h-6 w-auto dark:block"
+                  />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold">SAST 招新</span>

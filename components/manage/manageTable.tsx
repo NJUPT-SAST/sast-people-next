@@ -32,12 +32,14 @@ export const ManageTable = ({
   totalPages: _totalPages,
   search,
   currentPage,
+  role,
 }: {
   users: userType[];
   totalCount: number;
   totalPages: number;
   search: string;
   currentPage: number;
+  role: number;
 }) => {
   const columns: ColumnDef<userType>[] = [
     {
@@ -51,10 +53,10 @@ export const ManageTable = ({
       accessorKey: 'studentId',
       header: '学号',
     },
-    {
-      accessorKey: 'phone',
+    ...(role >= 2 ? [{
+      accessorKey: 'phone' as const,
       header: '手机号码',
-    },
+    }] : []),
     {
       accessorKey: 'email',
       header: '邮箱',
@@ -75,9 +77,9 @@ export const ManageTable = ({
       id: 'actions',
       cell: ({ row }) => (
         <div className="w-[80px] flex gap-3 mr-4">
-          {/* <EditUserInfoDialog userInfo={row.original}/> */}
-          <EditUserFlowSheet userInfo={row.original} />
-          <RemoveUserInfoDialog uid={row.original.id} />
+          <EditUserFlowSheet userInfo={row.original} role={role} />
+          <EditUserInfoDialog userInfo={row.original} role={role} />
+          {role >= 2 && <RemoveUserInfoDialog uid={row.original.id} />}
         </div>
       ),
     },
@@ -165,10 +167,12 @@ export const ManageTable = ({
                   <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded-md">{row.original.studentId}</span>
                 </div>
                 <div className="text-sm space-y-2">
-                  <div className="flex justify-between items-center text-muted-foreground">
-                    <span>手机号码</span>
-                    <span className="text-foreground">{row.original.phone || '-'}</span>
-                  </div>
+                  {role >= 2 && (
+                    <div className="flex justify-between items-center text-muted-foreground">
+                      <span>手机号码</span>
+                      <span className="text-foreground">{row.original.phone || '-'}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center text-muted-foreground">
                     <span>邮箱</span>
                     <span className="truncate max-w-[200px] text-right text-foreground">{row.original.email || '-'}</span>
@@ -179,8 +183,9 @@ export const ManageTable = ({
                   </div>
                 </div>
                 <div className="pt-3 flex justify-end gap-3 border-t">
-                  <EditUserFlowSheet userInfo={row.original} />
-                  <RemoveUserInfoDialog uid={row.original.id} />
+                  <EditUserFlowSheet userInfo={row.original} role={role} />
+                  <EditUserInfoDialog userInfo={row.original} role={role} />
+                  {role >= 2 && <RemoveUserInfoDialog uid={row.original.id} />}
                 </div>
               </div>
             ))
