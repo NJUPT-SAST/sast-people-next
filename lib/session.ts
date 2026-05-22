@@ -27,7 +27,7 @@ export async function decrypt(session: string | undefined = "") {
       algorithms: ["HS256"],
     });
     return payload;
-  } catch (_error) {
+  } catch {
     return null;
   }
 }
