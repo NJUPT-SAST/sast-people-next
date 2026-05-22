@@ -5,10 +5,10 @@ services:
     ports:
       - "3003:3003"
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       HOSTNAME: "0.0.0.0"
-      APP_ID: ""
-      APP_SECRET: ""
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3003/health"]
       interval: 10s
