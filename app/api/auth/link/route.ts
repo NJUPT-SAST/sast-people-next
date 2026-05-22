@@ -56,12 +56,17 @@ export async function GET(request: NextRequest) {
     return redirect("/dashboard");
   } catch (err) {
     console.error("link auth error:", err);
+    const subErrors =
+      err instanceof AggregateError
+        ? err.errors.map((e) => String(e))
+        : undefined;
     return NextResponse.json(
       {
         message: "link auth failed",
         error: String(err),
         name: err instanceof Error ? err.name : typeof err,
         stack: err instanceof Error ? err.stack?.split("\n")[0] : undefined,
+        subErrors,
       },
       { status: 500 }
     );
