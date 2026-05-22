@@ -1,0 +1,12 @@
+node_modules
+.git
+.github
+.next
+coverage
+out
+*.md
+.gitignore
+.env*
+!.env.example
+.npm
+.eslintcache

@@ -1,155 +1,173 @@
 name: Deploy
 
 # ============================================================================
-# Deployment Workflows (DISABLED BY DEFAULT)
+# Docker Build + SCP + SSH Deployment
 # ============================================================================
-# This workflow handles preview and production deployments.
-#
-# ⚠️ DEPLOYMENTS ARE DISABLED BY DEFAULT ⚠️
-#
-# To enable Vercel deployments:
-# 1. Add the required secrets to your GitHub repository:
-#    - VERCEL_TOKEN: Your Vercel deployment token
-#    - VERCEL_ORG_ID: Your Vercel organization ID
-#    - VERCEL_PROJECT_ID: Your Vercel project ID
-# 2. Set DEPLOY_ENABLED to true in the workflow
-# 3. See CI_CD.md for detailed setup instructions
-#
-# For production deployments, also configure:
-# - GitHub Environment protection rules (Settings > Environments)
-# - Required reviewers for manual approval
-# - Deployment branch restrictions
+# Triggers on push to master (after CI passes) or manual dispatch.
+# Requires the following secrets:
+#   - SERVER_HOST:     Target server IP/hostname
+#   - SERVER_USER:     SSH user
+#   - SSH_PRIVATE_KEY: SSH private key for authentication
 # ============================================================================
 
 on:
-  workflow_call:
-    inputs:
-      environment:
-        description: "Deployment environment (preview or production)"
-        required: true
-        type: string
-        default: "preview"
+  push:
+    branches:
+      - master
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Deployment environment"
-        required: true
-        type: choice
-        options:
-          - preview
-          - production
-        default: "preview"
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
-  # Set to true to enable deployments (requires Vercel secrets)
-  DEPLOY_ENABLED: false
+  SERVICE_NAME: sast-people
+  REGISTRY_PREFIX: sast
+  TAR_FILE_NAME: new_image.tar
 
 jobs:
-  # Preview deployment for pull requests
-  deploy-preview:
-    name: Deploy Preview
+  quality:
+    name: Quality Check
+    uses: ./.github/workflows/quality.yml
+
+  test:
+    name: Test Suite
+    uses: ./.github/workflows/test.yml
+
+  deploy:
+    name: Docker Build & Deploy
+    needs: [quality, test]
     runs-on: ubuntu-latest
-    if: ${{ inputs.environment == 'preview' }}
+    if: success()
 
     steps:
-      - name: Check deployment status
-        run: |
-          if [ "${{ env.DEPLOY_ENABLED }}" != "true" ]; then
-            echo "⚠️ Deployment is disabled. Set DEPLOY_ENABLED to true and configure Vercel secrets."
-            echo "See CI_CD.md for setup instructions."
-            exit 0
-          fi
-
       - name: Checkout code
-        if: ${{ env.DEPLOY_ENABLED == 'true' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Download build artifacts
-        if: ${{ env.DEPLOY_ENABLED == 'true' }}
-        uses: actions/download-artifact@v8
+      - name: Get short Git commit hash
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and export image to tar
+        uses: docker/build-push-action@v6
         with:
-          name: nextjs-build
-          path: out/
+          context: .
+          push: false
+          tags: |
+            ${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}:latest
+            ${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
+          outputs: type=docker,dest=./${{ env.TAR_FILE_NAME }}
 
-      # Uncomment the following steps when Vercel secrets are configured:
-      #
-      # - name: Deploy to Vercel Preview
-      #   uses: amondnet/vercel-action@v25
-      #   env:
-      #     VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      #     VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      #     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      #   if: ${{ env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != '' }}
-      #   with:
-      #     vercel-token: ${{ env.VERCEL_TOKEN }}
-      #     vercel-org-id: ${{ env.VERCEL_ORG_ID }}
-      #     vercel-project-id: ${{ env.VERCEL_PROJECT_ID }}
-      #     working-directory: ./
-      #   continue-on-error: true
-      #
-      # - name: Comment Preview URL
-      #   uses: actions/github-script@v7
-      #   with:
-      #     script: |
-      #       github.rest.issues.createComment({
-      #         issue_number: context.issue.number,
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         body: '🚀 Preview deployment is ready! Check the deployment status above.'
-      #       })
-      #   continue-on-error: true
-
-  # Production deployment (requires manual approval)
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    if: ${{ inputs.environment == 'production' }}
-
-    # Requires manual approval via GitHub Environments
-    # environment:
-    #   name: production
-    #   url: https://your-app-url.com
-
-    steps:
-      - name: Check deployment status
-        run: |
-          if [ "${{ env.DEPLOY_ENABLED }}" != "true" ]; then
-            echo "⚠️ Production deployment is disabled."
-            echo "To enable:"
-            echo "1. Set DEPLOY_ENABLED to true"
-            echo "2. Configure Vercel secrets"
-            echo "3. Set up GitHub Environment protection rules"
-            echo "See CI_CD.md for detailed instructions."
-            exit 0
-          fi
-
-      - name: Checkout code
-        if: ${{ env.DEPLOY_ENABLED == 'true' }}
-        uses: actions/checkout@v6
-
-      - name: Download build artifacts
-        if: ${{ env.DEPLOY_ENABLED == 'true' }}
-        uses: actions/download-artifact@v8
+      - name: Transfer image to server
+        uses: appleboy/scp-action@v0.1.7
         with:
-          name: nextjs-build
-          path: out/
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: ${{ env.TAR_FILE_NAME }}
+          target: /data/${{ env.SERVICE_NAME }}/
 
-      # Uncomment the following steps when Vercel secrets are configured:
-      #
-      # - name: Deploy to Vercel Production
-      #   uses: amondnet/vercel-action@v25
-      #   with:
-      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
-      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-      #     vercel-args: '--prod'
-      #     working-directory: ./
-      #
-      # - name: Create deployment summary
-      #   run: |
-      #     echo "## 🚀 Production Deployment" >> $GITHUB_STEP_SUMMARY
-      #     echo "" >> $GITHUB_STEP_SUMMARY
-      #     echo "✅ Successfully deployed to production" >> $GITHUB_STEP_SUMMARY
-      #     echo "📅 Deployed at: $(date)" >> $GITHUB_STEP_SUMMARY
-      #     echo "🔗 Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-      #     echo "🌐 URL: https://your-app-url.com" >> $GITHUB_STEP_SUMMARY
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+
+            SERVICE_DIR="/data/${{ env.SERVICE_NAME }}"
+            IMAGE_NAME="${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}"
+            TAR_FILE="${{ env.TAR_FILE_NAME }}"
+            NEW_VERSION_TAG="${{ steps.vars.outputs.sha_short }}"
+
+            cd ${SERVICE_DIR}
+
+            echo "=========================================="
+            echo "Deploying version: ${NEW_VERSION_TAG}"
+            echo "=========================================="
+
+            echo ""
+            echo "[1/5] Loading new image from ${TAR_FILE}..."
+            docker load -i ${TAR_FILE}
+
+            echo ""
+            echo "[2/5] Rotating image tags..."
+            if docker image inspect "${IMAGE_NAME}:current" >/dev/null 2>&1; then
+              if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
+                echo "  Removing old backup image..."
+                docker rmi "${IMAGE_NAME}:backup"
+              fi
+              echo "  Tagging current as backup..."
+              docker tag "${IMAGE_NAME}:current" "${IMAGE_NAME}:backup"
+            else
+              echo "  First deployment, skipping backup rotation"
+            fi
+
+            echo "  Tagging new image (${NEW_VERSION_TAG}) as current..."
+            docker tag "${IMAGE_NAME}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:current"
+
+            echo ""
+            echo "[3/5] Starting service..."
+            docker compose up -d --remove-orphans
+
+            echo ""
+            echo "[4/5] Health check (timeout: 120s)..."
+            HEALTHY=0
+            for i in $(seq 1 24); do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' sast-people 2>/dev/null || echo "starting")
+              if [ "$STATUS" = "healthy" ]; then
+                HEALTHY=1
+                echo "  [$i/24] Service is healthy!"
+                break
+              fi
+              echo "  [$i/24] status=$STATUS, waiting 5s..."
+              sleep 5
+            done
+
+            if [ $HEALTHY -eq 0 ]; then
+              echo ""
+              echo "=========================================="
+              echo "!! HEALTH CHECK FAILED -- ROLLING BACK !!"
+              echo "=========================================="
+              echo ""
+              echo "--- Last 40 lines of container logs ---"
+              docker logs --tail 40 sast-people || true
+              echo "----------------------------------------"
+
+              if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
+                echo ""
+                echo "Rolling back to backup image..."
+                docker tag "${IMAGE_NAME}:backup" "${IMAGE_NAME}:current"
+                docker compose up -d --remove-orphans
+
+                echo "Waiting for rollback to stabilize..."
+                sleep 10
+                ROLLBACK_STATUS=$(docker inspect --format='{{.State.Health.Status}}' sast-people 2>/dev/null || echo "unknown")
+                echo "Rollback health status: $ROLLBACK_STATUS"
+              else
+                echo "No backup image found -- cannot rollback!"
+              fi
+
+              echo ""
+              echo "Removing failed image..."
+              docker rmi "${IMAGE_NAME}:${NEW_VERSION_TAG}" || true
+
+              echo ""
+              echo "DEPLOY FAILED. Rolled back to previous version."
+              exit 1
+            fi
+
+            echo ""
+            echo "[5/5] Cleaning up..."
+            rm ${TAR_FILE}
+            docker rmi "${IMAGE_NAME}:latest"
+            docker image prune -f
+
+            echo ""
+            echo "=========================================="
+            echo "Deploy complete. Running version: ${NEW_VERSION_TAG}"
+            echo "=========================================="
