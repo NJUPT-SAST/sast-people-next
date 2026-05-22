@@ -121,6 +121,8 @@ jobs:
             echo ""
             echo "[3/6] Writing .env from GitHub Secrets..."
             cat > .env << 'DOTENV'
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            SESSION_SECRET=${{ secrets.SESSION_SECRET }}
             LINK_CLIENT_ID=${{ secrets.LINK_CLIENT_ID }}
             LINK_CLIENT_SECRET=${{ secrets.LINK_CLIENT_SECRET }}
             APP_ID=${{ secrets.APP_ID }}
