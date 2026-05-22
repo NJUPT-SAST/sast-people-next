@@ -49,6 +49,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Get short Git commit hash
         id: vars
@@ -73,9 +75,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: |
-            ${{ env.TAR_FILE_NAME }}
-            docker-compose.yml
+          source: "${{ env.TAR_FILE_NAME }},docker-compose.yml"
           target: /data/${{ env.SERVICE_NAME }}/
 
       - name: Deploy on server
