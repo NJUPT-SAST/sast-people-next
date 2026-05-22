@@ -145,6 +145,12 @@ jobs:
               echo "--- Last 40 lines of container logs ---"
               docker logs --tail 40 sast-people-next || true
               echo "----------------------------------------"
+              echo "--- Health check diagnostics ---"
+              docker inspect --format='{{json .State.Health}}' sast-people-next 2>/dev/null || echo "(inspect failed)"
+              echo ""
+              echo "--- Direct health test inside container ---"
+              docker exec sast-people-next wget -O /dev/null http://127.0.0.1:3003/health 2>&1 || true
+              echo "----------------------------------------"
 
               if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
                 echo ""
