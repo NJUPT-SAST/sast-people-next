@@ -4,14 +4,6 @@ import userEvent from "@testing-library/user-event";
 
 import { SelectFlow } from "./selectFlow";
 
-const push = jest.fn();
-
-jest.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push,
-  }),
-}));
-
 jest.mock("../ui/select", () => {
   const SelectContext = React.createContext<{
     onValueChange?: (value: string) => void;
@@ -56,21 +48,24 @@ jest.mock("../ui/select", () => {
 });
 
 describe("SelectFlow", () => {
-  it("pushes the selected recruitment route", async () => {
+  it("calls onChange when a flow is selected", async () => {
     const user = userEvent.setup();
+    const onChange = jest.fn();
 
     render(
       <SelectFlow
-        defaultFlowTypeId="2"
-        flowTypes={[
-          { id: 1, title: "笔试" },
-          { id: 2, title: "面试" },
-        ] as never}
+        flowTypes={
+          [
+            { id: 1, title: "笔试" },
+            { id: 2, title: "面试" },
+          ] as never
+        }
+        onChange={onChange}
       />,
     );
 
     await user.click(screen.getByRole("button", { name: "面试" }));
 
-    expect(push).toHaveBeenCalledWith("/dashboard/recruitment/2");
+    expect(onChange).toHaveBeenCalledWith("2");
   });
 });

@@ -35,11 +35,21 @@ import {
 } from "../ui/select";
 
 export const fullUserSchema = createInsertSchema(user, {
-  name: z.string().min(2, "姓名至少两个字符").trim(),
+  name: z
+    .string()
+    .min(2, "姓名至少两个字符")
+    .regex(/^[\u4e00-\u9fff]+$/, "姓名只能包含中文")
+    .trim(),
   studentId: z.string().min(1, "学号不能为空").trim().toUpperCase(),
-  email: z.string().email("请输入正确的邮箱地址").trim().toLowerCase(),
+  email: z
+    .string()
+    .min(1, "邮箱不能为空")
+    .email("请输入正确的邮箱地址")
+    .trim()
+    .toLowerCase(),
   phone: z
     .string()
+    .min(1, "手机号码不能为空")
     .regex(
       /^(13[0-9]|14[01456879]|15[0-35-9]|16[2567]|17[0-8]|18[0-9]|19[0-35-9])\d{8}$/,
       "请输入正确的手机号码"

@@ -10,6 +10,8 @@ jest.mock("@/hooks/useFlowListClient", () => ({
       { id: 1, title: "笔试流程" },
       { id: 2, title: "终试流程" },
     ],
+    isLoading: false,
+    error: undefined,
   }),
 }));
 
@@ -19,9 +21,13 @@ jest.mock("./flowCardClient", () => ({
 
 jest.mock("../ui/sheet", () => ({
   Sheet: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetTrigger: ({ children }: { children: React.ReactNode }) => (
-    <button type="button">{children}</button>
-  ),
+  SheetTrigger: ({
+    children,
+    asChild,
+  }: {
+    children: React.ReactNode;
+    asChild?: boolean;
+  }) => (asChild ? <>{children}</> : <button type="button">{children}</button>),
   SheetContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SheetHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SheetTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -44,6 +50,7 @@ jest.mock("../ui/select", () => {
       </SelectContext.Provider>
     ),
     SelectTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
     SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => {
       const { onValueChange } = React.useContext(SelectContext);
