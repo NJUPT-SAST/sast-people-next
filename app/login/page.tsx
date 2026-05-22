@@ -49,7 +49,7 @@ const Login = async () => {
           </div>
         </div>
         <div className="flex-1 flex justify-start lg:justify-center items-center flex-col gap-8 col-span-1 lg:col-span-2 px-5 lg:px-6 -mt-10 lg:mt-0 z-10 pb-12">
-          <Card className="w-full max-w-md border-0 lg:border lg:shadow-xl lg:shadow-black/5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] bg-white animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <Card className="w-full max-w-md border-0 lg:border lg:shadow-xl lg:shadow-black/5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] bg-white text-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <CardContent className="flex flex-col items-center gap-8 pt-10 pb-10">
               <div className="flex gap-2 flex-col items-center">
                 <div className="text-2xl font-semibold tracking-tight text-gray-900">登录到 SAST Pass</div>
