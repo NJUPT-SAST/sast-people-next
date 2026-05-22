@@ -9,7 +9,7 @@ services:
       APP_ID: ""
       APP_SECRET: ""
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/health',function(r){process.exit(r.statusCode===200?0:1)})"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3003/health"]
       interval: 10s
       timeout: 5s
       retries: 3
