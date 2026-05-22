@@ -72,13 +72,13 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary">
+                <div className="flex items-center justify-center">
                   <Image
-                    src="/images/white-logo.png"
+                    src="/images/logo.png"
                     alt="SAST"
-                    width={20}
-                    height={20}
-                    className="size-5"
+                    width={36}
+                    height={18}
+                    className="h-[18px] w-auto"
                   />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
