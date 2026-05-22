@@ -82,7 +82,7 @@ export async function getCurrentRedirectUri() {
   return (
     (process.env.NODE_ENV === "development"
       ? "http://localhost:3001"
-      : "https://people.sast.fun") + "/api/auth/link"
+      : "https://nextpeople.sast.fun") + "/api/auth/link"
   );
 }
 
