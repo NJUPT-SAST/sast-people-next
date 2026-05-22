@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef } from 'react';
-import { TicketsPlane } from 'lucide-react';
+import Image from 'next/image';
 import {
   Sidebar,
   SidebarContent,
@@ -72,8 +72,14 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <TicketsPlane className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary">
+                  <Image
+                    src="/images/white-logo.png"
+                    alt="SAST"
+                    width={20}
+                    height={20}
+                    className="size-5"
+                  />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold">SAST 招新</span>
