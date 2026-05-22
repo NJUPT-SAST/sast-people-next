@@ -13,7 +13,10 @@ import { LogOut, MoreHorizontal } from 'lucide-react';
 export const UserCard: React.FC = async () => {
   const session = await verifySession();
   const name = session?.name ? (session.name as string) : '未知用户';
-  const roleLabel = session.role === 0 ? '新同学' : '讲师';
+  const roleLabel =
+    session.role === 0 ? '新同学'
+    : session.role === 1 ? '讲师'
+    : '管理员';
 
   return (
     <div className="flex items-center gap-3">
