@@ -8,6 +8,12 @@ jest.mock("./editUserFlowSheet", () => ({
   ),
 }));
 
+jest.mock("./editUserInfoDialog", () => ({
+  EditUserInfoDialog: ({ userInfo }: { userInfo: { name: string } }) => (
+    <div>info-{userInfo.name}</div>
+  ),
+}));
+
 jest.mock("./removeUserInfoDialog", () => ({
   RemoveUserInfoDialog: ({ uid }: { uid: number }) => <div>remove-{uid}</div>,
 }));
@@ -48,6 +54,7 @@ describe("ManageTable", () => {
         totalPages={2}
         search="张"
         currentPage={1}
+        role={2}
       />,
     );
 
@@ -67,6 +74,7 @@ describe("ManageTable", () => {
         totalPages={0}
         search=""
         currentPage={1}
+        role={2}
       />,
     );
 

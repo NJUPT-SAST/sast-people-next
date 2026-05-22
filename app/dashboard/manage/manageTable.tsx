@@ -1,11 +1,13 @@
 import { ManageTable } from "@/components/manage/manageTable";
 import { useUserList as getUserList } from "@/hooks/useUserList";
+import { verifySession } from "@/lib/dal";
 
 export const ManageTableServer = async (props: {
   page?: string;
   pageSize?: string;
   search?: string;
 }) => {
+  const session = await verifySession();
   const page = Number(props.page) || 1;
   const pageSize = Number(props.pageSize) || 10;
   const search = props.search || "";
@@ -24,6 +26,7 @@ export const ManageTableServer = async (props: {
         totalPages={totalPages}
         search={search}
         currentPage={page}
+        role={session.role}
       />
     </>
   );

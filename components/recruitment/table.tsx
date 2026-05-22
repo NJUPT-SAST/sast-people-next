@@ -29,6 +29,7 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   flowTypeId: number;
+  role: number;
 }
 
 type RecruitmentRowLike = {
@@ -40,6 +41,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   flowTypeId,
+  role,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -72,9 +74,10 @@ export function DataTable<TData, TValue>({
           className="max-w-sm w-full md:w-auto"
         />
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            disabled={table.getSelectedRowModel().rows.length === 0}
-            onClick={async () => {
+          {role >= 2 && (
+            <Button
+              disabled={table.getSelectedRowModel().rows.length === 0}
+              onClick={async () => {
               // get not selected rows
               const selectedRows = table.getSelectedRowModel().flatRows;
               const notSelectedRows = table
@@ -117,7 +120,8 @@ export function DataTable<TData, TValue>({
           >
             确认选中同学通过
           </Button>
-          <span className='text-muted-foreground text-xs md:text-sm max-w-[200px] md:max-w-none'>同时修改流程与发送邮件，请谨慎操作</span>
+          )}
+          <span className='text-muted-foreground text-xs md:text-sm max-w-[200px] md:max-w-none'>{role >= 2 ? '同时修改流程与发送邮件，请谨慎操作' : ''}</span>
         </div>
       </div>
       

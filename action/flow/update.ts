@@ -12,7 +12,7 @@ export const updateFlow = async (
   id: number,
   values: z.infer<typeof addFlowSchema>
 ) => {
-  await verifyRole(1);
+  await verifyRole(2);
 
   await db
     .update(flow)

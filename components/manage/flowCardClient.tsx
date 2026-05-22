@@ -40,9 +40,10 @@ const statusName: Record<string, string> = {
 
 interface FlowCardProps {
   flow: displayUserFlow;
+  role: number;
 }
 
-export const FlowCard = ({ flow: initialFlow }: FlowCardProps) => {
+export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
   const [flow, setFlow] = useState(initialFlow);
 
   // 当父组件传入新的 flow 时同步更新
@@ -204,7 +205,7 @@ export const FlowCard = ({ flow: initialFlow }: FlowCardProps) => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {flow.status === 'accepted' || flow.status === 'rejected' ? (
+            {role >= 2 && (flow.status === 'accepted' || flow.status === 'rejected') ? (
               <Button
                 disabled={loading}
                 variant="secondary"
@@ -213,8 +214,7 @@ export const FlowCard = ({ flow: initialFlow }: FlowCardProps) => {
               >
                 <LockOpen />
               </Button>
-            ) :
-            (
+            ) : role >= 2 ? (
               <>
                 {currentStepIndex > 0 && (
                   <Button
@@ -243,7 +243,7 @@ export const FlowCard = ({ flow: initialFlow }: FlowCardProps) => {
                   <ArrowRight />
                 </Button>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       </CardContent>

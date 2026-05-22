@@ -3,18 +3,23 @@ import userEvent from "@testing-library/user-event";
 
 import { ExperienceInfo } from "./experience";
 
-const mockToastSuccess = jest.fn();
+const mockEditExperience = jest.fn().mockResolvedValue(undefined);
+const mockToast = jest.fn();
+
+jest.mock("@/action/user/userInfo", () => ({
+  editExperience: (...args: unknown[]) => mockEditExperience(...args),
+}));
 
 jest.mock("sonner", () => ({
   toast: {
-    success: (...args: Parameters<typeof mockToastSuccess>) =>
-      mockToastSuccess(...args),
+    promise: (...args: unknown[]) => mockToast(...args),
   },
 }));
 
 describe("ExperienceInfo", () => {
   beforeEach(() => {
-    mockToastSuccess.mockClear();
+    mockEditExperience.mockClear();
+    mockToast.mockClear();
   });
 
   it("renders editable experience fields and submits them", async () => {
@@ -47,7 +52,7 @@ describe("ExperienceInfo", () => {
     await user.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
-      expect(mockToastSuccess).toHaveBeenCalledWith("个人信息保存成功");
+      expect(mockEditExperience).toHaveBeenCalled();
     });
   });
 });

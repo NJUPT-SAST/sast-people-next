@@ -13,7 +13,7 @@ export const updateFlowStep = async (
   id: number,
   stepList: fullStepType[]
 ) => {
-  await verifyRole(1);
+  await verifyRole(2);
   console.debug(stepList);
   await db.transaction(async (tx) => {
     await tx.delete(flowStep).where(eq(flowStep.fkFlowId, id));

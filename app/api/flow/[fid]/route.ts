@@ -8,7 +8,7 @@ export const GET = async (
   context: { params: Promise<{ fid: string }> },
 ) => {
   const { fid } = await context.params;
-  await verifyRole(1);
+  await verifyRole(2);
   return NextResponse.json(await getFlowStepsInfo(Number(fid)));
 };
 

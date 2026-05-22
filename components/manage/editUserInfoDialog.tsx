@@ -1,183 +1,73 @@
 "use client";
-import { editBasicInfoByUid } from "@/action/user/userInfo";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { userType } from "@/types/user";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { UserCog } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
+import { Eye } from "lucide-react";
 import { Button } from "../ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "../ui/form";
-import { Input } from "../ui/input";
-import { basicInfoSchema } from "../userInfo/basic";
 
 export const EditUserInfoDialog = ({
   userInfo,
+  role,
 }: {
   userInfo: Partial<userType>;
-  colleges: { id: number; name: string }[];
+  role: number;
 }) => {
-  const basicInfoForm = useForm<z.infer<typeof basicInfoSchema>>({
-    resolver: zodResolver(basicInfoSchema),
-    defaultValues: {
-      ...Object.fromEntries(
-        Object.entries(userInfo).map(([key, value]) => [key, value ?? ""])
-      ),
-    },
-  });
-  const { isSubmitting } = basicInfoForm.formState;
-
   return (
     <Dialog>
-      <DialogTrigger>
-        <UserCog className="mr-2 h-4 w-4" />
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <Eye className="h-4 w-4" />
+        </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>编辑用户信息</DialogTitle>
-          <Form {...basicInfoForm}>
-            <div className="space-y-2">
-              <FormField
-                control={basicInfoForm.control}
-                name="name"
-                disabled={isSubmitting}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>姓名</FormLabel>
-                    <FormControl>
-                      <Input placeholder="请填写你的真实姓名" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={basicInfoForm.control}
-                name="studentId"
-                disabled={isSubmitting}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>学号</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="请填写你的学号"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={basicInfoForm.control}
-                name="phone"
-                disabled={isSubmitting}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>手机号码</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="请填写你的手机号"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={basicInfoForm.control}
-                disabled={isSubmitting}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>邮箱</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="请填写你的邮箱地址"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={basicInfoForm.control}
-                disabled={isSubmitting}
-                name="college"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>学院</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="请填写你的学院"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={basicInfoForm.control}
-                disabled={isSubmitting}
-                name="major"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>专业</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="请填写你目前所在的专业"
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </Form>
+          <DialogTitle>{userInfo.name} 的信息</DialogTitle>
         </DialogHeader>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">取消</Button>
-          </DialogClose>
-          <Button
-            onClick={basicInfoForm.handleSubmit(async () => {
-              await editBasicInfoByUid(
-                userInfo.id as number,
-                basicInfoForm.getValues()
-              );
-              toast.success(`${userInfo.name} 的信息保存成功`);
-            })}
-            loading={isSubmitting}
-            disabled={isSubmitting}
-          >
-            保存
-          </Button>
-        </DialogFooter>
+        <div className="grid gap-3 text-sm">
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">姓名</p>
+            <p className="font-medium">{userInfo.name}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">学号</p>
+            <p className="font-medium">{userInfo.studentId || '-'}</p>
+          </div>
+          {role >= 2 && (
+            <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+              <p className="text-xs text-muted-foreground">手机号码</p>
+              <p className="font-medium">{userInfo.phone || '-'}</p>
+            </div>
+          )}
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">邮箱</p>
+            <p className="font-medium">{userInfo.email || '-'}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">学院</p>
+            <p className="font-medium">{userInfo.college || '-'}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">专业</p>
+            <p className="font-medium">{userInfo.major || '-'}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">GitHub</p>
+            <p className="font-medium">{userInfo.github || '未填写'}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">博客地址</p>
+            <p className="font-medium break-all">{userInfo.blog || '未填写'}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">个人介绍</p>
+            <p className="font-medium whitespace-pre-wrap">{userInfo.personalStatement || '未填写'}</p>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

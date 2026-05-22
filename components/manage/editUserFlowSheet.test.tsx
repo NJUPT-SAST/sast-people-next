@@ -67,7 +67,7 @@ describe("EditUserFlowSheet", () => {
   it("switches the selected flow and renders the related flow card", async () => {
     const user = userEvent.setup();
 
-    render(<EditUserFlowSheet userInfo={{ id: 1, name: "张三" } as never} />);
+    render(<EditUserFlowSheet userInfo={{ id: 1, name: "张三" } as never} role={2} />);
 
     expect(
       screen.getByText((_, element) =>

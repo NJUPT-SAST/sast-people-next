@@ -3,9 +3,17 @@ import { useUserInfo as getUserInfo } from "@/hooks/useUserInfo";
 
 export const ExperienceInfoServer = async () => {
   const userInfo = await getUserInfo();
+  const { github, blog, personalStatement, ...rest } = userInfo;
   return (
     <>
-      <ExperienceInfo initialInfo={userInfo} />
+      <ExperienceInfo
+        initialInfo={{
+          ...rest,
+          github: github ?? "",
+          blog: blog ?? "",
+          personalStatement: personalStatement ?? "",
+        }}
+      />
     </>
   );
 };

@@ -2,9 +2,11 @@
 import { db } from '@/db/drizzle';
 import { user, userFlow } from '@/db/schema';
 import { userPoint } from '@/db/schema';
+import { verifyRole } from '@/lib/dal';
 import { desc, eq, sum } from 'drizzle-orm';
 
 export const calScore = async (flowId: number) => {
+  await verifyRole(1);
   const examResult = await db.select({
       uid: user.id,
       name: user.name,
