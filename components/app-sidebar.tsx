@@ -76,9 +76,16 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
                   <Image
                     src="/images/logo.png"
                     alt="SAST"
-                    width={36}
-                    height={18}
-                    className="h-[18px] w-auto"
+                    width={48}
+                    height={24}
+                    className="h-6 w-auto dark:hidden"
+                  />
+                  <Image
+                    src="/images/white-logo.png"
+                    alt="SAST"
+                    width={48}
+                    height={24}
+                    className="hidden h-6 w-auto dark:block"
                   />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
