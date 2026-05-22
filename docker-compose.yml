@@ -9,9 +9,15 @@ services:
       - .env
     environment:
       HOSTNAME: "0.0.0.0"
+    networks:
+      - postgres
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3003/health"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 15s
+
+networks:
+  postgres:
+    external: true
