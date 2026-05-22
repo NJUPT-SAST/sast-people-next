@@ -25,36 +25,40 @@ export async function GET(request: NextRequest) {
     );
   }
   cookieStore.delete("link_code_verifier");
-  const access_token = await get_user_access_token(code, code_verifier);
-  if (!access_token) {
-    return NextResponse.json(
-      { message: "get user access token failed" },
-      { status: 500 }
-    );
-  }
-  const params = await get_user_info(access_token);
-  if (!params) {
-    return NextResponse.json(
-      { message: "get user info failed" },
-      { status: 500 }
-    );
-  }
-  if (cookieStore.get(IS_BINDING)?.value === "1") {
-    cookieStore.delete(IS_BINDING);
-    await bindingLinkAccount(params.userId.toUpperCase());
-  } else {
-    await loginFromX(
-      params.userId.toUpperCase(),
-      params.userId.toUpperCase(),
-      "link"
-    );
-  }
 
-  // } catch (err) {
-  // 	return NextResponse.json(
-  // 		{ message: "feishu auth failed" },
-  // 		{ status: 500 }
-  // 	);
-  // }
-  return redirect("/dashboard");
+  try {
+    const access_token = await get_user_access_token(code, code_verifier);
+    if (!access_token) {
+      return NextResponse.json(
+        { message: "get user access token failed" },
+        { status: 500 }
+      );
+    }
+    const params = await get_user_info(access_token);
+    if (!params) {
+      return NextResponse.json(
+        { message: "get user info failed" },
+        { status: 500 }
+      );
+    }
+
+    if (cookieStore.get(IS_BINDING)?.value === "1") {
+      cookieStore.delete(IS_BINDING);
+      await bindingLinkAccount(params.userId.toUpperCase());
+    } else {
+      await loginFromX(
+        params.userId.toUpperCase(),
+        params.userId.toUpperCase(),
+        "link"
+      );
+    }
+
+    return redirect("/dashboard");
+  } catch (err) {
+    console.error("link auth error:", err);
+    return NextResponse.json(
+      { message: err instanceof Error ? err.message : "link auth failed" },
+      { status: 500 }
+    );
+  }
 }

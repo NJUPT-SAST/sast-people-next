@@ -38,10 +38,10 @@ export const get_user_access_token = async (
     method: "POST",
     body: formData,
   }).then((res) => res.json());
-  console.log(res);
+  console.log("token response:", res);
   const access_token = res?.Data?.access_token;
   if (!access_token) {
-    throw new Error("get access token failed");
+    throw new Error(`get access token failed: ${JSON.stringify(res)}`);
   }
   return access_token;
 };
@@ -52,6 +52,7 @@ export const get_user_info = async (access_token: string) => {
       Authorization: `Bearer ${access_token}`,
     },
   }).then((res) => res.json());
+  console.log("userinfo response:", res);
   return res.Data;
 };
 
