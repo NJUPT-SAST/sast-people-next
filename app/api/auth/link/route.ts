@@ -6,6 +6,7 @@ import {
 } from "@/action/user/link";
 import { IS_BINDING } from "@/const/cookie";
 import { cookies } from "next/headers";
+import { isRedirectError } from "next/dist/client/components/redirect";
 import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
 import "server-only";
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
 
     return redirect("/dashboard");
   } catch (err) {
+    if (isRedirectError(err)) throw err;
     console.error("link auth error:", err);
     const subErrors =
       err instanceof AggregateError
