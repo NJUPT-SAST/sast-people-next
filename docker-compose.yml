@@ -5,6 +5,9 @@ services:
     ports:
       - "3003:3003"
     restart: unless-stopped
+    environment:
+      APP_ID: ""
+      APP_SECRET: ""
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003',function(r){process.exit(r.statusCode===200?0:1)})"]
       interval: 10s
