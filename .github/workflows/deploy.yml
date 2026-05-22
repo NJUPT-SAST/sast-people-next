@@ -11,9 +11,10 @@ name: Deploy
 # ============================================================================
 
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
 
 concurrency:
@@ -28,17 +29,22 @@ env:
 jobs:
   quality:
     name: Quality Check
+    if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/quality.yml
 
   test:
     name: Test Suite
+    if: github.event_name == 'workflow_dispatch'
+    needs: quality
     uses: ./.github/workflows/test.yml
 
   deploy:
     name: Docker Build & Deploy
     needs: [quality, test]
     runs-on: ubuntu-latest
-    if: success()
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && !cancelled() && !failure())
 
     steps:
       - name: Checkout code
