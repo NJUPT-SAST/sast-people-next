@@ -60,7 +60,6 @@ jobs:
 
       - name: Run ESLint
         run: pnpm lint
-        continue-on-error: true
 
       - name: TypeScript type checking
         run: pnpm exec tsc --noEmit
