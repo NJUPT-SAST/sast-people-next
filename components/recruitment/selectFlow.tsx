@@ -8,19 +8,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { useRouter } from 'next/navigation';
 
 export const SelectFlow = ({
   flowTypes,
   defaultFlowTypeId,
+  onChange,
 }: {
   flowTypes: displayFlow[];
   defaultFlowTypeId?: string;
+  onChange?: (value: string) => void;
 }) => {
-  const router = useRouter();
   return (
     <Select
-      onValueChange={(value) => router.push(`/dashboard/recruitment/${value}`)}
+      onValueChange={(value) => onChange?.(value)}
       defaultValue={defaultFlowTypeId}
     >
       <SelectTrigger className="w-[220px]">

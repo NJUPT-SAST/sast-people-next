@@ -7,6 +7,8 @@ import { CalendarIcon, CircleAlert, CircleCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFormContext } from 'react-hook-form';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 type DateTimeInputProps = {
   className?: string;
@@ -63,8 +65,9 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
   const { format: formatProp, value: _value, timezone, ...rest } = options;
   const value = useMemo(() => _value ? new Date(_value) : undefined, [_value, timezone]);
   const form = useFormContext();
-  const formatStr = React.useMemo(() => formatProp || 'dd/MM/yyyy-HH:mm:ss', [formatProp]);
+  const formatStr = React.useMemo(() => formatProp || 'yyyy-MM-dd HH:mm:ss', [formatProp]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegmentAt, setSelectedSegmentAt] = useState<number | undefined>(undefined);
@@ -269,9 +272,32 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
       )}
     >
       {!options.hideCalendarIcon && (
-        <Button variant="ghost" size="icon" onClick={options.onCalendarClick}>
-          <CalendarIcon className="size-4 text-muted-foreground" />
-        </Button>
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <CalendarIcon className="size-4 text-muted-foreground" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={inputValue}
+              onSelect={(date) => {
+                if (date) {
+                  const newDate = new Date(date);
+                  if (inputValue) {
+                    newDate.setHours(inputValue.getHours());
+                    newDate.setMinutes(inputValue.getMinutes());
+                    newDate.setSeconds(inputValue.getSeconds());
+                  }
+                  setSegments(parseFormat(formatStr, newDate));
+                  setCalendarOpen(false);
+                }
+              }}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
       )}
       <input
         ref={inputRef}
@@ -296,9 +322,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
                 <CircleAlert className={cn('size-4', !areAllSegmentsEmpty && 'text-red-500')} />
               </TooltipTrigger>
               <TooltipContent>
-                <p>
-                  Please enter a valid value. The input cannot be empty and must be within the range of years 1900 to 2100.
-                </p>
+                <p>请输入有效的时间，不能为空，年份须在 1900 至 2100 之间。</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

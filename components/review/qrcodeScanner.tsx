@@ -183,8 +183,8 @@ const QRCodeScanner = () => {
           </div>
         )}
         {!paused && (
-          <div className="absolute bottom-4 inset-x-4 flex items-end justify-between gap-3">
-            <div className="flex-1 max-w-[200px]">
+          <div className="absolute bottom-4 inset-x-4 flex items-end justify-between gap-2">
+            <div className="flex-1 min-w-0 max-w-[160px]">
               <Select
                 value={selectedDevice || undefined}
                 onValueChange={(value) => setSelectedDevice(value)}
@@ -208,11 +208,11 @@ const QRCodeScanner = () => {
               type="button"
               size="sm"
               variant="destructive"
-              className="px-4 shadow-lg"
+              className="shadow-lg shrink-0"
               onClick={() => setPaused(true)}
             >
-              <Pause data-icon="inline-start" className="mr-1.5 size-4" />
-              停止
+              <Pause className="size-4" />
+              <span className="hidden sm:inline">停止</span>
             </Button>
           </div>
         )}

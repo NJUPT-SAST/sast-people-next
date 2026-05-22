@@ -1,21 +1,16 @@
-// // TODO: v2 db - This entire file uses step table extensively
-// // All content commented out due to step table dependency
-
 'use client';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
   CircleDashed,
-  Icon,
   ArrowRight,
   ArrowLeft,
   X,
   LockOpen,
 } from 'lucide-react';
-import { useFlowStepsInfo } from '@/hooks/useFlowStepsInfo';
 import { displayUserFlow } from '@/types/userflow';
 import {
   HoverCard,
@@ -24,12 +19,11 @@ import {
 } from '../ui/hover-card';
 import { Badge } from '../ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { useFlowStepsInfoClient } from '@/hooks/useFlowStepsInfoClient';
 import { Button } from '../ui/button';
 import { backward, finish, forward, reject, reopen } from '@/action/user-flow/edit';
 import { mutate } from 'swr';
+import { toast } from 'sonner';
 
-// 定义状态图标映射
 const statusIcons = {
   pending: CircleDashed,
   ongoing: Clock,
@@ -37,7 +31,7 @@ const statusIcons = {
   rejected: XCircle,
 };
 
-const statusName = {
+const statusName: Record<string, string> = {
   pending: '未开始',
   ongoing: '进行中',
   accepted: '已通过',
@@ -48,30 +42,24 @@ interface FlowCardProps {
   flow: displayUserFlow;
 }
 
-export const FlowCard = ({ flow }: FlowCardProps) => {
-  const { data: rawFlowSteps } = useFlowStepsInfoClient(flow.id);
-//   const { flowTypeInfo } = flow;
-  const flowSteps = flow.steps.map((step) => {
-    const rawFlowStep =
-      rawFlowSteps &&
-      rawFlowSteps.find((rawFlowStep) => rawFlowStep.id === step.id);
-    return {
-      ...step,
-      status: rawFlowStep?.type,
-    };
-  });
+export const FlowCard = ({ flow: initialFlow }: FlowCardProps) => {
+  const [flow, setFlow] = useState(initialFlow);
+
+  // 当父组件传入新的 flow 时同步更新
+  useEffect(() => {
+    setFlow(initialFlow);
+  }, [initialFlow]);
 
   const currentStepIndex = useMemo(() => {
-    return flowSteps.findIndex((step) => step.order === flow.currentStepOrder);
-  }, [flowSteps, flow.currentStepOrder]);
+    return flow.steps.findIndex((step) => step.order === flow.currentStepOrder);
+  }, [flow.steps, flow.currentStepOrder]);
 
   const isLastStep = useMemo(() => {
     return currentStepIndex === flow.steps.length - 1;
-  }, [currentStepIndex]);
+  }, [currentStepIndex, flow.steps.length]);
 
   const [loading, setLoading] = React.useState(false);
 
-  // 根据状态确定颜色
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'accepted':
@@ -85,55 +73,45 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
     }
   };
 
-  const handleForward = async () => {
+  const doAction = async (action: () => Promise<void>, optimisticUpdate: (f: displayUserFlow) => displayUserFlow) => {
     setLoading(true);
-    await forward(
-      flow.id,
-    );
-    await mutate(`/api/flow?uid=${flow.fkUserId}`);
-    await mutate(`/api/flow/${flow.id}`);
-    setLoading(false);
+    // 立即乐观更新 UI
+    setFlow((prev) => optimisticUpdate(prev));
+    try {
+      await action();
+      // 后台重新验证，确保数据一致
+      mutate(`/api/flow?uid=${flow.fkUserId}`);
+      mutate(`/api/flow/${flow.id}`);
+    } catch (e) {
+      console.error('[FlowCard] operation failed:', e);
+      toast.error('操作失败，请重试');
+      // 恢复为 initialFlow
+      setFlow(initialFlow);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleBackward = async () => {
-    setLoading(true);
-    await backward(
-        flow.id
-    );
-    await mutate(`/api/flow?uid=${flow.fkUserId}`);
-    await mutate(`/api/flow/${flow.id}`);
-    setLoading(false);
-  };
-
-  const handleLastStep = async () => {
-    setLoading(true);
-    await finish(
-      flow.id,
-    );
-    await mutate(`/api/flow?uid=${flow.fkUserId}`);
-    await mutate(`/api/flow/${flow.id}`);
-    setLoading(false);
-  };
-
-  const handleReject = async () => {
-    setLoading(true);
-    await reject(
-      flow.id,
-    );
-    await mutate(`/api/flow?uid=${flow.fkUserId}`);
-    await mutate(`/api/flow/${flow.id}`);
-    setLoading(false);
-  };
-
-  const handleReopen = async () => {
-    setLoading(true);
-    await reopen(
-      flow.id,
-    );
-    await mutate(`/api/flow?uid=${flow.fkUserId}`);
-    await mutate(`/api/flow/${flow.id}`);
-    setLoading(false);
-  };
+  const handleForward = () => doAction(
+    () => forward(flow.id),
+    (f) => ({ ...f, currentStepOrder: f.currentStepOrder + 1 }),
+  );
+  const handleBackward = () => doAction(
+    () => backward(flow.id),
+    (f) => ({ ...f, currentStepOrder: f.currentStepOrder - 1 }),
+  );
+  const handleLastStep = () => doAction(
+    () => finish(flow.id),
+    (f) => ({ ...f, status: 'accepted' as const }),
+  );
+  const handleReject = () => doAction(
+    () => reject(flow.id),
+    (f) => ({ ...f, status: 'rejected' as const }),
+  );
+  const handleReopen = () => doAction(
+    () => reopen(flow.id),
+    (f) => ({ ...f, status: 'ongoing' as const }),
+  );
 
   return (
     <Card className="w-full">
@@ -162,13 +140,14 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
           {/* 背景横线 */}
           <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted z-10"></div>
           {flow.steps.map((step, index) => {
-            const status = flowSteps[index].order && flowSteps[index].order < flow.currentStepOrder ? 'accepted' : flowSteps[index].order === flow.currentStepOrder ? 'ongoing' : 'pending';
+            const stepStatus =
+              step.order < flow.currentStepOrder
+                ? 'accepted'
+                : step.order === flow.currentStepOrder
+                  ? 'ongoing'
+                  : 'pending';
             const Icon =
-              statusIcons[status as keyof typeof statusIcons] || AlertCircle;
-            const nextStatus =
-              index < flow.steps.length - 1
-                ? flowSteps[index + 1].status
-                : null;
+              statusIcons[stepStatus as keyof typeof statusIcons] || AlertCircle;
 
             return (
               <React.Fragment key={`${flow.id}-${index}-step`}>
@@ -178,7 +157,7 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
                       className={`w-14 h-14 rounded-full flex items-center justify-center text-sm
                         ${
                           index <= currentStepIndex
-                            ? getStatusColor(status || '') + ' text-white'
+                            ? getStatusColor(stepStatus) + ' text-white'
                             : 'bg-muted text-muted-foreground'
                         }`}
                     >
@@ -190,7 +169,7 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
                       <h4 className="text-sm font-semibold">{step.title}</h4>
                       <p className="text-sm">{step.description}</p>
                       <p className="text-xs text-muted-foreground">
-                        状态: {statusName[status as keyof typeof statusName]}
+                        状态: {statusName[stepStatus] || stepStatus}
                       </p>
                     </div>
                   </HoverCardContent>
@@ -198,7 +177,7 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
                 {index < flow.steps.length - 1 && (
                   <div
                     className={`absolute top-1/2 h-0.5 z-20 ${getStatusColor(
-                      nextStatus || '',
+                      stepStatus,
                     )}`}
                     style={{
                       left: `calc(${
@@ -224,11 +203,12 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
                 '流程已结束'}
             </p>
           </div>
-          <div className="space-x-3">
+          <div className="flex flex-wrap gap-2">
             {flow.status === 'accepted' || flow.status === 'rejected' ? (
               <Button
                 disabled={loading}
                 variant="secondary"
+                size="icon-sm"
                 onClick={handleReopen}
               >
                 <LockOpen />
@@ -236,21 +216,20 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
             ) :
             (
               <>
-                {
-                  // 如果当前步骤不是第一个步骤，显示后退按钮
-                  currentStepIndex > 0 && (
-                    <Button
-                      disabled={loading}
-                      variant="secondary"
-                      onClick={handleBackward}
-                    >
-                      <ArrowLeft />
-                    </Button>
-                  )
-                }
+                {currentStepIndex > 0 && (
+                  <Button
+                    disabled={loading}
+                    variant="secondary"
+                    size="icon-sm"
+                    onClick={handleBackward}
+                  >
+                    <ArrowLeft />
+                  </Button>
+                )}
                 <Button
                   disabled={loading}
                   variant="destructive"
+                  size="icon-sm"
                   onClick={handleReject}
                 >
                   <X />
@@ -258,13 +237,13 @@ export const FlowCard = ({ flow }: FlowCardProps) => {
                 <Button
                   disabled={loading}
                   variant="secondary"
+                  size="icon-sm"
                   onClick={isLastStep ? handleLastStep : handleForward}
                 >
                   <ArrowRight />
                 </Button>
               </>
-            )
-            }
+            )}
           </div>
         </div>
       </CardContent>

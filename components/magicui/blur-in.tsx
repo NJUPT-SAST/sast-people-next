@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 interface BlurIntProps {
   word: string;
   className?: string;
+  style?: React.CSSProperties;
   variant?: {
     hidden: { filter: string; opacity: number };
     visible: { filter: string; opacity: number };
@@ -14,7 +15,7 @@ interface BlurIntProps {
   duration?: number;
   delay?: number;
 }
-const BlurIn = ({ word, className, variant, duration = 1, delay = 0 }: BlurIntProps) => {
+const BlurIn = ({ word, className, style, variant, duration = 1, delay = 0 }: BlurIntProps) => {
   const defaultVariants = {
     hidden: { filter: 'blur(20px)', opacity: 0 },
     visible: { filter: 'blur(0px)', opacity: 1 },
@@ -27,6 +28,7 @@ const BlurIn = ({ word, className, variant, duration = 1, delay = 0 }: BlurIntPr
       animate="visible"
       transition={{ duration, delay }}
       variants={combinedVariants}
+      style={style}
       className={cn(
         'font-display text-center text-4xl font-bold tracking-[-0.02em] drop-shadow-sm md:text-7xl md:leading-[5rem]',
         className,
