@@ -8,12 +8,6 @@ jest.mock("./editUserFlowSheet", () => ({
   ),
 }));
 
-jest.mock("./editUserInfoDialog", () => ({
-  EditUserInfoDialog: ({ userInfo }: { userInfo: { name: string } }) => (
-    <div>info-{userInfo.name}</div>
-  ),
-}));
-
 jest.mock("./removeUserInfoDialog", () => ({
   RemoveUserInfoDialog: ({ uid }: { uid: number }) => <div>remove-{uid}</div>,
 }));
