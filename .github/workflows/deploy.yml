@@ -1,7 +1,7 @@
 name: Deploy
 
 # ============================================================================
-# Docker Build + SCP + SSH Deployment
+# Docker Build + SCP + SSH Deployment (SOP-compliant)
 # ============================================================================
 # Manual trigger only (workflow_dispatch).
 # Requires the following secrets:
@@ -21,6 +21,7 @@ env:
   SERVICE_NAME: sast-people-next
   REGISTRY_PREFIX: sast
   TAR_FILE_NAME: new_image.tar
+  TAR_GZ_FILE_NAME: new_image.tar.gz
 
 jobs:
   quality:
@@ -61,13 +62,16 @@ jobs:
             ${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
           outputs: type=docker,dest=./${{ env.TAR_FILE_NAME }}
 
+      - name: Compress image tar
+        run: gzip -f ${{ env.TAR_FILE_NAME }}
+
       - name: Transfer files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "${{ env.TAR_FILE_NAME }},docker-compose.yml"
+          source: "${{ env.TAR_GZ_FILE_NAME }},docker-compose.yml"
           target: /data/${{ env.SERVICE_NAME }}/
 
       - name: Deploy on server
@@ -82,6 +86,7 @@ jobs:
             SERVICE_DIR="/data/${{ env.SERVICE_NAME }}"
             IMAGE_NAME="${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}"
             TAR_FILE="${{ env.TAR_FILE_NAME }}"
+            TAR_GZ_FILE="${{ env.TAR_GZ_FILE_NAME }}"
             NEW_VERSION_TAG="${{ steps.vars.outputs.sha_short }}"
 
             cd ${SERVICE_DIR}
@@ -91,11 +96,15 @@ jobs:
             echo "=========================================="
 
             echo ""
-            echo "[1/6] Loading new image from ${TAR_FILE}..."
+            echo "[1/7] Decompressing image..."
+            gunzip -f ${TAR_GZ_FILE}
+
+            echo ""
+            echo "[2/7] Loading image from ${TAR_FILE}..."
             docker load -i ${TAR_FILE}
 
             echo ""
-            echo "[2/6] Rotating image tags..."
+            echo "[3/7] Rotating image tags..."
             if docker image inspect "${IMAGE_NAME}:current" >/dev/null 2>&1; then
               if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
                 echo "  Removing old backup image..."
@@ -111,7 +120,7 @@ jobs:
             docker tag "${IMAGE_NAME}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:current"
 
             echo ""
-            echo "[3/6] Writing .env from GitHub Secrets..."
+            echo "[4/7] Writing .env from GitHub Secrets..."
             cat > .env << 'DOTENV'
             DATABASE_URL=${{ secrets.DATABASE_URL }}
             SESSION_SECRET=${{ secrets.SESSION_SECRET }}
@@ -123,11 +132,11 @@ jobs:
             chmod 600 .env
 
             echo ""
-            echo "[4/6] Starting service..."
+            echo "[5/7] Starting service..."
             docker compose up -d --remove-orphans
 
             echo ""
-            echo "[5/6] Health check (timeout: 120s)..."
+            echo "[6/7] Health check (timeout: 120s)..."
             HEALTHY=0
             for i in $(seq 1 24); do
               STATUS=$(docker inspect --format='{{.State.Health.Status}}' sast-people-next 2>/dev/null || echo "starting")
@@ -180,8 +189,8 @@ jobs:
             fi
 
             echo ""
-            echo "[6/6] Cleaning up..."
-            rm ${TAR_FILE}
+            echo "[7/7] Cleaning up..."
+            rm ${TAR_FILE} ${TAR_GZ_FILE}
             docker rmi "${IMAGE_NAME}:latest"
             docker image prune -f
 
