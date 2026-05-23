@@ -11,9 +11,10 @@ name: Deploy
 # ============================================================================
 
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
 
 concurrency:
@@ -28,21 +29,28 @@ env:
 jobs:
   quality:
     name: Quality Check
+    if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/quality.yml
 
   test:
     name: Test Suite
+    if: github.event_name == 'workflow_dispatch'
+    needs: quality
     uses: ./.github/workflows/test.yml
 
   deploy:
     name: Docker Build & Deploy
     needs: [quality, test]
     runs-on: ubuntu-latest
-    if: success()
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && !cancelled() && !failure())
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Get short Git commit hash
         id: vars
@@ -67,9 +75,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: |
-            ${{ env.TAR_FILE_NAME }}
-            docker-compose.yml
+          source: "${{ env.TAR_FILE_NAME }},docker-compose.yml"
           target: /data/${{ env.SERVICE_NAME }}/
 
       - name: Deploy on server
@@ -93,11 +99,11 @@ jobs:
             echo "=========================================="
 
             echo ""
-            echo "[1/5] Loading new image from ${TAR_FILE}..."
+            echo "[1/6] Loading new image from ${TAR_FILE}..."
             docker load -i ${TAR_FILE}
 
             echo ""
-            echo "[2/5] Rotating image tags..."
+            echo "[2/6] Rotating image tags..."
             if docker image inspect "${IMAGE_NAME}:current" >/dev/null 2>&1; then
               if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
                 echo "  Removing old backup image..."
@@ -113,11 +119,23 @@ jobs:
             docker tag "${IMAGE_NAME}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:current"
 
             echo ""
-            echo "[3/5] Starting service..."
+            echo "[3/6] Writing .env from GitHub Secrets..."
+            cat > .env << 'DOTENV'
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+            LINK_CLIENT_ID=${{ secrets.LINK_CLIENT_ID }}
+            LINK_CLIENT_SECRET=${{ secrets.LINK_CLIENT_SECRET }}
+            APP_ID=${{ secrets.APP_ID }}
+            APP_SECRET=${{ secrets.APP_SECRET }}
+            DOTENV
+            chmod 600 .env
+
+            echo ""
+            echo "[4/6] Starting service..."
             docker compose up -d --remove-orphans
 
             echo ""
-            echo "[4/5] Health check (timeout: 120s)..."
+            echo "[5/6] Health check (timeout: 120s)..."
             HEALTHY=0
             for i in $(seq 1 24); do
               STATUS=$(docker inspect --format='{{.State.Health.Status}}' sast-people-next 2>/dev/null || echo "starting")
@@ -138,6 +156,12 @@ jobs:
               echo ""
               echo "--- Last 40 lines of container logs ---"
               docker logs --tail 40 sast-people-next || true
+              echo "----------------------------------------"
+              echo "--- Health check diagnostics ---"
+              docker inspect --format='{{json .State.Health}}' sast-people-next 2>/dev/null || echo "(inspect failed)"
+              echo ""
+              echo "--- Direct health test inside container ---"
+              docker exec sast-people-next wget -O /dev/null http://127.0.0.1:3003/health 2>&1 || true
               echo "----------------------------------------"
 
               if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
@@ -164,7 +188,7 @@ jobs:
             fi
 
             echo ""
-            echo "[5/5] Cleaning up..."
+            echo "[6/6] Cleaning up..."
             rm ${TAR_FILE}
             docker rmi "${IMAGE_NAME}:latest"
             docker image prune -f

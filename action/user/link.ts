@@ -28,6 +28,11 @@ export const get_user_access_token = async (
 ) => {
   const formData = new FormData();
   const redirect_uri = await getCurrentRedirectUri();
+  console.log("token request:", {
+    client_id: process.env.LINK_CLIENT_ID?.slice(0, 8) + "...",
+    redirect_uri,
+    code: code?.slice(0, 10) + "...",
+  });
   formData.append("client_id", process.env.LINK_CLIENT_ID!);
   formData.append("client_secret", process.env.LINK_CLIENT_SECRET!);
   formData.append("code", code);
@@ -38,10 +43,10 @@ export const get_user_access_token = async (
     method: "POST",
     body: formData,
   }).then((res) => res.json());
-  console.log(res);
+  console.log("token response:", res);
   const access_token = res?.Data?.access_token;
   if (!access_token) {
-    throw new Error("get access token failed");
+    throw new Error(`get access token failed: ${JSON.stringify(res)}`);
   }
   return access_token;
 };
@@ -52,6 +57,7 @@ export const get_user_info = async (access_token: string) => {
       Authorization: `Bearer ${access_token}`,
     },
   }).then((res) => res.json());
+  console.log("userinfo response:", res);
   return res.Data;
 };
 
@@ -71,9 +77,21 @@ export async function createCodeChallenge(isBinding: boolean) {
   const code_verifier = base64URLEncode(crypto.randomBytes(32));
   const cookieStore = await cookies();
   const code_challenge = base64URLEncode(sha256(code_verifier));
-  cookieStore.set("link_code_verifier", code_verifier);
+  cookieStore.set("link_code_verifier", code_verifier, {
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    maxAge: 600, // 10 minutes
+  });
   if (isBinding) {
-    cookieStore.set(IS_BINDING, "1");
+    cookieStore.set(IS_BINDING, "1", {
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 600,
+    });
   }
   return code_challenge;
 }

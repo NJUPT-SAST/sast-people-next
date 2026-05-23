@@ -6,6 +6,7 @@ import {
 } from "@/action/user/link";
 import { IS_BINDING } from "@/const/cookie";
 import { cookies } from "next/headers";
+import { isRedirectError } from "next/dist/client/components/redirect";
 import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
 import "server-only";
@@ -25,36 +26,51 @@ export async function GET(request: NextRequest) {
     );
   }
   cookieStore.delete("link_code_verifier");
-  const access_token = await get_user_access_token(code, code_verifier);
-  if (!access_token) {
-    return NextResponse.json(
-      { message: "get user access token failed" },
-      { status: 500 }
-    );
-  }
-  const params = await get_user_info(access_token);
-  if (!params) {
-    return NextResponse.json(
-      { message: "get user info failed" },
-      { status: 500 }
-    );
-  }
-  if (cookieStore.get(IS_BINDING)?.value === "1") {
-    cookieStore.delete(IS_BINDING);
-    await bindingLinkAccount(params.userId.toUpperCase());
-  } else {
-    await loginFromX(
-      params.userId.toUpperCase(),
-      params.userId.toUpperCase(),
-      "link"
-    );
-  }
 
-  // } catch (err) {
-  // 	return NextResponse.json(
-  // 		{ message: "feishu auth failed" },
-  // 		{ status: 500 }
-  // 	);
-  // }
-  return redirect("/dashboard");
+  try {
+    const access_token = await get_user_access_token(code, code_verifier);
+    if (!access_token) {
+      return NextResponse.json(
+        { message: "get user access token failed" },
+        { status: 500 }
+      );
+    }
+    const params = await get_user_info(access_token);
+    if (!params) {
+      return NextResponse.json(
+        { message: "get user info failed" },
+        { status: 500 }
+      );
+    }
+
+    if (cookieStore.get(IS_BINDING)?.value === "1") {
+      cookieStore.delete(IS_BINDING);
+      await bindingLinkAccount(params.userId.toUpperCase());
+    } else {
+      await loginFromX(
+        params.userId.toUpperCase(),
+        params.userId.toUpperCase(),
+        "link"
+      );
+    }
+
+    return redirect("/dashboard");
+  } catch (err) {
+    if (isRedirectError(err)) throw err;
+    console.error("link auth error:", err);
+    const subErrors =
+      err instanceof AggregateError
+        ? err.errors.map((e) => String(e))
+        : undefined;
+    return NextResponse.json(
+      {
+        message: "link auth failed",
+        error: String(err),
+        name: err instanceof Error ? err.name : typeof err,
+        stack: err instanceof Error ? err.stack?.split("\n")[0] : undefined,
+        subErrors,
+      },
+      { status: 500 }
+    );
+  }
 }
