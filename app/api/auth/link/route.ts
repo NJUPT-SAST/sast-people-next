@@ -25,8 +25,6 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   }
-  cookieStore.delete("link_code_verifier");
-
   try {
     const access_token = await get_user_access_token(code, code_verifier);
     if (!access_token) {
@@ -43,6 +41,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    cookieStore.delete("link_code_verifier");
+
     if (cookieStore.get(IS_BINDING)?.value === "1") {
       cookieStore.delete(IS_BINDING);
       await bindingLinkAccount(params.userId.toUpperCase());
@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
 
     return redirect("/dashboard");
   } catch (err) {
+    if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (getURLFromRedirectError(err as any) !== null) throw err;
     console.error("link auth error:", err);
