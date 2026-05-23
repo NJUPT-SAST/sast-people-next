@@ -4,6 +4,9 @@ import { cookies } from "next/headers";
 import "server-only";
 
 const secretKey = process.env.SESSION_SECRET;
+if (!secretKey) {
+  throw new Error("SESSION_SECRET environment variable is not set");
+}
 const encodedKey = new TextEncoder().encode(secretKey);
 
 const httpOnly = process.env.NODE_ENV === "production" ? true : false;
