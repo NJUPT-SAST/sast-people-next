@@ -37,7 +37,7 @@ jobs:
     name: Docker Build & Deploy
     needs: [quality, test]
     runs-on: ubuntu-latest
-    if: !cancelled() && !failure()
+    if: '!cancelled() && !failure()'
 
     steps:
       - name: Checkout code
