@@ -7,20 +7,26 @@ import { redirect } from "next/navigation";
 import { SESSION } from "@/const/cookie";
 
 export const verifySession = cache(async () => {
-  const cookieStore = await cookies();
-  const cookie = cookieStore.get(SESSION)?.value;
-  const session = await decrypt(cookie);
+  try {
+    const cookieStore = await cookies();
+    const cookie = cookieStore.get(SESSION)?.value;
+    const session = await decrypt(cookie);
 
-  if (!session?.uid) {
-    redirect("/login");
+    if (!session?.uid) {
+      redirect("/login");
+    }
+
+    return {
+      isAuth: true,
+      uid: Number(session.uid),
+      role: session.role as number,
+      name: session.name as string,
+    };
+  } catch (err) {
+    if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
+    console.error("verifySession error:", err);
+    throw err;
   }
-
-  return {
-    isAuth: true,
-    uid: Number(session.uid),
-    role: session.role as number,
-    name: session.name as string,
-  };
 });
 
 export const verifyRole = cache(async (role: number) => {
