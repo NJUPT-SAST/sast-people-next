@@ -190,8 +190,14 @@ jobs:
 
             echo ""
             echo "[7/7] Cleaning up..."
-            rm ${TAR_FILE} ${TAR_GZ_FILE}
+            rm -f ${TAR_FILE} ${TAR_GZ_FILE}
             docker rmi "${IMAGE_NAME}:latest"
+
+            echo "  Pruning old version images (keep latest 3)..."
+            docker image ls --format '{{.Tag}}' "${IMAGE_NAME}" \
+              | grep -v -E '^(current|backup|latest)$' \
+              | tail -n +4 \
+              | xargs -r -I {} docker rmi "${IMAGE_NAME}:{}"
             docker image prune -f
 
             echo ""
