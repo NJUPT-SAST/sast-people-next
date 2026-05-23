@@ -3,7 +3,7 @@ name: Deploy
 # ============================================================================
 # Docker Build + SCP + SSH Deployment
 # ============================================================================
-# Triggers on push to master (after CI passes) or manual dispatch.
+# Manual trigger only (workflow_dispatch).
 # Requires the following secrets:
 #   - SERVER_HOST:     Target server IP/hostname
 #   - SERVER_USER:     SSH user
@@ -11,10 +11,6 @@ name: Deploy
 # ============================================================================
 
 on:
-  workflow_run:
-    workflows: ["CI/CD Pipeline"]
-    types: [completed]
-    branches: [master]
   workflow_dispatch:
 
 concurrency:
@@ -29,12 +25,10 @@ env:
 jobs:
   quality:
     name: Quality Check
-    if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/quality.yml
 
   test:
     name: Test Suite
-    if: github.event_name == 'workflow_dispatch'
     needs: quality
     uses: ./.github/workflows/test.yml
 
@@ -42,15 +36,13 @@ jobs:
     name: Docker Build & Deploy
     needs: [quality, test]
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'workflow_dispatch' && !cancelled() && !failure())
+    if: !cancelled() && !failure()
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
 
       - name: Get short Git commit hash
         id: vars
