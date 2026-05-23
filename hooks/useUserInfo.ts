@@ -6,10 +6,16 @@ import { cache } from 'react';
 import { redirect } from 'next/navigation';
 
 export const useUserInfo = cache(async () => {
-  const session = await verifySession();
-  const userInfo = await db.select().from(user).where(eq(user.id, session.uid));
-  if (!userInfo[0]) {
-    redirect('/login');
+  try {
+    const session = await verifySession();
+    const userInfo = await db.select().from(user).where(eq(user.id, session.uid));
+    if (!userInfo[0]) {
+      redirect('/login');
+    }
+    return userInfo[0];
+  } catch (err) {
+    if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
+    console.error("useUserInfo error:", err);
+    throw err;
   }
-  return userInfo[0];
 });
