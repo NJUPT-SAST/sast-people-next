@@ -7,6 +7,9 @@ import { selectProbSchema, selectProbType } from '@/types/problem';
 import { Badge } from '@/components/ui/badge';
 
 const readSelectedRange = (): selectProbType | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
   const selectedProbs = localStorage.getItem('people_selectedProbs');
 
   if (!selectedProbs) {
