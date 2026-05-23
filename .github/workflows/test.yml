@@ -41,7 +41,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -62,7 +62,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run tests with coverage
-        run: pnpm test:coverage
+        run: pnpm exec jest --coverage
 
       - name: Generate coverage summary
         if: always()
@@ -144,6 +144,8 @@ jobs:
 
       - name: Build Next.js application
         run: pnpm build
+        env:
+          NEXT_PUBLIC_MOCK: true
 
       - name: Check bundle size
         if: github.event_name == 'pull_request'

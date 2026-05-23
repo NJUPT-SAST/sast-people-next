@@ -119,13 +119,13 @@ const config: Config = {
     "^@/(.*)$": "<rootDir>/$1",
 
     // Handle CSS imports (with CSS modules)
-    "^.+\\.module\\.(css|sass|scss)$": "identity-obj-proxy",
+    "^.+\\.module\\.(css|sass|scss)$": "<rootDir>/__mocks__/styleMock.js",
 
     // Handle CSS imports (without CSS modules)
     "^.+\\.(css|sass|scss)$": "<rootDir>/__mocks__/styleMock.js",
 
     // Handle image imports
-    "^.+\\.(png|jpg|jpeg|gif|webp|avif|ico|bmp|svg)$/i": "<rootDir>/__mocks__/fileMock.js",
+    "^.+\\.(png|jpg|jpeg|gif|webp|avif|ico|bmp|svg)$": "<rootDir>/__mocks__/fileMock.js",
   },
 
   // An array of regexp pattern strings, matched against all module paths before considered 'visible' to the module loader
