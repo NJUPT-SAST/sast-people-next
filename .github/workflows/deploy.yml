@@ -198,7 +198,7 @@ jobs:
 
             echo ""
             echo "[7/7] Cleaning up..."
-            rm ${TAR_FILE} ${TAR_GZ_FILE}
+            rm -f ${TAR_FILE} ${TAR_GZ_FILE}
             docker rmi "${IMAGE_NAME}:latest"
             docker image prune -f
 
