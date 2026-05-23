@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ShieldQuestion } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function GlobalError({
   error,
@@ -13,23 +13,41 @@ export default function GlobalError({
   reset: () => void;
 }) {
   const router = useRouter();
+  const [info, setInfo] = useState<string>("");
+
   useEffect(() => {
     console.error(error);
+    try {
+      const parts = [
+        `name: ${error?.name || "unknown"}`,
+        `message: ${error?.message || "unknown"}`,
+        `digest: ${error?.digest || "none"}`,
+        `stack: ${error?.stack?.split("\n")[0] || "none"}`,
+      ];
+      setInfo(parts.join("\n"));
+    } catch {
+      setInfo(String(error));
+    }
   }, [error]);
 
   return (
-    <div className="w-full h-screen flex justify-center items-center flex-col gap-3">
-      <ShieldQuestion className="w-[100px] h-[100px]" strokeWidth="1px" />
-      <h2>看起来遇到了一些问题，联系管理员获取更多帮助</h2>
-      {error?.digest && (
-        <code className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded font-mono">
-          {error.digest}
-        </code>
+    <div className="w-full h-screen flex justify-center items-center flex-col gap-3 p-4">
+      <ShieldQuestion className="w-[80px] h-[80px]" strokeWidth="1px" />
+      <h2 className="text-lg font-semibold text-center">
+        看起来遇到了一些问题，联系管理员获取更多帮助
+      </h2>
+      {info && (
+        <pre className="text-[10px] text-muted-foreground bg-muted px-3 py-2 rounded font-mono whitespace-pre-wrap max-w-md w-full max-h-48 overflow-auto">
+          {info}
+        </pre>
       )}
-      <Button onClick={() => router.back()}>
-        <ArrowLeft />
-        回到上一页
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={() => router.back()}>
+          <ArrowLeft />
+          回到上一页
+        </Button>
+        <Button onClick={() => router.refresh()}>刷新页面</Button>
+      </div>
     </div>
   );
 }
