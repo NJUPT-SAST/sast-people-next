@@ -1,13 +1,8 @@
 name: Deploy
 
 # ============================================================================
-# Docker Build + SCP + SSH Deployment
-# ============================================================================
-# Triggers on push to master (after CI passes) or manual dispatch.
-# Requires the following secrets:
-#   - SERVER_HOST:     Target server IP/hostname
-#   - SERVER_USER:     SSH user
-#   - SSH_PRIVATE_KEY: SSH private key for authentication
+# Builds Docker image directly on the server instead of SCP-ing a large tar.
+# SCP transfers source code (few MB) instead of built image (500MB+).
 # ============================================================================
 
 on:
@@ -24,7 +19,6 @@ concurrency:
 env:
   SERVICE_NAME: sast-people-next
   REGISTRY_PREFIX: sast
-  TAR_FILE_NAME: new_image.tar
 
 jobs:
   quality:
@@ -39,7 +33,7 @@ jobs:
     uses: ./.github/workflows/test.yml
 
   deploy:
-    name: Docker Build & Deploy
+    name: Deploy
     needs: [quality, test]
     runs-on: ubuntu-latest
     if: |
@@ -56,18 +50,19 @@ jobs:
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and export image to tar
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: |
-            ${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}:latest
-            ${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
-          outputs: type=docker,dest=./${{ env.TAR_FILE_NAME }}
+      - name: Create source archive
+        run: |
+          tar czf source.tar.gz \
+            --exclude='node_modules' \
+            --exclude='.git' \
+            --exclude='.next' \
+            --exclude='coverage' \
+            --exclude='.github' \
+            --exclude='*.md' \
+            --exclude='.gitignore' \
+            --exclude='.env*' \
+            --exclude='test-results*' \
+            .
 
       - name: Transfer files to server
         uses: appleboy/scp-action@v0.1.7
@@ -75,10 +70,10 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "${{ env.TAR_FILE_NAME }},docker-compose.yml"
+          source: "source.tar.gz,docker-compose.yml"
           target: /data/${{ env.SERVICE_NAME }}/
 
-      - name: Deploy on server
+      - name: Build and deploy on server
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -89,7 +84,6 @@ jobs:
 
             SERVICE_DIR="/data/${{ env.SERVICE_NAME }}"
             IMAGE_NAME="${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}"
-            TAR_FILE="${{ env.TAR_FILE_NAME }}"
             NEW_VERSION_TAG="${{ steps.vars.outputs.sha_short }}"
 
             cd ${SERVICE_DIR}
@@ -99,11 +93,15 @@ jobs:
             echo "=========================================="
 
             echo ""
-            echo "[1/6] Loading new image from ${TAR_FILE}..."
-            docker load -i ${TAR_FILE}
+            echo "[1/7] Extracting source..."
+            tar xzf source.tar.gz
 
             echo ""
-            echo "[2/6] Rotating image tags..."
+            echo "[2/7] Building Docker image..."
+            docker build -t "${IMAGE_NAME}:${NEW_VERSION_TAG}" -t "${IMAGE_NAME}:latest" .
+
+            echo ""
+            echo "[3/7] Rotating image tags..."
             if docker image inspect "${IMAGE_NAME}:current" >/dev/null 2>&1; then
               if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
                 echo "  Removing old backup image..."
@@ -119,7 +117,7 @@ jobs:
             docker tag "${IMAGE_NAME}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:current"
 
             echo ""
-            echo "[3/6] Writing .env from GitHub Secrets..."
+            echo "[4/7] Writing .env from GitHub Secrets..."
             cat > .env << 'DOTENV'
             DATABASE_URL=${{ secrets.DATABASE_URL }}
             SESSION_SECRET=${{ secrets.SESSION_SECRET }}
@@ -131,11 +129,11 @@ jobs:
             chmod 600 .env
 
             echo ""
-            echo "[4/6] Starting service..."
+            echo "[5/7] Starting service..."
             docker compose up -d --remove-orphans
 
             echo ""
-            echo "[5/6] Health check (timeout: 120s)..."
+            echo "[6/7] Health check (timeout: 120s)..."
             HEALTHY=0
             for i in $(seq 1 24); do
               STATUS=$(docker inspect --format='{{.State.Health.Status}}' sast-people-next 2>/dev/null || echo "starting")
@@ -188,8 +186,8 @@ jobs:
             fi
 
             echo ""
-            echo "[6/6] Cleaning up..."
-            rm ${TAR_FILE}
+            echo "[7/7] Cleaning up..."
+            rm source.tar.gz
             docker rmi "${IMAGE_NAME}:latest"
             docker image prune -f
 
