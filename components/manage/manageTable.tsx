@@ -58,6 +58,10 @@ export const ManageTable = ({
       accessorKey: 'phone' as const,
       header: '手机号码',
     }] : []),
+    ...(role >= 3 ? [{
+      accessorKey: 'qq' as const,
+      header: 'QQ',
+    }] : []),
     {
       accessorKey: 'email',
       header: '邮箱',
@@ -172,6 +176,12 @@ export const ManageTable = ({
                     <div className="flex justify-between items-center text-muted-foreground">
                       <span>手机号码</span>
                       <span className="text-foreground">{row.original.phone || '-'}</span>
+                    </div>
+                  )}
+                  {role >= 3 && (
+                    <div className="flex justify-between items-center text-muted-foreground">
+                      <span>QQ</span>
+                      <span className="text-foreground">{row.original.qq || '-'}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center text-muted-foreground">
