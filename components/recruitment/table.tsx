@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -47,9 +47,21 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const toRecruitmentRow = (row: { original: unknown }): RecruitmentRowLike =>
     row.original as RecruitmentRowLike;
+
+  const visibleColumns = useMemo(
+    () =>
+      role >= 3
+        ? columns
+        : columns.filter((c) => {
+            const col = c as { id?: string; accessorKey?: string };
+            return col.id !== 'select' && col.accessorKey !== 'phoneNumber';
+          }),
+    [columns, role],
+  );
+
   const table = useReactTable({
     data,
-    columns,
+    columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
@@ -74,7 +86,7 @@ export function DataTable<TData, TValue>({
           className="max-w-sm w-full md:w-auto"
         />
         <div className="flex flex-wrap items-center gap-3">
-          {role >= 2 && (
+          {role >= 3 && (
             <Button
               disabled={table.getSelectedRowModel().rows.length === 0}
               onClick={async () => {
@@ -121,25 +133,27 @@ export function DataTable<TData, TValue>({
             确认选中同学通过
           </Button>
           )}
-          <span className='text-muted-foreground text-xs md:text-sm max-w-[200px] md:max-w-none'>{role >= 2 ? '同时修改流程与发送邮件，请谨慎操作' : ''}</span>
+          <span className='text-muted-foreground text-xs md:text-sm max-w-[200px] md:max-w-none'>{role >= 3 ? '同时修改流程与发送邮件，请谨慎操作' : ''}</span>
         </div>
       </div>
       
       <div className="rounded-md border bg-card">
-        <div className="flex-1 text-sm text-muted-foreground p-3 border-b">
-          {table.getFilteredSelectedRowModel().rows.length} /{' '}
-          {table.getFilteredRowModel().rows.length} 行选中
-        </div>
+        {role >= 3 && (
+          <div className="flex-1 text-sm text-muted-foreground p-3 border-b">
+            {table.getFilteredSelectedRowModel().rows.length} /{' '}
+            {table.getFilteredRowModel().rows.length} 行选中
+          </div>
+        )}
 
         {/* PC 端长表格试图 */}
         <div className="hidden md:block overflow-x-auto">
-          <Table className="min-w-[800px]">
+          <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     return (
-                      <TableHead key={header.id} className="whitespace-nowrap py-3">
+                      <TableHead key={header.id} className="whitespace-nowrap px-4 py-3">
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -160,7 +174,7 @@ export function DataTable<TData, TValue>({
                     data-state={row.getIsSelected() && 'selected'}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="whitespace-nowrap py-3">
+                      <TableCell key={cell.id} className="whitespace-nowrap px-4 py-3">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -186,32 +200,37 @@ export function DataTable<TData, TValue>({
         {/* 移动端卡片视图 */}
         <div className="md:hidden flex flex-col divide-y divide-border">
           {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <div key={row.id} className="flex p-4 gap-4 transition-colors hover:bg-muted/50">
-                <div className="pt-1">
-                  {/* 复选框 - 假定它是第一列 */}
-                  {flexRender(row.getVisibleCells()[0].column.columnDef.cell, row.getVisibleCells()[0].getContext())}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    {/* 姓名列（假设是第三列）和 学号列（假设是第二列） - 根据实际调整 */}
-                    <div className="font-semibold text-base py-1">
-                      {flexRender(row.getVisibleCells()[2]?.column.columnDef.cell, row.getVisibleCells()[2]?.getContext()) || '未命名'}
+            table.getRowModel().rows.map((row) => {
+              const cells = row.getVisibleCells();
+              const offset = role >= 3 ? 1 : 0; // 有复选框时跳过第一列
+              return (
+                <div key={row.id} className="flex p-4 gap-4 transition-colors hover:bg-muted/50">
+                  {role >= 3 && (
+                    <div className="pt-1">
+                      {flexRender(cells[0].column.columnDef.cell, cells[0].getContext())}
                     </div>
-                    {/* 分数列（假设最后一列是分数) */}
-                    <div className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm font-semibold">
-                      {flexRender(row.getVisibleCells()[row.getVisibleCells().length - 1]?.column.columnDef.cell, row.getVisibleCells()[row.getVisibleCells().length - 1]?.getContext())}
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-base py-1">
+                        {flexRender(cells[1 + offset]?.column.columnDef.cell, cells[1 + offset]?.getContext()) || '未命名'}
+                      </div>
+                      <div className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm font-semibold">
+                        {flexRender(cells[cells.length - 1]?.column.columnDef.cell, cells[cells.length - 1]?.getContext())}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">学号: {flexRender(row.getVisibleCells()[1]?.column.columnDef.cell, row.getVisibleCells()[1]?.getContext())}</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                     手机: {flexRender(row.getVisibleCells()[3]?.column.columnDef.cell, row.getVisibleCells()[3]?.getContext())}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">学号: {flexRender(cells[0 + offset]?.column.columnDef.cell, cells[0 + offset]?.getContext())}</span>
+                    </div>
+                    {role >= 3 && (
+                      <div className="text-sm text-muted-foreground">
+                         手机: {flexRender(cells[2 + offset]?.column.columnDef.cell, cells[2 + offset]?.getContext())}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
              <div className="p-8 text-center text-muted-foreground text-sm flex items-center justify-center">暂时没有内容。</div>
           )}

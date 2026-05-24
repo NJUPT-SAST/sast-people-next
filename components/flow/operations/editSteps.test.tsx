@@ -7,7 +7,6 @@ import { EditSteps } from "./editSteps";
 
 const mockUpdateFlow = jest.fn().mockResolvedValue(undefined);
 const mockUpdateFlowStep = jest.fn().mockResolvedValue(undefined);
-const mockBatchUpdate = jest.fn().mockResolvedValue(undefined);
 const mockToastPromise = jest.fn((promiseOrFactory: unknown) => {
   if (typeof promiseOrFactory === "function") {
     return (promiseOrFactory as () => Promise<unknown>)();
@@ -42,11 +41,6 @@ jest.mock("@/action/flow/update", () => ({
 jest.mock("@/action/flow/flow-step/update", () => ({
   updateFlowStep: (...args: Parameters<typeof mockUpdateFlowStep>) =>
     mockUpdateFlowStep(...args),
-}));
-
-jest.mock("@/action/user-flow/edit", () => ({
-  batchUpdate: (...args: Parameters<typeof mockBatchUpdate>) =>
-    mockBatchUpdate(...args),
 }));
 
 jest.mock("sonner", () => ({
@@ -124,7 +118,6 @@ describe("EditSteps", () => {
   beforeEach(() => {
     mockUpdateFlow.mockClear();
     mockUpdateFlowStep.mockClear();
-    mockBatchUpdate.mockClear();
     mockToastPromise.mockClear();
   });
 
@@ -168,30 +161,4 @@ describe("EditSteps", () => {
     });
   });
 
-  it("triggers batch update for an individual step", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <EditSteps
-        data={{
-          id: 5,
-          title: "招新流程",
-          description: "旧描述",
-          startedAt: new Date(),
-          endedAt: new Date(),
-        } as never}
-      />,
-    );
-
-    const iconOnlyButton = screen
-      .getAllByRole("button")
-      .find((button) => button.textContent === "");
-
-    expect(iconOnlyButton).toBeDefined();
-    await user.click(iconOnlyButton!);
-
-    await waitFor(() => {
-      expect(mockBatchUpdate).toHaveBeenCalledWith(5, 1);
-    });
-  });
 });

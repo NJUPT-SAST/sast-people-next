@@ -64,10 +64,10 @@ export const MannualInput = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col items-center gap-4">
+      <div className="flex flex-col items-center gap-1.5 text-center">
         <p className="text-sm font-semibold text-foreground">手动输入考生学号</p>
-        <p className="text-xs text-muted-foreground leading-relaxed flex-1">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           适用于二维码识别失败或现场需要直接跳转到指定考生试卷的情景。
         </p>
       </div>
@@ -95,7 +95,7 @@ export const MannualInput = () => {
         </div>
       </div>
       {!hasReviewRange && (
-        <p className="text-xs text-destructive">
+        <p className="text-xs text-destructive text-center">
           还没有设置阅卷范围，开始阅卷前请先选择试卷和题目。
         </p>
       )}

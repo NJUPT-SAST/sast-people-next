@@ -34,14 +34,6 @@ jest.mock("../ui/sheet", () => ({
   SheetDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-jest.mock("@/action/user-flow/evaluation", () => ({
-  getEvaluation: jest.fn().mockResolvedValue(null),
-}));
-
-jest.mock("./interviewEvaluation", () => ({
-  InterviewEvaluation: () => <div>interview-evaluation</div>,
-}));
-
 jest.mock("../ui/select", () => {
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({});
 

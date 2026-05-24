@@ -57,7 +57,7 @@ describe("Recruitment DataTable", () => {
   });
 
   it("shows the empty state", () => {
-    render(<DataTable columns={columns} data={[]} flowTypeId={7} role={2} />);
+    render(<DataTable columns={columns} data={[]} flowTypeId={7} role={3} />);
 
     expect(screen.getAllByText("暂时没有内容。")[0]).toBeInTheDocument();
   });
@@ -69,7 +69,7 @@ describe("Recruitment DataTable", () => {
       <DataTable
         columns={columns}
         flowTypeId={9}
-        role={2}
+        role={3}
         data={[
           { uid: 1, stepId: 3, name: "张三", totalScore: "90" },
           { uid: 2, stepId: 3, name: "李四", totalScore: "70" },

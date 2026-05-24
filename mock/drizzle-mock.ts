@@ -16,6 +16,7 @@ import {
   mockProblems,
   mockUserPoints,
   mockEmails,
+  mockInterviewEvaluations,
 } from "./data";
 
 function escSql(val: unknown): string {
@@ -207,6 +208,13 @@ function seedDatabase() {
     pgMem.public.none(
       `INSERT INTO "email" (subject, content, fk_flow_step_id)
        VALUES (${escSql(e.subject)}, ${escSql(e.content)}, ${escSql(e.fk_flow_step_id)})`
+    );
+  }
+
+  for (const ie of mockInterviewEvaluations) {
+    pgMem.public.none(
+      `INSERT INTO "interview_evaluation" (fk_user_flow_id, fk_user_id, content, status, fk_reviewed_by, created_at, updated_at)
+       VALUES (${escSql(ie.fk_user_flow_id)}, ${escSql(ie.fk_user_id)}, ${escSql(ie.content)}, ${escSql(ie.status)}, ${escSql(ie.fk_reviewed_by)}, ${escSql(ie.created_at)}, ${escSql(ie.updated_at)})`
     );
   }
 }

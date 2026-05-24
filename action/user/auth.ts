@@ -97,12 +97,13 @@ export async function loginFromTest(formData: FormData) {
   const uidList = await db
     .select({
       uid: user.id,
+      name: user.name,
       role: user.role,
     })
     .from(user)
     .where(eq(user.studentId, studentId));
   if (uidList && uidList.length > 0) {
-    await createSession(uidList[0].uid, studentId, uidList[0].role || 0);
+    await createSession(uidList[0].uid, uidList[0].name || studentId, uidList[0].role || 0);
     return uidList[0].uid;
   } else {
     throw new Error('login failed');

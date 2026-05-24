@@ -2,13 +2,7 @@ import React from 'react';
 import { Button } from './ui/button';
 import { verifySession } from '@/lib/dal';
 import { Avatar, AvatarFallback } from './ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-import { LogOut, MoreHorizontal } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 
 export const UserCard: React.FC = async () => {
   const session = await verifySession();
@@ -30,23 +24,11 @@ export const UserCard: React.FC = async () => {
         <p className="text-sm font-medium truncate">{name}</p>
         <p className="text-xs text-muted-foreground">{roleLabel}</p>
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <form action="/api/auth/logout">
-            <DropdownMenuItem asChild>
-              <button type="submit">
-                <LogOut className="h-4 w-4 mr-2" />
-                退出登录
-              </button>
-            </DropdownMenuItem>
-          </form>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <form action="/api/auth/logout">
+        <Button variant="ghost" size="icon-sm" type="submit">
+          <LogOut className="h-4 w-4" />
+        </Button>
+      </form>
     </div>
   );
 };

@@ -7,7 +7,7 @@ import { useZxing } from 'react-zxing';
 import { Camera, Pause, QrCode, RefreshCw } from 'lucide-react';
 
 import { useUserInfoById as getUserInfoById } from '@/hooks/useUserInfoById';
-import { cn } from '@/lib/utils';
+
 import { userType } from '@/types/user';
 import { toast } from 'sonner';
 
@@ -115,19 +115,18 @@ const QRCodeScanner = () => {
         </div>
       </div>
       <div className="relative min-h-[300px] overflow-hidden rounded-xl border bg-muted/40 shadow-inner">
-        <video
-          ref={ref as React.RefObject<HTMLVideoElement>}
-          className={cn(
-            'h-full min-h-[300px] w-full object-cover transition-opacity duration-500',
-            paused && 'opacity-20 blur-sm',
-          )}
-        />
+        {!paused && (
+          <video
+            ref={ref as React.RefObject<HTMLVideoElement>}
+            className="h-full min-h-[300px] w-full object-cover"
+          />
+        )}
         {/* Subtle camera finder frame */}
         <div className="pointer-events-none absolute inset-0 border-[2px] border-black/5 m-4 rounded-lg" />
         
         {paused && (
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-border/40 bg-background/80 p-5 shadow-lg backdrop-blur-md">
+            <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl p-5">
               <div className="flex flex-col items-center gap-2 text-center">
                 <div className="rounded-full bg-primary/10 p-2.5 text-primary">
                   <QrCode className="size-5" />
@@ -182,7 +181,7 @@ const QRCodeScanner = () => {
         )}
         {!paused && (
           <div className="absolute top-4 inset-x-4 flex items-start justify-between gap-3 pointer-events-none">
-            <div className="rounded-full bg-black/60 backdrop-blur-md px-3.5 py-1.5 text-xs text-white/90 font-medium shadow-sm flex items-center gap-2 border border-white/10">
+            <div className="rounded-full bg-background/70 backdrop-blur-md px-3.5 py-1.5 text-xs font-medium shadow-sm flex items-center gap-2 border">
               <div className="size-2 rounded-full bg-green-500 animate-pulse" />
               请将二维码对准中心区域
             </div>
@@ -195,7 +194,7 @@ const QRCodeScanner = () => {
                 value={selectedDevice || undefined}
                 onValueChange={(value) => setSelectedDevice(value)}
               >
-                <SelectTrigger className="w-full bg-black/60 backdrop-blur border-white/10 text-white hover:bg-black/70 focus:ring-0">
+                <SelectTrigger className="w-full bg-background/70 backdrop-blur border hover:bg-background/80 focus:ring-0">
                   <SelectValue placeholder="切换摄像头" />
                 </SelectTrigger>
                 {filteredDevices.length > 0 && (
