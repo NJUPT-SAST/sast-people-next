@@ -39,6 +39,9 @@ const config: Config = {
     "/.next/",
     "/out/",
     "/coverage/",
+    "/action/",                          // Server actions require DB, tested via integration
+    "/components/manage/approvalsContent.tsx",
+    "/components/manage/interviewEvaluation.tsx",
   ],
 
   // Indicates which provider should be used to instrument code for coverage

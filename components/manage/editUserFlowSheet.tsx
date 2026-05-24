@@ -43,7 +43,7 @@ export const EditUserFlowSheet = ({
     if (selectedFlow) {
       getEvaluation(selectedFlow.id).then(setEvalData).catch(() => setEvalData(null));
     } else {
-      setEvalData(null);
+      void Promise.resolve().then(() => setEvalData(null));
     }
   }, [selectedFlow]);
 

@@ -2,7 +2,7 @@
 
 import { db } from "@/db/drizzle";
 import { flow, interviewEvaluation, user, userFlow } from "@/db/schema";
-import { verifyRole, verifySession } from "@/lib/dal";
+import { verifyRole } from "@/lib/dal";
 import { aliasedTable, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
