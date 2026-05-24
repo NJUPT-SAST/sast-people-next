@@ -142,7 +142,7 @@ export const ApprovalsContent = () => {
         <p className="text-sm text-muted-foreground">
           共 {pending.length} 条待审批
         </p>
-        {archived.length > 0 && (
+        {(archived.length > 0 || showArchived) && (
           <Button
             variant="ghost"
             size="sm"
