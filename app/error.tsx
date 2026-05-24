@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ShieldQuestion } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 export default function GlobalError({
   error,
@@ -13,10 +13,12 @@ export default function GlobalError({
   reset: () => void;
 }) {
   const router = useRouter();
-  const [info, setInfo] = useState<string>("");
 
   useEffect(() => {
     console.error(error);
+  }, [error]);
+
+  const info = useMemo(() => {
     try {
       const parts = [
         `name: ${error?.name || "unknown"}`,
@@ -24,9 +26,9 @@ export default function GlobalError({
         `digest: ${error?.digest || "none"}`,
         `stack: ${error?.stack?.split("\n")[0] || "none"}`,
       ];
-      setInfo(parts.join("\n"));
+      return parts.join("\n");
     } catch {
-      setInfo(String(error));
+      return String(error);
     }
   }, [error]);
 
