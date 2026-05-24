@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -10,17 +10,51 @@ import {
 } from '../ui/sheet';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import { User } from 'lucide-react';
+import { toast } from 'sonner';
 import { userType } from '@/types/user';
 import originalDayjs from '@/lib/dayjs';
+import { updateUserRole } from '@/action/user/updateRole';
 
 const roleName: Record<number, string> = {
   0: '新同学',
-  1: '讲师',
-  2: '管理员',
+  1: '部员',
+  2: '讲师',
+  3: '管理员',
 };
 
-export const ViewUserInfoSheet = ({ userInfo }: { userInfo: userType }) => {
+export const ViewUserInfoSheet = ({
+  userInfo,
+  currentUserRole,
+}: {
+  userInfo: userType;
+  currentUserRole: number;
+}) => {
+  const [role, setRole] = useState<number>(userInfo.role ?? 0);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+
+  const handleRoleChange = async (newRole: string) => {
+    const roleNum = Number(newRole);
+    setRole(roleNum);
+    setIsUpdatingRole(true);
+    try {
+      await updateUserRole(userInfo.id, roleNum);
+      toast.success(`角色已更新为 ${roleName[roleNum]}`);
+    } catch {
+      setRole(userInfo.role ?? 0);
+      toast.error('角色更新失败');
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -55,9 +89,29 @@ export const ViewUserInfoSheet = ({ userInfo }: { userInfo: userType }) => {
           </div>
           <div className="rounded-lg border bg-muted/20 p-3">
             <p className="text-xs text-muted-foreground">角色</p>
-            <Badge variant="secondary" className="mt-1">
-              {roleName[userInfo.role ?? 0] ?? '未知'}
-            </Badge>
+            {currentUserRole >= 3 ? (
+              <div className="mt-1">
+                <Select
+                  value={role.toString()}
+                  onValueChange={handleRoleChange}
+                  disabled={isUpdatingRole}
+                >
+                  <SelectTrigger className="w-full h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">新同学</SelectItem>
+                    <SelectItem value="1">部员</SelectItem>
+                    <SelectItem value="2">讲师</SelectItem>
+                    <SelectItem value="3">管理员</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <Badge variant="secondary" className="mt-1">
+                {roleName[userInfo.role ?? 0] ?? '未知'}
+              </Badge>
+            )}
           </div>
           <div className="rounded-lg border bg-muted/20 p-3">
             <p className="text-xs text-muted-foreground">注册时间</p>

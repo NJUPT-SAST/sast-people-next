@@ -51,7 +51,7 @@ describe("manage FlowCard", () => {
             { id: 2, order: 2, title: "审核", description: "等待审核" },
           ],
         } as never}
-        role={2}
+        role={3}
       />,
     );
 
@@ -77,7 +77,7 @@ describe("manage FlowCard", () => {
           currentStepOrder: 1,
           steps: [{ id: 1, order: 1, title: "终试", description: "已结束" }],
         } as never}
-        role={2}
+        role={3}
       />,
     );
 

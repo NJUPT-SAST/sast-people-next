@@ -19,11 +19,24 @@ export const flowStepTypeEnum = pgEnum("flow_step_type_enum", [
   "finished",
 ]);
 
+export const flowTypeEnum = pgEnum("flow_type_enum", [
+  "recruitment",
+  "recruitment_exemption",
+  "woc",
+  "soc",
+]);
+
 export const userFlowStatusEnum = pgEnum("user_flow_status_enum", [
   "pending",
   "accepted",
   "rejected",
   "ongoing",
+]);
+
+export const evaluationStatusEnum = pgEnum("evaluation_status_enum", [
+  "pending",
+  "approved",
+  "rejected",
 ]);
 
 export const user = pgTable("user", {
@@ -56,6 +69,7 @@ export const flow = pgTable("flow", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 100 }).notNull(),
   description: varchar("description", { length: 1000 }),
+  type: flowTypeEnum("type").notNull().default("recruitment"),
   ownerId: integer("owner_id")
     .references(() => user.id)
     .notNull(),
@@ -67,11 +81,6 @@ export const flow = pgTable("flow", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
   isDeleted: boolean("is_deleted").default(false),
-
-  // TODO: v2 db userId: integer('user_id').references(() => user.id).notNull(), // 外键关联 User 表
-  // TODO: v2 db flowTypeId: integer('flow_type_id').references(() => flowType.id).notNull(), // 外键关联 FlowType 表
-  // TODO: v2 db currentStepId: integer('current_step_id').references(() => step.id), // 当前步骤
-  // TODO: v2 db isAccepted: boolean('is_accepted'), // 是否被接受
 });
 
 // TODO: v2 db 删除 FlowType 表
@@ -167,6 +176,24 @@ export const userPoint = pgTable("user_point", {
 }, (table) => ({
   userFlowProblemUnique: unique().on(table.fkUserFlowId, table.fkProblemId),
 }));
+
+export const interviewEvaluation = pgTable("interview_evaluation", {
+  id: serial("id").primaryKey(),
+  fkUserFlowId: integer("fk_user_flow_id")
+    .references(() => userFlow.id)
+    .notNull(),
+  fkUserId: integer("fk_user_id")
+    .references(() => user.id)
+    .notNull(),
+  content: text("content").notNull(),
+  status: evaluationStatusEnum("status").notNull().default("pending"),
+  fkReviewedBy: integer("fk_reviewed_by").references(() => user.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+});
 
 // TODO: v2 db
 // export const examMap = pgTable(

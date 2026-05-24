@@ -213,7 +213,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {role >= 2 && (flow.status === 'accepted' || flow.status === 'rejected') ? (
+            {role >= 3 && (flow.status === 'accepted' || flow.status === 'rejected') ? (
               <Button
                 disabled={loading}
                 variant="secondary"
@@ -222,7 +222,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
               >
                 <LockOpen />
               </Button>
-            ) : role >= 2 ? (
+            ) : role >= 3 ? (
               <>
                 {currentStepIndex > 0 && (
                   <Button

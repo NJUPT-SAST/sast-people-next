@@ -5,7 +5,7 @@ import { verifyRole } from '@/lib/dal';
 import { eq } from 'drizzle-orm';
 
 export const useUserInfoById = async (id: number) => {
-  await verifyRole(1);
+  await verifyRole(2);
   const userInfo = await db.select().from(user).where(eq(user.id, id)).limit(1);
   if (userInfo.length === 0) {
     throw new Error('User not found');

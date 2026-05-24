@@ -25,6 +25,13 @@ import {
   FormMessage,
 } from '../ui/form';
 import { Textarea } from '../ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import { toast } from 'sonner';
 import { addFlow } from '@/action/flow/add';
 import { DateTimeInput } from '../ui/datetime-input';
@@ -39,6 +46,7 @@ export const fullFlowSchema = createInsertSchema(flow, {
 export const addFlowSchema = fullFlowSchema.pick({
   title: true,
   description: true,
+  type: true,
   startedAt: true,
   endedAt: true,
 })
@@ -66,6 +74,7 @@ export const AddFlow = () => {
     defaultValues: {
       title: '',
       description: '',
+      type: 'recruitment' as const,
       startedAt: undefined,
       endedAt: undefined,
     },
@@ -115,6 +124,30 @@ export const AddFlow = () => {
                       {...field}
                       value={field.value || ''}
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={addFlowForm.control}
+              name="type"
+              disabled={isSubmitting}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>流程类型</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择流程类型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="recruitment">招新</SelectItem>
+                        <SelectItem value="recruitment_exemption">招新免试</SelectItem>
+                        <SelectItem value="woc">WOC</SelectItem>
+                        <SelectItem value="soc">SOC</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -54,7 +54,7 @@ export const ManageTable = ({
       accessorKey: 'studentId',
       header: '学号',
     },
-    ...(role >= 2 ? [{
+    ...(role >= 3 ? [{
       accessorKey: 'phone' as const,
       header: '手机号码',
     }] : []),
@@ -78,9 +78,9 @@ export const ManageTable = ({
       id: 'actions',
       cell: ({ row }) => (
         <div className="w-[120px] flex gap-3 mr-4">
-          <ViewUserInfoSheet userInfo={row.original} />
-          {role >= 2 && <EditUserFlowSheet userInfo={row.original} role={role} />}
-          {role >= 2 && <RemoveUserInfoDialog uid={row.original.id} />}
+          <ViewUserInfoSheet userInfo={row.original} currentUserRole={role} />
+          {role >= 3 && <EditUserFlowSheet userInfo={row.original} role={role} />}
+          {role >= 3 && <RemoveUserInfoDialog uid={row.original.id} />}
         </div>
       ),
     },
@@ -168,7 +168,7 @@ export const ManageTable = ({
                   <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded-md">{row.original.studentId}</span>
                 </div>
                 <div className="text-sm space-y-2">
-                  {role >= 2 && (
+                  {role >= 3 && (
                     <div className="flex justify-between items-center text-muted-foreground">
                       <span>手机号码</span>
                       <span className="text-foreground">{row.original.phone || '-'}</span>
@@ -184,9 +184,9 @@ export const ManageTable = ({
                   </div>
                 </div>
                 <div className="pt-3 flex justify-end gap-3 border-t">
-                  <ViewUserInfoSheet userInfo={row.original} />
-                  {role >= 2 && <EditUserFlowSheet userInfo={row.original} role={role} />}
-                  {role >= 2 && <RemoveUserInfoDialog uid={row.original.id} />}
+                  <ViewUserInfoSheet userInfo={row.original} currentUserRole={role} />
+                  {role >= 3 && <EditUserFlowSheet userInfo={row.original} role={role} />}
+                  {role >= 3 && <RemoveUserInfoDialog uid={row.original.id} />}
                 </div>
               </div>
             ))

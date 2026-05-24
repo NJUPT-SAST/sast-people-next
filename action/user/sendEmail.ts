@@ -10,7 +10,7 @@ export const batchSendEmail = async (
   flowId: number,
   accept: boolean
 ) => {
-  await verifyRole(2)
+  await verifyRole(3)
   const userFlowIds = (
     await db
       .select()

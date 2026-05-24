@@ -8,11 +8,12 @@ import { addFlowSchema } from '@/components/flow/add';
 
 export async function addFlow(values: z.infer<typeof addFlowSchema>) {
   const session = await verifySession();
-  await verifyRole(2);
+  await verifyRole(3);
 
   await db.insert(flow).values({
     title: values.title,
     description: values.description,
+    type: values.type ?? 'recruitment',
     ownerId: session.uid,
     startedAt: values.startedAt,
     endedAt: values.endedAt,

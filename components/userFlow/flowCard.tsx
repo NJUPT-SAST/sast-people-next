@@ -32,6 +32,13 @@ const statusName = {
   rejected: "未通过",
 };
 
+const flowTypeLabel: Record<string, string> = {
+  recruitment: "招新",
+  recruitment_exemption: "招新免试",
+  woc: "WOC",
+  soc: "SOC",
+};
+
 interface FlowCardProps {
   flow: displayUserFlow;
 }
@@ -55,7 +62,14 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{flow.title}</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-sm font-medium">{flow.title}</CardTitle>
+          {flow.flowType && (
+            <Badge variant="outline" className="text-xs">
+              {flowTypeLabel[flow.flowType] ?? flow.flowType}
+            </Badge>
+          )}
+        </div>
         <Badge
           variant={
             flow.status === "ongoing" || flow.status === "pending"

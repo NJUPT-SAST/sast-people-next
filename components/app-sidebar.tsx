@@ -32,7 +32,8 @@ function SidebarNav({ role }: { role: number }) {
 
   const authRoutes = useMemo(() => {
     if (role === 0) return [menuItems[0], menuItems[1]];
-    if (role === 1) return [menuItems[0], menuItems[1], menuItems[2], menuItems[3], menuItems[4]];
+    if (role === 1) return [menuItems[0], menuItems[1]];
+    if (role === 2) return [menuItems[0], menuItems[1], menuItems[2], menuItems[3], menuItems[4]];
     return menuItems;
   }, [role]);
 
@@ -89,8 +90,8 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
                   />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">SAST 招新</span>
-                  <span className="text-xs text-muted-foreground">招新管理平台</span>
+                  <span className="font-semibold">SAST 人员管理</span>
+                  <span className="text-xs text-muted-foreground">人员管理平台</span>
                 </div>
               </Link>
             </SidebarMenuButton>

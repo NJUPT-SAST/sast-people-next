@@ -22,7 +22,7 @@ export async function loginFromX(
         .values({
           feishuOpenid: openid,
           name: userIdentifier,
-          role: 1,
+          role: 2,
           createdAt: new Date(),
           updatedAt: new Date(),
         })

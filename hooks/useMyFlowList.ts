@@ -19,6 +19,7 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
       flowMap.set(userFlowId, {
         ...item.user_flow,
         title: item.flow.title,
+        flowType: item.flow.type,
         steps: [] as fullStepType[],
       });
     }

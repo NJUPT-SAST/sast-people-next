@@ -7,6 +7,7 @@ import {
   Users,
   ArrowDownWideNarrow,
   SquareChartGantt,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -55,6 +56,11 @@ export const menuItems: MenuItem[] = [
     title: '流程管理',
     icon: SquareChartGantt,
     path: '/flow',
+  },
+  {
+    title: '面评审批',
+    icon: ClipboardCheck,
+    path: '/approvals',
   },
 ];
 
