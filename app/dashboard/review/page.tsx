@@ -1,42 +1,23 @@
 import { PageTitle } from "@/components/route";
-import { Button } from "@/components/ui/button";
 import React, { Suspense } from "react";
 import QRCodeScanner from "@/components/review/qrcodeScanner";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { MannualInput } from "@/components/review/mannualInput";
 import { SelectProblemServer } from "./selectProblem";
 import { Loading } from "@/components/loading";
 import { SelectedRangeDisplay } from "@/components/review/selectedRangeDisplay";
+import { ReviewSheet } from "@/components/review/reviewSheet";
 
 const Review: React.FC = async () => {
   return (
     <>
       <div className="flex items-center justify-between">
         <PageTitle />
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button size="sm" variant="outline">
-              设置阅卷范围
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="w-full sm:w-3/4 sm:max-w-2xl overflow-y-auto p-4 sm:p-6 flex flex-col">
-            <SheetHeader className="text-2xl font-semibold px-2 pt-2 pb-2">
-              <SheetTitle>设置阅卷范围</SheetTitle>
-            </SheetHeader>
-            <div className="px-2 pb-32">
-              <Suspense fallback={<Loading />}>
-                <SelectProblemServer />
-              </Suspense>
-            </div>
-          </SheetContent>
-        </Sheet>
+        <ReviewSheet>
+          <Suspense fallback={<Loading />}>
+            <SelectProblemServer />
+          </Suspense>
+        </ReviewSheet>
       </div>
       <div className="flex flex-col gap-4">
         <Card>
