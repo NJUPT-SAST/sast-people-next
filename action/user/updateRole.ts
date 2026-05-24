@@ -9,8 +9,8 @@ import { revalidatePath } from "next/cache";
 export const updateUserRole = async (uid: number, role: number) => {
   await verifyRole(3);
 
-  if (![0, 1, 2, 3].includes(role)) {
-    throw new Error("Invalid role");
+  if (![0, 1, 2].includes(role)) {
+    throw new Error("不能设置管理员身份");
   }
 
   await db

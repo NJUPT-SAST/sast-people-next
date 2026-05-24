@@ -13,10 +13,10 @@ export const mockUsers = [
     phone: "13800001111",
     college: "计算机学院、软件学院、网络空间安全学院",
     major: "软件工程",
-    department: ["技术部", "运营部"],
+    department: [],
     link_openid: "link_admin_001",
     feishu_openid: "feishu_admin_001",
-    role: 2,
+    role: 3,
     created_at: new Date("2024-09-01T00:00:00Z"),
     updated_at: new Date("2024-09-01T00:00:00Z"),
     is_deleted: false,
@@ -29,10 +29,10 @@ export const mockUsers = [
     phone: "13800002222",
     college: "计算机学院、软件学院、网络空间安全学院",
     major: "计算机科学与技术",
-    department: ["技术部"],
+    department: [],
     link_openid: "link_mgr_002",
     feishu_openid: "feishu_mgr_002",
-    role: 1,
+    role: 2,
     created_at: new Date("2024-09-01T00:00:00Z"),
     updated_at: new Date("2024-09-01T00:00:00Z"),
     is_deleted: false,
@@ -117,6 +117,22 @@ export const mockUsers = [
     updated_at: new Date("2024-10-05T00:00:00Z"),
     is_deleted: true,
   },
+  {
+    id: 8,
+    name: "测试部员",
+    student_id: "003",
+    email: "member@njupt.edu.cn",
+    phone: "13800008888",
+    college: "计算机学院、软件学院、网络空间安全学院",
+    major: "软件工程",
+    department: [],
+    link_openid: "link_member_008",
+    feishu_openid: null,
+    role: 1,
+    created_at: new Date("2024-09-15T00:00:00Z"),
+    updated_at: new Date("2024-09-15T00:00:00Z"),
+    is_deleted: false,
+  },
 ];
 
 // ==================== Flows ====================
@@ -156,6 +172,42 @@ export const mockFlows = [
     ended_at: new Date("2024-02-01T00:00:00Z"),
     updated_at: new Date("2024-01-01T00:00:00Z"),
     is_deleted: true,
+  },
+  {
+    id: 4,
+    title: "2024 WOC",
+    description: "SAST 2024年度 WOC 换选流程",
+    type: "woc",
+    owner_id: 1,
+    created_at: new Date("2024-10-01T00:00:00Z"),
+    started_at: new Date("2024-10-15T00:00:00Z"),
+    ended_at: new Date("2026-12-31T23:59:59Z"),
+    updated_at: new Date("2024-10-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  {
+    id: 5,
+    title: "2024 SOC",
+    description: "SAST 2024年度 SOC 换选流程",
+    type: "soc",
+    owner_id: 1,
+    created_at: new Date("2024-11-01T00:00:00Z"),
+    started_at: new Date("2024-11-15T00:00:00Z"),
+    ended_at: new Date("2026-12-31T23:59:59Z"),
+    updated_at: new Date("2024-11-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  {
+    id: 6,
+    title: "2025秋季免试招新",
+    description: "SAST 2025年秋季免试招新（仅面试）",
+    type: "recruitment_exemption",
+    owner_id: 1,
+    created_at: new Date("2025-09-01T00:00:00Z"),
+    started_at: new Date("2025-09-10T00:00:00Z"),
+    ended_at: new Date("2026-12-31T23:59:59Z"),
+    updated_at: new Date("2025-09-01T00:00:00Z"),
+    is_deleted: false,
   },
 ];
 
@@ -251,6 +303,108 @@ export const mockFlowSteps = [
     updated_at: new Date("2024-03-01T00:00:00Z"),
     is_deleted: false,
   },
+  // Flow 4: WOC steps
+  {
+    id: 9,
+    title: "报名阶段",
+    description: "WOC候选人报名",
+    type: "registering",
+    order: 1,
+    fk_flow_id: 4,
+    created_at: new Date("2024-10-01T00:00:00Z"),
+    updated_at: new Date("2024-10-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  {
+    id: 10,
+    title: "面试阶段",
+    description: "WOC候选人面试",
+    type: "judging",
+    order: 2,
+    fk_flow_id: 4,
+    created_at: new Date("2024-10-01T00:00:00Z"),
+    updated_at: new Date("2024-10-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  {
+    id: 11,
+    title: "结束",
+    description: "WOC流程结束",
+    type: "finished",
+    order: 3,
+    fk_flow_id: 4,
+    created_at: new Date("2024-10-01T00:00:00Z"),
+    updated_at: new Date("2024-10-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  // Flow 5: SOC steps
+  {
+    id: 12,
+    title: "报名阶段",
+    description: "SOC候选人报名",
+    type: "registering",
+    order: 1,
+    fk_flow_id: 5,
+    created_at: new Date("2024-11-01T00:00:00Z"),
+    updated_at: new Date("2024-11-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  {
+    id: 13,
+    title: "面试阶段",
+    description: "SOC候选人面试",
+    type: "judging",
+    order: 2,
+    fk_flow_id: 5,
+    created_at: new Date("2024-11-01T00:00:00Z"),
+    updated_at: new Date("2024-11-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  {
+    id: 14,
+    title: "结束",
+    description: "SOC流程结束",
+    type: "finished",
+    order: 3,
+    fk_flow_id: 5,
+    created_at: new Date("2024-11-01T00:00:00Z"),
+    updated_at: new Date("2024-11-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  // Flow 6: recruitment_exemption steps
+  {
+    id: 15,
+    title: "报名阶段",
+    description: "免试招新报名",
+    type: "registering",
+    order: 1,
+    fk_flow_id: 6,
+    created_at: new Date("2025-09-01T00:00:00Z"),
+    updated_at: new Date("2025-09-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  {
+    id: 16,
+    title: "面试阶段",
+    description: "免试候选人面试",
+    type: "judging",
+    order: 2,
+    fk_flow_id: 6,
+    created_at: new Date("2025-09-01T00:00:00Z"),
+    updated_at: new Date("2025-09-01T00:00:00Z"),
+    is_deleted: false,
+  },
+  {
+    id: 17,
+    title: "结束",
+    description: "免试招新结束",
+    type: "finished",
+    order: 3,
+    fk_flow_id: 6,
+    created_at: new Date("2025-09-01T00:00:00Z"),
+    updated_at: new Date("2025-09-01T00:00:00Z"),
+    is_deleted: false,
+  },
 ];
 
 // ==================== User Flows ====================
@@ -289,6 +443,44 @@ export const mockUserFlows = [
     current_step_order: 3,
     fk_flow_id: 1,
     fk_user_id: 4, // 陈同学 - in judging stage (no phone though)
+  },
+  // WOC flow (id=4)
+  {
+    id: 6,
+    status: "ongoing",
+    current_step_order: 2,
+    fk_flow_id: 4,
+    fk_user_id: 2, // 测试讲师 - WOC candidate
+  },
+  {
+    id: 7,
+    status: "ongoing",
+    current_step_order: 2,
+    fk_flow_id: 4,
+    fk_user_id: 8, // 测试部员 - WOC candidate
+  },
+  // SOC flow (id=5)
+  {
+    id: 8,
+    status: "ongoing",
+    current_step_order: 2,
+    fk_flow_id: 5,
+    fk_user_id: 8, // 测试部员 - SOC candidate
+  },
+  // recruitment_exemption flow (id=6)
+  {
+    id: 9,
+    status: "ongoing",
+    current_step_order: 2,
+    fk_flow_id: 6,
+    fk_user_id: 3, // 王小明 - exemption candidate
+  },
+  {
+    id: 10,
+    status: "ongoing",
+    current_step_order: 2,
+    fk_flow_id: 6,
+    fk_user_id: 5, // 刘大力 - exemption candidate
   },
 ];
 
@@ -351,6 +543,60 @@ export const mockUserPoints = [
   // 陈同学 (userFlow 5) - partial scores
   { id: 9, fk_user_flow_id: 5, fk_problem_id: 1, points: 20 },
   { id: 10, fk_user_flow_id: 5, fk_problem_id: 2, points: 30 },
+];
+
+// ==================== Interview Evaluations ====================
+export const mockInterviewEvaluations = [
+  {
+    id: 1,
+    fk_user_flow_id: 5,
+    fk_user_id: 2, // 测试讲师 evaluated
+    content: "陈小红同学面试表现优秀，技术基础扎实，沟通能力强，建议通过。综合评价：对前端框架理解深入，有实际项目经验。",
+    status: "pending",
+    fk_reviewed_by: null,
+    created_at: new Date("2024-10-20T00:00:00Z"),
+    updated_at: new Date("2024-10-20T00:00:00Z"),
+  },
+  {
+    id: 2,
+    fk_user_flow_id: 6,
+    fk_user_id: 8, // 测试部员 evaluated
+    content: "测试讲师在WOC面试中展现出良好的领导能力和技术视野，推荐通过。",
+    status: "pending",
+    fk_reviewed_by: null,
+    created_at: new Date("2024-10-20T00:00:00Z"),
+    updated_at: new Date("2024-10-20T00:00:00Z"),
+  },
+  {
+    id: 3,
+    fk_user_flow_id: 7,
+    fk_user_id: 2, // 测试讲师 evaluated
+    content: "测试部员在WOC面试中表现一般，技术能力有待提升，建议考察后再决定。",
+    status: "approved",
+    fk_reviewed_by: 1,
+    created_at: new Date("2024-10-21T00:00:00Z"),
+    updated_at: new Date("2024-10-21T00:00:00Z"),
+  },
+  {
+    id: 4,
+    fk_user_flow_id: 9,
+    fk_user_id: 2, // 测试讲师 evaluated
+    content: "王小明免试面试表现突出，有丰富的开源项目经验，强烈推荐通过。",
+    status: "pending",
+    fk_reviewed_by: null,
+    created_at: new Date("2025-09-15T00:00:00Z"),
+    updated_at: new Date("2025-09-15T00:00:00Z"),
+  },
+  {
+    id: 5,
+    fk_user_flow_id: 10,
+    fk_user_id: 2, // 测试讲师 evaluated
+    content: "刘大力免试面试表现良好，基础扎实态度端正，建议通过。",
+    status: "rejected",
+    fk_reviewed_by: 1,
+    created_at: new Date("2025-09-15T00:00:00Z"),
+    updated_at: new Date("2025-09-15T00:00:00Z"),
+  },
 ];
 
 // ==================== Emails ====================

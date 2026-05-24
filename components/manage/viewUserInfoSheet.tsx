@@ -103,7 +103,6 @@ export const ViewUserInfoSheet = ({
                     <SelectItem value="0">新同学</SelectItem>
                     <SelectItem value="1">部员</SelectItem>
                     <SelectItem value="2">讲师</SelectItem>
-                    <SelectItem value="3">管理员</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

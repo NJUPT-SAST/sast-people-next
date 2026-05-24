@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { fullFlowSchema } from '@/components/flow/add';
 import { fullStepType } from '@/types/step';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Copy, Navigation, Plus, Trash2 } from 'lucide-react';
+import { Copy, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -28,7 +28,6 @@ import { displayFlow } from '@/types/flow';
 import { useFlowStepsInfoClient } from '@/hooks/useFlowStepsInfoClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateTimeInput } from '@/components/ui/datetime-input';
-import { batchUpdate } from '@/action/user-flow/edit';
 
 export const EditSteps = ({ data }: { data: displayFlow }) => {
   const editFlowForm = useForm<z.infer<typeof fullFlowSchema>>({
@@ -259,24 +258,6 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                       variant="ghost"
                       className="m-0"
                       onClick={() => {
-                        const stepData = stepList[index] as fullStepType;
-                        toast.promise(
-                          batchUpdate(stepData.fkFlowId, stepData.order),
-                          {
-                            loading: '正在将所有人设置到该步骤',
-                            success: '所有人已设置到该步骤',
-                            error: '将所有人设置到该步骤时出错',
-                          },
-                        );
-                      }}
-                    >
-                      <Navigation size={18} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="m-0"
-                      onClick={() => {
                         // duplicate the step
                         updateStepList((prev) => [
                           ...prev.slice(0, index + 1),
@@ -316,7 +297,6 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                   ...step,
                   type: step.type as fullStepType["type"]
                 })) as fullStepType[];
-                console.debug(typedStepList);
                 toast.promise(
                   async () => {
                     await updateFlowStep(values.id!, typedStepList);

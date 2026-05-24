@@ -35,7 +35,10 @@ export const columns: ColumnDef<
   },
   {
     accessorKey: 'name',
-    header: '姓名',
+    header: () => <div className="text-center">姓名</div>,
+    cell: ({ getValue }) => (
+      <div className="text-center">{getValue() as string}</div>
+    ),
   },
   {
     accessorKey: 'phoneNumber',
@@ -43,7 +46,10 @@ export const columns: ColumnDef<
   },
   {
     accessorKey: 'totalScore',
-    header: '总分',
+    header: () => <div className="text-right">总分</div>,
+    cell: ({ getValue }) => (
+      <div className="text-right tabular-nums">{getValue() as string}</div>
+    ),
     filterFn: (row, id, filterValue) => {
       return row.original.totalScore
         ? parseInt(row.original.totalScore) >= parseInt(filterValue)

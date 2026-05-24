@@ -21,7 +21,7 @@ function getSession(): MockSession | null {
     (globalThis as Record<string, unknown>)[GLOBAL_KEY] = {
       uid: 1,
       name: "测试管理员",
-      role: 2,
+      role: 3,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     };
   }

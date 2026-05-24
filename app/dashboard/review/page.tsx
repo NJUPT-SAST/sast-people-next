@@ -36,16 +36,16 @@ const Review: React.FC = async () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="flex flex-col">
-              <div className="p-4 lg:p-6">
+              <div className="mx-4 mt-4 lg:mx-6 lg:mt-6 rounded-md border bg-amber-50 px-4 py-3 text-center dark:bg-amber-950/20">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  请先设置上方【阅卷范围】，再开始阅卷。
+                </p>
+              </div>
+              <div className="p-4 lg:p-6 pt-0">
                 <QRCodeScanner />
               </div>
               <div className="border-t p-4 lg:p-6 bg-muted/10">
-                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-                  <MannualInput />
-                  <p className="text-xs text-muted-foreground shrink-0">
-                    建议先设置上方【阅卷范围】，再开始阅卷。
-                  </p>
-                </div>
+                <MannualInput />
               </div>
             </div>
           </CardContent>
