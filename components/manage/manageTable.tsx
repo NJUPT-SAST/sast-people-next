@@ -20,6 +20,7 @@ import {
 } from '@tanstack/react-table';
 import { EditUserFlowSheet } from './editUserFlowSheet';
 import { RemoveUserInfoDialog } from './removeUserInfoDialog';
+import { ViewUserInfoSheet } from './viewUserInfoSheet';
 import { SearchInput } from './searchInput';
 import { userType } from '@/types/user';
 
@@ -76,8 +77,9 @@ export const ManageTable = ({
     {
       id: 'actions',
       cell: ({ row }) => (
-        <div className="w-[80px] flex gap-3 mr-4">
-          <EditUserFlowSheet userInfo={row.original} role={role} />
+        <div className="w-[120px] flex gap-3 mr-4">
+          <ViewUserInfoSheet userInfo={row.original} />
+          {role >= 2 && <EditUserFlowSheet userInfo={row.original} role={role} />}
           {role >= 2 && <RemoveUserInfoDialog uid={row.original.id} />}
         </div>
       ),
@@ -182,7 +184,8 @@ export const ManageTable = ({
                   </div>
                 </div>
                 <div className="pt-3 flex justify-end gap-3 border-t">
-                  <EditUserFlowSheet userInfo={row.original} role={role} />
+                  <ViewUserInfoSheet userInfo={row.original} />
+                  {role >= 2 && <EditUserFlowSheet userInfo={row.original} role={role} />}
                   {role >= 2 && <RemoveUserInfoDialog uid={row.original.id} />}
                 </div>
               </div>
