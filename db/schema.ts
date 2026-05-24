@@ -54,6 +54,7 @@ export const user = pgTable("user", {
   github: text("github"),
   blog: text("blog"),
   personalStatement: text("personal_statement"),
+  qq: varchar("qq", { length: 20 }),
   linkOpenid: varchar("link_openid", { length: 255 }).unique(),
   feishuOpenid: varchar("feishu_openid", { length: 255 }).unique(),
   role: integer("role").default(0),

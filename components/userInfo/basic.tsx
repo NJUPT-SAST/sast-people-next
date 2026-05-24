@@ -56,6 +56,7 @@ export const fullUserSchema = createInsertSchema(user, {
     ),
   college: z.string().min(1, "学院不能为空").trim(),
   major: z.string().min(1, "专业不能为空").trim(),
+  qq: z.string().trim().optional(),
 });
 export const basicInfoSchema = fullUserSchema.pick({
   name: true,
@@ -64,6 +65,7 @@ export const basicInfoSchema = fullUserSchema.pick({
   email: true,
   college: true,
   major: true,
+  qq: true,
 });
 export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
   const collegeList = useCollegeList();
@@ -192,6 +194,24 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
                     <Input
                       {...field}
                       placeholder="请填写你目前所在的专业"
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={basicInfoForm.control}
+              disabled={isSubmitting}
+              name="qq"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>QQ</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="请填写你的QQ号码（选填）"
+                      {...field}
                       value={field.value || ""}
                     />
                   </FormControl>
