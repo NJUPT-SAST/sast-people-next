@@ -45,7 +45,13 @@ pgMem.public.none(
   `CREATE TYPE flow_step_type_enum AS ENUM ('registering', 'checking', 'judging', 'email', 'finished')`
 );
 pgMem.public.none(
+  `CREATE TYPE flow_type_enum AS ENUM ('recruitment', 'recruitment_exemption', 'woc', 'soc')`
+);
+pgMem.public.none(
   `CREATE TYPE user_flow_status_enum AS ENUM ('pending', 'accepted', 'rejected', 'ongoing')`
+);
+pgMem.public.none(
+  `CREATE TYPE evaluation_status_enum AS ENUM ('pending', 'approved', 'rejected')`
 );
 
 // Create tables matching the Drizzle schema
@@ -76,6 +82,7 @@ pgMem.public.none(`
     id SERIAL PRIMARY KEY,
     title VARCHAR(100) NOT NULL,
     description VARCHAR(1000),
+    type flow_type_enum NOT NULL DEFAULT 'recruitment',
     owner_id INTEGER NOT NULL REFERENCES "user"(id),
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     started_at TIMESTAMP NOT NULL DEFAULT now(),
@@ -137,6 +144,19 @@ pgMem.public.none(`
   )
 `);
 
+pgMem.public.none(`
+  CREATE TABLE "interview_evaluation" (
+    id SERIAL PRIMARY KEY,
+    fk_user_flow_id INTEGER NOT NULL REFERENCES "user_flow"(id),
+    fk_user_id INTEGER NOT NULL REFERENCES "user"(id),
+    content TEXT NOT NULL,
+    status evaluation_status_enum NOT NULL DEFAULT 'pending',
+    fk_reviewed_by INTEGER REFERENCES "user"(id),
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+  )
+`);
+
 // Seed data - insert WITHOUT explicit IDs to let SERIAL auto-increment naturally.
 // Seed arrays in data.ts are ordered so that auto-assigned IDs (1,2,3...) match
 // the expected IDs referenced in foreign keys.
@@ -150,8 +170,8 @@ function seedDatabase() {
 
   for (const f of mockFlows) {
     pgMem.public.none(
-      `INSERT INTO "flow" (title, description, owner_id, created_at, started_at, ended_at, updated_at, is_deleted)
-       VALUES (${escSql(f.title)}, ${escSql(f.description)}, ${escSql(f.owner_id)}, ${escSql(f.created_at)}, ${escSql(f.started_at)}, ${escSql(f.ended_at)}, ${escSql(f.updated_at)}, ${escSql(f.is_deleted)})`
+      `INSERT INTO "flow" (title, description, type, owner_id, created_at, started_at, ended_at, updated_at, is_deleted)
+       VALUES (${escSql(f.title)}, ${escSql(f.description)}, ${escSql(f.type)}, ${escSql(f.owner_id)}, ${escSql(f.created_at)}, ${escSql(f.started_at)}, ${escSql(f.ended_at)}, ${escSql(f.updated_at)}, ${escSql(f.is_deleted)})`
     );
   }
 
