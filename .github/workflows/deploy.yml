@@ -18,6 +18,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   SERVICE_NAME: sast-people-next
   REGISTRY_PREFIX: sast
   TAR_FILE_NAME: new_image.tar
