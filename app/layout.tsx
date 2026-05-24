@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 export const metadata: Metadata = {
   title: "SAST 招新",
   description: "南京邮电大学大学生科学技术协会招新平台",
+  icons: { icon: "/images/logo.png" },
 };
 
 export default function RootLayout({
