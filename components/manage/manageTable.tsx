@@ -44,35 +44,35 @@ export const ManageTable = ({
 }) => {
   const columns: ColumnDef<userType>[] = [
     {
+      accessorKey: 'studentId',
+      header: '学号',
+    },
+    {
       accessorKey: 'name',
       header: '姓名',
       cell(props) {
-        return <div className="w-[80px]">{props.row.original.name}</div>;
+        return <div className="min-w-[60px]">{props.row.original.name}</div>;
       },
-    },
-    {
-      accessorKey: 'studentId',
-      header: '学号',
     },
     ...(role >= 3 ? [{
       accessorKey: 'phone' as const,
       header: '手机号码',
     }] : []),
-    ...(role >= 3 ? [{
-      accessorKey: 'qq' as const,
-      header: 'QQ',
-    }] : []),
     {
       accessorKey: 'email',
       header: '邮箱',
     },
+    ...(role >= 3 ? [{
+      accessorKey: 'qq' as const,
+      header: 'QQ',
+    }] : []),
     {
       accessorKey: 'createdAt',
       header: '创建时间',
       cell: ({ row }) => {
         const date = row.getValue('createdAt') as Date;
         return (
-          <div className="w-[80px]">
+          <div className="min-w-[90px]">
             {originalDayjs(date).format('YYYY-MM-DD')}
           </div>
         );
@@ -81,7 +81,7 @@ export const ManageTable = ({
     {
       id: 'actions',
       cell: ({ row }) => (
-        <div className="w-[120px] flex gap-3 mr-4">
+        <div className="flex gap-3 min-w-[140px]">
           <ViewUserInfoSheet userInfo={row.original} currentUserRole={role} />
           {role >= 3 && <EditUserFlowSheet userInfo={row.original} role={role} />}
           {role >= 3 && <RemoveUserInfoDialog uid={row.original.id} />}
@@ -117,7 +117,7 @@ export const ManageTable = ({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="whitespace-nowrap py-3">
+                    <TableHead key={header.id} className="whitespace-nowrap px-4 py-3">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -137,7 +137,7 @@ export const ManageTable = ({
                     data-state={row.getIsSelected() && 'selected'}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="whitespace-nowrap py-3">
+                      <TableCell key={cell.id} className="whitespace-nowrap px-4 py-3">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
