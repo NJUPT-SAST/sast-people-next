@@ -26,16 +26,18 @@ export const SelectFlow = ({
       <SelectTrigger className="w-[280px] truncate">
         <SelectValue placeholder="请选择需要操作的类别" />
       </SelectTrigger>
-      <SelectContent>
-        {flowTypes.map((flowType) => (
-          <SelectItem
-            key={`flowType_${flowType.id}`}
-            value={flowType.id.toString()}
-          >
-            {flowType.title}
-          </SelectItem>
-        ))}
-      </SelectContent>
+      {flowTypes.length > 0 && (
+        <SelectContent>
+          {flowTypes.map((flowType) => (
+            <SelectItem
+              key={`flowType_${flowType.id}`}
+              value={flowType.id.toString()}
+            >
+              {flowType.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      )}
     </Select>
   );
 };
