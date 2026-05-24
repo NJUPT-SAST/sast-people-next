@@ -150,15 +150,17 @@ const QRCodeScanner = () => {
                   >
                     <SelectValue placeholder="请选择摄像头" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {filteredDevices.map((device) => (
-                      <SelectItem key={device.deviceId} value={device.deviceId} className="text-xs">
-                        <div className="flex items-center gap-2 overflow-hidden w-full">
-                          <span className="truncate block">{device.label || '未命名设备'}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                  {filteredDevices.length > 0 && (
+                    <SelectContent>
+                      {filteredDevices.map((device) => (
+                        <SelectItem key={device.deviceId} value={device.deviceId} className="text-xs">
+                          <div className="flex items-center gap-2 overflow-hidden w-full">
+                            <span className="truncate block">{device.label || '未命名设备'}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  )}
                 </Select>
                 <Button
                   size="sm"
@@ -196,16 +198,18 @@ const QRCodeScanner = () => {
                 <SelectTrigger className="w-full bg-black/60 backdrop-blur border-white/10 text-white hover:bg-black/70 focus:ring-0">
                   <SelectValue placeholder="切换摄像头" />
                 </SelectTrigger>
-                <SelectContent>
-                  {filteredDevices.map((device) => (
-                    <SelectItem key={device.deviceId} value={device.deviceId}>
-                      <div className="flex items-center gap-2 overflow-hidden w-full">
-                        <Camera className="shrink-0 size-3.5 text-muted-foreground opacity-70" />
-                        <span className="truncate block">{device.label || '未命名摄像头'}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                {filteredDevices.length > 0 && (
+                  <SelectContent>
+                    {filteredDevices.map((device) => (
+                      <SelectItem key={device.deviceId} value={device.deviceId}>
+                        <div className="flex items-center gap-2 overflow-hidden w-full">
+                          <Camera className="shrink-0 size-3.5 text-muted-foreground opacity-70" />
+                          <span className="truncate block">{device.label || '未命名摄像头'}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                )}
               </Select>
             </div>
             <Button

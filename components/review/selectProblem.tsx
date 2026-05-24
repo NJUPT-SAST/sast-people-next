@@ -152,13 +152,15 @@ const SelectProblem = ({
           <SelectTrigger className="w-full">
             <SelectValue placeholder="请选择试卷" />
           </SelectTrigger>
-          <SelectContent>
-            {flowList.map((flow) => (
-              <SelectItem key={flow.id} value={flow?.id?.toString() || ''}>
-                {flow.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
+          {flowList.length > 0 && (
+            <SelectContent>
+              {flowList.map((flow) => (
+                <SelectItem key={flow.id} value={flow?.id?.toString() || ''}>
+                  {flow.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          )}
         </Select>
         {currentFlow?.title && (
           <div className="flex flex-wrap gap-2">

@@ -73,14 +73,15 @@ export const EditUserFlowSheet = ({
               <SelectTrigger>
                 <SelectValue placeholder="选择流程" />
               </SelectTrigger>
-              <SelectContent>
-                {Array.isArray(flowList) &&
-                  flowList.map((flow) => (
+              {Array.isArray(flowList) && flowList.length > 0 && (
+                <SelectContent>
+                  {flowList.map((flow) => (
                     <SelectItem key={flow.id} value={flow.id.toString()}>
                       {flow.title}
                     </SelectItem>
                   ))}
-              </SelectContent>
+                </SelectContent>
+              )}
             </Select>
           )}
           {selectedFlow && <FlowCard flow={selectedFlow} role={role} />}
