@@ -29,8 +29,11 @@ export const MarkProblemTable = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const problems = useLocalProblemList();
 
-  const getDisplayScore = (problemId: number, fallback: number) =>
-    editedScores[problemId] ?? String(fallback);
+  const getDisplayScore = (problemId: number, existedScore: number | null) => {
+    if (editedScores[problemId] !== undefined) return editedScores[problemId];
+    if (existedScore === null) return "";
+    return String(existedScore);
+  };
 
   const parseScore = (value: string) => {
     const trimmedValue = value.trim();
@@ -66,7 +69,7 @@ export const MarkProblemTable = ({
     (problem) => {
       const existed = points.find((point) => point.fkProblemId === problem.id);
       const currentScore = parseScore(
-        getDisplayScore(problem.id, existed?.points ?? 0),
+        getDisplayScore(problem.id, existed ? existed.points : null),
       );
 
       return {
@@ -80,8 +83,8 @@ export const MarkProblemTable = ({
 
   const hasUnsavedChanges = problems.some((problem) => {
     const existed = points.find((point) => point.fkProblemId === problem.id);
-    const originalScore = String(existed?.points ?? 0);
-    return getDisplayScore(problem.id, existed?.points ?? 0) !== originalScore;
+    const originalScore = existed ? String(existed.points) : "";
+    return getDisplayScore(problem.id, existed ? existed.points : null) !== originalScore;
   });
 
   useEffect(() => {
@@ -137,8 +140,9 @@ export const MarkProblemTable = ({
 
   const buildValidatedPayload = () => {
     const values = problemPoints.map((problemPoint, index) => {
+      const existed = points.find((point) => point.fkProblemId === problems[index].id);
       const score = parseScore(
-        getDisplayScore(problems[index].id, problemPoint.points),
+        getDisplayScore(problems[index].id, existed ? existed.points : null),
       );
       const errorMessage = validateScore(
         problems[index].name,
@@ -234,7 +238,8 @@ export const MarkProblemTable = ({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {problemPoints.map((problemPoint, index) => {
               const problem = problems[index];
-              const displayScore = getDisplayScore(problem.id, problemPoint.points);
+              const existed = points.find((point) => point.fkProblemId === problem.id);
+              const displayScore = getDisplayScore(problem.id, existed ? existed.points : null);
               const parsedScore = parseScore(displayScore);
 
               return (

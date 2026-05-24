@@ -44,22 +44,10 @@ export const EditUserFlowSheet = ({
           <SheetDescription>在下方编辑用户的流程</SheetDescription>
         </SheetHeader>
         <div className="rounded-lg border bg-muted/20 p-3 space-y-1 text-sm">
-          <p className="text-xs text-muted-foreground">学号 / 邮箱 / 学院 / 专业</p>
+          <p className="text-xs text-muted-foreground">学号 / 邮箱</p>
           <p className="font-medium truncate">
             {userInfo.studentId || '-'} | {userInfo.email || '-'}
           </p>
-          <p className="text-xs text-muted-foreground truncate">
-            {userInfo.college || '-'} · {userInfo.major || '-'}
-          </p>
-          {userInfo.github || userInfo.blog || userInfo.personalStatement ? (
-            <div className="pt-1 border-t border-border/50 space-y-1">
-              {userInfo.github && <p className="text-xs truncate">GitHub: {userInfo.github}</p>}
-              {userInfo.blog && <p className="text-xs truncate">博客: {userInfo.blog}</p>}
-              {userInfo.personalStatement && (
-                <p className="text-xs line-clamp-2">{userInfo.personalStatement}</p>
-              )}
-            </div>
-          ) : null}
         </div>
         <div className="flex flex-col gap-5 px-1 pb-32">
           {isLoading ? (
@@ -73,14 +61,15 @@ export const EditUserFlowSheet = ({
               <SelectTrigger>
                 <SelectValue placeholder="选择流程" />
               </SelectTrigger>
-              <SelectContent>
-                {Array.isArray(flowList) &&
-                  flowList.map((flow) => (
+              {Array.isArray(flowList) && flowList.length > 0 && (
+                <SelectContent>
+                  {flowList.map((flow) => (
                     <SelectItem key={flow.id} value={flow.id.toString()}>
                       {flow.title}
                     </SelectItem>
                   ))}
-              </SelectContent>
+                </SelectContent>
+              )}
             </Select>
           )}
           {selectedFlow && <FlowCard flow={selectedFlow} role={role} />}

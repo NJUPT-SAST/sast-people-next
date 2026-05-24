@@ -11,13 +11,6 @@ import { Copy, PlusIcon, Save, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { updateProblems } from "@/action/flow/problem/edit";
 import { toast } from "sonner";
 
@@ -47,7 +40,6 @@ const EditProblems = ({
   flowTypeId: number;
 }) => {
   const [localProblems, setLocalProblems] = useState<Problem[]>(problems);
-  const [currentStep, setCurrentStep] = useState(currentStepId);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const tempIdRef = useRef(-1);
   const nextTempId = () => {
@@ -55,12 +47,15 @@ const EditProblems = ({
     return tempIdRef.current;
   };
 
+  const currentStepTitle =
+    stepList.find((s) => s.id === currentStepId)?.title ?? "当前步骤";
+
   const addProblem = () => {
     const newProblem: Problem = {
-      id: nextTempId(), // 使用负数作为临时ID
-      title: "新题目",
+      id: nextTempId(),
+      title: "",
       score: 0,
-      fkFlowStepId: currentStep,
+      fkFlowStepId: currentStepId,
     };
     setLocalProblems((prev) => [...prev, newProblem]);
   };
@@ -75,8 +70,8 @@ const EditProblems = ({
     const problem = localProblems[index];
     const newProblem: Problem = {
       ...problem,
-      id: nextTempId(), // 使用负数作为临时ID
-      title: problem.title.replace(/\d+/, (match) => String(Number(match) + 1)),
+      id: nextTempId(),
+      title: problem.title + " (副本)",
     };
     setLocalProblems((prev) => [
       ...prev.slice(0, index + 1),
@@ -89,136 +84,150 @@ const EditProblems = ({
     setLocalProblems((prev) => prev.filter((p) => p.id !== problemId));
   };
 
+  const validateProblems = (): string | null => {
+    for (const p of localProblems) {
+      if (!p.title.trim()) {
+        return "题目名称不能为空";
+      }
+      if (!p.score || p.score <= 0) {
+        return "分数必须为大于 0 的数字";
+      }
+      if (!Number.isInteger(p.score)) {
+        return "分数必须为整数";
+      }
+    }
+    if (localProblems.length === 0) {
+      return "至少需要一道题目";
+    }
+    return null;
+  };
+
   const handleSave = async () => {
+    const error = validateProblems();
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
     setIsSubmitting(true);
-    // 转换为原有的problemType格式以兼容现有的updateProblems函数
     const problemsForSave = {
       default: localProblems.map((problem) => ({
         id: problem.id,
-        title: problem.title,
+        title: problem.title.trim(),
         score: problem.score,
-        fkFlowStepId: currentStep,
+        fkFlowStepId: currentStepId,
       })),
     };
 
     toast.promise(
-      updateProblems(currentStep, problemsForSave, flowTypeId).finally(() => {
+      updateProblems(currentStepId, problemsForSave, flowTypeId).finally(() => {
         setIsSubmitting(false);
       }),
       {
-        loading: "正在保存问题...",
-        success: "问题已成功保存",
-        error: "保存问题时出错",
+        loading: "正在保存题目...",
+        success: "题目已成功保存",
+        error: "保存题目时出错",
       }
     );
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between">
-        <Select
-          value={currentStep.toString()}
-          onValueChange={(value) => setCurrentStep(Number(value))}
-          disabled={isSubmitting}
-        >
-          <SelectTrigger className="w-1/2">
-            <SelectValue placeholder="选择步骤" />
-          </SelectTrigger>
-          <SelectContent>
-            {stepList.map((step) => (
-              <SelectItem key={step.id} value={step.id.toString()}>
-                {step.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="space-x-2 flex items-center">
-          <Button
-            onClick={addProblem}
-            variant="outline"
-            disabled={isSubmitting}
-          >
-            <PlusIcon className="w-4 h-4 mr-2" />
-            添加题目
-          </Button>
-          <Button
-            onClick={handleSave}
-            loading={isSubmitting}
-            disabled={isSubmitting}
-          >
-            保存 <Save className="w-4 h-4 ml-2" />
-          </Button>
-        </div>
-      </div>
-
       <Card>
         <CardHeader>
-          <CardTitle>题目列表</CardTitle>
-          <CardDescription>{localProblems.length} 道题目</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>题目列表 — {currentStepTitle}</CardTitle>
+              <CardDescription>{localProblems.length} 道题目</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={addProblem}
+                variant="outline"
+                disabled={isSubmitting}
+              >
+                <PlusIcon className="w-4 h-4 mr-2" />
+                添加题目
+              </Button>
+              <Button onClick={handleSave} loading={isSubmitting} disabled={isSubmitting}>
+                <Save className="w-4 h-4 mr-2" />
+                保存
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {localProblems.map((problem, index) => (
-              <fieldset key={problem.id} className="border p-4 rounded-lg">
-                <legend className="px-2 text-sm font-medium text-muted-foreground">
-                  {problem.title || "新题目"}
-                </legend>
-                <div className="flex flex-col gap-2">
-                  <div>
-                    <Label htmlFor={`problem-name-${problem.id}`}>
-                      题目名称
-                    </Label>
-                    <Input
-                      id={`problem-name-${problem.id}`}
-                      value={problem.title}
-                      onChange={(e) =>
-                        updateProblem(problem.id, {
-                          title: e.target.value,
-                        })
-                      }
-                      disabled={isSubmitting}
-                    />
+          {localProblems.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              暂无题目，点击上方"添加题目"按钮创建
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {localProblems.map((problem, index) => (
+                <fieldset key={problem.id} className="border p-4 rounded-lg">
+                  <legend className="px-2 text-sm font-medium text-muted-foreground">
+                    题目 {index + 1}
+                  </legend>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <Label htmlFor={`problem-name-${problem.id}`}>
+                        题目名称
+                      </Label>
+                      <Input
+                        id={`problem-name-${problem.id}`}
+                        value={problem.title}
+                        onChange={(e) =>
+                          updateProblem(problem.id, {
+                            title: e.target.value,
+                          })
+                        }
+                        placeholder="请输入题目名称"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`problem-maxScore-${problem.id}`}>
+                        最高分数
+                      </Label>
+                      <Input
+                        id={`problem-maxScore-${problem.id}`}
+                        type="number"
+                        value={problem.score || ""}
+                        onChange={(e) =>
+                          updateProblem(problem.id, {
+                            score: e.target.value === "" ? 0 : Number(e.target.value),
+                          })
+                        }
+                        placeholder="请输入最高分数"
+                        min={0}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => duplicateProblem(index)}
+                        disabled={isSubmitting}
+                        title="复制题目"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => deleteProblem(problem.id)}
+                        disabled={isSubmitting}
+                        title="删除题目"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor={`problem-maxScore-${problem.id}`}>
-                      最高分数
-                    </Label>
-                    <Input
-                      id={`problem-maxScore-${problem.id}`}
-                      type="number"
-                      value={problem.score}
-                      onChange={(e) =>
-                        updateProblem(problem.id, {
-                          score: Number(e.target.value),
-                        })
-                      }
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => duplicateProblem(index)}
-                      disabled={isSubmitting}
-                      title="复制题目"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => deleteProblem(problem.id)}
-                      disabled={isSubmitting}
-                      title="删除题目"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </fieldset>
-            ))}
-          </div>
+                </fieldset>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

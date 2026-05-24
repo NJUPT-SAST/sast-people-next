@@ -16,51 +16,9 @@ jest.mock("sonner", () => ({
   toast: {
     promise: (...args: Parameters<typeof mockToastPromise>) =>
       mockToastPromise(...args),
+    error: jest.fn(),
   },
 }));
-
-jest.mock("../../ui/select", () => {
-  const SelectContext = React.createContext<{
-    onValueChange?: (value: string) => void;
-  }>({});
-
-  return {
-    Select: ({
-      children,
-      onValueChange,
-    }: {
-      children: React.ReactNode;
-      onValueChange?: (value: string) => void;
-    }) => (
-      <SelectContext.Provider value={{ onValueChange }}>
-        <div>{children}</div>
-      </SelectContext.Provider>
-    ),
-    SelectTrigger: ({ children }: { children: React.ReactNode }) => (
-      <div>{children}</div>
-    ),
-    SelectValue: ({ placeholder }: { placeholder?: string }) => (
-      <span>{placeholder}</span>
-    ),
-    SelectContent: ({ children }: { children: React.ReactNode }) => (
-      <div>{children}</div>
-    ),
-    SelectItem: ({
-      children,
-      value,
-    }: {
-      children: React.ReactNode;
-      value: string;
-    }) => {
-      const { onValueChange } = React.useContext(SelectContext);
-      return (
-        <button type="button" onClick={() => onValueChange?.(value)}>
-          {children}
-        </button>
-      );
-    },
-  };
-});
 
 describe("EditProblems", () => {
   beforeEach(() => {
@@ -68,7 +26,22 @@ describe("EditProblems", () => {
     mockToastPromise.mockClear();
   });
 
-  it("adds, edits, and saves problems for the selected step", async () => {
+  it("renders step title in card header", () => {
+    render(
+      <EditProblems
+        currentStepId={1}
+        flowTypeId={4}
+        stepList={[
+          { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4, problemCount: 1 },
+        ]}
+        problems={[{ id: 11, title: "算法题1", score: 20, fkFlowStepId: 1 }]}
+      />,
+    );
+
+    expect(screen.getByText("题目列表 — 笔试")).toBeTruthy();
+  });
+
+  it("adds and saves problems", async () => {
     const user = userEvent.setup();
 
     render(
@@ -77,29 +50,99 @@ describe("EditProblems", () => {
         flowTypeId={4}
         stepList={[
           { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4, problemCount: 1 },
-          { id: 2, title: "面试", order: 2, description: null, fkFlowId: 4, problemCount: 2 },
         ]}
         problems={[{ id: 11, title: "算法题1", score: 20, fkFlowStepId: 1 }]}
       />,
     );
 
     await user.click(screen.getByRole("button", { name: "添加题目" }));
-    await user.clear(screen.getByDisplayValue("新题目"));
-    await user.type(screen.getAllByLabelText("题目名称")[1], "设计题");
-    await user.click(screen.getByRole("button", { name: "面试" }));
-    await user.click(screen.getByRole("button", { name: /保存/i }));
+
+    const nameInputs = screen.getAllByLabelText("题目名称");
+    expect(nameInputs).toHaveLength(2);
+    expect(nameInputs[1]).toHaveValue("");
+
+    await user.type(nameInputs[1], "设计题");
+
+    const scoreInputs = screen.getAllByLabelText("最高分数");
+    expect(scoreInputs[1]).toHaveValue(null);
+
+    await user.type(scoreInputs[1], "15");
+
+    await user.click(screen.getByRole("button", { name: /保存/ }));
 
     await waitFor(() => {
       expect(mockUpdateProblems).toHaveBeenCalledWith(
-        2,
+        1,
         {
           default: expect.arrayContaining([
-            expect.objectContaining({ title: "算法题1", fkFlowStepId: 2 }),
-            expect.objectContaining({ title: "设计题", fkFlowStepId: 2 }),
+            expect.objectContaining({ title: "算法题1", score: 20, fkFlowStepId: 1 }),
+            expect.objectContaining({ title: "设计题", score: 15, fkFlowStepId: 1 }),
           ]),
         },
         4,
       );
     });
+  });
+
+  it("shows validation error when title is empty", async () => {
+    const { toast } = await import("sonner");
+    const user = userEvent.setup();
+
+    render(
+      <EditProblems
+        currentStepId={1}
+        flowTypeId={4}
+        stepList={[
+          { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4, problemCount: 1 },
+        ]}
+        problems={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "添加题目" }));
+    await user.click(screen.getByRole("button", { name: /保存/ }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("题目名称不能为空");
+    });
+    expect(mockUpdateProblems).not.toHaveBeenCalled();
+  });
+
+  it("shows validation error when score is empty or zero", async () => {
+    const { toast } = await import("sonner");
+    const user = userEvent.setup();
+
+    render(
+      <EditProblems
+        currentStepId={1}
+        flowTypeId={4}
+        stepList={[
+          { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4, problemCount: 1 },
+        ]}
+        problems={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "添加题目" }));
+    await user.type(screen.getByLabelText("题目名称"), "新题");
+    await user.click(screen.getByRole("button", { name: /保存/ }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("分数必须为大于 0 的数字");
+    });
+    expect(mockUpdateProblems).not.toHaveBeenCalled();
+  });
+
+  it("shows empty state when no problems", () => {
+    render(
+      <EditProblems
+        currentStepId={1}
+        flowTypeId={4}
+        stepList={[]}
+        problems={[]}
+      />,
+    );
+
+    expect(screen.getByText(/暂无题目/)).toBeTruthy();
   });
 });

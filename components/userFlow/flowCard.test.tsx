@@ -1,5 +1,9 @@
 import { render, screen } from "@testing-library/react";
 
+jest.mock("./cancelRegistration", () => ({
+  CancelRegistration: () => null,
+}));
+
 import { FlowCard } from "./flowCard";
 
 describe("FlowCard", () => {

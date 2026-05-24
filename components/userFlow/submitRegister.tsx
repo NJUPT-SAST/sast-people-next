@@ -78,33 +78,35 @@ const SubmitRegister = ({
           <SelectTrigger className="w-full">
             <SelectValue placeholder="选择流程" />
           </SelectTrigger>
-          <SelectContent>
-            {flowList.map((flow) => {
-              const now = new Date();
-              const isBeforeStart = now < flow.startedAt;
-              const isAfterEnd = now > flow.endedAt;
-              const isActive = !isBeforeStart && !isAfterEnd;
+          {flowList.length > 0 && (
+            <SelectContent>
+              {flowList.map((flow) => {
+                const now = new Date();
+                const isBeforeStart = now < flow.startedAt;
+                const isAfterEnd = now > flow.endedAt;
+                const isActive = !isBeforeStart && !isAfterEnd;
 
-              return (
-                <SelectItem
-                  key={flow.id}
-                  value={flow.id.toString()}
-                  disabled={!isActive}
-                >
-                  <div className="flex flex-col">
-                    <span className={isActive ? '' : 'text-muted-foreground'}>
-                      {flow.title}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {isBeforeStart && `未开始 (${originalDayjs(flow.startedAt).format('MM-DD HH:mm')})`}
-                      {isAfterEnd && `已结束 (${originalDayjs(flow.endedAt).format('MM-DD HH:mm')})`}
-                      {isActive && `进行中 (${originalDayjs(flow.endedAt).format('MM-DD HH:mm')} 截止)`}
-                    </span>
-                  </div>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
+                return (
+                  <SelectItem
+                    key={flow.id}
+                    value={flow.id.toString()}
+                    disabled={!isActive}
+                  >
+                    <div className="flex flex-col">
+                      <span className={isActive ? '' : 'text-muted-foreground'}>
+                        {flow.title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {isBeforeStart && `未开始 (${originalDayjs(flow.startedAt).format('MM-DD HH:mm')})`}
+                        {isAfterEnd && `已结束 (${originalDayjs(flow.endedAt).format('MM-DD HH:mm')})`}
+                        {isActive && `进行中 (${originalDayjs(flow.endedAt).format('MM-DD HH:mm')} 截止)`}
+                      </span>
+                    </div>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          )}
         </Select>
         <DialogFooter>
           <Button

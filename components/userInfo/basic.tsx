@@ -166,13 +166,15 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="请选择你的学院" />
                       </SelectTrigger>
-                      <SelectContent position="popper">
-                        {collegeList.map((college) => (
-                          <SelectItem key={college} value={college}>
-                            {college}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                      {collegeList.length > 0 && (
+                        <SelectContent position="popper">
+                          {collegeList.map((college) => (
+                            <SelectItem key={college} value={college}>
+                              {college}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      )}
                     </Select>
                   </FormControl>
                   <FormMessage />
