@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test:
-    name: Test Suite
+    name: Tests & Build
     runs-on: ubuntu-latest
 
     permissions:
@@ -36,34 +36,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests with coverage
-        run: pnpm exec jest --coverage
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: coverage/junit.xml
-          retention-days: 7
-
-      - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always() && github.event_name == 'pull_request'
-        with:
-          files: |
-            coverage/junit.xml
-          check_name: Test Results
-          comment_title: Test Results
-        continue-on-error: true
+      - name: Run tests
+        run: pnpm exec jest
 
       - name: Build Next.js application
         run: pnpm build
         env:
           NEXT_PUBLIC_MOCK: true
-
-      - name: Check bundle size
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "## Bundle Size" >> $GITHUB_STEP_SUMMARY
-          du -sh .next/standalone/ >> $GITHUB_STEP_SUMMARY || true

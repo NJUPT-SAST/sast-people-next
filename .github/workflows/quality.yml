@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Code Quality
+    name: TypeScript & Lint
     runs-on: ubuntu-latest
 
     steps:
