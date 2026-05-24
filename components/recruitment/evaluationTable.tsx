@@ -168,7 +168,7 @@ export const EvaluationTable = ({
                             className="min-h-[80px]"
                           />
                           <Input
-                            placeholder="会议链接（选填）"
+                            placeholder="会议链接"
                             value={meetingLink}
                             onChange={(e) => setMeetingLink(e.target.value)}
                             className="h-8 text-xs"
@@ -287,7 +287,7 @@ export const EvaluationTable = ({
                       className="min-h-[80px]"
                     />
                     <Input
-                      placeholder="会议链接（选填）"
+                      placeholder="会议链接"
                       value={meetingLink}
                       onChange={(e) => setMeetingLink(e.target.value)}
                       className="h-8 text-xs"
