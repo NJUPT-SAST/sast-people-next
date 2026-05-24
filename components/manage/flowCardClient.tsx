@@ -142,7 +142,15 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
           <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted z-10"></div>
           {flow.steps.map((step, index) => {
             const stepStatus =
-              step.order < flow.currentStepOrder
+              flow.status === 'accepted'
+                ? 'accepted'
+                : flow.status === 'rejected'
+                ? step.order < flow.currentStepOrder
+                  ? 'accepted'
+                  : step.order === flow.currentStepOrder
+                  ? 'rejected'
+                  : 'pending'
+                : step.order < flow.currentStepOrder
                 ? 'accepted'
                 : step.order === flow.currentStepOrder
                   ? 'ongoing'

@@ -75,7 +75,15 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
         <div className="flex items-center w-full my-4">
           {flow.steps.map((step, index) => {
             const status =
-              step?.order && step.order < currentStepOrder
+              flow.status === "accepted"
+                ? "accepted"
+                : flow.status === "rejected"
+                ? step.order < currentStepOrder
+                  ? "accepted"
+                  : step.order === currentStepOrder
+                  ? "rejected"
+                  : "pending"
+                : step.order < currentStepOrder
                 ? "accepted"
                 : step.order === currentStepOrder
                 ? "ongoing"
