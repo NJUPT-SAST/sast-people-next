@@ -6,12 +6,14 @@ import { verifyRole } from "@/lib/dal";
 import { aliasedTable, eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export const createEvaluation = async (userFlowId: number, content: string) => {
+export const createEvaluation = async (userFlowId: number, content: string, meetingLink?: string) => {
   const session = await verifyRole(2);
 
   if (!content.trim()) {
     return { success: false, error: { message: "面评内容不能为空" } };
   }
+
+  const link = meetingLink?.trim() || null;
 
   // If a pending evaluation already exists, update it in place
   const existing = await db
@@ -30,6 +32,7 @@ export const createEvaluation = async (userFlowId: number, content: string) => {
       .update(interviewEvaluation)
       .set({
         content: content.trim(),
+        meetingLink: link,
         updatedAt: new Date(),
       })
       .where(eq(interviewEvaluation.id, existing[0].id));
@@ -44,6 +47,7 @@ export const createEvaluation = async (userFlowId: number, content: string) => {
       fkUserFlowId: userFlowId,
       fkUserId: session.uid,
       content: content.trim(),
+      meetingLink: link,
       status: "pending",
     })
     .returning();
@@ -77,12 +81,14 @@ export const rejectCandidate = async (userFlowId: number) => {
 };
 
 // Revert a rejected candidate back to ongoing and create pending evaluation
-export const reopenAndEvaluate = async (userFlowId: number, content: string) => {
+export const reopenAndEvaluate = async (userFlowId: number, content: string, meetingLink?: string) => {
   const session = await verifyRole(2);
 
   if (!content.trim()) {
     return { success: false, error: { message: "面评内容不能为空" } };
   }
+
+  const link = meetingLink?.trim() || null;
 
   await db.transaction(async (tx) => {
     await tx
@@ -96,6 +102,7 @@ export const reopenAndEvaluate = async (userFlowId: number, content: string) => 
         fkUserFlowId: userFlowId,
         fkUserId: session.uid,
         content: content.trim(),
+        meetingLink: link,
         status: "pending",
       });
   });
@@ -282,6 +289,7 @@ export const getAllEvaluations = async () => {
   const result = await db
     .select({
       evaluation: interviewEvaluation,
+      meetingLink: interviewEvaluation.meetingLink,
       authorName: author.name,
       candidateName: candidate.name,
       candidateStudentId: candidate.studentId,
@@ -312,6 +320,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
       status: userFlow.status,
       evalId: interviewEvaluation.id,
       evalContent: interviewEvaluation.content,
+      evalMeetingLink: interviewEvaluation.meetingLink,
       evalStatus: interviewEvaluation.status,
     })
     .from(userFlow)

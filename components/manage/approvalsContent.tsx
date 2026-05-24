@@ -17,6 +17,7 @@ import originalDayjs from "@/lib/dayjs";
 
 type EvaluationRow = {
   evaluation: InferSelectModel<typeof interviewEvaluation>;
+  meetingLink: string | null;
   authorName: string | null;
   candidateName: string | null;
   candidateStudentId: string | null;
@@ -196,6 +197,16 @@ export const ApprovalsContent = () => {
                 <p className="text-sm whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
+                {row.meetingLink && (
+                  <a
+                    href={row.meetingLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                  >
+                    {row.meetingLink}
+                  </a>
+                )}
                 <div className="flex items-center justify-between mt-3">
                   <div className="text-xs text-muted-foreground">
                     {row.authorName && <span>评价人：{row.authorName}</span>}

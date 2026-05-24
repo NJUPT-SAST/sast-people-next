@@ -552,6 +552,7 @@ export const mockInterviewEvaluations = [
     fk_user_flow_id: 5,
     fk_user_id: 2, // 测试讲师 evaluated
     content: "陈小红同学面试表现优秀，技术基础扎实，沟通能力强，建议通过。综合评价：对前端框架理解深入，有实际项目经验。",
+    meeting_link: "https://meeting.tencent.com/dm/abc123",
     status: "pending",
     fk_reviewed_by: null,
     created_at: new Date("2024-10-20T00:00:00Z"),
@@ -562,6 +563,7 @@ export const mockInterviewEvaluations = [
     fk_user_flow_id: 6,
     fk_user_id: 8, // 测试部员 evaluated
     content: "测试讲师在WOC面试中展现出良好的领导能力和技术视野，推荐通过。",
+    meeting_link: null,
     status: "pending",
     fk_reviewed_by: null,
     created_at: new Date("2024-10-20T00:00:00Z"),
@@ -572,6 +574,7 @@ export const mockInterviewEvaluations = [
     fk_user_flow_id: 7,
     fk_user_id: 2, // 测试讲师 evaluated
     content: "测试部员在WOC面试中表现一般，技术能力有待提升，建议考察后再决定。",
+    meeting_link: null,
     status: "approved",
     fk_reviewed_by: 1,
     created_at: new Date("2024-10-21T00:00:00Z"),
@@ -582,6 +585,7 @@ export const mockInterviewEvaluations = [
     fk_user_flow_id: 9,
     fk_user_id: 2, // 测试讲师 evaluated
     content: "王小明免试面试表现突出，有丰富的开源项目经验，强烈推荐通过。",
+    meeting_link: "https://meeting.feishu.cn/room/xyz789",
     status: "pending",
     fk_reviewed_by: null,
     created_at: new Date("2025-09-15T00:00:00Z"),
@@ -592,6 +596,7 @@ export const mockInterviewEvaluations = [
     fk_user_flow_id: 10,
     fk_user_id: 2, // 测试讲师 evaluated
     content: "刘大力免试面试表现良好，基础扎实态度端正，建议通过。",
+    meeting_link: null,
     status: "rejected",
     fk_reviewed_by: 1,
     created_at: new Date("2025-09-15T00:00:00Z"),

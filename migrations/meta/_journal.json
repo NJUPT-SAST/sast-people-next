@@ -29,6 +29,13 @@
       "when": 1748000000002,
       "tag": "0003_recruitment_exemption",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1748000000003,
+      "tag": "0004_meeting_link",
+      "breakpoints": true
     }
   ]
 }

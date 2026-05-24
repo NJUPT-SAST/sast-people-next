@@ -186,6 +186,7 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .references(() => user.id)
     .notNull(),
   content: text("content").notNull(),
+  meetingLink: text("meeting_link"),
   status: evaluationStatusEnum("status").notNull().default("pending"),
   fkReviewedBy: integer("fk_reviewed_by").references(() => user.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
