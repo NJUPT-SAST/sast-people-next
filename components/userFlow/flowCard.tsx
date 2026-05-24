@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { displayUserFlow } from "@/types/userflow";
 import { cn } from "@/lib/utils";
+import { CancelRegistration } from "./cancelRegistration";
 
 const statusIcons = {
   pending: CircleDashed,
@@ -134,13 +135,20 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
             );
           })}
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">
-          当前步骤：{flow.steps[currentStepOrder - 1]?.title || "（流程未开始）"}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {flow.steps[currentStepOrder - 1]?.description ||
-            "前面的区域以后再来探索吧"}
-        </p>
+        <div className="mt-4 flex items-end justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">
+              当前步骤：{flow.steps[currentStepOrder - 1]?.title || "（流程未开始）"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {flow.steps[currentStepOrder - 1]?.description ||
+                "前面的区域以后再来探索吧"}
+            </p>
+          </div>
+          {(flow.status === "pending" || flow.status === "ongoing") && (
+            <CancelRegistration userFlowId={flow.id} />
+          )}
+        </div>
       </CardContent>
     </Card>
   );
