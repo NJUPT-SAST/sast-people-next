@@ -53,7 +53,11 @@ const QRCodeScanner = () => {
       !selectedDevice ||
       !filteredDevices.some((device) => device.deviceId === selectedDevice)
     ) {
-      setSelectedDevice(filteredDevices[0].deviceId);
+      const rearDevice =
+        filteredDevices.find((d) =>
+          /\b(back|environment|后置|后置摄像头)\b/i.test(d.label || ""),
+        ) ?? filteredDevices[filteredDevices.length - 1];
+      setSelectedDevice(rearDevice.deviceId);
     }
   }, [filteredDevices, selectedDevice]);
 
