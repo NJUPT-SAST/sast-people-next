@@ -105,7 +105,7 @@ export async function getCurrentRedirectUri() {
 }
 
 export async function bindingLinkAccount(studentId: string) {
-  const session = await verifyRole(2);
+  const session = await verifyRole(3);
   await db.transaction(async (tx) => {
     console.debug("binding link account", studentId);
     let uidList: Partial<userType>[] | null = null;

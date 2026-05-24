@@ -15,6 +15,20 @@
       "when": 1748000000000,
       "tag": "0001_add_user_abilities",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1748000000001,
+      "tag": "0002_role_flow_type_interview",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1748000000002,
+      "tag": "0003_recruitment_exemption",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,7 @@ import { verifyRole } from "@/lib/dal"
 import { eq } from "drizzle-orm"
 
 export const banUser = async (uid: number)=>{
-    await verifyRole(2)
+    await verifyRole(3)
     // ban user
     await db.update(user).set({isDeleted: true}).where(eq(user.id, uid))
     return true

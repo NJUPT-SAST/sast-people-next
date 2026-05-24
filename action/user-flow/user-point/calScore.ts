@@ -6,7 +6,7 @@ import { verifyRole } from '@/lib/dal';
 import { desc, eq, sum } from 'drizzle-orm';
 
 export const calScore = async (flowId: number) => {
-  await verifyRole(1);
+  await verifyRole(2);
   const examResult = await db.select({
       uid: user.id,
       name: user.name,

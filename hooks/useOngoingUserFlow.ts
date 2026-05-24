@@ -5,7 +5,7 @@ import { verifyRole } from '@/lib/dal';
 import { eq } from 'drizzle-orm';
 
 export const useOngoingUserFlow = async (studentId: string) => {
-  await verifyRole(2);
+  await verifyRole(3);
 
   const flowId = await db
     .select({

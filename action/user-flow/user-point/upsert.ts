@@ -4,7 +4,7 @@ import { verifyRole, verifySession } from "@/lib/dal";
 import { InferInsertModel, sql } from "drizzle-orm";
 
 export const upsertPoint = async (userFlowId: number, problemId: number, point: number) => {
-  await verifyRole(1);
+  await verifyRole(2);
   const user = await verifySession();
   console.log(user.name, "upsertPoint", userFlowId, problemId, point);
 
@@ -22,7 +22,7 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
 };
 
 export const batchUpsertPoint = async (values: Array<InferInsertModel<typeof userPoint>>) => {
-  await verifyRole(1);
+  await verifyRole(2);
   const user = await verifySession();
   console.log(user.name, "batchUpsertPoint", values);
 

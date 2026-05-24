@@ -34,7 +34,7 @@ export async function editBasicInfoByUid(
   console.log("Server received values:", JSON.stringify(values));
   const session = await verifySession();
 
-  if (session.role !== 1 && session.uid !== uid) {
+  if (session.role < 2 && session.uid !== uid) {
     throw new Error("Permission denied");
   }
 

@@ -15,14 +15,31 @@ import {
   TableBody,
   TableCell,
 } from '../ui/table';
+import { Badge } from '../ui/badge';
 import originalDayjs from '@/lib/dayjs';
 import { Operations } from './operations';
+
+const flowTypeLabel: Record<string, string> = {
+  recruitment: '招新',
+  recruitment_exemption: '招新免试',
+  woc: 'WOC',
+  soc: 'SOC',
+};
 
 export const FlowTableColumns: ColumnDef<displayFlow>[] = [
   {
     accessorKey: 'title',
     header: '名称',
     accessorFn: (data) => data.title,
+  },
+  {
+    accessorKey: 'type',
+    header: '类型',
+    accessorFn: (data) => data.type,
+    cell({ row }) {
+      const type = row.getValue('type') as string;
+      return <Badge variant="secondary">{flowTypeLabel[type] ?? type}</Badge>;
+    },
   },
   {
     accessorKey: 'description',

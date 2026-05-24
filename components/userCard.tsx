@@ -15,7 +15,8 @@ export const UserCard: React.FC = async () => {
   const name = session?.name ? (session.name as string) : '未知用户';
   const roleLabel =
     session.role === 0 ? '新同学'
-    : session.role === 1 ? '讲师'
+    : session.role === 1 ? '部员'
+    : session.role === 2 ? '讲师'
     : '管理员';
 
   return (

@@ -18,6 +18,12 @@ jest.mock("./searchInput", () => ({
   ),
 }));
 
+jest.mock("./viewUserInfoSheet", () => ({
+  ViewUserInfoSheet: ({ userInfo }: { userInfo: { name: string } }) => (
+    <div>view-{userInfo.name}</div>
+  ),
+}));
+
 jest.mock("@/components/ui/pagination", () => ({
   PaginationComponent: ({ currentPage }: { currentPage: number }) => (
     <div>pagination-{currentPage}</div>
@@ -48,7 +54,7 @@ describe("ManageTable", () => {
         totalPages={2}
         search="张"
         currentPage={1}
-        role={2}
+        role={3}
       />,
     );
 

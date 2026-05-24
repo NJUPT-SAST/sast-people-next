@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -9,11 +9,20 @@ import {
   SheetTrigger,
 } from '../ui/sheet';
 import { Workflow } from 'lucide-react';
+import { InferSelectModel } from 'drizzle-orm';
 import { userType } from '@/types/user';
+import { interviewEvaluation } from '@/db/schema';
 import { FlowCard } from './flowCardClient';
+import { InterviewEvaluation } from './interviewEvaluation';
 import { useFlowListClient } from '@/hooks/useFlowListClient';
+import { getEvaluation } from '@/action/user-flow/evaluation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
+
+type EvalData = {
+  evaluation: InferSelectModel<typeof interviewEvaluation>;
+  authorName: string | null;
+} | null;
 
 export const EditUserFlowSheet = ({
   userInfo,
@@ -24,10 +33,19 @@ export const EditUserFlowSheet = ({
 }) => {
   const { data: flowList, isLoading, error } = useFlowListClient(userInfo.id as number);
   const [selectedFlowId, setSelectedFlowId] = useState<number>();
+  const [evalData, setEvalData] = useState<EvalData>(null);
 
   const selectedFlow = selectedFlowId !== undefined && Array.isArray(flowList)
     ? flowList.find((f) => f.id === selectedFlowId)
     : undefined;
+
+  useEffect(() => {
+    if (selectedFlow) {
+      getEvaluation(selectedFlow.id).then(setEvalData).catch(() => setEvalData(null));
+    } else {
+      setEvalData(null);
+    }
+  }, [selectedFlow]);
 
   return (
     <Sheet>
@@ -72,7 +90,19 @@ export const EditUserFlowSheet = ({
               )}
             </Select>
           )}
-          {selectedFlow && <FlowCard flow={selectedFlow} role={role} />}
+          {selectedFlow && (
+            <>
+              <FlowCard flow={selectedFlow} role={role} />
+              {(selectedFlow.flowType === 'woc' || selectedFlow.flowType === 'soc' || selectedFlow.flowType === 'recruitment_exemption') && (
+                <InterviewEvaluation
+                  userFlowId={selectedFlow.id}
+                  evaluation={evalData?.evaluation ?? null}
+                  authorName={evalData?.authorName ?? null}
+                  role={role}
+                />
+              )}
+            </>
+          )}
         </div>
       </SheetContent>
     </Sheet>
