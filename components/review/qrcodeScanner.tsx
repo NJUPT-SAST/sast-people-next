@@ -7,7 +7,7 @@ import { useZxing } from 'react-zxing';
 import { Camera, Pause, QrCode, RefreshCw } from 'lucide-react';
 
 import { useUserInfoById as getUserInfoById } from '@/hooks/useUserInfoById';
-import { cn } from '@/lib/utils';
+
 import { userType } from '@/types/user';
 import { toast } from 'sonner';
 

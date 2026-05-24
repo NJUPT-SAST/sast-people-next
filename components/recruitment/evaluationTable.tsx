@@ -19,7 +19,7 @@ type Candidate = {
   userFlowId: number;
   uid: number;
   name: string;
-  studentId: string;
+  studentId: string | null;
   phoneNumber: string | null;
   status: string;
   evalId: number | null;
