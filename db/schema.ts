@@ -54,6 +54,7 @@ export const user = pgTable("user", {
   github: text("github"),
   blog: text("blog"),
   personalStatement: text("personal_statement"),
+  qq: varchar("qq", { length: 20 }),
   linkOpenid: varchar("link_openid", { length: 255 }).unique(),
   feishuOpenid: varchar("feishu_openid", { length: 255 }).unique(),
   role: integer("role").default(0),
@@ -186,6 +187,7 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .references(() => user.id)
     .notNull(),
   content: text("content").notNull(),
+  meetingLink: text("meeting_link"),
   status: evaluationStatusEnum("status").notNull().default("pending"),
   fkReviewedBy: integer("fk_reviewed_by").references(() => user.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),

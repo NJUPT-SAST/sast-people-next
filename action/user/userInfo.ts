@@ -19,6 +19,7 @@ export async function editBasicInfo(values: z.infer<typeof basicInfoSchema>) {
       email: values.email,
       college: values.college,
       major: values.major,
+      qq: values.qq || null,
       updatedAt: new Date(),
     })
     .where(eq(user.id, session.uid));

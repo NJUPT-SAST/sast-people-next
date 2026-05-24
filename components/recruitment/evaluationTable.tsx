@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/user-flow/evaluation";
@@ -24,6 +25,7 @@ type Candidate = {
   status: string;
   evalId: number | null;
   evalContent: string | null;
+  evalMeetingLink: string | null;
   evalStatus: string | null;
 };
 
@@ -46,6 +48,7 @@ export const EvaluationTable = ({
 }) => {
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
+  const [meetingLink, setMeetingLink] = useState("");
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<"pass" | "reopen" | null>(null);
 
@@ -53,11 +56,13 @@ export const EvaluationTable = ({
     setEvaluatingId(c.userFlowId);
     setEditMode(mode);
     setContent(c.evalContent ?? "");
+    setMeetingLink(c.evalMeetingLink ?? "");
   };
 
   const cancelEdit = () => {
     setEvaluatingId(null);
     setContent("");
+    setMeetingLink("");
     setEditMode(null);
   };
 
@@ -65,7 +70,7 @@ export const EvaluationTable = ({
     if (!content.trim()) return;
     setLoadingId(userFlowId);
     try {
-      const result = await createEvaluation(userFlowId, content);
+      const result = await createEvaluation(userFlowId, content, meetingLink);
       if (!result.success) {
         toast.error(result.error?.message ?? "提交失败");
         return;
@@ -84,7 +89,7 @@ export const EvaluationTable = ({
     if (!content.trim()) return;
     setLoadingId(userFlowId);
     try {
-      await reopenAndEvaluate(userFlowId, content);
+      await reopenAndEvaluate(userFlowId, content, meetingLink);
       toast.success("面评已提交，等待管理员审核");
       cancelEdit();
       onRefresh();
@@ -161,6 +166,12 @@ export const EvaluationTable = ({
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
                             className="min-h-[80px]"
+                          />
+                          <Input
+                            placeholder="会议链接"
+                            value={meetingLink}
+                            onChange={(e) => setMeetingLink(e.target.value)}
+                            className="h-8 text-xs"
                           />
                           <div className="flex gap-2">
                             <Button
@@ -274,6 +285,12 @@ export const EvaluationTable = ({
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       className="min-h-[80px]"
+                    />
+                    <Input
+                      placeholder="会议链接"
+                      value={meetingLink}
+                      onChange={(e) => setMeetingLink(e.target.value)}
+                      className="h-8 text-xs"
                     />
                     <div className="flex gap-2">
                       <Button

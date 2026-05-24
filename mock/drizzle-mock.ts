@@ -69,6 +69,7 @@ pgMem.public.none(`
     github TEXT,
     blog TEXT,
     personal_statement TEXT,
+    qq VARCHAR(20),
     link_openid VARCHAR(255) UNIQUE,
     feishu_openid VARCHAR(255) UNIQUE,
     role INTEGER DEFAULT 0,
@@ -151,6 +152,7 @@ pgMem.public.none(`
     fk_user_flow_id INTEGER NOT NULL REFERENCES "user_flow"(id),
     fk_user_id INTEGER NOT NULL REFERENCES "user"(id),
     content TEXT NOT NULL,
+    meeting_link TEXT,
     status evaluation_status_enum NOT NULL DEFAULT 'pending',
     fk_reviewed_by INTEGER REFERENCES "user"(id),
     created_at TIMESTAMP NOT NULL DEFAULT now(),
@@ -164,8 +166,8 @@ pgMem.public.none(`
 function seedDatabase() {
   for (const u of mockUsers) {
     pgMem.public.none(
-      `INSERT INTO "user" (name, student_id, email, phone, college, major, department, link_openid, feishu_openid, role, created_at, updated_at, is_deleted)
-       VALUES (${escSql(u.name)}, ${escSql(u.student_id)}, ${escSql(u.email)}, ${escSql(u.phone)}, ${escSql(u.college)}, ${escSql(u.major)}, ${escSql(u.department)}, ${escSql(u.link_openid)}, ${escSql(u.feishu_openid)}, ${escSql(u.role)}, ${escSql(u.created_at)}, ${escSql(u.updated_at)}, ${escSql(u.is_deleted)})`
+      `INSERT INTO "user" (name, student_id, email, phone, college, major, department, qq, link_openid, feishu_openid, role, created_at, updated_at, is_deleted)
+       VALUES (${escSql(u.name)}, ${escSql(u.student_id)}, ${escSql(u.email)}, ${escSql(u.phone)}, ${escSql(u.college)}, ${escSql(u.major)}, ${escSql(u.department)}, ${escSql((u as Record<string, unknown>).qq ?? null)}, ${escSql(u.link_openid)}, ${escSql(u.feishu_openid)}, ${escSql(u.role)}, ${escSql(u.created_at)}, ${escSql(u.updated_at)}, ${escSql(u.is_deleted)})`
     );
   }
 
@@ -213,8 +215,8 @@ function seedDatabase() {
 
   for (const ie of mockInterviewEvaluations) {
     pgMem.public.none(
-      `INSERT INTO "interview_evaluation" (fk_user_flow_id, fk_user_id, content, status, fk_reviewed_by, created_at, updated_at)
-       VALUES (${escSql(ie.fk_user_flow_id)}, ${escSql(ie.fk_user_id)}, ${escSql(ie.content)}, ${escSql(ie.status)}, ${escSql(ie.fk_reviewed_by)}, ${escSql(ie.created_at)}, ${escSql(ie.updated_at)})`
+      `INSERT INTO "interview_evaluation" (fk_user_flow_id, fk_user_id, content, meeting_link, status, fk_reviewed_by, created_at, updated_at)
+       VALUES (${escSql(ie.fk_user_flow_id)}, ${escSql(ie.fk_user_id)}, ${escSql(ie.content)}, ${escSql(ie.meeting_link ?? null)}, ${escSql(ie.status)}, ${escSql(ie.fk_reviewed_by)}, ${escSql(ie.created_at)}, ${escSql(ie.updated_at)})`
     );
   }
 }
