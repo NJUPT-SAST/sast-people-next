@@ -159,6 +159,24 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
             <FormField
               control={basicInfoForm.control}
               disabled={isSubmitting}
+              name="qq"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>QQ</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="请填写你的QQ号码"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={basicInfoForm.control}
+              disabled={isSubmitting}
               name="college"
               render={({ field }) => (
                 <FormItem>
@@ -194,24 +212,6 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
                     <Input
                       {...field}
                       placeholder="请填写你目前所在的专业"
-                      value={field.value || ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={basicInfoForm.control}
-              disabled={isSubmitting}
-              name="qq"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>QQ</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="请填写你的QQ号码（选填）"
-                      {...field}
                       value={field.value || ""}
                     />
                   </FormControl>
