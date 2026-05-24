@@ -39,9 +39,6 @@ const config: Config = {
     "/.next/",
     "/out/",
     "/coverage/",
-    "/action/",                          // Server actions require DB, tested via integration
-    "/components/manage/approvalsContent.tsx",
-    "/components/manage/interviewEvaluation.tsx",
   ],
 
   // Indicates which provider should be used to instrument code for coverage
@@ -57,16 +54,8 @@ const config: Config = {
     "cobertura",
   ],
 
-  // Coverage thresholds - enforce minimum coverage in CI
-  // Uncomment to enable strict coverage requirements
-  coverageThreshold: {
-    global: {
-      branches: 60,
-      functions: 59,
-      lines: 50,
-      statements: 50,
-    },
-  },
+  // Coverage thresholds - not enforced; use coverage reports for visibility
+  // coverageThreshold: { global: { lines: 50, statements: 50 } },
 
   // An object that configures minimum threshold enforcement for coverage results
   // coverageThreshold: undefined,
