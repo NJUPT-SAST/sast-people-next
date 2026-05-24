@@ -49,7 +49,13 @@ export function DataTable<TData, TValue>({
     row.original as RecruitmentRowLike;
 
   const visibleColumns = useMemo(
-    () => (role >= 3 ? columns : columns.filter((c) => (c as { id?: string }).id !== 'select')),
+    () =>
+      role >= 3
+        ? columns
+        : columns.filter((c) => {
+            const col = c as { id?: string; accessorKey?: string };
+            return col.id !== 'select' && col.accessorKey !== 'phoneNumber';
+          }),
     [columns, role],
   );
 
@@ -216,9 +222,11 @@ export function DataTable<TData, TValue>({
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">学号: {flexRender(cells[0 + offset]?.column.columnDef.cell, cells[0 + offset]?.getContext())}</span>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                       手机: {flexRender(cells[2 + offset]?.column.columnDef.cell, cells[2 + offset]?.getContext())}
-                    </div>
+                    {role >= 3 && (
+                      <div className="text-sm text-muted-foreground">
+                         手机: {flexRender(cells[2 + offset]?.column.columnDef.cell, cells[2 + offset]?.getContext())}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
