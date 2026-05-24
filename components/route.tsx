@@ -48,7 +48,7 @@ export const menuItems: MenuItem[] = [
     path: '/manage',
   },
   {
-    title: '招新成绩',
+    title: '成绩管理',
     icon: ArrowDownWideNarrow,
     path: '/recruitment',
   },
