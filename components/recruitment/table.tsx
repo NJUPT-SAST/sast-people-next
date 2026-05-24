@@ -74,7 +74,7 @@ export function DataTable<TData, TValue>({
           className="max-w-sm w-full md:w-auto"
         />
         <div className="flex flex-wrap items-center gap-3">
-          {role >= 2 && (
+          {role >= 3 && (
             <Button
               disabled={table.getSelectedRowModel().rows.length === 0}
               onClick={async () => {
@@ -121,7 +121,7 @@ export function DataTable<TData, TValue>({
             确认选中同学通过
           </Button>
           )}
-          <span className='text-muted-foreground text-xs md:text-sm max-w-[200px] md:max-w-none'>{role >= 2 ? '同时修改流程与发送邮件，请谨慎操作' : ''}</span>
+          <span className='text-muted-foreground text-xs md:text-sm max-w-[200px] md:max-w-none'>{role >= 3 ? '同时修改流程与发送邮件，请谨慎操作' : ''}</span>
         </div>
       </div>
       

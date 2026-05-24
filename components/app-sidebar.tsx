@@ -33,7 +33,7 @@ function SidebarNav({ role }: { role: number }) {
   const authRoutes = useMemo(() => {
     if (role === 0) return [menuItems[0], menuItems[1]];
     if (role === 1) return [menuItems[0], menuItems[1]];
-    if (role === 2) return [menuItems[0], menuItems[1], menuItems[2], menuItems[3], menuItems[4]];
+    if (role === 2) return [menuItems[0], menuItems[1], menuItems[2], menuItems[3]];
     return menuItems;
   }, [role]);
 
