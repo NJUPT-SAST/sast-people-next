@@ -20,25 +20,28 @@ jest.mock("sonner", () => ({
   },
 }));
 
+const baseStep = { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4 };
+const baseProblems = [{ id: 11, title: "算法题1", score: 20, fkFlowStepId: 1 }];
+
 describe("EditProblems", () => {
   beforeEach(() => {
     mockUpdateProblems.mockClear();
     mockToastPromise.mockClear();
   });
 
-  it("renders step title in card header", () => {
+  it("renders step selector with step title", () => {
     render(
       <EditProblems
-        currentStepId={1}
+        steps={[baseStep]}
+        problemsByStep={{ 1: baseProblems }}
+        defaultStepId={1}
         flowTypeId={4}
-        stepList={[
-          { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4, problemCount: 1 },
-        ]}
-        problems={[{ id: 11, title: "算法题1", score: 20, fkFlowStepId: 1 }]}
       />,
     );
 
-    expect(screen.getByText("题目列表 — 笔试")).toBeTruthy();
+    expect(screen.getByText("题目列表")).toBeTruthy();
+    expect(screen.getByText("笔试")).toBeTruthy();
+    expect(screen.getByText("1 道题目")).toBeTruthy();
   });
 
   it("adds and saves problems", async () => {
@@ -46,12 +49,10 @@ describe("EditProblems", () => {
 
     render(
       <EditProblems
-        currentStepId={1}
+        steps={[baseStep]}
+        problemsByStep={{ 1: baseProblems }}
+        defaultStepId={1}
         flowTypeId={4}
-        stepList={[
-          { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4, problemCount: 1 },
-        ]}
-        problems={[{ id: 11, title: "算法题1", score: 20, fkFlowStepId: 1 }]}
       />,
     );
 
@@ -90,12 +91,10 @@ describe("EditProblems", () => {
 
     render(
       <EditProblems
-        currentStepId={1}
+        steps={[baseStep]}
+        problemsByStep={{}}
+        defaultStepId={1}
         flowTypeId={4}
-        stepList={[
-          { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4, problemCount: 1 },
-        ]}
-        problems={[]}
       />,
     );
 
@@ -114,12 +113,10 @@ describe("EditProblems", () => {
 
     render(
       <EditProblems
-        currentStepId={1}
+        steps={[baseStep]}
+        problemsByStep={{}}
+        defaultStepId={1}
         flowTypeId={4}
-        stepList={[
-          { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4, problemCount: 1 },
-        ]}
-        problems={[]}
       />,
     );
 
@@ -136,10 +133,10 @@ describe("EditProblems", () => {
   it("shows empty state when no problems", () => {
     render(
       <EditProblems
-        currentStepId={1}
+        steps={[]}
+        problemsByStep={{}}
+        defaultStepId={0}
         flowTypeId={4}
-        stepList={[]}
-        problems={[]}
       />,
     );
 
