@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -47,9 +47,15 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const toRecruitmentRow = (row: { original: unknown }): RecruitmentRowLike =>
     row.original as RecruitmentRowLike;
+
+  const visibleColumns = useMemo(
+    () => (role >= 3 ? columns : columns.filter((c) => (c as { id?: string }).id !== 'select')),
+    [columns, role],
+  );
+
   const table = useReactTable({
     data,
-    columns,
+    columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
