@@ -36,7 +36,7 @@ const Review: React.FC = async () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="flex flex-col">
-              <div className="mx-4 mt-4 lg:mx-6 lg:mt-6 rounded-md border bg-amber-50 px-4 py-3 text-center dark:bg-amber-950/20">
+              <div className="mx-4 mt-3 mb-5 lg:mx-6 lg:mt-4 lg:mb-6 rounded-md border bg-amber-50 px-4 py-3 text-center dark:bg-amber-950/20">
                 <p className="text-xs text-amber-700 dark:text-amber-400">
                   请先设置上方【阅卷范围】，再开始阅卷。
                 </p>
