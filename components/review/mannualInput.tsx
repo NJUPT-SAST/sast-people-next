@@ -64,7 +64,7 @@ export const MannualInput = () => {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-4 rounded-lg border bg-card/60 p-4 sm:p-5">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4 p-1 sm:p-2">
       <div className="flex flex-col gap-1">
         <p className="text-base font-semibold text-foreground">手动输入学号</p>
         <p className="text-sm text-muted-foreground leading-relaxed">

@@ -98,7 +98,7 @@ const QRCodeScanner = () => {
   });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <p className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -121,9 +121,6 @@ const QRCodeScanner = () => {
             className="h-full min-h-[300px] w-full object-cover"
           />
         )}
-        {/* Subtle camera finder frame */}
-        <div className="pointer-events-none absolute inset-0 border-[2px] border-black/5 m-4 rounded-lg" />
-        
         {paused && (
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl p-5">
