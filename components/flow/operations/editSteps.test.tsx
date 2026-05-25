@@ -121,7 +121,7 @@ describe("EditSteps", () => {
     mockToastPromise.mockClear();
   });
 
-  it("saves flow metadata and edited steps", async () => {
+  it("saves flow metadata and edited step labels", async () => {
     const user = userEvent.setup();
 
     render(
@@ -147,15 +147,38 @@ describe("EditSteps", () => {
       );
     });
 
-    await user.click(screen.getByRole("button", { name: "添加步骤" }));
+    expect(screen.queryByRole("button", { name: "添加步骤" })).not.toBeInTheDocument();
+    const registerTitleInput = screen.getByDisplayValue("报名");
+    const registerDescriptionInput = screen.getByDisplayValue("填写资料");
+    await user.clear(registerTitleInput);
+    await user.type(registerTitleInput, "线上报名");
+    await user.clear(registerDescriptionInput);
+    await user.type(registerDescriptionInput, "填写基础资料");
+    expect(screen.getByDisplayValue("批卷")).not.toBeDisabled();
+    expect(screen.getByDisplayValue("录取确认")).not.toBeDisabled();
+
     await user.click(screen.getByRole("button", { name: "保存步骤" }));
 
     await waitFor(() => {
       expect(mockUpdateFlowStep).toHaveBeenCalledWith(
         5,
         expect.arrayContaining([
-          expect.objectContaining({ title: "报名" }),
-          expect.objectContaining({ type: "registering" }),
+          expect.objectContaining({
+            title: "线上报名",
+            type: "registering",
+            order: 1,
+            description: "填写基础资料",
+          }),
+          expect.objectContaining({
+            title: "批卷",
+            type: "judging",
+            order: 2,
+          }),
+          expect.objectContaining({
+            title: "录取确认",
+            type: "finished",
+            order: 3,
+          }),
         ]),
       );
     });

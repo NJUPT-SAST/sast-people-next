@@ -29,6 +29,7 @@ describe("BasicInfo", () => {
     email: "user@example.com",
     college: "计算机学院",
     major: "软件工程",
+    qq: "123456",
   } as const;
 
   beforeEach(() => {
@@ -42,6 +43,7 @@ describe("BasicInfo", () => {
     expect(screen.getByDisplayValue("张三")).toBeInTheDocument();
     expect(screen.getByDisplayValue("b001")).toBeDisabled();
     expect(screen.getByDisplayValue("13800138000")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("123456")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument();
   });
 

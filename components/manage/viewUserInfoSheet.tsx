@@ -77,10 +77,18 @@ export const ViewUserInfoSheet = ({
             <p className="text-xs text-muted-foreground">邮箱</p>
             <p className="font-medium">{userInfo.email || '-'}</p>
           </div>
-          <div className="rounded-lg border bg-muted/20 p-3">
-            <p className="text-xs text-muted-foreground">手机号码</p>
-            <p className="font-medium">{userInfo.phone || '-'}</p>
-          </div>
+          {currentUserRole >= 3 && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">手机号码</p>
+              <p className="font-medium">{userInfo.phone || '-'}</p>
+            </div>
+          )}
+          {currentUserRole >= 3 && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">QQ</p>
+              <p className="font-medium">{userInfo.qq || '-'}</p>
+            </div>
+          )}
           <div className="rounded-lg border bg-muted/20 p-3">
             <p className="text-xs text-muted-foreground">学院 / 专业</p>
             <p className="font-medium">
@@ -108,7 +116,7 @@ export const ViewUserInfoSheet = ({
               </div>
             ) : (
               <Badge variant="secondary" className="mt-1">
-                {roleName[userInfo.role ?? 0] ?? '未知'}
+                {roleName[role] ?? '未知'}
               </Badge>
             )}
           </div>

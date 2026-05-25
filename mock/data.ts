@@ -235,9 +235,9 @@ export const mockFlowSteps = [
   },
   {
     id: 2,
-    title: "笔试阶段",
-    description: "完成在线笔试",
-    type: "checking",
+    title: "批卷",
+    description: "讲师批改笔试题目",
+    type: "judging",
     order: 2,
     fk_flow_id: 1,
     created_at: new Date("2024-09-15T00:00:00Z"),
@@ -246,9 +246,9 @@ export const mockFlowSteps = [
   },
   {
     id: 3,
-    title: "面试阶段",
-    description: "参加部门面试",
-    type: "judging",
+    title: "录取确认",
+    description: "按分数线确认最终通过名单",
+    type: "finished",
     order: 3,
     fk_flow_id: 1,
     created_at: new Date("2024-09-15T00:00:00Z"),
@@ -291,8 +291,8 @@ export const mockFlowSteps = [
   },
   {
     id: 7,
-    title: "面试",
-    description: "春季面试",
+    title: "批卷",
+    description: "春季笔试批卷",
     type: "judging",
     order: 2,
     fk_flow_id: 2,
@@ -494,7 +494,7 @@ export const mockUserFlows = [
 
 // ==================== Problems ====================
 export const mockProblems = [
-  // Flow 1, Step 2 (checking/笔试) problems
+  // Flow 1, Step 2 (judging/批卷) problems
   {
     id: 1,
     title: "算法设计题",
@@ -513,10 +513,10 @@ export const mockProblems = [
     score: 30,
     fk_flow_step_id: 2,
   },
-  // Flow 1, Step 3 (judging/面试) problems
+  // Flow 1 legacy Step 3 problems
   {
     id: 4,
-    title: "技术面试评分",
+    title: "笔试批卷评分",
     score: 50,
     fk_flow_step_id: 3,
   },
@@ -526,10 +526,10 @@ export const mockProblems = [
     score: 50,
     fk_flow_step_id: 3,
   },
-  // Flow 2, Step 7 (judging/面试) problem
+  // Flow 2, Step 7 (judging/批卷) problem
   {
     id: 6,
-    title: "春季面试评分",
+    title: "春季笔试批卷评分",
     score: 100,
     fk_flow_step_id: 7,
   },

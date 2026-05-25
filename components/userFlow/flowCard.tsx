@@ -21,6 +21,8 @@ import { CancelRegistration } from "./cancelRegistration";
 const statusIcons = {
   pending: CircleDashed,
   ongoing: Clock,
+  passed: Clock,
+  failed: Clock,
   accepted: CheckCircle,
   rejected: XCircle,
 };
@@ -28,13 +30,15 @@ const statusIcons = {
 const statusName = {
   pending: "未开始",
   ongoing: "进行中",
+  passed: "结果待通知",
+  failed: "结果待通知",
   accepted: "已通过",
   rejected: "未通过",
 };
 
 const flowTypeLabel: Record<string, string> = {
-  recruitment: "招新",
-  recruitment_exemption: "招新免试",
+  recruitment: "笔试招新",
+  recruitment_exemption: "免试招新",
   woc: "WOC",
   soc: "SOC",
 };
@@ -44,7 +48,10 @@ interface FlowCardProps {
 }
 
 export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
-  const { currentStepOrder } = flow;
+  const steps = [...flow.steps].sort((a, b) => a.order - b.order);
+  const activeStep =
+    steps.find((step) => step.order === flow.currentStepOrder) ?? steps[0];
+  const activeStepOrder = activeStep?.order ?? 0;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -72,7 +79,7 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
         </div>
         <Badge
           variant={
-            flow.status === "ongoing" || flow.status === "pending"
+            flow.status === "ongoing" || flow.status === "pending" || flow.status === "passed" || flow.status === "failed"
               ? "secondary"
               : flow.status === "accepted"
               ? "default"
@@ -81,6 +88,8 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
         >
           {flow.status === "ongoing" || flow.status === "pending"
             ? "流程进行中"
+            : flow.status === "passed" || flow.status === "failed"
+            ? "结果待通知"
             : flow.status === "accepted"
             ? "已通过考核"
             : "未通过考核"}
@@ -88,19 +97,23 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
       </CardHeader>
       <CardContent>
         <div className="flex items-center w-full my-4">
-          {flow.steps.map((step, index) => {
+          {steps.map((step, index) => {
             const status =
               flow.status === "accepted"
                 ? "accepted"
+                : flow.status === "passed" || flow.status === "failed"
+                ? step.order <= activeStepOrder
+                  ? "ongoing"
+                  : "pending"
                 : flow.status === "rejected"
-                ? step.order < currentStepOrder
+                ? step.order < activeStepOrder
                   ? "accepted"
-                  : step.order === currentStepOrder
+                  : step.order === activeStepOrder
                   ? "rejected"
                   : "pending"
-                : step.order < currentStepOrder
+                : step.order < activeStepOrder
                 ? "accepted"
-                : step.order === currentStepOrder
+                : step.order === activeStepOrder
                 ? "ongoing"
                 : "pending";
             const Icon =
@@ -108,7 +121,7 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
             const nextStatus =
               flow.status === "accepted" || flow.status === "rejected"
                 ? flow.status
-                : step.order < currentStepOrder
+                : step.order < activeStepOrder
                 ? "accepted"
                 : "pending";
 
@@ -119,7 +132,7 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
                     <button
                       className={cn(
                         "w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm shrink-0 transition-colors",
-                        index <= currentStepOrder - 1
+                        step.order <= activeStepOrder
                           ? `${getStatusColor(status || "")} text-white`
                           : "bg-muted text-muted-foreground"
                       )}
@@ -137,7 +150,7 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
                     </div>
                   </PopoverContent>
                 </Popover>
-                {index < flow.steps.length - 1 && (
+                {index < steps.length - 1 && (
                   <div
                     className={cn(
                       "flex-1 h-0.5 mx-1",
@@ -152,10 +165,10 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
         <div className="mt-4 flex items-end justify-between">
           <div>
             <p className="text-sm text-muted-foreground">
-              当前步骤：{flow.steps[currentStepOrder - 1]?.title || "（流程未开始）"}
+              当前步骤：{activeStep?.title || "（流程未开始）"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {flow.steps[currentStepOrder - 1]?.description ||
+              {activeStep?.description ||
                 "前面的区域以后再来探索吧"}
             </p>
           </div>

@@ -18,7 +18,7 @@ export const useUserList = async ({
   sortBy = "createdAt",
   sortOrder = "desc",
 }: UserListParams) => {
-  await verifyRole(2);
+  const session = await verifyRole(2);
   const offset = (page - 1) * pageSize;
 
   let whereConditions: SQL<unknown> | undefined = eq(user.isDeleted, false);
@@ -29,7 +29,8 @@ export const useUserList = async ({
       or(
         ilike(user.name, `%${search}%`),
         ilike(user.studentId, `%${search}%`),
-        ilike(user.phone, `%${search}%`),
+        ...(session.role >= 3 ? [ilike(user.phone, `%${search}%`)] : []),
+        ...(session.role >= 3 ? [ilike(user.qq, `%${search}%`)] : []),
         ilike(user.email, `%${search}%`)
       )
     );
@@ -57,7 +58,9 @@ export const useUserList = async ({
     .execute();
 
   return {
-    users,
+    users: users.map((item) =>
+      session.role >= 3 ? item : { ...item, phone: null, qq: null },
+    ),
     totalCount,
     totalPages: Math.ceil(totalCount / pageSize),
   };

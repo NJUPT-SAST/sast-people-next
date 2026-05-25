@@ -5,12 +5,15 @@ import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "./table";
 
 const mockBatchEndByUid = jest.fn().mockResolvedValue(undefined);
+const mockBatchSetOutcomeByUid = jest.fn().mockResolvedValue(undefined);
 const mockBatchSendEmail = jest.fn().mockResolvedValue(undefined);
 const mockToastPromise = jest.fn((promise: Promise<unknown>) => promise);
 
 jest.mock("@/action/user-flow/edit", () => ({
   batchEndByUid: (...args: Parameters<typeof mockBatchEndByUid>) =>
     mockBatchEndByUid(...args),
+  batchSetOutcomeByUid: (...args: Parameters<typeof mockBatchSetOutcomeByUid>) =>
+    mockBatchSetOutcomeByUid(...args),
 }));
 
 jest.mock("@/action/user/sendEmail", () => ({
@@ -31,6 +34,7 @@ describe("Recruitment DataTable", () => {
     stepId: number;
     name: string;
     totalScore: string;
+    status: string;
   };
 
   const columns: ColumnDef<RecruitmentRow>[] = [
@@ -52,6 +56,7 @@ describe("Recruitment DataTable", () => {
 
   beforeEach(() => {
     mockBatchEndByUid.mockClear();
+    mockBatchSetOutcomeByUid.mockClear();
     mockBatchSendEmail.mockClear();
     mockToastPromise.mockClear();
   });
@@ -62,7 +67,7 @@ describe("Recruitment DataTable", () => {
     expect(screen.getAllByText("暂时没有内容。")[0]).toBeInTheDocument();
   });
 
-  it("processes selected and unselected rows on confirm", async () => {
+  it("sets selected rows as passed without changing unselected rows", async () => {
     const user = userEvent.setup();
 
     render(
@@ -71,21 +76,67 @@ describe("Recruitment DataTable", () => {
         flowTypeId={9}
         role={3}
         data={[
-          { uid: 1, stepId: 3, name: "张三", totalScore: "90" },
-          { uid: 2, stepId: 3, name: "李四", totalScore: "70" },
+          { uid: 1, stepId: 3, name: "张三", totalScore: "90", status: "ongoing" },
+          { uid: 2, stepId: 3, name: "李四", totalScore: "70", status: "ongoing" },
         ]}
       />,
     );
 
     await user.click(screen.getAllByLabelText("select-1")[0]);
-    await user.click(screen.getByRole("button", { name: "确认选中同学通过" }));
+    await user.click(screen.getByRole("button", { name: "设为通过" }));
+
+    await waitFor(() => {
+      expect(mockBatchSendEmail).not.toHaveBeenCalled();
+      expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "passed", [1]);
+      expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalledWith(9, 3, "failed", [2]);
+      expect(mockToastPromise).toHaveBeenCalled();
+    });
+  });
+
+  it("sets selected rows as failed", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          { uid: 1, stepId: 3, name: "张三", totalScore: "90", status: "ongoing" },
+          { uid: 2, stepId: 3, name: "李四", totalScore: "70", status: "ongoing" },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getAllByLabelText("select-2")[0]);
+    await user.click(screen.getByRole("button", { name: "设为不通过" }));
+
+    await waitFor(() => {
+      expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "failed", [2]);
+    });
+  });
+
+  it("sends result email to passed and failed rows together", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          { uid: 1, stepId: 3, name: "张三", totalScore: "90", status: "passed" },
+          { uid: 2, stepId: 3, name: "李四", totalScore: "70", status: "failed" },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "发送结果邮件并锁定" }));
 
     await waitFor(() => {
       expect(mockBatchSendEmail).toHaveBeenCalledWith([1], 9, true);
       expect(mockBatchSendEmail).toHaveBeenCalledWith([2], 9, false);
-      expect(mockBatchEndByUid).toHaveBeenCalledWith(9, 3, "accepted", [1]);
-      expect(mockBatchEndByUid).toHaveBeenCalledWith(9, 3, "rejected", [2]);
-      expect(mockToastPromise).toHaveBeenCalled();
+      expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalled();
     });
   });
 });

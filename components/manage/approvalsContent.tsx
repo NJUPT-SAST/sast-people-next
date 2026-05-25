@@ -15,7 +15,7 @@ import { InferSelectModel } from "drizzle-orm";
 import { interviewEvaluation } from "@/db/schema";
 import originalDayjs from "@/lib/dayjs";
 
-type EvaluationRow = {
+export type EvaluationRow = {
   evaluation: InferSelectModel<typeof interviewEvaluation>;
   meetingLink: string | null;
   authorName: string | null;
@@ -32,15 +32,21 @@ const statusLabel: Record<string, string> = {
 };
 
 const flowTypeLabel: Record<string, string> = {
-  recruitment: "招新",
-  recruitment_exemption: "招新免试",
+  recruitment: "笔试招新",
+  recruitment_exemption: "免试招新",
   woc: "WOC",
   soc: "SOC",
 };
 
-export const ApprovalsContent = () => {
-  const [evaluations, setEvaluations] = useState<EvaluationRow[]>([]);
-  const [loading, setLoading] = useState(true);
+export const ApprovalsContent = ({
+  initialEvaluations,
+}: {
+  initialEvaluations?: EvaluationRow[];
+}) => {
+  const [evaluations, setEvaluations] = useState<EvaluationRow[]>(
+    initialEvaluations ?? [],
+  );
+  const [loading, setLoading] = useState(!initialEvaluations);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
@@ -56,8 +62,10 @@ export const ApprovalsContent = () => {
   };
 
   useEffect(() => {
-    fetchEvaluations();
-  }, []);
+    if (!initialEvaluations) {
+      fetchEvaluations();
+    }
+  }, [initialEvaluations]);
 
   const handleApprove = async (id: number) => {
     setActionLoading(id);

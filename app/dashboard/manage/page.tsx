@@ -1,4 +1,5 @@
 import { PageTitle } from "@/components/route";
+import { verifySession } from "@/lib/dal";
 import React, { Suspense } from "react";
 import { ManageTableServer } from "./manageTable";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,10 +10,11 @@ const Manage = async ({
   searchParams: Promise<{ page?: string; pageSize?: string; search?: string }>;
 }) => {
   const awaitedSearchParams = await searchParams;
+  const session = await verifySession();
   return (
     <>
       <div className="flex items-center justify-between">
-        <PageTitle />
+        <PageTitle role={session.role} />
       </div>
       <div>
         <Suspense

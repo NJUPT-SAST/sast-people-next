@@ -49,7 +49,7 @@ pgMem.public.none(
   `CREATE TYPE flow_type_enum AS ENUM ('recruitment', 'recruitment_exemption', 'woc', 'soc')`
 );
 pgMem.public.none(
-  `CREATE TYPE user_flow_status_enum AS ENUM ('pending', 'accepted', 'rejected', 'ongoing')`
+  `CREATE TYPE user_flow_status_enum AS ENUM ('pending', 'accepted', 'rejected', 'ongoing', 'passed', 'failed')`
 );
 pgMem.public.none(
   `CREATE TYPE evaluation_status_enum AS ENUM ('pending', 'approved', 'rejected')`

@@ -21,7 +21,7 @@ const Delete = ({ data }: { data: displayFlow }) => {
   return (
     <Dialog open={openDelete} onOpenChange={setOpenDelete}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="text-destructive">
+        <Button size="sm" variant="ghost" className="min-w-16 text-destructive">
           删除
         </Button>
       </DialogTrigger>

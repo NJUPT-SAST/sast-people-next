@@ -20,8 +20,8 @@ import originalDayjs from '@/lib/dayjs';
 import { Operations } from './operations';
 
 const flowTypeLabel: Record<string, string> = {
-  recruitment: '招新',
-  recruitment_exemption: '招新免试',
+  recruitment: '笔试招新',
+  recruitment_exemption: '免试招新',
   woc: 'WOC',
   soc: 'SOC',
 };
@@ -31,6 +31,9 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     accessorKey: 'title',
     header: '名称',
     accessorFn: (data) => data.title,
+    cell({ row }) {
+      return <span className="break-words">{row.original.title}</span>;
+    },
   },
   {
     accessorKey: 'type',
@@ -45,6 +48,13 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     accessorKey: 'description',
     header: '描述',
     accessorFn: (data) => data.description,
+    cell({ row }) {
+      return (
+        <span className="block max-w-[28rem] whitespace-normal break-words">
+          {row.original.description || '-'}
+        </span>
+      );
+    },
   },
   {
     accessorKey: 'startedAt',
@@ -66,7 +76,11 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
   },
   {
     accessorKey: 'operations',
-    header: '操作',
+    header: () => (
+      <div className="grid w-full grid-cols-[4rem_4rem_4rem] items-center justify-end gap-1">
+        <span className="col-start-2 text-center">操作</span>
+      </div>
+    ),
     cell({ row }) {
       const data = row.original;
       return <Operations data={data} />;
@@ -92,14 +106,29 @@ export function FlowTable<TData extends displayFlow, TValue>({
   return (
     <div className="rounded-md border bg-card">
       {/* PC 端表格视图 */}
-      <div className="hidden md:block overflow-x-auto">
-        <Table className="min-w-[800px]">
+      <div className="hidden xl:block">
+        <Table className="table-fixed" containerClassName="overflow-x-visible">
+          <colgroup>
+            <col className="w-[15%]" />
+            <col className="w-[9%]" />
+            <col className="w-[22%]" />
+            <col className="w-[16%]" />
+            <col className="w-[16%]" />
+            <col className="w-[22%]" />
+          </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} className="whitespace-nowrap py-3">
+                    <TableHead
+                      key={header.id}
+                      className={
+                        header.column.id === 'operations'
+                          ? 'whitespace-nowrap px-4 py-3'
+                          : 'whitespace-nowrap px-4 py-3'
+                      }
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -120,7 +149,14 @@ export function FlowTable<TData extends displayFlow, TValue>({
                   data-state={row.getIsSelected() && 'selected'}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3">
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        cell.column.id === 'operations'
+                          ? 'px-4 py-3 text-right'
+                          : 'px-4 py-3'
+                      }
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -138,7 +174,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
       </div>
 
       {/* 移动端卡片视图 */}
-      <div className="md:hidden flex flex-col divide-y divide-border">
+      <div className="xl:hidden flex flex-col divide-y divide-border">
         {table.getRowModel().rows?.length ? (
           table.getRowModel().rows.map((row) => (
             <div key={row.id} className="p-4 space-y-4 transition-colors hover:bg-muted/50">

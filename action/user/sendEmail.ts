@@ -3,7 +3,8 @@ import { db } from "@/db/drizzle";
 import { userFlow } from "@/db/schema";
 import event from "@/event";
 import { verifyRole } from "@/lib/dal";
-import { and, eq, ne, inArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { syncUserRoleFromAcceptedFlows } from "@/action/user-flow/roleTransition";
 
 export const batchSendEmail = async (
   uid: number[],
@@ -11,6 +12,28 @@ export const batchSendEmail = async (
   accept: boolean
 ) => {
   await verifyRole(3)
+  const sourceStatus = accept ? "passed" : "failed";
+  const finalStatus = accept ? "accepted" : "rejected";
+  const undecidedRows = await db
+    .select({ id: userFlow.id })
+    .from(userFlow)
+    .where(
+      and(
+        eq(userFlow.fkFlowId, flowId),
+        notInArray(userFlow.status, [
+          "passed",
+          "failed",
+          "accepted",
+          "rejected",
+        ]),
+      ),
+    )
+    .limit(1);
+
+  if (undecidedRows[0]) {
+    throw new Error("请先将所有同学设为通过或不通过");
+  }
+
   const userFlowIds = (
     await db
       .select()
@@ -19,12 +42,21 @@ export const batchSendEmail = async (
         and(
           eq(userFlow.fkFlowId, flowId),
           inArray(userFlow.fkUserId, uid),
-          ne(userFlow.status, "accepted"),
-          ne(userFlow.status, "rejected")
+          eq(userFlow.status, sourceStatus),
         )
       )
-  ).map((userFlow) => userFlow.id);
-  userFlowIds.forEach((userFlowId) => {
-    event.offer(userFlowId, accept);
-  });
+  );
+
+  await Promise.all(userFlowIds.map((item) => event.offer(item.id, accept)));
+
+  if (userFlowIds.length > 0) {
+    await db
+      .update(userFlow)
+      .set({ status: finalStatus })
+      .where(inArray(userFlow.id, userFlowIds.map((item) => item.id)));
+
+    await Promise.all(
+      userFlowIds.map((item) => syncUserRoleFromAcceptedFlows(item.fkUserId)),
+    );
+  }
 };

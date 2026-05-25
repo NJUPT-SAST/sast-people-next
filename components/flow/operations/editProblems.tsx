@@ -6,19 +6,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Copy, PlusIcon, Save, Trash2 } from "lucide-react";
+import { Copy, FilePlus2, PlusIcon, Save, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateProblems } from "@/action/flow/problem/edit";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { InferSelectModel } from "drizzle-orm";
 import { problem, flowStep } from "@/db/schema";
 
@@ -43,7 +36,7 @@ const EditProblems = ({
   defaultStepId: number;
   flowTypeId: number;
 }) => {
-  const [selectedStepId, setSelectedStepId] = useState<number>(defaultStepId);
+  const selectedStepId = defaultStepId;
   const [localProblems, setLocalProblems] = useState<LocalProblem[]>(
     (problemsByStep[defaultStepId] ?? []).map((p) => ({ ...p })),
   );
@@ -54,16 +47,7 @@ const EditProblems = ({
     return tempIdRef.current;
   };
 
-  const currentStep = steps.find((s) => s.id === selectedStepId);
-  const problemCount = (problemsByStep[selectedStepId] ?? []).length;
-
-  const switchStep = (value: string) => {
-    const stepId = Number(value);
-    setSelectedStepId(stepId);
-    setLocalProblems(
-      (problemsByStep[stepId] ?? []).map((p) => ({ ...p })),
-    );
-  };
+  const currentStep = steps.find((step) => step.id === selectedStepId);
 
   const addProblem = () => {
     setLocalProblems((prev) => [
@@ -97,6 +81,7 @@ const EditProblems = ({
   };
 
   const validateProblems = (): string | null => {
+    if (!selectedStepId) return "当前笔试流程还没有可挂载题目的步骤";
     for (const p of localProblems) {
       if (!p.title.trim()) return "题目名称不能为空";
       if (!p.score || p.score <= 0) return "分数必须为大于 0 的数字";
@@ -136,57 +121,78 @@ const EditProblems = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <CardTitle>题目列表</CardTitle>
-              <Select value={String(selectedStepId)} onValueChange={switchStep}>
-                <SelectTrigger className="w-44 h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {steps.map((step) => (
-                    <SelectItem key={step.id} value={String(step.id)}>
-                      {step.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-sm text-muted-foreground">
-                {localProblems.length} 道题目
-              </span>
+        <CardHeader className="gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 flex-col gap-2">
+              <CardTitle className="text-base sm:text-lg">编辑笔试题目</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                维护这个笔试流程的一套题目。题目会用于阅卷范围选择和成绩统计。
+              </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
               <Button
                 onClick={addProblem}
                 variant="outline"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !selectedStepId}
+                className="flex-1 sm:flex-none"
               >
-                <PlusIcon className="w-4 h-4 mr-2" />
+                <PlusIcon />
                 添加题目
               </Button>
               <Button
                 onClick={handleSave}
                 loading={isSubmitting}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !selectedStepId}
+                className="flex-1 sm:flex-none"
               >
-                <Save className="w-4 h-4 mr-2" />
+                <Save />
                 保存
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
+          <div className="rounded-md border bg-muted/30 p-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  题目用于：{currentStep?.title ?? "未找到批卷环节"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {currentStep
+                    ? "这个流程的所有笔试题目都会集中用于批卷和成绩统计"
+                    : "请先确认流程中存在批卷环节"}
+                </p>
+              </div>
+              <span className="text-sm text-muted-foreground">
+                {localProblems.length} 道题目
+              </span>
+            </div>
+          </div>
           {localProblems.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              暂无题目，点击上方【添加题目】按钮创建
-            </p>
+            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-10 text-center">
+              <FilePlus2 className="text-muted-foreground" />
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium">当前笔试流程还没有题目</p>
+                <p className="text-sm text-muted-foreground">
+                  添加题目后填写名称和最高分数，再点击保存。
+                </p>
+              </div>
+              <Button
+                onClick={addProblem}
+                variant="outline"
+                disabled={isSubmitting || !selectedStepId}
+              >
+                <PlusIcon />
+                添加第一道题
+              </Button>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {localProblems.map((p, index) => (
-                <fieldset key={p.id} className="border p-4 rounded-lg">
+                <fieldset key={p.id} className="min-w-0 rounded-lg border p-4">
                   <legend className="px-2 text-sm font-medium text-muted-foreground">
                     题目 {index + 1}
                   </legend>
@@ -229,7 +235,7 @@ const EditProblems = ({
                         disabled={isSubmitting}
                         title="复制题目"
                       >
-                        <Copy className="w-4 h-4" />
+                        <Copy />
                       </Button>
                       <Button
                         size="sm"
@@ -238,7 +244,7 @@ const EditProblems = ({
                         disabled={isSubmitting}
                         title="删除题目"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 />
                       </Button>
                     </div>
                   </div>

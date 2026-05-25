@@ -22,7 +22,7 @@ import { useMemo, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
-import { batchEndByUid } from '@/action/user-flow/edit';
+import { batchSetOutcomeByUid } from '@/action/user-flow/edit';
 import { batchSendEmail } from '@/action/user/sendEmail';
 
 interface DataTableProps<TData, TValue> {
@@ -35,6 +35,18 @@ interface DataTableProps<TData, TValue> {
 type RecruitmentRowLike = {
   uid: number;
   stepId: number;
+  status: string;
+};
+
+const finalStatuses = new Set(['accepted', 'rejected']);
+const outcomeStatuses = new Set(['passed', 'failed']);
+const statusText: Record<string, string> = {
+  pending: '未开始',
+  ongoing: '待确认',
+  passed: '通过',
+  failed: '不通过',
+  accepted: '通过邮件已发',
+  rejected: '不通过邮件已发',
 };
 
 export function DataTable<TData, TValue>({
@@ -45,8 +57,24 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
+  const tableData = useMemo(
+    () =>
+      data.map((item) => {
+        const row = item as RecruitmentRowLike;
+        const status = statusOverrides[row.uid];
+        return status ? ({ ...item, status } as TData) : item;
+      }),
+    [data, statusOverrides],
+  );
   const toRecruitmentRow = (row: { original: unknown }): RecruitmentRowLike =>
     row.original as RecruitmentRowLike;
+  const getRowStatus = (row: { original: unknown }) => {
+    const item = toRecruitmentRow(row);
+    return statusOverrides[item.uid] ?? item.status ?? 'ongoing';
+  };
+  const isFinalRow = (row: { original: unknown }) =>
+    finalStatuses.has(getRowStatus(row));
 
   const visibleColumns = useMemo(
     () =>
@@ -54,13 +82,17 @@ export function DataTable<TData, TValue>({
         ? columns
         : columns.filter((c) => {
             const col = c as { id?: string; accessorKey?: string };
-            return col.id !== 'select' && col.accessorKey !== 'phoneNumber';
+            return (
+              col.id !== 'select' &&
+              col.accessorKey !== 'phoneNumber' &&
+              col.accessorKey !== 'problemScores'
+            );
           }),
     [columns, role],
   );
 
   const table = useReactTable({
-    data,
+    data: tableData,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
     onRowSelectionChange: setRowSelection,
@@ -71,6 +103,30 @@ export function DataTable<TData, TValue>({
       columnFilters,
     },
   });
+  const allRows = table.getCoreRowModel().flatRows;
+  const selectedMutableRows = table
+    .getSelectedRowModel()
+    .flatRows.filter((row) => !isFinalRow(row));
+  const outcomeRows = allRows.filter((row) => {
+    const status = getRowStatus(row);
+    return outcomeStatuses.has(status);
+  });
+  const hasFinalRows = allRows.some((row) => finalStatuses.has(getRowStatus(row)));
+  const undecidedRows = allRows.filter((row) => {
+    const status = getRowStatus(row);
+    return !outcomeStatuses.has(status) && !finalStatuses.has(status);
+  });
+  const canEditOutcomes = !hasFinalRows;
+  const canSendResultEmails =
+    canEditOutcomes && outcomeRows.length > 0 && undecidedRows.length === 0;
+  const helperText = hasFinalRows
+    ? '结果邮件已发送，名单已锁定'
+    : undecidedRows.length > 0
+      ? '需先将所有同学设为通过或不通过，再发送结果邮件'
+      : '邮件发送后名单锁定，权限以通过邮件发送成功为准';
+  const summaryStatuses = hasFinalRows
+    ? ['accepted', 'rejected']
+    : ['passed', 'failed'];
 
   return (
     <div className="space-y-4">
@@ -87,57 +143,123 @@ export function DataTable<TData, TValue>({
         />
         <div className="flex flex-wrap items-center gap-3">
           {role >= 3 && (
+            <>
             <Button
-              disabled={table.getSelectedRowModel().rows.length === 0}
+              disabled={!canEditOutcomes || selectedMutableRows.length === 0}
               onClick={async () => {
-              // get not selected rows
-              const selectedRows = table.getSelectedRowModel().flatRows;
-              const notSelectedRows = table
-                .getRowModel()
-                .flatRows.filter((row) => !selectedRows.includes(row));
+              const selectedRows = selectedMutableRows;
+              const firstRow = selectedRows[0];
+              if (!firstRow) return;
+              const stepId = toRecruitmentRow(firstRow).stepId;
+              const passedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
               toast.promise(
-                Promise.all([
-                  batchSendEmail(
-                    selectedRows.map((row) => toRecruitmentRow(row).uid),
-                    flowTypeId,
-                    true,
-                  ).then(async () => {
-                    await batchEndByUid(
-                      flowTypeId,
-                      toRecruitmentRow(selectedRows[0]).stepId,
-                      'accepted',
-                      selectedRows.map((row) => toRecruitmentRow(row).uid),
-                    );
-                  }),
-                  batchSendEmail(
-                    notSelectedRows.map((row) => toRecruitmentRow(row).uid),
-                    flowTypeId,
-                    false,
-                  ).then(async () => {
-                    batchEndByUid(
-                      flowTypeId,
-                      toRecruitmentRow(notSelectedRows[0]).stepId,
-                      'rejected',
-                      notSelectedRows.map((row) => toRecruitmentRow(row).uid),
-                    );
-                  }),
-                ]),
+                batchSetOutcomeByUid(
+                  flowTypeId,
+                  stepId,
+                  'passed',
+                  passedUids,
+                ).then(() => {
+                  setStatusOverrides((prev) => ({
+                    ...prev,
+                      ...Object.fromEntries(passedUids.map((uid) => [uid, 'passed'])),
+                    }));
+                  setRowSelection({});
+                }),
                 {
-                  loading: '正在确认',
-                  success: '确认成功',
-                  error: '确认失败',
+                  loading: '正在设置为通过',
+                  success: '已设置为通过',
+                  error: '设置失败',
                 },
               );
             }}
           >
-            确认选中同学通过
+            设为通过
           </Button>
+          <Button
+            variant="outline"
+            disabled={!canEditOutcomes || selectedMutableRows.length === 0}
+            onClick={async () => {
+              const selectedRows = selectedMutableRows;
+              const firstRow = selectedRows[0];
+              if (!firstRow) return;
+              const stepId = toRecruitmentRow(firstRow).stepId;
+              const failedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
+              toast.promise(
+                batchSetOutcomeByUid(
+                  flowTypeId,
+                  stepId,
+                  'failed',
+                  failedUids,
+                ).then(() => {
+                  setStatusOverrides((prev) => ({
+                    ...prev,
+                    ...Object.fromEntries(failedUids.map((uid) => [uid, 'failed'])),
+                  }));
+                  setRowSelection({});
+                }),
+                {
+                  loading: '正在设置为不通过',
+                  success: '已设置为不通过',
+                  error: '设置失败',
+                },
+              );
+            }}
+          >
+            设为不通过
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!canSendResultEmails}
+            onClick={async () => {
+              const passedRows = allRows.filter((row) => getRowStatus(row) === 'passed');
+              const failedRows = allRows.filter((row) => getRowStatus(row) === 'failed');
+              const passedUids = passedRows.map((row) => toRecruitmentRow(row).uid);
+              const failedUids = failedRows.map((row) => toRecruitmentRow(row).uid);
+              toast.promise(
+                Promise.all([
+                  passedUids.length > 0
+                    ? batchSendEmail(passedUids, flowTypeId, true)
+                    : Promise.resolve(),
+                  failedUids.length > 0
+                    ? batchSendEmail(failedUids, flowTypeId, false)
+                    : Promise.resolve(),
+                ]).then(() => {
+                  setStatusOverrides((prev) => ({
+                    ...prev,
+                    ...Object.fromEntries(passedUids.map((uid) => [uid, 'accepted'])),
+                    ...Object.fromEntries(failedUids.map((uid) => [uid, 'rejected'])),
+                  }));
+                  setRowSelection({});
+                }),
+                {
+                  loading: '正在发送结果邮件',
+                  success: '结果邮件已加入发送队列，名单已锁定',
+                  error: '发送失败',
+                },
+              );
+            }}
+          >
+            发送结果邮件并锁定
+          </Button>
+            </>
           )}
-          <span className='text-muted-foreground text-xs md:text-sm max-w-[200px] md:max-w-none'>{role >= 3 ? '同时修改流程与发送邮件，请谨慎操作' : ''}</span>
+          <span className='text-muted-foreground text-xs md:text-sm max-w-[260px] md:max-w-none'>{role >= 3 ? helperText : ''}</span>
         </div>
       </div>
+      {role >= 3 && (
+        <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+          {summaryStatuses.map((status) => {
+            const count = allRows.filter((row) => getRowStatus(row) === status).length;
+            return (
+              <div key={status} className="rounded-md border bg-card px-3 py-2">
+                {statusText[status]}：{count}
+              </div>
+            );
+          })}
+        </div>
+      )}
       
-      <div className="rounded-md border bg-card">
+      <div className="overflow-hidden rounded-md border bg-card">
         {role >= 3 && (
           <div className="flex-1 text-sm text-muted-foreground p-3 border-b">
             {table.getFilteredSelectedRowModel().rows.length} /{' '}
@@ -150,7 +272,7 @@ export function DataTable<TData, TValue>({
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
+                <TableRow key={headerGroup.id} className="bg-muted/30 hover:bg-muted/30">
                   {headerGroup.headers.map((header) => {
                     return (
                       <TableHead key={header.id} className="whitespace-nowrap px-4 py-3">
@@ -174,7 +296,14 @@ export function DataTable<TData, TValue>({
                     data-state={row.getIsSelected() && 'selected'}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="whitespace-nowrap px-4 py-3">
+                      <TableCell
+                        key={cell.id}
+                        className={
+                          cell.column.id === 'problemScores'
+                            ? 'whitespace-nowrap px-4 py-4'
+                            : 'whitespace-nowrap px-4 py-4'
+                        }
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -203,6 +332,7 @@ export function DataTable<TData, TValue>({
             table.getRowModel().rows.map((row) => {
               const cells = row.getVisibleCells();
               const offset = role >= 3 ? 1 : 0; // 有复选框时跳过第一列
+              const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
               return (
                 <div key={row.id} className="flex p-4 gap-4 transition-colors hover:bg-muted/50">
                   {role >= 3 && (
@@ -215,7 +345,7 @@ export function DataTable<TData, TValue>({
                       <div className="font-semibold text-base py-1">
                         {flexRender(cells[1 + offset]?.column.columnDef.cell, cells[1 + offset]?.getContext()) || '未命名'}
                       </div>
-                      <div className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm font-semibold">
+                      <div className="shrink-0">
                         {flexRender(cells[cells.length - 1]?.column.columnDef.cell, cells[cells.length - 1]?.getContext())}
                       </div>
                     </div>
@@ -225,6 +355,11 @@ export function DataTable<TData, TValue>({
                     {role >= 3 && (
                       <div className="text-sm text-muted-foreground">
                          手机: {flexRender(cells[2 + offset]?.column.columnDef.cell, cells[2 + offset]?.getContext())}
+                      </div>
+                    )}
+                    {role >= 3 && problemScoresCell && (
+                      <div className="text-sm text-muted-foreground">
+                        {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
                       </div>
                     )}
                   </div>

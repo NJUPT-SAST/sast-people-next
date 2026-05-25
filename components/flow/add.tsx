@@ -91,7 +91,7 @@ export const AddFlow = () => {
         <DialogHeader>
           <DialogTitle>添加流程</DialogTitle>
           <DialogDescription>
-            添加新的流程类型，比如&quot;2023 校科协软研招新笔试&quot;
+            添加新的流程类型，比如&quot;2026 校科协笔试招新&quot;
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -142,8 +142,8 @@ export const AddFlow = () => {
                         <SelectValue placeholder="选择流程类型" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="recruitment">招新</SelectItem>
-                        <SelectItem value="recruitment_exemption">招新免试</SelectItem>
+                        <SelectItem value="recruitment">笔试招新</SelectItem>
+                        <SelectItem value="recruitment_exemption">免试招新</SelectItem>
                         <SelectItem value="woc">WOC</SelectItem>
                         <SelectItem value="soc">SOC</SelectItem>
                       </SelectContent>
@@ -191,8 +191,6 @@ export const AddFlow = () => {
             onClick={addFlowForm.handleSubmit(async () => {
               toast.promise(
                 async () => {
-                  console.log(addFlowForm.getValues());
-                  console.log(typeof addFlowForm.getValues().startedAt);
                   await addFlow(addFlowForm.getValues()).then(() => {
                     setOpen(false);
                     addFlowForm.reset();

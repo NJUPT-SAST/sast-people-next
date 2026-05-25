@@ -29,5 +29,8 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
     }
   });
 
-  return Array.from(flowMap.values());
+  return Array.from(flowMap.values()).map((item) => ({
+    ...item,
+    steps: item.steps.sort((a, b) => a.order - b.order),
+  }));
 };

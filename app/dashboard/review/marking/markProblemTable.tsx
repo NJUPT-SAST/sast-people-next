@@ -58,16 +58,7 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
   }
 
   if (userFlowError) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>加载阅卷信息失败</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          无法读取当前考生的阅卷记录，请稍后重试。
-        </CardContent>
-      </Card>
-    );
+    throw userFlowError;
   }
 
   if (!userFlowId) {
