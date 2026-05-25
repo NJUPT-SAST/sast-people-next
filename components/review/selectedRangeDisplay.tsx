@@ -16,18 +16,23 @@ const readSelectedRange = (): selectProbType | null => {
     return null;
   }
 
-  const result = selectProbSchema.safeParse(JSON.parse(selectedProbs));
-  return result.success ? result.data : null;
+  try {
+    const result = selectProbSchema.safeParse(JSON.parse(selectedProbs));
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
 };
 
 export const SelectedRangeDisplay = () => {
-  const [selectedRange, setSelectedRange] = useState<selectProbType | null>(readSelectedRange);
+  const [selectedRange, setSelectedRange] = useState<selectProbType | null>(null);
 
   useEffect(() => {
     const handleRangeUpdate = () => {
       setSelectedRange(readSelectedRange());
     };
 
+    handleRangeUpdate();
     window.addEventListener('reviewRangeUpdated', handleRangeUpdate);
 
     return () => {

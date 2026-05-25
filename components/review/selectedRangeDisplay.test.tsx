@@ -14,7 +14,7 @@ describe("SelectedRangeDisplay", () => {
     expect(screen.getByText("未设置阅卷范围")).toBeInTheDocument();
   });
 
-  it("reads valid localStorage data and reacts to update events", () => {
+  it("reads valid localStorage data and reacts to update events", async () => {
     window.localStorage.setItem(
       "people_selectedProbs",
       JSON.stringify({
@@ -25,7 +25,7 @@ describe("SelectedRangeDisplay", () => {
     );
 
     render(<SelectedRangeDisplay />);
-    expect(screen.getByText("算法题 (100分)")).toBeInTheDocument();
+    expect(await screen.findByText("算法题 (100分)")).toBeInTheDocument();
 
     act(() => {
       window.localStorage.setItem(
