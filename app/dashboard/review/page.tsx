@@ -41,10 +41,10 @@ const Review: React.FC = async () => {
                   请先设置上方【阅卷范围】，再开始阅卷。
                 </p>
               </div>
-              <div className="p-4 lg:p-6 pt-0">
+              <div className="px-4 pb-4 pt-0 lg:px-6 lg:pb-6">
                 <QRCodeScanner />
               </div>
-              <div className="border-t p-4 lg:p-6 bg-muted/10">
+              <div className="px-4 pb-6 pt-2 lg:px-6 lg:pb-8 lg:pt-3">
                 <MannualInput />
               </div>
             </div>
