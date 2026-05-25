@@ -3,10 +3,15 @@
 import { db } from "@/db/drizzle";
 import { flow, interviewEvaluation, user, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
-import { aliasedTable, eq, and, inArray } from "drizzle-orm";
+import { aliasedTable, and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 
-export const createEvaluation = async (userFlowId: number, content: string, meetingLink?: string) => {
+export const createEvaluation = async (
+  userFlowId: number,
+  content: string,
+  meetingLink?: string,
+) => {
   const session = await verifyRole(2);
 
   if (!content.trim()) {
@@ -15,7 +20,6 @@ export const createEvaluation = async (userFlowId: number, content: string, meet
 
   const link = meetingLink?.trim() || null;
 
-  // If a pending evaluation already exists, update it in place
   const existing = await db
     .select({ id: interviewEvaluation.id })
     .from(interviewEvaluation)
@@ -23,65 +27,80 @@ export const createEvaluation = async (userFlowId: number, content: string, meet
       and(
         eq(interviewEvaluation.fkUserFlowId, userFlowId),
         eq(interviewEvaluation.status, "pending"),
-      )
+      ),
     )
     .limit(1);
 
   if (existing[0]) {
-    await db
-      .update(interviewEvaluation)
-      .set({
-        content: content.trim(),
-        meetingLink: link,
-        updatedAt: new Date(),
-      })
-      .where(eq(interviewEvaluation.id, existing[0].id));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(interviewEvaluation)
+        .set({
+          content: content.trim(),
+          meetingLink: link,
+          updatedAt: new Date(),
+        })
+        .where(eq(interviewEvaluation.id, existing[0].id));
+
+      await tx
+        .update(userFlow)
+        .set({ status: "ongoing", currentStepOrder: 3 })
+        .where(eq(userFlow.id, userFlowId));
+    });
 
     revalidatePath("/dashboard/recruitment");
     return { success: true, data: { id: existing[0].id } };
   }
 
-  const [evaluation] = await db
-    .insert(interviewEvaluation)
-    .values({
-      fkUserFlowId: userFlowId,
-      fkUserId: session.uid,
-      content: content.trim(),
-      meetingLink: link,
-      status: "pending",
-    })
-    .returning();
+  const [evaluation] = await db.transaction(async (tx) => {
+    await tx
+      .update(userFlow)
+      .set({ status: "ongoing", currentStepOrder: 3 })
+      .where(eq(userFlow.id, userFlowId));
+
+    return tx
+      .insert(interviewEvaluation)
+      .values({
+        fkUserFlowId: userFlowId,
+        fkUserId: session.uid,
+        content: content.trim(),
+        meetingLink: link,
+        status: "pending",
+      })
+      .returning();
+  });
 
   revalidatePath("/dashboard/recruitment");
   return { success: true, data: evaluation };
 };
 
-// Instructor directly rejects a candidate (no evaluation needed)
 export const rejectCandidate = async (userFlowId: number) => {
   await verifyRole(2);
 
   await db.transaction(async (tx) => {
     await tx
       .update(userFlow)
-      .set({ status: "rejected" })
+      .set({ status: "rejected", currentStepOrder: 2 })
       .where(eq(userFlow.id, userFlowId));
 
-    // Delete any pending evaluation so the candidate shows correctly as "不通过"
     await tx
       .delete(interviewEvaluation)
       .where(
         and(
           eq(interviewEvaluation.fkUserFlowId, userFlowId),
           eq(interviewEvaluation.status, "pending"),
-        )
+        ),
       );
   });
 
   revalidatePath("/dashboard/recruitment");
 };
 
-// Revert a rejected candidate back to ongoing and create pending evaluation
-export const reopenAndEvaluate = async (userFlowId: number, content: string, meetingLink?: string) => {
+export const reopenAndEvaluate = async (
+  userFlowId: number,
+  content: string,
+  meetingLink?: string,
+) => {
   const session = await verifyRole(2);
 
   if (!content.trim()) {
@@ -93,18 +112,16 @@ export const reopenAndEvaluate = async (userFlowId: number, content: string, mee
   await db.transaction(async (tx) => {
     await tx
       .update(userFlow)
-      .set({ status: "ongoing" })
+      .set({ status: "ongoing", currentStepOrder: 3 })
       .where(eq(userFlow.id, userFlowId));
 
-    await tx
-      .insert(interviewEvaluation)
-      .values({
-        fkUserFlowId: userFlowId,
-        fkUserId: session.uid,
-        content: content.trim(),
-        meetingLink: link,
-        status: "pending",
-      });
+    await tx.insert(interviewEvaluation).values({
+      fkUserFlowId: userFlowId,
+      fkUserId: session.uid,
+      content: content.trim(),
+      meetingLink: link,
+      status: "pending",
+    });
   });
 
   revalidatePath("/dashboard/recruitment");
@@ -113,12 +130,11 @@ export const reopenAndEvaluate = async (userFlowId: number, content: string, mee
 
 export const approveEvaluation = async (evaluationId: number) => {
   const session = await verifyRole(3);
+  let affectedUserId: number | null = null;
 
   await db.transaction(async (tx) => {
     const [evalRecord] = await tx
-      .select({
-        fkUserFlowId: interviewEvaluation.fkUserFlowId,
-      })
+      .select({ fkUserFlowId: interviewEvaluation.fkUserFlowId })
       .from(interviewEvaluation)
       .where(eq(interviewEvaluation.id, evaluationId))
       .limit(1);
@@ -134,37 +150,24 @@ export const approveEvaluation = async (evaluationId: number) => {
       })
       .where(eq(interviewEvaluation.id, evaluationId));
 
-    // Update user flow and promote role
-    const record = await tx
-      .select({ fkUserId: userFlow.fkUserId, flowType: flow.type, userRole: user.role })
+    const [record] = await tx
+      .select({ fkUserId: userFlow.fkUserId })
       .from(userFlow)
-      .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
-      .innerJoin(user, eq(userFlow.fkUserId, user.id))
       .where(eq(userFlow.id, evalRecord.fkUserFlowId))
       .limit(1);
 
-    if (record[0]) {
-      const { fkUserId, flowType, userRole } = record[0];
-      let nextRole = userRole;
-      if ((flowType === "recruitment" || flowType === "recruitment_exemption") && userRole === 0) {
-        nextRole = 1;
-      } else if (flowType === "soc" && userRole === 1) {
-        nextRole = 2;
-      }
-
+    if (record) {
+      affectedUserId = record.fkUserId;
       await tx
         .update(userFlow)
-        .set({ status: "accepted" })
+        .set({ status: "accepted", currentStepOrder: 3 })
         .where(eq(userFlow.id, evalRecord.fkUserFlowId));
-
-      if (nextRole !== userRole) {
-        await tx
-          .update(user)
-          .set({ role: nextRole, updatedAt: new Date() })
-          .where(eq(user.id, fkUserId));
-      }
     }
   });
+
+  if (affectedUserId !== null) {
+    await syncUserRoleFromAcceptedFlows(affectedUserId);
+  }
 
   revalidatePath("/dashboard/approvals");
   revalidatePath("/dashboard/recruitment");
@@ -172,6 +175,7 @@ export const approveEvaluation = async (evaluationId: number) => {
 
 export const rejectEvaluation = async (evaluationId: number) => {
   const session = await verifyRole(3);
+  let affectedUserId: number | null = null;
 
   await db.transaction(async (tx) => {
     const [evalRecord] = await tx
@@ -194,50 +198,41 @@ export const rejectEvaluation = async (evaluationId: number) => {
       })
       .where(eq(interviewEvaluation.id, evaluationId));
 
-    // If reverting an approved evaluation, revert user flow and role promotion
-    if (evalRecord.status === "approved") {
-      const record = await tx
-        .select({ fkUserId: userFlow.fkUserId, flowType: flow.type, userRole: user.role })
-        .from(userFlow)
-        .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
-        .innerJoin(user, eq(userFlow.fkUserId, user.id))
-        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
-        .limit(1);
+    const [record] = await tx
+      .select({ fkUserId: userFlow.fkUserId })
+      .from(userFlow)
+      .where(eq(userFlow.id, evalRecord.fkUserFlowId))
+      .limit(1);
 
-      if (record[0]) {
-        const { fkUserId, flowType, userRole } = record[0];
-        let prevRole = userRole;
-        if ((flowType === "recruitment" || flowType === "recruitment_exemption") && userRole === 1) {
-          prevRole = 0;
-        } else if (flowType === "soc" && userRole === 2) {
-          prevRole = 1;
-        }
+    if (record) {
+      affectedUserId = record.fkUserId;
+      await tx
+        .update(userFlow)
+        .set({ status: "rejected", currentStepOrder: 3 })
+        .where(eq(userFlow.id, evalRecord.fkUserFlowId));
+    }
 
-        await tx
-          .update(userFlow)
-          .set({ status: "ongoing" })
-          .where(eq(userFlow.id, evalRecord.fkUserFlowId));
-
-        if (prevRole !== userRole) {
-          await tx
-            .update(user)
-            .set({ role: prevRole, updatedAt: new Date() })
-            .where(eq(user.id, fkUserId));
-        }
-      }
+    if (evalRecord.status !== "approved") {
+      affectedUserId = null;
     }
   });
+
+  if (affectedUserId !== null) {
+    await syncUserRoleFromAcceptedFlows(affectedUserId);
+  }
 
   revalidatePath("/dashboard/approvals");
   revalidatePath("/dashboard/recruitment");
 };
 
-// Admin undoes a rejection, moving evaluation back to pending
 export const reopenEvaluation = async (evaluationId: number) => {
-  const session = await verifyRole(3);
+  await verifyRole(3);
 
   const [evalRecord] = await db
-    .select({ status: interviewEvaluation.status })
+    .select({
+      status: interviewEvaluation.status,
+      fkUserFlowId: interviewEvaluation.fkUserFlowId,
+    })
     .from(interviewEvaluation)
     .where(eq(interviewEvaluation.id, evaluationId))
     .limit(1);
@@ -245,14 +240,21 @@ export const reopenEvaluation = async (evaluationId: number) => {
   if (!evalRecord) throw new Error("面评不存在");
   if (evalRecord.status !== "rejected") throw new Error("只能撤销已驳回的面评");
 
-  await db
-    .update(interviewEvaluation)
-    .set({
-      status: "pending",
-      fkReviewedBy: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(interviewEvaluation.id, evaluationId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(interviewEvaluation)
+      .set({
+        status: "pending",
+        fkReviewedBy: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(interviewEvaluation.id, evaluationId));
+
+    await tx
+      .update(userFlow)
+      .set({ status: "ongoing", currentStepOrder: 3 })
+      .where(eq(userFlow.id, evalRecord.fkUserFlowId));
+  });
 
   revalidatePath("/dashboard/approvals");
   revalidatePath("/dashboard/recruitment");
@@ -286,7 +288,7 @@ export const getAllEvaluations = async () => {
   const author = aliasedTable(user, "author");
   const candidate = aliasedTable(user, "candidate");
 
-  const result = await db
+  return db
     .select({
       evaluation: interviewEvaluation,
       meetingLink: interviewEvaluation.meetingLink,
@@ -302,15 +304,12 @@ export const getAllEvaluations = async () => {
     .leftJoin(flow, eq(userFlow.fkFlowId, flow.id))
     .leftJoin(candidate, eq(userFlow.fkUserId, candidate.id))
     .orderBy(interviewEvaluation.createdAt);
-
-  return result;
 };
 
-// Get candidates in ongoing status for WOC/SOC/exemption flows
 export const getEvaluationCandidates = async (flowId: number) => {
-  await verifyRole(2);
+  const session = await verifyRole(2);
 
-  const result = await db
+  const candidates = await db
     .select({
       userFlowId: userFlow.id,
       uid: user.id,
@@ -327,15 +326,13 @@ export const getEvaluationCandidates = async (flowId: number) => {
     .innerJoin(user, eq(userFlow.fkUserId, user.id))
     .leftJoin(
       interviewEvaluation,
-      eq(interviewEvaluation.fkUserFlowId, userFlow.id)
+      eq(interviewEvaluation.fkUserFlowId, userFlow.id),
     )
-    .where(
-      and(
-        eq(userFlow.fkFlowId, flowId),
-        inArray(userFlow.status, ["ongoing", "rejected"]),
-      )
-    )
+    .where(eq(userFlow.fkFlowId, flowId))
     .orderBy(user.studentId);
 
-  return result;
+  return candidates.map((candidate) => ({
+    ...candidate,
+    phoneNumber: session.role >= 3 ? candidate.phoneNumber : null,
+  }));
 };

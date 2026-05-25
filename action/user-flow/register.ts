@@ -28,7 +28,8 @@ export const register = async (flowId: number, uid: number) => {
       .select({
         startedAt: flow.startedAt,
         endedAt: flow.endedAt,
-        title: flow.title
+        title: flow.title,
+        type: flow.type,
       })
       .from(flow)
       .where(eq(flow.id, flowId))
@@ -44,7 +45,7 @@ export const register = async (flowId: number, uid: number) => {
     }
 
     const now = new Date();
-    const { startedAt, endedAt, title } = flowInfo[0];
+    const { startedAt, endedAt, title, type } = flowInfo[0];
 
     if (now < startedAt) {
       return {
@@ -64,19 +65,37 @@ export const register = async (flowId: number, uid: number) => {
       }
     }
 
-    const userPhoneNumber = (
+    const userInfo = (
       await db
-        .select({ phoneNumber: user.phone })
+        .select({
+          name: user.name,
+          studentId: user.studentId,
+          phone: user.phone,
+          email: user.email,
+          college: user.college,
+          major: user.major,
+          qq: user.qq,
+        })
         .from(user)
         .where(eq(user.id, uid))
         .limit(1)
-    )[0].phoneNumber;
+    )[0];
 
-    if (!userPhoneNumber) {
+    const missingFields = [
+      ["name", "姓名"],
+      ["studentId", "学号"],
+      ["phone", "手机号"],
+      ["email", "邮箱"],
+      ["college", "学院"],
+      ["major", "专业"],
+      ["qq", "QQ号"],
+    ].filter(([key]) => !userInfo?.[key as keyof typeof userInfo]);
+
+    if (missingFields.length > 0) {
       return {
         success: false,
         error: {
-          message: "填写先个人信息"
+          message: `请先补全基本信息：${missingFields.map(([, label]) => label).join("、")}`
         }
       }
     }
@@ -86,12 +105,12 @@ export const register = async (flowId: number, uid: number) => {
       .values({
         fkUserId: uid,
         fkFlowId: flowId,
-        currentStepOrder: 1,
-        status: "pending",
+        currentStepOrder: type === "recruitment" ? 2 : 2,
+        status: "ongoing",
       })
       .returning();
 
-    revalidatePath("/user-flow");
+    revalidatePath("/dashboard/user-flow");
     // TODO: eventManager.register() was called with wrong args and its body was empty - needs reimplementation
     // eventManager.register(uid, flowId, newFlow.id);
 

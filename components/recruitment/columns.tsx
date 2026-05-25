@@ -3,22 +3,69 @@ import { calScore } from '@/action/user-flow/user-point/calScore';
 import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { Checkbox } from '../ui/checkbox';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../ui/dialog';
+
+const statusLabel: Record<string, string> = {
+  pending: '未开始',
+  ongoing: '待确认',
+  passed: '通过',
+  failed: '不通过',
+  accepted: '通过邮件已发',
+  rejected: '不通过邮件已发',
+};
+
+const statusVariant: Record<
+  string,
+  React.ComponentProps<typeof Badge>['variant']
+> = {
+  pending: 'outline',
+  ongoing: 'outline',
+  passed: 'outline',
+  failed: 'outline',
+  accepted: 'outline',
+  rejected: 'outline',
+};
+
+const statusClassName: Record<string, string> = {
+  pending: 'border-muted-foreground/30 bg-muted text-muted-foreground',
+  ongoing: 'border-chart-3/30 bg-chart-3/10 text-chart-3',
+  passed: 'border-primary/30 bg-primary/10 text-primary',
+  failed: 'border-destructive/30 bg-destructive/10 text-destructive',
+  accepted: 'border-primary/30 bg-primary/10 text-primary',
+  rejected: 'border-destructive/30 bg-destructive/10 text-destructive',
+};
 
 export const columns: ColumnDef<
   Awaited<ReturnType<typeof calScore>>[number]
 >[] = [
   {
     id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && 'indeterminate')
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
+    header: ({ table }) => {
+      const selectedCount = table.getFilteredSelectedRowModel().rows.length;
+      const totalCount = table.getFilteredRowModel().rows.length;
+      const checked =
+        selectedCount === 0
+          ? false
+          : selectedCount === totalCount && totalCount > 1
+            ? true
+            : 'indeterminate';
+
+      return (
+        <Checkbox
+          checked={checked}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      );
+    },
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
@@ -45,10 +92,73 @@ export const columns: ColumnDef<
     header: '手机号',
   },
   {
+    accessorKey: 'status',
+    header: '状态',
+    cell: ({ getValue }) => {
+      const status = String(getValue() ?? 'ongoing');
+      return (
+        <Badge
+          variant={statusVariant[status] ?? 'outline'}
+          className={statusClassName[status]}
+        >
+          {statusLabel[status] ?? status}
+        </Badge>
+      );
+    },
+  },
+  {
+    accessorKey: 'problemScores',
+    header: '得分组成',
+    cell: ({ getValue }) => {
+      const scores = getValue() as
+        | Array<{ id: number; title: string; score: number; points: number }>
+        | undefined;
+      if (!scores?.length) {
+        return (
+          <Button size="sm" variant="outline" disabled>
+            无题目
+          </Button>
+        );
+      }
+
+      return (
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button size="sm" variant="outline">
+              查看得分
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>得分组成</DialogTitle>
+            </DialogHeader>
+            <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
+              {scores.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 break-words">{item.title}</span>
+                  <Badge variant="outline" className="shrink-0 tabular-nums">
+                    {item.points}/{item.score}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    },
+  },
+  {
     accessorKey: 'totalScore',
     header: () => <div className="text-right">总分</div>,
     cell: ({ getValue }) => (
-      <div className="text-right tabular-nums">{getValue() as string}</div>
+      <div className="flex justify-end">
+        <span className="rounded-md bg-primary/10 px-2 py-1 text-sm font-semibold tabular-nums text-primary">
+          {getValue() as string}
+        </span>
+      </div>
     ),
     filterFn: (row, id, filterValue) => {
       return row.original.totalScore

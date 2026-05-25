@@ -31,6 +31,8 @@ export const userFlowStatusEnum = pgEnum("user_flow_status_enum", [
   "accepted",
   "rejected",
   "ongoing",
+  "passed",
+  "failed",
 ]);
 
 export const evaluationStatusEnum = pgEnum("evaluation_status_enum", [

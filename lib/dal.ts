@@ -6,6 +6,9 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { SESSION } from "@/const/cookie";
 import fs from "node:fs";
+import { db } from "@/db/drizzle";
+import { user } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 function logError(source: string, err: unknown) {
   try {
@@ -30,11 +33,18 @@ export const verifySession = cache(async () => {
       redirect("/login");
     }
 
+    const uid = Number(session.uid);
+    const [userRecord] = await db
+      .select({ role: user.role, name: user.name })
+      .from(user)
+      .where(eq(user.id, uid))
+      .limit(1);
+
     return {
       isAuth: true,
-      uid: Number(session.uid),
-      role: session.role as number,
-      name: session.name as string,
+      uid,
+      role: userRecord?.role ?? (session.role as number),
+      name: userRecord?.name ?? (session.name as string),
     };
   } catch (err) {
     if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;

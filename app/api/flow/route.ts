@@ -13,7 +13,7 @@ export const GET = async (req: NextRequest) => {
   if (!uid) {
     return NextResponse.json({ error: "Invalid uid" }, { status: 400 });
   }
-  const raw = await db.select().from(userFlow).innerJoin(flow, eq(userFlow.fkFlowId, flow.id)).leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId)).where(eq(userFlow.fkUserId, uid));
+  const raw = await db.select().from(userFlow).innerJoin(flow, eq(userFlow.fkFlowId, flow.id)).leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId)).where(eq(userFlow.fkUserId, uid)).orderBy(flowStep.order);
   const flowMap = new Map<number, displayUserFlow>();
   raw.forEach((item) => {
     const userFlowId = item.user_flow.id;
@@ -31,5 +31,10 @@ export const GET = async (req: NextRequest) => {
       flowMap.get(userFlowId)!.steps.push(item.flow_step as fullStepType);
     }
   });
-  return NextResponse.json(Array.from(flowMap.values()));
+  return NextResponse.json(
+    Array.from(flowMap.values()).map((item) => ({
+      ...item,
+      steps: item.steps.sort((a, b) => a.order - b.order),
+    })),
+  );
 };

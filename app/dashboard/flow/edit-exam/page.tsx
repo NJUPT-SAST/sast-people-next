@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { EditProblemsServer } from "./editProblems";
 import getFlowInfo from "@/hooks/useFlowInfo";
+import { redirect } from "next/navigation";
 
 export default async function EditExamPage({
   searchParams,
@@ -13,6 +14,9 @@ export default async function EditExamPage({
 }) {
   const awaitedSearchParams = await searchParams;
   const flowInfo = await getFlowInfo(Number(awaitedSearchParams.id));
+  if (flowInfo.type !== "recruitment") {
+    redirect("/dashboard/flow");
+  }
   return (
     <>
       <div className="flex items-center justify-between">

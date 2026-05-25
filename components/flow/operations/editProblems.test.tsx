@@ -20,7 +20,7 @@ jest.mock("sonner", () => ({
   },
 }));
 
-const baseStep = { id: 1, title: "笔试", order: 1, description: null, fkFlowId: 4 };
+const baseStep = { id: 1, title: "批卷", order: 1, description: null, fkFlowId: 4 };
 const baseProblems = [{ id: 11, title: "算法题1", score: 20, fkFlowStepId: 1 }];
 
 describe("EditProblems", () => {
@@ -29,7 +29,7 @@ describe("EditProblems", () => {
     mockToastPromise.mockClear();
   });
 
-  it("renders step selector with step title", () => {
+  it("renders the flow-level problem editor", () => {
     render(
       <EditProblems
         steps={[baseStep]}
@@ -39,8 +39,8 @@ describe("EditProblems", () => {
       />,
     );
 
-    expect(screen.getByText("题目列表")).toBeTruthy();
-    expect(screen.getByText("笔试")).toBeTruthy();
+    expect(screen.getByText("编辑笔试题目")).toBeTruthy();
+    expect(screen.getByText("题目用于：批卷")).toBeTruthy();
     expect(screen.getByText("1 道题目")).toBeTruthy();
   });
 
@@ -140,6 +140,6 @@ describe("EditProblems", () => {
       />,
     );
 
-    expect(screen.getByText(/暂无题目/)).toBeTruthy();
+    expect(screen.getByText("当前笔试流程还没有题目")).toBeTruthy();
   });
 });

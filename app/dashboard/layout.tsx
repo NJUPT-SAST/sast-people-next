@@ -21,7 +21,7 @@ export default async function RootLayout({
     <DashboardLayout
       role={session.role}
       userCard={<UserCard />}
-      breadcrumb={<PageBreadcrumb />}
+      breadcrumb={<PageBreadcrumb role={session.role} />}
     >
       <Suspense fallback={<Loading />}>{children}</Suspense>
     </DashboardLayout>

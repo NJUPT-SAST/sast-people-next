@@ -64,39 +64,40 @@ export const MannualInput = () => {
   };
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="flex flex-col items-center gap-1.5 text-center">
-        <p className="text-sm font-semibold text-foreground">手动输入考生学号</p>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          适用于二维码识别失败或现场需要直接跳转到指定考生试卷的情景。
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4 rounded-lg border bg-card/60 p-4 sm:p-5">
+      <div className="flex flex-col gap-1">
+        <p className="text-base font-semibold text-foreground">手动输入学号</p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          扫码失败时，可直接输入学号进入该考生的评分页。
         </p>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Input
-          placeholder="请输入考生学号"
-          value={studentId}
-          className="bg-transparent"
-          onChange={(e) => setStudentId(e.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              void handleStartMarking();
-            }
-          }}
-        />
-        <div className="flex-none">
-          <Button
-            disabled={!studentId.trim() || !hasReviewRange || isChecking}
-            onClick={() => void handleStartMarking()}
-            loading={isChecking}
-          >
-            开始阅卷
-          </Button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative min-w-0 flex-1">
+          <Input
+            placeholder="请输入考生学号"
+            value={studentId}
+            className="h-11 bg-background text-base sm:text-sm"
+            onChange={(e) => setStudentId(e.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void handleStartMarking();
+              }
+            }}
+          />
         </div>
+        <Button
+          className="h-11 sm:w-28"
+          disabled={!studentId.trim() || !hasReviewRange || isChecking}
+          onClick={() => void handleStartMarking()}
+          loading={isChecking}
+        >
+          开始阅卷
+        </Button>
       </div>
       {!hasReviewRange && (
-        <p className="text-xs text-destructive text-center">
-          还没有设置阅卷范围，开始阅卷前请先选择试卷和题目。
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          请先设置阅卷范围，再开始阅卷。
         </p>
       )}
     </div>

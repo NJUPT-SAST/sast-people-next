@@ -56,7 +56,7 @@ export const fullUserSchema = createInsertSchema(user, {
     ),
   college: z.string().min(1, "学院不能为空").trim(),
   major: z.string().min(1, "专业不能为空").trim(),
-  qq: z.string().trim().optional(),
+  qq: z.string().min(1, "QQ号不能为空").trim(),
 });
 export const basicInfoSchema = fullUserSchema.pick({
   name: true,

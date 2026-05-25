@@ -16,18 +16,89 @@ import { Textarea } from '@/components/ui/textarea';
 import { fullFlowSchema } from '@/components/flow/add';
 import { fullStepType } from '@/types/step';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Copy, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import z from 'zod';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
-import { updateFlowStep } from '@/action/flow/flow-step/update';
 import { updateFlow } from '@/action/flow/update';
+import { updateFlowStep } from '@/action/flow/flow-step/update';
 import { displayFlow } from '@/types/flow';
-import { useFlowStepsInfoClient } from '@/hooks/useFlowStepsInfoClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateTimeInput } from '@/components/ui/datetime-input';
+import { useFlowStepsInfoClient } from '@/hooks/useFlowStepsInfoClient';
+
+const writtenRecruitmentSteps = (flowId: number): fullStepType[] => [
+  {
+    title: '报名',
+    type: 'registering',
+    order: 1,
+    description: '新同学提交报名信息，报名后直接进入批卷环节',
+    id: -1,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+  {
+    title: '批卷',
+    type: 'judging',
+    order: 2,
+    description: '讲师为该流程内报名同学批改试卷',
+    id: -2,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+  {
+    title: '录取确认',
+    type: 'finished',
+    order: 3,
+    description: '按分数线筛选并确认最终通过名单',
+    id: -3,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+];
+
+const evaluationSteps = (flowId: number): fullStepType[] => [
+  {
+    title: '报名',
+    type: 'registering',
+    order: 1,
+    description: '提交报名信息',
+    id: -1,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+  {
+    title: '讲师审核',
+    type: 'checking',
+    order: 2,
+    description: '讲师进行面评并提交同意或不同意',
+    id: -2,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+  {
+    title: '管理员审核',
+    type: 'finished',
+    order: 3,
+    description: '管理员审核面评结果并确认最终通过状态',
+    id: -3,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+];
 
 export const EditSteps = ({ data }: { data: displayFlow }) => {
   const editFlowForm = useForm<z.infer<typeof fullFlowSchema>>({
@@ -43,17 +114,35 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
 
   const { isSubmitting } = editFlowForm.formState;
   const [openEdit, setOpenEdit] = useState(false);
-  const { data: stepsData } = useFlowStepsInfoClient(data.id);
-  const [localStepList, setLocalStepList] = useState<fullStepType[] | null>(null);
-  const stepList = localStepList ?? (Array.isArray(stepsData) ? stepsData : []);
-  const updateStepList = (updater: (prev: fullStepType[]) => fullStepType[]) => {
-    setLocalStepList((prev) => updater(prev ?? stepsData ?? []));
-  };
+  const isWrittenRecruitment = !data.type || data.type === 'recruitment';
+  const { data: savedSteps } = useFlowStepsInfoClient(data.id);
+  const fixedStepList = useMemo(() => {
+    const defaults = isWrittenRecruitment
+      ? writtenRecruitmentSteps(data.id)
+      : evaluationSteps(data.id);
+
+    return defaults.map((step) => {
+      const savedStep = savedSteps?.find(
+        (item) => item.order === step.order && item.type === step.type,
+      );
+      return {
+        ...step,
+        id: savedStep?.id ?? step.id,
+        title: savedStep?.title ?? step.title,
+        description: savedStep?.description ?? step.description,
+      };
+    });
+  }, [data.id, isWrittenRecruitment, savedSteps]);
+  const [editableSteps, setEditableSteps] = useState<fullStepType[]>(fixedStepList);
+
+  useEffect(() => {
+    setEditableSteps(fixedStepList);
+  }, [fixedStepList]);
 
   return (
     <Sheet open={openEdit} onOpenChange={setOpenEdit}>
       <SheetTrigger asChild>
-        <Button size={'sm'} variant={'ghost'}>
+        <Button size={'sm'} variant={'ghost'} className="min-w-16">
           编辑流程
         </Button>
       </SheetTrigger>
@@ -150,32 +239,10 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
               </Button>
             </div>
 
-            <div className="flex justify-end mt-4">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  updateStepList((prev) => [
-                    ...prev,
-                    {
-                      title: '',
-                      type: "registering",
-                      order: prev.length + 1,
-                      description: null,
-                      id: 0,
-                      createdAt: new Date(),
-                      updatedAt: new Date(),
-                      isDeleted: false,
-                      fkFlowId: data.id,
-                    },
-                  ]);
-                }}
-              >
-                <Plus size={18} />
-                添加步骤
-              </Button>
-            </div>
-            {stepList.map((step, index) => {
+            <p className="text-sm text-muted-foreground">
+              步骤数量、类型与顺序由流程类型固定；管理员可以调整步骤名称和描述。
+            </p>
+            {editableSteps.map((step, index) => {
               return (
                 <fieldset
                   className="grid gap-6 rounded-lg border p-4"
@@ -190,16 +257,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                     </Label>
                     <Select
                       value={step.type}
-                      onValueChange={(value) => {
-                        updateStepList((prev) => [
-                          ...prev.slice(0, index),
-                          {
-                            ...prev[index],
-                            type: value as fullStepType["type"],
-                          },
-                          ...prev.slice(index + 1),
-                        ]);
-                      }}
+                      disabled
                     >
                       <SelectTrigger id={`step-${index}-type`}>
                         <SelectValue placeholder="选择步骤类型" />
@@ -219,16 +277,15 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                       id={`step-${index}-name`}
                       placeholder="填写展示的步骤名称"
                       className="w-full"
-                      defaultValue={step.title}
-                      onChange={(e) => {
-                        updateStepList((prev) => [
-                          ...prev.slice(0, index),
-                          {
-                            ...prev[index],
-                            title: e.target.value,
-                          },
-                          ...prev.slice(index + 1),
-                        ]);
+                      disabled={isSubmitting}
+                      value={step.title}
+                      onChange={(event) => {
+                        const nextSteps = [...editableSteps];
+                        nextSteps[index] = {
+                          ...nextSteps[index],
+                          title: event.target.value,
+                        };
+                        setEditableSteps(nextSteps);
                       }}
                     />
                   </div>
@@ -236,84 +293,41 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                     <Label htmlFor={`step-${index}-description`}>步骤描述</Label>
                     <Textarea
                       id={`step-${index}-description`}
-                      placeholder="填写展示的步骤名称"
+                      placeholder="填写展示的步骤描述"
                       className="w-full"
-                      defaultValue={step.description || ''}
-                      onChange={(e) => {
-                        updateStepList((prev) => [
-                          ...prev.slice(0, index),
-                          {
-                            ...prev[index],
-                            description: e.target.value,
-                          },
-                          ...prev.slice(index + 1),
-                        ]);
+                      disabled={isSubmitting}
+                      value={step.description || ''}
+                      onChange={(event) => {
+                        const nextSteps = [...editableSteps];
+                        nextSteps[index] = {
+                          ...nextSteps[index],
+                          description: event.target.value,
+                        };
+                        setEditableSteps(nextSteps);
                       }}
                     />
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="m-0"
-                      onClick={() => {
-                        // duplicate the step
-                        updateStepList((prev) => [
-                          ...prev.slice(0, index + 1),
-                          {
-                            ...prev[index],
-                            order: prev.length + 1,
-                          },
-                          ...prev.slice(index + 1),
-                        ]);
-                      }}
-                    >
-                      <Copy size={18} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="m-0"
-                      onClick={() => {
-                        updateStepList((prev) => prev.filter((_, i) => i !== index));
-                      }}
-                    >
-                      <Trash2 size={18} />
-                    </Button>
                   </div>
                 </fieldset>
               );
             })}
-          </div>
-          <SheetFooter>
-            <Button
-              type="submit"
-              loading={isSubmitting}
-              disabled={isSubmitting || stepList.length === 0}
-              onClick={() => {
-                const values = editFlowForm.getValues();
-                const typedStepList = stepList.map(step => ({
-                  ...step,
-                  type: step.type as fullStepType["type"]
-                })) as fullStepType[];
-                toast.promise(
-                  async () => {
-                    await updateFlowStep(values.id!, typedStepList);
-                    setOpenEdit(false);
-                    editFlowForm.reset();
-                  },
-                  {
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={() => {
+                  toast.promise(updateFlowStep(data.id, editableSteps), {
                     loading: '正在保存步骤',
-                    success: `流程步骤已保存成功`,
-                    error: '保存步骤时出现了问题，请稍后重试',
-                  },
-                );
-              }}
-            >
-              保存步骤
-            </Button>
-          </SheetFooter>
+                    success: '步骤名称和描述已保存',
+                    error: '保存步骤时出现问题，请稍后重试',
+                  });
+                }}
+              >
+                保存步骤
+              </Button>
+            </div>
+          </div>
+          <SheetFooter />
         </Form>
       </SheetContent>
     </Sheet>

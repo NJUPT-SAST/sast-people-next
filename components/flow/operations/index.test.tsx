@@ -11,8 +11,8 @@ jest.mock("./delete", () => ({
 }));
 
 describe("Operations", () => {
-  it("renders edit, exam link, and delete actions", () => {
-    render(<Operations data={{ id: 15 } as never} />);
+  it("renders exam link for written recruitment flows", () => {
+    render(<Operations data={{ id: 15, type: "recruitment" } as never} />);
 
     expect(screen.getByText("edit-steps")).toBeInTheDocument();
     expect(screen.getByText("delete-flow")).toBeInTheDocument();
@@ -20,5 +20,13 @@ describe("Operations", () => {
       "href",
       "/dashboard/flow/edit-exam?id=15",
     );
+  });
+
+  it("hides exam link for non-written flows", () => {
+    render(<Operations data={{ id: 15, type: "woc" } as never} />);
+
+    expect(screen.getByText("edit-steps")).toBeInTheDocument();
+    expect(screen.getByText("delete-flow")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "编辑笔试" })).not.toBeInTheDocument();
   });
 });

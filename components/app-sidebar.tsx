@@ -18,7 +18,7 @@ import {
   SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { menuItems, isItemActive } from '@/components/route';
+import { menuItems, isItemActive, getMenuItemTitle } from '@/components/route';
 
 interface AppSidebarProps {
   role: number;
@@ -50,12 +50,13 @@ function SidebarNav({ role }: { role: number }) {
     <SidebarMenu>
       {authRoutes.map((item) => {
         const active = isItemActive(pathname, item.path);
+        const title = getMenuItemTitle(item, role);
         return (
           <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild isActive={active} tooltip={item.title}>
+            <SidebarMenuButton asChild isActive={active} tooltip={title}>
               <Link href={`/dashboard${item.path}`}>
                 <item.icon />
-                <span>{item.title}</span>
+                <span>{title}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

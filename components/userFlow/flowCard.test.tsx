@@ -30,7 +30,7 @@ describe("FlowCard", () => {
     expect(screen.getByText("等待审核")).toBeInTheDocument();
   });
 
-  it("falls back to the not-started copy when there is no current step", async () => {
+  it("falls back to the first step when persisted current step is invalid", async () => {
     const ui = await FlowCard({
       flow: {
         id: 2,
@@ -43,7 +43,7 @@ describe("FlowCard", () => {
 
     render(ui);
 
-    expect(screen.getByText("当前步骤：（流程未开始）")).toBeInTheDocument();
-    expect(screen.getByText("前面的区域以后再来探索吧")).toBeInTheDocument();
+    expect(screen.getByText("当前步骤：报名")).toBeInTheDocument();
+    expect(screen.getByText("待开启")).toBeInTheDocument();
   });
 });

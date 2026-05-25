@@ -69,6 +69,11 @@ export function isItemActive(pathname: string, itemPath: string): boolean {
   return pathname.includes(`/dashboard${itemPath}`);
 }
 
+export function getMenuItemTitle(item: MenuItem, role?: number): string {
+  if (item.path === '/manage' && role === 2) return '成员目录';
+  return item.title;
+}
+
 function useCurrentMenuItem() {
   const pathname = usePathname();
   return menuItems.find(
@@ -78,7 +83,7 @@ function useCurrentMenuItem() {
   );
 }
 
-export const PageBreadcrumb = () => {
+export const PageBreadcrumb = ({ role }: { role?: number }) => {
   const currentItem = useCurrentMenuItem();
 
   return (
@@ -93,7 +98,7 @@ export const PageBreadcrumb = () => {
           <>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>{currentItem.title}</BreadcrumbPage>
+              <BreadcrumbPage>{getMenuItemTitle(currentItem, role)}</BreadcrumbPage>
             </BreadcrumbItem>
           </>
         )}
@@ -102,12 +107,12 @@ export const PageBreadcrumb = () => {
   );
 };
 
-export const PageTitle = () => {
+export const PageTitle = ({ role }: { role?: number }) => {
   const currentItem = useCurrentMenuItem();
 
   return (
     <h1 className="text-xl font-bold md:text-2xl">
-      {currentItem?.title ?? '首页'}
+      {currentItem ? getMenuItemTitle(currentItem, role) : '首页'}
     </h1>
   );
 };

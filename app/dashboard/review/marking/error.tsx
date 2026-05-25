@@ -20,7 +20,6 @@ export default function Error({
   return (
     <div className="w-full h-full flex justify-center items-center flex-col gap-3">
       <ShieldQuestion className="w-[100px] h-[100px]" strokeWidth="1px" />
-      <h2>获取不到题目列表，同学是否报名了流程？</h2>
       <Button onClick={() => router.back()}>
         <ArrowLeft />
         回到上一页

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
 import { EvaluationTable } from '@/components/recruitment/evaluationTable';
@@ -18,29 +18,25 @@ const EVALUATION_FLOW_TYPES = ['woc', 'soc', 'recruitment_exemption'];
 export const RecruitmentContent = ({
   flowTypes,
   initialData,
+  initialEvalData,
   defaultFlowId,
   role,
 }: {
   flowTypes: displayFlow[];
   initialData: ExamResult;
+  initialEvalData: CandidatesResult;
   defaultFlowId?: string;
   role: number;
 }) => {
   const [flowId, setFlowId] = useState(defaultFlowId);
   const [scoreData, setScoreData] = useState(initialData);
-  const [evalData, setEvalData] = useState<CandidatesResult>([]);
+  const [evalData, setEvalData] = useState<CandidatesResult>(initialEvalData);
   const [loading, setLoading] = useState(false);
 
   const selectedFlow = flowTypes.find((f) => f.id === parseInt(flowId ?? ''));
   const isEvaluationFlow = selectedFlow
     ? EVALUATION_FLOW_TYPES.includes(selectedFlow.type)
     : false;
-
-  useEffect(() => {
-    if (isEvaluationFlow && flowId) {
-      getEvaluationCandidates(parseInt(flowId)).then(setEvalData).catch(() => setEvalData([]));
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFlowChange = async (value: string) => {
     setFlowId(value);
@@ -116,7 +112,7 @@ export const RecruitmentContent = ({
           </>
         )
       ) : (
-        <p className="text-muted-foreground">暂无招新流程</p>
+        <p className="text-muted-foreground">暂无流程</p>
       )}
     </>
   );

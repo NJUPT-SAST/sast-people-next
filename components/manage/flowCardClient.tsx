@@ -27,6 +27,8 @@ import { toast } from 'sonner';
 const statusIcons = {
   pending: CircleDashed,
   ongoing: Clock,
+  passed: Clock,
+  failed: Clock,
   accepted: CheckCircle,
   rejected: XCircle,
 };
@@ -34,6 +36,8 @@ const statusIcons = {
 const statusName: Record<string, string> = {
   pending: '未开始',
   ongoing: '进行中',
+  passed: '拟通过',
+  failed: '拟不通过',
   accepted: '已通过',
   rejected: '未通过',
 };
@@ -51,13 +55,22 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
     setFlow(initialFlow);
   }, [initialFlow]);
 
+  const steps = useMemo(
+    () => [...flow.steps].sort((a, b) => a.order - b.order),
+    [flow.steps],
+  );
+
   const currentStepIndex = useMemo(() => {
-    return flow.steps.findIndex((step) => step.order === flow.currentStepOrder);
-  }, [flow.steps, flow.currentStepOrder]);
+    const matchedIndex = steps.findIndex((step) => step.order === flow.currentStepOrder);
+    return matchedIndex >= 0 ? matchedIndex : 0;
+  }, [steps, flow.currentStepOrder]);
+
+  const activeStep = steps[currentStepIndex];
+  const activeStepOrder = activeStep?.order ?? 0;
 
   const isLastStep = useMemo(() => {
-    return currentStepIndex === flow.steps.length - 1;
-  }, [currentStepIndex, flow.steps.length]);
+    return currentStepIndex === steps.length - 1;
+  }, [currentStepIndex, steps.length]);
 
   const [loading, setLoading] = React.useState(false);
 
@@ -122,7 +135,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
         </CardTitle>
         <Badge
           variant={
-            flow.status === 'ongoing' || flow.status === 'pending'
+            flow.status === 'ongoing' || flow.status === 'pending' || flow.status === 'passed' || flow.status === 'failed'
               ? 'secondary'
               : flow.status === 'accepted'
                 ? 'default'
@@ -131,6 +144,8 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
         >
           {flow.status === 'ongoing' || flow.status === 'pending'
             ? '流程进行中'
+            : flow.status === 'passed' || flow.status === 'failed'
+              ? statusName[flow.status]
             : flow.status === 'accepted'
               ? '已通过考核'
               : '未通过考核'}
@@ -140,19 +155,23 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
         <div className="flex items-center justify-between relative my-5">
           {/* 背景横线 */}
           <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted z-10"></div>
-          {flow.steps.map((step, index) => {
+          {steps.map((step, index) => {
             const stepStatus =
               flow.status === 'accepted'
                 ? 'accepted'
+                : flow.status === 'passed' || flow.status === 'failed'
+                ? step.order <= activeStepOrder
+                  ? 'ongoing'
+                  : 'pending'
                 : flow.status === 'rejected'
-                ? step.order < flow.currentStepOrder
+                ? step.order < activeStepOrder
                   ? 'accepted'
-                  : step.order === flow.currentStepOrder
+                  : step.order === activeStepOrder
                   ? 'rejected'
                   : 'pending'
-                : step.order < flow.currentStepOrder
+                : step.order < activeStepOrder
                 ? 'accepted'
-                : step.order === flow.currentStepOrder
+                : step.order === activeStepOrder
                   ? 'ongoing'
                   : 'pending';
             const Icon =
@@ -183,17 +202,17 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                     </div>
                   </HoverCardContent>
                 </HoverCard>
-                {index < flow.steps.length - 1 && (
+                {index < steps.length - 1 && (
                   <div
                     className={`absolute top-1/2 h-0.5 z-20 ${getStatusColor(
                       stepStatus,
                     )}`}
                     style={{
                       left: `calc(${
-                        (index / (flow.steps.length - 1)) * 100
+                        (index / (steps.length - 1)) * 100
                       }% + 7px)`,
                       width: `calc(${
-                        100 / (flow.steps.length - 1)
+                        100 / (steps.length - 1)
                       }% - 14px)`,
                     }}
                   ></div>
@@ -205,10 +224,10 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
         <div className="flex justify-between md:items-end md:flex-row flex-col items-start gap-3">
           <div>
             <p className="mt-4 text-sm text-muted-foreground">
-                当前步骤: {flow.steps[currentStepIndex]?.title}
+                当前步骤: {activeStep?.title || '（流程未开始）'}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              {flow.steps[currentStepIndex]?.description ||
+              {activeStep?.description ||
                 '流程已结束'}
             </p>
           </div>
