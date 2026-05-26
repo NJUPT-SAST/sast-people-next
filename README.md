@@ -4,13 +4,13 @@ SAST People Next is a member management and recruitment scoring platform for **N
 
 ## Features
 
-- Recruitment flow management for written recruitment, exemption recruitment, WOC, and SOC
+- Recruitment flow management for written recruitment, exemption recruitment, WOC/WOD, and SOC/SOD
 - Fixed workflow steps based on flow type, with editable step titles and descriptions
 - Written exam grading with QR code scanning and manual student ID lookup
 - Score aggregation for all registered candidates, including ungraded candidates with score `0`
 - Pass/fail list management for written recruitment
 - One-click result email sending that locks final written recruitment results
-- Lecturer interview evaluation for exemption recruitment, WOC, and SOC
+- Lecturer interview evaluation for exemption recruitment, WOC/WOD, and SOC/SOD
 - Administrator approval for final evaluation flow decisions
 - Role synchronization from final accepted flows
 - User search, pagination, profile viewing, role editing, and account banning
@@ -77,23 +77,23 @@ Fixed steps:
 
 Lecturers submit an interview evaluation and meeting link. Administrators approve or reject the evaluation. Final approval upgrades the user to member.
 
-### WOC
+### WOC/WOD
 
 Flow type: `woc`
 
-WOC uses the same evaluation workflow as exemption recruitment. A new student who passes WOC is upgraded to member. An existing member remains a member.
+WOC/WOD uses the same evaluation workflow as exemption recruitment. A new student who passes WOC/WOD is upgraded to member. An existing member remains a member.
 
-### SOC
+### SOC/SOD
 
 Flow type: `soc`
 
-SOC uses the same evaluation workflow as exemption recruitment. Final approval upgrades the user to lecturer.
+SOC/SOD uses the same evaluation workflow as exemption recruitment. Final approval upgrades the user to lecturer.
 
 ## Flow Step Rules
 
 Step count, step order, and step types are fixed by flow type. Administrators may edit only step titles and descriptions.
 
-Only written recruitment flows expose written exam editing. Exemption recruitment, WOC, and SOC use registration, lecturer review, and administrator review only.
+Only written recruitment flows expose written exam editing. Exemption recruitment, WOC/WOD, and SOC/SOD use registration, lecturer review, and administrator review only.
 
 ## Status Model
 

@@ -5,6 +5,7 @@ import { MannualInput } from "./mannualInput";
 
 const push = jest.fn();
 const checkUserByStuID = jest.fn();
+const resolveUserFlowForReview = jest.fn();
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
@@ -15,11 +16,19 @@ jest.mock("./checkUser", () => ({
     checkUserByStuID(...args),
 }));
 
+jest.mock("./resolveUserFlow", () => ({
+  resolveUserFlowForReview: (
+    ...args: Parameters<typeof resolveUserFlowForReview>
+  ) => resolveUserFlowForReview(...args),
+}));
+
 describe("MannualInput", () => {
   beforeEach(() => {
     push.mockClear();
     checkUserByStuID.mockReset();
+    resolveUserFlowForReview.mockReset();
     checkUserByStuID.mockResolvedValue(true);
+    resolveUserFlowForReview.mockResolvedValue({ success: true, userFlowId: 8 });
     window.localStorage.clear();
     window.localStorage.setItem(
       "people_selectedProbs",
@@ -43,6 +52,7 @@ describe("MannualInput", () => {
     await user.click(button);
 
     expect(checkUserByStuID).toHaveBeenCalledWith("2026001");
+    expect(resolveUserFlowForReview).toHaveBeenCalledWith("2026001", 1);
     expect(push).toHaveBeenCalledWith("/dashboard/review/marking?user=2026001");
   });
 });

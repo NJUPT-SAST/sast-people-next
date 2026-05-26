@@ -1,5 +1,5 @@
 import { db } from "@/db/drizzle";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { flow, userFlow, flowStep } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
@@ -13,7 +13,13 @@ export const GET = async (req: NextRequest) => {
   if (!uid) {
     return NextResponse.json({ error: "Invalid uid" }, { status: 400 });
   }
-  const raw = await db.select().from(userFlow).innerJoin(flow, eq(userFlow.fkFlowId, flow.id)).leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId)).where(eq(userFlow.fkUserId, uid)).orderBy(flowStep.order);
+  const raw = await db
+    .select()
+    .from(userFlow)
+    .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+    .leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId))
+    .where(and(eq(userFlow.fkUserId, uid), eq(flow.isDeleted, false)))
+    .orderBy(flowStep.order);
   const flowMap = new Map<number, displayUserFlow>();
   raw.forEach((item) => {
     const userFlowId = item.user_flow.id;

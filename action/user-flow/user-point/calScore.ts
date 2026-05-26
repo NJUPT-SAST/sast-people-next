@@ -3,10 +3,11 @@ import { db } from '@/db/drizzle';
 import { flowStep, problem, user, userFlow } from '@/db/schema';
 import { userPoint } from '@/db/schema';
 import { verifyRole } from '@/lib/dal';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { aliasedTable, asc, desc, eq, sql } from 'drizzle-orm';
 
 export const calScore = async (flowId: number) => {
   const session = await verifyRole(2);
+  const judger = aliasedTable(user, 'judger');
   const totalScore = sql<string>`coalesce(sum(${userPoint.points}), 0)`;
   const examResult = await db.select({
       uid: user.id,
@@ -40,13 +41,18 @@ export const calScore = async (flowId: number) => {
       uid: userFlow.fkUserId,
       problemId: userPoint.fkProblemId,
       points: userPoint.points,
+      judgerName: judger.name,
     })
     .from(userFlow)
     .innerJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
+    .leftJoin(judger, eq(userPoint.fkJudgerId, judger.id))
     .where(eq(userFlow.fkFlowId, flowId));
 
   const pointMap = new Map(
-    pointRows.map((row) => [`${row.uid}-${row.problemId}`, row.points]),
+    pointRows.map((row) => [
+      `${row.uid}-${row.problemId}`,
+      { points: row.points, judgerName: row.judgerName },
+    ]),
   );
   const gradedUidSet = new Set(pointRows.map((row) => row.uid));
 
@@ -55,10 +61,12 @@ export const calScore = async (flowId: number) => {
     phoneNumber: session.role >= 3 ? row.phoneNumber : null,
     isGraded: gradedUidSet.has(row.uid),
     problemScores: problems.map((item) => ({
+      ...pointMap.get(`${row.uid}-${item.id}`),
       id: item.id,
       title: item.title,
       score: item.score,
-      points: pointMap.get(`${row.uid}-${item.id}`) ?? 0,
+      points: pointMap.get(`${row.uid}-${item.id}`)?.points ?? 0,
+      judgerName: pointMap.get(`${row.uid}-${item.id}`)?.judgerName ?? null,
     })),
   }));
 };

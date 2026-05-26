@@ -34,8 +34,8 @@ const statusLabel: Record<string, string> = {
 const flowTypeLabel: Record<string, string> = {
   recruitment: "笔试招新",
   recruitment_exemption: "免试招新",
-  woc: "WOC",
-  soc: "SOC",
+  woc: "WOC/WOD",
+  soc: "SOC/SOD",
 };
 
 export const ApprovalsContent = ({

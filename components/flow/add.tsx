@@ -144,8 +144,8 @@ export const AddFlow = () => {
                       <SelectContent>
                         <SelectItem value="recruitment">笔试招新</SelectItem>
                         <SelectItem value="recruitment_exemption">免试招新</SelectItem>
-                        <SelectItem value="woc">WOC</SelectItem>
-                        <SelectItem value="soc">SOC</SelectItem>
+                        <SelectItem value="woc">WOC/WOD</SelectItem>
+                        <SelectItem value="soc">SOC/SOD</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormControl>
