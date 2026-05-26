@@ -22,7 +22,7 @@ env:
   SERVICE_NAME: sast-people-next
   REGISTRY_PREFIX: sast
   TAR_FILE_NAME: new_image.tar
-  TAR_GZ_FILE_NAME: new_image.tar.gz
+  TAR_ZST_FILE_NAME: new_image.tar.zst
 
 jobs:
   quality:
@@ -63,8 +63,27 @@ jobs:
             ${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
           outputs: type=docker,dest=./${{ env.TAR_FILE_NAME }}
 
-      - name: Compress image tar
-        run: gzip -f ${{ env.TAR_FILE_NAME }}
+      - name: Check image tar size before compression
+        run: |
+          echo "Image archive before compression:"
+          ls -lh ${{ env.TAR_FILE_NAME }}
+          du -h ${{ env.TAR_FILE_NAME }}
+
+      - name: Install zstd if needed
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y zstd
+          fi
+          zstd --version
+
+      - name: Compress image tar with zstd
+        run: |
+          zstd -T0 -10 --force --verbose ${{ env.TAR_FILE_NAME }} -o ${{ env.TAR_ZST_FILE_NAME }}
+          echo "Image archive after compression:"
+          ls -lh ${{ env.TAR_FILE_NAME }} ${{ env.TAR_ZST_FILE_NAME }}
+          du -h ${{ env.TAR_FILE_NAME }} ${{ env.TAR_ZST_FILE_NAME }}
+          rm -f ${{ env.TAR_FILE_NAME }}
 
       - name: Transfer files to server
         uses: appleboy/scp-action@v0.1.7
@@ -72,7 +91,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "${{ env.TAR_GZ_FILE_NAME }},docker-compose.yml"
+          source: "${{ env.TAR_ZST_FILE_NAME }},docker-compose.yml"
           target: /data/${{ env.SERVICE_NAME }}/
 
       - name: Deploy on server
@@ -86,8 +105,7 @@ jobs:
 
             SERVICE_DIR="/data/${{ env.SERVICE_NAME }}"
             IMAGE_NAME="${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}"
-            TAR_FILE="${{ env.TAR_FILE_NAME }}"
-            TAR_GZ_FILE="${{ env.TAR_GZ_FILE_NAME }}"
+            TAR_ZST_FILE="${{ env.TAR_ZST_FILE_NAME }}"
             NEW_VERSION_TAG="${{ steps.vars.outputs.sha_short }}"
 
             cd ${SERVICE_DIR}
@@ -97,12 +115,17 @@ jobs:
             echo "=========================================="
 
             echo ""
-            echo "[1/7] Decompressing image..."
-            gunzip -f ${TAR_GZ_FILE}
+            echo "[1/7] Checking zstd availability..."
+            if ! command -v zstd >/dev/null 2>&1; then
+              echo "zstd is not installed on the server."
+              echo "Please install it once with: sudo apt install -y zstd"
+              exit 1
+            fi
+            zstd --version
 
             echo ""
-            echo "[2/7] Loading image from ${TAR_FILE}..."
-            docker load -i ${TAR_FILE}
+            echo "[2/7] Loading image from ${TAR_ZST_FILE}..."
+            zstd -dc ${TAR_ZST_FILE} | docker load
 
             echo ""
             echo "[3/7] Rotating image tags..."
@@ -191,7 +214,7 @@ jobs:
 
             echo ""
             echo "[7/7] Cleaning up..."
-            rm -f ${TAR_FILE} ${TAR_GZ_FILE}
+            rm -f ${TAR_ZST_FILE}
             docker rmi "${IMAGE_NAME}:latest"
 
             echo "  Pruning old version images (keep latest 3)..."
