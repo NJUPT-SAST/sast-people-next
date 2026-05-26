@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     if (userFlowId === null) {
       return NextResponse.json(
-        { success: false, message: '未找到匹配的用户流程' },
+        { success: false, message: '该同学未报名当前阅卷流程' },
         { status: 404 }
       );
     }

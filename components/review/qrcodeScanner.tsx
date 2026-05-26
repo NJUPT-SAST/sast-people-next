@@ -7,9 +7,11 @@ import { useZxing } from 'react-zxing';
 import { Camera, Pause, QrCode, RefreshCw } from 'lucide-react';
 
 import { useUserInfoById as getUserInfoById } from '@/hooks/useUserInfoById';
+import { useLocalFlowId } from '@/hooks/useLocalFlowId';
 
 import { userType } from '@/types/user';
 import { toast } from 'sonner';
+import { resolveUserFlowForReview } from './resolveUserFlow';
 
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -37,6 +39,7 @@ const QRCodeScanner = () => {
   const [isResolving, setIsResolving] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [userInfo, setUserInfo] = useState<userType>();
+  const flowId = useLocalFlowId();
 
   const filteredDevices = useMemo(
     () => devices?.filter((value) => value.deviceId) ?? [],
@@ -68,6 +71,23 @@ const QRCodeScanner = () => {
     });
 
     if (!userInfo) {
+      return;
+    }
+
+    if (!flowId) {
+      toast.error('请先设置阅卷范围');
+      return;
+    }
+
+    if (!userInfo.studentId) {
+      toast.error('该学生缺少学号，无法确认报名记录');
+      return;
+    }
+
+    const resolved = await resolveUserFlowForReview(userInfo.studentId, flowId);
+
+    if (!resolved.success) {
+      toast.error(resolved.message);
       return;
     }
 

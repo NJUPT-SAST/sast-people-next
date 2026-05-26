@@ -5,18 +5,36 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { checkUserByStuID } from './checkUser';
+import { resolveUserFlowForReview } from './resolveUserFlow';
+import { selectProbSchema } from '@/types/problem';
 
 export const MannualInput = () => {
   const [studentId, setStudentId] = useState('');
   const [hasReviewRange, setHasReviewRange] = useState(false);
+  const [reviewFlowId, setReviewFlowId] = useState<number | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     const checkReviewRange = () => {
       const selectedProbs = localStorage.getItem('people_selectedProbs');
-      const hasRange = !!selectedProbs;
-      setHasReviewRange(hasRange);
+      if (!selectedProbs) {
+        setHasReviewRange(false);
+        setReviewFlowId(null);
+        return;
+      }
+
+      const parsed = selectProbSchema.safeParse(
+        (() => {
+          try {
+            return JSON.parse(selectedProbs) as unknown;
+          } catch {
+            return null;
+          }
+        })(),
+      );
+      setHasReviewRange(parsed.success && !!parsed.data.flowTypeId);
+      setReviewFlowId(parsed.success ? parsed.data.flowTypeId : null);
     };
 
     checkReviewRange();
@@ -52,6 +70,18 @@ export const MannualInput = () => {
 
       if (!existed) {
         toast.error('未找到该考生，请检查学号后重试');
+        return;
+      }
+
+      if (!reviewFlowId) {
+        toast.error('请先设置阅卷范围');
+        return;
+      }
+
+      const resolved = await resolveUserFlowForReview(normalizedStudentId, reviewFlowId);
+
+      if (!resolved.success) {
+        toast.error(resolved.message);
         return;
       }
 
