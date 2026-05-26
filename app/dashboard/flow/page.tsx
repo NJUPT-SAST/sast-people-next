@@ -11,7 +11,7 @@ const FlowPage = async () => {
         <div className="space-y-1">
           <PageTitle />
           <p className="text-sm text-muted-foreground">
-            管理招新、WOC、SOC 等流程，维护时间、步骤与笔试题目。
+            管理招新、WOC/WOD、SOC/SOD 等流程，维护时间、步骤与笔试题目。
           </p>
         </div>
         <AddFlow />
