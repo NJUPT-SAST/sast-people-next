@@ -4,6 +4,8 @@ import { ApprovalsContent } from "@/components/manage/approvalsContent";
 import { getAllEvaluations } from "@/action/user-flow/evaluation";
 import { logServerError } from "@/lib/server-error-log";
 
+export const dynamic = "force-dynamic";
+
 const Approvals = async () => {
   let evaluations: Awaited<ReturnType<typeof getAllEvaluations>> = [];
   let loadError = false;

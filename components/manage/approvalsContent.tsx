@@ -11,8 +11,8 @@ import {
   rejectEvaluation,
   reopenEvaluation,
 } from "@/action/user-flow/evaluation";
-import { InferSelectModel } from "drizzle-orm";
-import { interviewEvaluation } from "@/db/schema";
+import type { InferSelectModel } from "drizzle-orm";
+import type { interviewEvaluation } from "@/db/schema";
 import originalDayjs from "@/lib/dayjs";
 
 export type EvaluationRow = {

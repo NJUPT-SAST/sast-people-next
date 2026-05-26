@@ -4,12 +4,7 @@ import BlurIn from "@/components/magicui/blur-in";
 import FlickeringGrid from "@/components/magicui/flickering-grid";
 import { TestLogin } from "@/components/testLogin";
 import { Card, CardContent } from "@/components/ui/card";
-import { Inter } from "next/font/google";
 import Image from "next/image";
-
-const inter = Inter({
-  subsets: ["latin"],
-});
 
 const Login = async () => {
   return (
@@ -18,7 +13,7 @@ const Login = async () => {
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap"
       />
-      <main className={`${inter.className} min-h-dvh bg-[#f4f6f2] text-[#18231d]`}>
+      <main className="min-h-dvh bg-[#f4f6f2] text-[#18231d]">
         <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.02fr)_minmax(420px,0.98fr)]">
           <section className="relative flex min-h-[320px] flex-col overflow-hidden bg-[#18A058] px-8 pb-20 pt-10 text-white sm:min-h-[380px] lg:min-h-dvh lg:justify-center lg:p-12">
             <div className="relative z-10 mb-10 lg:absolute lg:left-12 lg:top-10 lg:mb-0">
