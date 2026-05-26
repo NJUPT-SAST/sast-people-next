@@ -15,6 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/user-flow/evaluation";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Candidate = {
   userFlowId: number;
@@ -39,9 +47,11 @@ const evalStatusBadge = (evalStatus: string | null, flowStatus: string) => {
 };
 
 const passButtonClass =
-  "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary";
+  "h-8 rounded-lg border-primary/20 bg-primary/8 px-3 text-primary shadow-none hover:bg-primary/12 hover:text-primary";
 const rejectButtonClass =
-  "border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive";
+  "h-8 rounded-lg border-destructive/20 bg-destructive/8 px-3 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive";
+const neutralButtonClass =
+  "h-8 rounded-lg border-border bg-background px-3 shadow-none hover:bg-muted";
 
 export const EvaluationTable = ({
   candidates,
@@ -71,6 +81,9 @@ export const EvaluationTable = ({
     setMeetingLink("");
     setEditMode(null);
   };
+
+  const editingCandidate =
+    candidates.find((c) => c.userFlowId === evaluatingId) ?? null;
 
   const handlePass = async (userFlowId: number) => {
     if (!content.trim()) return;
@@ -122,30 +135,33 @@ export const EvaluationTable = ({
 
   if (candidates.length === 0) {
     return (
-      <div className="rounded-md border bg-card p-8 text-center text-muted-foreground text-sm">
-        暂无可评估的候选人
+      <div className="rounded-xl border bg-card p-10 text-center">
+        <p className="text-sm font-medium">暂无可评估的候选人</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          当前流程还没有可处理的报名人员。
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-md border bg-card">
+    <div className="overflow-hidden rounded-xl border bg-card">
       <div className="hidden md:block overflow-x-auto">
         <Table className="table-fixed min-w-[760px]">
           {role >= 3 ? (
             <colgroup>
-              <col className="w-[14%]" />
               <col className="w-[15%]" />
-              <col className="w-[16%]" />
-              <col className="w-[15%]" />
-              <col className="w-[40%]" />
+              <col className="w-[20%]" />
+              <col className="w-[22%]" />
+              <col className="w-[18%]" />
+              <col className="w-[25%]" />
             </colgroup>
           ) : (
             <colgroup>
               <col className="w-[18%]" />
-              <col className="w-[22%]" />
-              <col className="w-[18%]" />
-              <col className="w-[42%]" />
+              <col className="w-[28%]" />
+              <col className="w-[24%]" />
+              <col className="w-[30%]" />
             </colgroup>
           )}
           <TableHeader>
@@ -168,7 +184,7 @@ export const EvaluationTable = ({
               const busy = loadingId === c.userFlowId;
 
               return (
-                <TableRow key={c.userFlowId}>
+                <TableRow key={c.userFlowId} className="hover:bg-muted/30">
                   <TableCell className="whitespace-nowrap px-4 py-4 font-mono text-xs text-muted-foreground">
                     {c.studentId}
                   </TableCell>
@@ -186,53 +202,15 @@ export const EvaluationTable = ({
                   {role >= 2 && (
                     <TableCell className="whitespace-normal px-4 py-4">
                       {isEditing ? (
-                        <div className="flex max-w-xl flex-col gap-2">
-                          <Textarea
-                            placeholder="请输入面评内容..."
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            className="min-h-[80px]"
-                          />
-                          <Input
-                            placeholder="会议链接"
-                            value={meetingLink}
-                            onChange={(e) => setMeetingLink(e.target.value)}
-                            className="h-8 text-xs"
-                          />
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                editMode === "reopen"
-                                  ? handleReopen(c.userFlowId)
-                                  : handlePass(c.userFlowId)
-                              }
-                              loading={busy}
-                            >
-                              提交面评
-                            </Button>
-                            {!isRejected && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className={rejectButtonClass}
-                                onClick={() => handleReject(c.userFlowId)}
-                                loading={busy}
-                              >
-                                不通过
-                              </Button>
-                            )}
-                            <Button size="sm" variant="ghost" onClick={cancelEdit}>
-                              取消
-                            </Button>
-                          </div>
+                        <div className="text-sm text-muted-foreground">
+                          正在编辑面评
                         </div>
                       ) : c.evalStatus === "pending" ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="shadow-xs"
+                            className={neutralButtonClass}
                             onClick={() => startEdit(c, "pass")}
                           >
                             修改
@@ -252,7 +230,7 @@ export const EvaluationTable = ({
                           改为通过
                         </Button>
                       ) : (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex w-fit flex-wrap gap-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -289,7 +267,7 @@ export const EvaluationTable = ({
           const busy = loadingId === c.userFlowId;
 
           return (
-            <div key={c.userFlowId} className="flex flex-col gap-3 p-4">
+            <div key={c.userFlowId} className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
                   <span className="font-semibold">{c.name}</span>
@@ -306,50 +284,17 @@ export const EvaluationTable = ({
               )}
               {role >= 2 && (
                 isEditing ? (
-                  <div className="space-y-2 pt-1">
-                    <Textarea
-                      placeholder="请输入面评内容..."
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      className="min-h-[80px]"
-                    />
-                    <Input
-                      placeholder="会议链接"
-                      value={meetingLink}
-                      onChange={(e) => setMeetingLink(e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          editMode === "reopen"
-                            ? handleReopen(c.userFlowId)
-                            : handlePass(c.userFlowId)
-                        }
-                        loading={busy}
-                      >
-                        提交面评
-                      </Button>
-                      {!isRejected && (
-                        <Button
-                          size="sm"
-                        variant="outline"
-                        className={rejectButtonClass}
-                          onClick={() => handleReject(c.userFlowId)}
-                          loading={busy}
-                        >
-                          不通过
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={cancelEdit}>
-                        取消
-                      </Button>
-                    </div>
+                  <div className="pt-1 text-sm text-muted-foreground">
+                    正在编辑面评
                   </div>
                 ) : c.evalStatus === "pending" ? (
                   <div className="flex items-center gap-2 pt-1">
-                    <Button size="sm" variant="outline" onClick={() => startEdit(c, "pass")}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={neutralButtonClass}
+                      onClick={() => startEdit(c, "pass")}
+                    >
                       修改
                     </Button>
                   </div>
@@ -369,7 +314,7 @@ export const EvaluationTable = ({
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex gap-2 pt-1">
+                  <div className="flex w-fit gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -394,6 +339,73 @@ export const EvaluationTable = ({
           );
         })}
       </div>
+      <Dialog
+        open={!!editingCandidate}
+        onOpenChange={(open) => {
+          if (!open) cancelEdit();
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>面评记录</DialogTitle>
+            <DialogDescription>
+              {editingCandidate
+                ? `${editingCandidate.name}（${editingCandidate.studentId ?? "无学号"}）`
+                : "填写评价内容，会议链接可选。"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">面评内容</label>
+              <Textarea
+                placeholder="请输入面评内容..."
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="min-h-[160px] resize-y"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">会议链接</label>
+              <Input
+                placeholder="https://..."
+                value={meetingLink}
+                onChange={(e) => setMeetingLink(e.target.value)}
+                className="h-10"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="ghost" onClick={cancelEdit}>
+              取消
+            </Button>
+            {editingCandidate && editingCandidate.status !== "rejected" && (
+              <Button
+                variant="outline"
+                className={rejectButtonClass}
+                onClick={() => handleReject(editingCandidate.userFlowId)}
+                loading={loadingId === editingCandidate.userFlowId}
+              >
+                不通过
+              </Button>
+            )}
+            <Button
+              onClick={() => {
+                if (!editingCandidate) return;
+                return editMode === "reopen"
+                  ? handleReopen(editingCandidate.userFlowId)
+                  : handlePass(editingCandidate.userFlowId);
+              }}
+              loading={
+                editingCandidate
+                  ? loadingId === editingCandidate.userFlowId
+                  : false
+              }
+            >
+              提交面评
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -15,6 +15,7 @@ import {
 
 const statusLabel: Record<string, string> = {
   pending: '未开始',
+  ungraded: '未批卷',
   ongoing: '待确认',
   passed: '通过',
   failed: '不通过',
@@ -27,6 +28,7 @@ const statusVariant: Record<
   React.ComponentProps<typeof Badge>['variant']
 > = {
   pending: 'outline',
+  ungraded: 'outline',
   ongoing: 'outline',
   passed: 'outline',
   failed: 'outline',
@@ -36,6 +38,7 @@ const statusVariant: Record<
 
 const statusClassName: Record<string, string> = {
   pending: 'border-muted-foreground/30 bg-muted text-muted-foreground',
+  ungraded: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   ongoing: 'border-chart-3/30 bg-chart-3/10 text-chart-3',
   passed: 'border-primary/30 bg-primary/10 text-primary',
   failed: 'border-destructive/30 bg-destructive/10 text-destructive',
@@ -49,20 +52,28 @@ export const columns: ColumnDef<
   {
     id: 'select',
     header: ({ table }) => {
-      const selectedCount = table.getFilteredSelectedRowModel().rows.length;
-      const totalCount = table.getFilteredRowModel().rows.length;
+      const selectableRows = table
+        .getFilteredRowModel()
+        .rows.filter((row) => row.getCanSelect());
+      const selectedCount = selectableRows.filter((row) =>
+        row.getIsSelected(),
+      ).length;
+      const totalCount = selectableRows.length;
       const checked =
         selectedCount === 0
           ? false
-          : selectedCount === totalCount && totalCount > 1
+          : selectedCount === totalCount
             ? true
             : 'indeterminate';
 
       return (
         <Checkbox
           checked={checked}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          onCheckedChange={(value) => {
+            selectableRows.forEach((row) => row.toggleSelected(!!value));
+          }}
           aria-label="Select all"
+          disabled={totalCount === 0}
         />
       );
     },
@@ -71,6 +82,7 @@ export const columns: ColumnDef<
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
+        disabled={!row.getCanSelect()}
       />
     ),
     enableSorting: false,

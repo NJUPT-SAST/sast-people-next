@@ -116,7 +116,7 @@ describe("Recruitment DataTable", () => {
     });
   });
 
-  it("sends result email to passed and failed rows together", async () => {
+  it("sends result email for selected passed and failed rows", async () => {
     const user = userEvent.setup();
 
     render(
@@ -131,7 +131,9 @@ describe("Recruitment DataTable", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "发送结果邮件并锁定" }));
+    await user.click(screen.getAllByLabelText("select-1")[0]);
+    await user.click(screen.getAllByLabelText("select-2")[0]);
+    await user.click(screen.getByRole("button", { name: "发送选中邮件" }));
 
     await waitFor(() => {
       expect(mockBatchSendEmail).toHaveBeenCalledWith([1], 9, true);

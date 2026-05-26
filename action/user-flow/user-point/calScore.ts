@@ -48,10 +48,12 @@ export const calScore = async (flowId: number) => {
   const pointMap = new Map(
     pointRows.map((row) => [`${row.uid}-${row.problemId}`, row.points]),
   );
+  const gradedUidSet = new Set(pointRows.map((row) => row.uid));
 
   return examResult.map((row) => ({
     ...row,
     phoneNumber: session.role >= 3 ? row.phoneNumber : null,
+    isGraded: gradedUidSet.has(row.uid),
     problemScores: problems.map((item) => ({
       id: item.id,
       title: item.title,
