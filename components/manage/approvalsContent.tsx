@@ -40,21 +40,27 @@ const flowTypeLabel: Record<string, string> = {
 
 export const ApprovalsContent = ({
   initialEvaluations,
+  initialLoadError = false,
 }: {
   initialEvaluations?: EvaluationRow[];
+  initialLoadError?: boolean;
 }) => {
   const [evaluations, setEvaluations] = useState<EvaluationRow[]>(
     initialEvaluations ?? [],
   );
   const [loading, setLoading] = useState(!initialEvaluations);
+  const [loadError, setLoadError] = useState(initialLoadError);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
   const fetchEvaluations = async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const data = await getAllEvaluations();
       setEvaluations(data);
     } catch {
+      setLoadError(true);
       toast.error("加载审批列表失败");
     } finally {
       setLoading(false);
@@ -126,6 +132,24 @@ export const ApprovalsContent = ({
 
   if (loading) {
     return <p className="text-muted-foreground text-sm">加载中...</p>;
+  }
+
+  if (loadError) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium">审批列表加载失败</p>
+            <p className="text-sm text-muted-foreground">
+              请确认生产数据库迁移已执行完成后重试。
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={fetchEvaluations}>
+            重试
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (evaluations.length === 0) {
