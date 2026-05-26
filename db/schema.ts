@@ -176,6 +176,7 @@ export const userPoint = pgTable("user_point", {
     .references(() => problem.id)
     .notNull(),
   points: integer("points").notNull(),
+  fkJudgerId: integer("fk_judger_id").references(() => user.id),
 }, (table) => ({
   userFlowProblemUnique: unique().on(table.fkUserFlowId, table.fkProblemId),
 }));

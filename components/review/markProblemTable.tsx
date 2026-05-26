@@ -77,6 +77,7 @@ export const MarkProblemTable = ({
         fkUserFlowId: userFlowId,
         fkProblemId: problem.id,
         points: Number.isFinite(currentScore) ? currentScore : 0,
+        fkJudgerId: existed?.fkJudgerId ?? null,
       };
     },
   );

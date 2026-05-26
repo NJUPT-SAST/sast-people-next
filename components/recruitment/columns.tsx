@@ -123,7 +123,13 @@ export const columns: ColumnDef<
     header: '得分组成',
     cell: ({ getValue }) => {
       const scores = getValue() as
-        | Array<{ id: number; title: string; score: number; points: number }>
+        | Array<{
+            id: number;
+            title: string;
+            score: number;
+            points: number;
+            judgerName: string | null;
+          }>
         | undefined;
       if (!scores?.length) {
         return (
@@ -151,9 +157,14 @@ export const columns: ColumnDef<
                   className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 text-sm"
                 >
                   <span className="min-w-0 break-words">{item.title}</span>
-                  <Badge variant="outline" className="shrink-0 tabular-nums">
-                    {item.points}/{item.score}
-                  </Badge>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant="outline" className="tabular-nums">
+                      {item.points}/{item.score}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      阅卷：{item.judgerName ?? '未记录'}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

@@ -4,7 +4,7 @@ import { verifyRole, verifySession } from "@/lib/dal";
 import { InferInsertModel, sql } from "drizzle-orm";
 
 export const upsertPoint = async (userFlowId: number, problemId: number, point: number) => {
-  await verifyRole(2);
+  const session = await verifyRole(2);
   const user = await verifySession();
   console.log(user.name, "upsertPoint", userFlowId, problemId, point);
 
@@ -12,17 +12,19 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
     fkUserFlowId: userFlowId,
     fkProblemId: problemId,
     points: point,
+    fkJudgerId: session.uid,
   }).onConflictDoUpdate({
     target: [userPoint.fkUserFlowId, userPoint.fkProblemId],
     set: {
       points: point,
+      fkJudgerId: session.uid,
     },
   });
 
 };
 
 export const batchUpsertPoint = async (values: Array<InferInsertModel<typeof userPoint>>) => {
-  await verifyRole(2);
+  const session = await verifyRole(2);
   const user = await verifySession();
   console.log(user.name, "batchUpsertPoint", values);
 
@@ -31,10 +33,12 @@ export const batchUpsertPoint = async (values: Array<InferInsertModel<typeof use
     fkUserFlowId: value.fkUserFlowId,
     fkProblemId: value.fkProblemId,
     points: value.points,
+    fkJudgerId: session.uid,
   }))).onConflictDoUpdate({
     target: [userPoint.fkUserFlowId, userPoint.fkProblemId],
     set: {
-      points: sql`excluded.points`
+      points: sql`excluded.points`,
+      fkJudgerId: sql`excluded.fk_judger_id`,
     },
   });
 

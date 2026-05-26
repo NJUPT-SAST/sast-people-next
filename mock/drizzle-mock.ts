@@ -142,6 +142,7 @@ pgMem.public.none(`
     fk_user_flow_id INTEGER NOT NULL REFERENCES "user_flow"(id),
     fk_problem_id INTEGER NOT NULL REFERENCES "problem"(id),
     points INTEGER NOT NULL,
+    fk_judger_id INTEGER REFERENCES "user"(id),
     UNIQUE(fk_user_flow_id, fk_problem_id)
   )
 `);
@@ -201,8 +202,8 @@ function seedDatabase() {
 
   for (const up of mockUserPoints) {
     pgMem.public.none(
-      `INSERT INTO "user_point" (fk_user_flow_id, fk_problem_id, points)
-       VALUES (${escSql(up.fk_user_flow_id)}, ${escSql(up.fk_problem_id)}, ${escSql(up.points)})`
+      `INSERT INTO "user_point" (fk_user_flow_id, fk_problem_id, points, fk_judger_id)
+       VALUES (${escSql(up.fk_user_flow_id)}, ${escSql(up.fk_problem_id)}, ${escSql(up.points)}, ${escSql((up as Record<string, unknown>).fk_judger_id ?? null)})`
     );
   }
 
