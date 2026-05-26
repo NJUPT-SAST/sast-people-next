@@ -15,7 +15,6 @@ import {
   TableBody,
   TableCell,
 } from '../ui/table';
-import { Badge } from '../ui/badge';
 import originalDayjs from '@/lib/dayjs';
 import { Operations } from './operations';
 
@@ -32,7 +31,14 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     header: '名称',
     accessorFn: (data) => data.title,
     cell({ row }) {
-      return <span className="break-words">{row.original.title}</span>;
+      return (
+        <div className="min-w-0 space-y-1">
+          <div className="font-medium leading-6">{row.original.title}</div>
+          <div className="line-clamp-2 max-w-[30rem] text-sm leading-5 text-muted-foreground">
+            {row.original.description || '暂无描述'}
+          </div>
+        </div>
+      );
     },
   },
   {
@@ -41,17 +47,9 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     accessorFn: (data) => data.type,
     cell({ row }) {
       const type = row.getValue('type') as string;
-      return <Badge variant="secondary">{flowTypeLabel[type] ?? type}</Badge>;
-    },
-  },
-  {
-    accessorKey: 'description',
-    header: '描述',
-    accessorFn: (data) => data.description,
-    cell({ row }) {
       return (
-        <span className="block max-w-[28rem] whitespace-normal break-words">
-          {row.original.description || '-'}
+        <span className="text-muted-foreground">
+          {flowTypeLabel[type] ?? type}
         </span>
       );
     },
@@ -62,7 +60,11 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     accessorFn: (data) => data.startedAt,
     cell({ row }) {
       const time = row.getValue('startedAt') as Date;
-      return originalDayjs(time).format('YYYY-MM-DD HH:mm:ss');
+      return (
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {originalDayjs(time).format('YYYY-MM-DD HH:mm')}
+        </span>
+      );
     },
   },
   {
@@ -71,13 +73,17 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     accessorFn: (data) => data.endedAt,
     cell({ row }) {
       const time = row.getValue('endedAt') as Date;
-      return originalDayjs(time).format('YYYY-MM-DD HH:mm:ss');
+      return (
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {originalDayjs(time).format('YYYY-MM-DD HH:mm')}
+        </span>
+      );
     },
   },
   {
     accessorKey: 'operations',
     header: () => (
-      <div className="grid w-full grid-cols-[4rem_4rem_4rem] items-center justify-end gap-1">
+      <div className="grid w-full grid-cols-[4.5rem_4.5rem_3.5rem] items-center justify-end gap-1">
         <span className="col-start-2 text-center">操作</span>
       </div>
     ),
@@ -104,28 +110,27 @@ export function FlowTable<TData extends displayFlow, TValue>({
   });
 
   return (
-    <div className="rounded-md border bg-card">
+    <div className="overflow-hidden rounded-xl border bg-card">
       {/* PC 端表格视图 */}
       <div className="hidden xl:block">
         <Table className="table-fixed" containerClassName="overflow-x-visible">
           <colgroup>
+            <col className="w-[32%]" />
+            <col className="w-[11%]" />
             <col className="w-[15%]" />
-            <col className="w-[9%]" />
-            <col className="w-[22%]" />
-            <col className="w-[16%]" />
-            <col className="w-[16%]" />
-            <col className="w-[22%]" />
+            <col className="w-[15%]" />
+            <col className="w-[27%]" />
           </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="bg-muted/30 hover:bg-muted/30">
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead
                       key={header.id}
                       className={
                         header.column.id === 'operations'
-                          ? 'whitespace-nowrap px-4 py-3'
+                          ? 'whitespace-nowrap px-4 py-3 text-right'
                           : 'whitespace-nowrap px-4 py-3'
                       }
                     >
@@ -147,14 +152,15 @@ export function FlowTable<TData extends displayFlow, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
+                  className="hover:bg-muted/30"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
                       className={
                         cell.column.id === 'operations'
-                          ? 'px-4 py-3 text-right'
-                          : 'px-4 py-3'
+                          ? 'px-4 py-3 text-right align-middle'
+                          : 'px-4 py-3 align-middle'
                       }
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -177,9 +183,16 @@ export function FlowTable<TData extends displayFlow, TValue>({
       <div className="xl:hidden flex flex-col divide-y divide-border">
         {table.getRowModel().rows?.length ? (
           table.getRowModel().rows.map((row) => (
-            <div key={row.id} className="p-4 space-y-4 transition-colors hover:bg-muted/50">
+            <div key={row.id} className="space-y-4 p-4 transition-colors hover:bg-muted/50">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-base px-1">{row.original.title}</span>
+                <div className="min-w-0 space-y-1 px-1">
+                  <span className="font-semibold text-base">{row.original.title}</span>
+                  <div>
+                    <span className="text-sm text-muted-foreground">
+                      {flowTypeLabel[row.original.type] ?? row.original.type}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="text-sm space-y-2 px-1">
                 <div className="text-muted-foreground break-words">{row.original.description || '-'}</div>

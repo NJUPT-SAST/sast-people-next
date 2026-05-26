@@ -170,7 +170,7 @@ export const ApprovalsContent = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           共 {pending.length} 条待审批
         </p>
@@ -192,12 +192,12 @@ export const ApprovalsContent = ({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3 sm:gap-4">
           {displayed.map((row) => (
-            <Card key={row.evaluation.id}>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">
+            <Card key={row.evaluation.id} className="rounded-2xl">
+              <CardHeader className="space-y-3 pb-3">
+                <div className="flex items-start justify-between gap-3">
+                  <CardTitle className="min-w-0 text-base leading-6 sm:text-sm">
                     {row.candidateName ?? "未知用户"}
                     <span className="text-muted-foreground font-normal">
                       {" "}
@@ -205,6 +205,7 @@ export const ApprovalsContent = ({
                     </span>
                   </CardTitle>
                   <Badge
+                    className="shrink-0"
                     variant={
                       row.evaluation.status === "approved"
                         ? "default"
@@ -216,7 +217,7 @@ export const ApprovalsContent = ({
                     {statusLabel[row.evaluation.status] ?? row.evaluation.status}
                   </Badge>
                 </div>
-                <div className="flex gap-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   {row.flowTitle && (
                     <Badge variant="outline" className="text-xs">
                       {flowTypeLabel[row.flowType ?? ""] ?? row.flowType}
@@ -225,8 +226,8 @@ export const ApprovalsContent = ({
                   {row.flowTitle && <span>{row.flowTitle}</span>}
                 </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">
+              <CardContent className="space-y-4">
+                <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
                 {row.meetingLink && (
@@ -239,10 +240,10 @@ export const ApprovalsContent = ({
                     {row.meetingLink}
                   </a>
                 )}
-                <div className="flex items-center justify-between mt-3">
-                  <div className="text-xs text-muted-foreground">
+                <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
                     {row.authorName && <span>评价人：{row.authorName}</span>}
-                    <span className="mx-2">·</span>
+                    {row.authorName && <span className="hidden sm:inline">·</span>}
                     <span>
                       {originalDayjs(row.evaluation.createdAt).format(
                         "YYYY-MM-DD HH:mm",
@@ -250,9 +251,10 @@ export const ApprovalsContent = ({
                     </span>
                   </div>
                   {row.evaluation.status === "pending" && (
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex">
                       <Button
                         size="sm"
+                        className="w-full sm:w-auto"
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -261,6 +263,7 @@ export const ApprovalsContent = ({
                       <Button
                         size="sm"
                         variant="destructive"
+                        className="w-full sm:w-auto"
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -272,6 +275,7 @@ export const ApprovalsContent = ({
                     <Button
                       size="sm"
                       variant="destructive"
+                      className="w-full sm:w-auto"
                       onClick={() => handleReject(row.evaluation.id)}
                       loading={actionLoading === row.evaluation.id}
                     >
@@ -282,6 +286,7 @@ export const ApprovalsContent = ({
                     <Button
                       size="sm"
                       variant="secondary"
+                      className="w-full sm:w-auto"
                       onClick={() => handleReopen(row.evaluation.id)}
                       loading={actionLoading === row.evaluation.id}
                     >

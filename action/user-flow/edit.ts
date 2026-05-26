@@ -106,21 +106,6 @@ export const batchSetOutcomeByUid = async (
   await verifyRole(3);
   if (uids.length === 0) return;
 
-  const [lockedRecord] = await db
-    .select({ id: userFlow.id })
-    .from(userFlow)
-    .where(
-      and(
-        eq(userFlow.fkFlowId, flowId),
-        inArray(userFlow.status, ['accepted', 'rejected']),
-      ),
-    )
-    .limit(1);
-
-  if (lockedRecord) {
-    throw new Error('结果邮件已发送，名单已锁定');
-  }
-
   await db
     .update(userFlow)
     .set({ status: statusStr, currentStepOrder })

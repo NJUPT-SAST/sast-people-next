@@ -24,10 +24,13 @@ const Recruitment = async () => {
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-1 border-b pb-4">
         <PageTitle />
+        <p className="text-sm text-muted-foreground">
+          按流程查看报名人员，处理面评结果、筛选笔试成绩并发送最终通知。
+        </p>
       </div>
-      <div className="space-y-4 mt-4">
+      <div className="mt-5">
         <RecruitmentContent
           flowTypes={flowTypes}
           initialData={initialData}

@@ -23,7 +23,7 @@ export const SelectFlow = ({
       onValueChange={(value) => onChange?.(value)}
       defaultValue={defaultFlowTypeId}
     >
-      <SelectTrigger className="w-[280px] truncate">
+      <SelectTrigger className="h-10 w-full truncate md:w-[320px]">
         <SelectValue placeholder="请选择需要操作的类别" />
       </SelectTrigger>
       {flowTypes.length > 0 && (

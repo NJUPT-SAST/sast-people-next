@@ -9,6 +9,7 @@ import { calScore } from '@/action/user-flow/user-point/calScore';
 import { getEvaluationCandidates } from '@/action/user-flow/evaluation';
 import { Loading } from '@/components/loading';
 import { displayFlow } from '@/types/flow';
+import { BadgeCheck, ClipboardList, Users } from 'lucide-react';
 
 type ExamResult = Awaited<ReturnType<typeof calScore>>;
 type CandidatesResult = Awaited<ReturnType<typeof getEvaluationCandidates>>;
@@ -77,43 +78,77 @@ export const RecruitmentContent = ({
         ) / scoreData.length;
 
   return (
-    <>
-      <SelectFlow
-        flowTypes={flowTypes}
-        defaultFlowTypeId={flowId}
-        onChange={handleFlowChange}
-      />
+    <div className="space-y-5">
+      <div className="rounded-xl border bg-card px-4 py-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">选择流程</p>
+            <p className="text-xs text-muted-foreground">
+              切换流程后，下方列表会自动刷新对应报名人员。
+            </p>
+          </div>
+          <SelectFlow
+            flowTypes={flowTypes}
+            defaultFlowTypeId={flowId}
+            onChange={handleFlowChange}
+          />
+        </div>
+
+        {flowId && !loading && (
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t pt-4 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Users className="size-4" />
+              <span>总人数</span>
+              <span className="font-semibold tabular-nums text-foreground">
+                {isEvaluationFlow ? evalData.length : scoreData.length}
+              </span>
+            </div>
+            {!isEvaluationFlow && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <BadgeCheck className="size-4" />
+                <span>平均分</span>
+                <span className="font-semibold tabular-nums text-foreground">
+                  {averageScore.toFixed(2)}
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <ClipboardList className="size-4" />
+              <span>流程类型</span>
+              <span className="font-medium text-foreground">
+                {isEvaluationFlow ? '面评审核' : '笔试成绩'}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {flowId ? (
         loading ? (
           <Loading />
         ) : isEvaluationFlow ? (
-          <>
-            <p className="text-muted-foreground">
-              总人数：{evalData.length}
-            </p>
+          <div className="space-y-4">
             <EvaluationTable
               candidates={evalData}
               role={role}
               onRefresh={refreshEvalData}
             />
-          </>
+          </div>
         ) : (
-          <>
-            <p className="text-muted-foreground">
-              总人数：{scoreData.length} &nbsp; 平均分：
-              {averageScore.toFixed(2)}
-            </p>
+          <div className="space-y-4">
             <DataTable
               columns={columns}
               data={scoreData}
               flowTypeId={parseInt(flowId)}
               role={role}
             />
-          </>
+          </div>
         )
       ) : (
-        <p className="text-muted-foreground">暂无流程</p>
+        <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+          暂无流程
+        </div>
       )}
-    </>
+    </div>
   );
 };

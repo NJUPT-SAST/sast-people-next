@@ -7,7 +7,7 @@ import { redirectSASTLink } from '@/action/user/link';
 export const LinkLogin = ({ isBinding }: { isBinding: boolean }) => {
   return (
     <Button
-      className="py-6 px-12 text-base text-white bg-[#18A058] hover:bg-[#158f4e] rounded-xl shadow-md shadow-[#18A058]/20 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-[#18A058]/30 active:scale-[0.98]"
+      className="h-12 w-full rounded-xl bg-[#18A058] px-5 text-base font-medium text-white shadow-none transition-colors hover:bg-[#158f4e] active:bg-[#127a45]"
       onClick={async () => redirectSASTLink(isBinding)}
     >
       <Image
@@ -15,7 +15,7 @@ export const LinkLogin = ({ isBinding }: { isBinding: boolean }) => {
         height={25}
         src={'/images/link.svg'}
         alt="link logo"
-        className="mr-4 invert"
+        className="mr-3 size-5 invert"
       />
       <span>使用 SAST Link 登录</span>
     </Button>

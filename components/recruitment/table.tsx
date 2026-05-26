@@ -36,12 +36,13 @@ type RecruitmentRowLike = {
   uid: number;
   stepId: number;
   status: string;
+  isGraded?: boolean;
 };
 
 const finalStatuses = new Set(['accepted', 'rejected']);
-const outcomeStatuses = new Set(['passed', 'failed']);
 const statusText: Record<string, string> = {
   pending: '未开始',
+  ungraded: '未批卷',
   ongoing: '待确认',
   passed: '通过',
   failed: '不通过',
@@ -58,12 +59,19 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
+  const getDisplayStatus = (row: RecruitmentRowLike) => {
+    const status = statusOverrides[row.uid] ?? row.status ?? 'ongoing';
+    if ((status === 'pending' || status === 'ongoing') && row.isGraded === false) {
+      return 'ungraded';
+    }
+    return status;
+  };
   const tableData = useMemo(
     () =>
       data.map((item) => {
         const row = item as RecruitmentRowLike;
-        const status = statusOverrides[row.uid];
-        return status ? ({ ...item, status } as TData) : item;
+        const status = getDisplayStatus(row);
+        return status !== row.status ? ({ ...item, status } as TData) : item;
       }),
     [data, statusOverrides],
   );
@@ -71,7 +79,7 @@ export function DataTable<TData, TValue>({
     row.original as RecruitmentRowLike;
   const getRowStatus = (row: { original: unknown }) => {
     const item = toRecruitmentRow(row);
-    return statusOverrides[item.uid] ?? item.status ?? 'ongoing';
+    return getDisplayStatus(item);
   };
   const isFinalRow = (row: { original: unknown }) =>
     finalStatuses.has(getRowStatus(row));
@@ -95,6 +103,7 @@ export function DataTable<TData, TValue>({
     data: tableData,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
+    enableRowSelection: (row) => !finalStatuses.has(getRowStatus(row)),
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
@@ -107,45 +116,50 @@ export function DataTable<TData, TValue>({
   const selectedMutableRows = table
     .getSelectedRowModel()
     .flatRows.filter((row) => !isFinalRow(row));
-  const outcomeRows = allRows.filter((row) => {
-    const status = getRowStatus(row);
-    return outcomeStatuses.has(status);
-  });
-  const hasFinalRows = allRows.some((row) => finalStatuses.has(getRowStatus(row)));
-  const undecidedRows = allRows.filter((row) => {
-    const status = getRowStatus(row);
-    return !outcomeStatuses.has(status) && !finalStatuses.has(status);
-  });
-  const canEditOutcomes = !hasFinalRows;
-  const canSendResultEmails =
-    canEditOutcomes && outcomeRows.length > 0 && undecidedRows.length === 0;
-  const helperText = hasFinalRows
-    ? '结果邮件已发送，名单已锁定'
-    : undecidedRows.length > 0
-      ? '需先将所有同学设为通过或不通过，再发送结果邮件'
-      : '邮件发送后名单锁定，权限以通过邮件发送成功为准';
-  const summaryStatuses = hasFinalRows
-    ? ['accepted', 'rejected']
-    : ['passed', 'failed'];
+  const selectedPassedRows = selectedMutableRows.filter(
+    (row) => getRowStatus(row) === 'passed',
+  );
+  const selectedFailedRows = selectedMutableRows.filter(
+    (row) => getRowStatus(row) === 'failed',
+  );
+  const selectedOutcomeRows = [...selectedPassedRows, ...selectedFailedRows];
+  const canEditOutcomes = selectedMutableRows.length > 0;
+  const canSendSelectedEmails =
+    selectedMutableRows.length > 0 &&
+    selectedOutcomeRows.length === selectedMutableRows.length;
+  const helperText =
+    '已发邮件的结果不可更改；选中未发邮件且已设为通过/不通过的同学后，可发送对应结果邮件并锁定';
+  const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'accepted', 'rejected'];
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
-        <Input
-          placeholder="筛选分数线"
-          value={
-            (table.getColumn('totalScore')?.getFilterValue() as string) ?? ''
-          }
-          onChange={(event) =>
-            table.getColumn('totalScore')?.setFilterValue(event.target.value)
-          }
-          className="max-w-sm w-full md:w-auto"
-        />
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="rounded-xl border bg-card px-4 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">批量处理</p>
+            <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
+              {role >= 3
+                ? helperText
+                : '查看当前流程的报名结果与状态。'}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
+            <Input
+              placeholder="筛选分数线"
+              value={
+                (table.getColumn('totalScore')?.getFilterValue() as string) ?? ''
+              }
+              onChange={(event) =>
+                table.getColumn('totalScore')?.setFilterValue(event.target.value)
+              }
+              className="h-9 w-full sm:w-[180px]"
+            />
+            <div className="flex flex-wrap items-center gap-2">
           {role >= 3 && (
             <>
             <Button
-              disabled={!canEditOutcomes || selectedMutableRows.length === 0}
+              size="sm"
+              disabled={!canEditOutcomes}
               onClick={async () => {
               const selectedRows = selectedMutableRows;
               const firstRow = selectedRows[0];
@@ -176,8 +190,9 @@ export function DataTable<TData, TValue>({
             设为通过
           </Button>
           <Button
+            size="sm"
             variant="outline"
-            disabled={!canEditOutcomes || selectedMutableRows.length === 0}
+            disabled={!canEditOutcomes}
             onClick={async () => {
               const selectedRows = selectedMutableRows;
               const firstRow = selectedRows[0];
@@ -208,13 +223,12 @@ export function DataTable<TData, TValue>({
             设为不通过
           </Button>
           <Button
+            size="sm"
             variant="outline"
-            disabled={!canSendResultEmails}
+            disabled={!canSendSelectedEmails}
             onClick={async () => {
-              const passedRows = allRows.filter((row) => getRowStatus(row) === 'passed');
-              const failedRows = allRows.filter((row) => getRowStatus(row) === 'failed');
-              const passedUids = passedRows.map((row) => toRecruitmentRow(row).uid);
-              const failedUids = failedRows.map((row) => toRecruitmentRow(row).uid);
+              const passedUids = selectedPassedRows.map((row) => toRecruitmentRow(row).uid);
+              const failedUids = selectedFailedRows.map((row) => toRecruitmentRow(row).uid);
               toast.promise(
                 Promise.all([
                   passedUids.length > 0
@@ -232,38 +246,44 @@ export function DataTable<TData, TValue>({
                   setRowSelection({});
                 }),
                 {
-                  loading: '正在发送结果邮件',
-                  success: '结果邮件已加入发送队列，名单已锁定',
-                  error: '发送失败',
+                  loading: '正在发送选中结果邮件',
+                  success: '选中结果邮件已加入发送队列，已发送人员结果锁定',
+                  error: '发送选中邮件失败',
                 },
               );
             }}
           >
-            发送结果邮件并锁定
+            发送选中邮件
           </Button>
             </>
           )}
-          <span className='text-muted-foreground text-xs md:text-sm max-w-[260px] md:max-w-none'>{role >= 3 ? helperText : ''}</span>
+            </div>
+          </div>
         </div>
       </div>
       {role >= 3 && (
-        <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
           {summaryStatuses.map((status) => {
             const count = allRows.filter((row) => getRowStatus(row) === status).length;
             return (
-              <div key={status} className="rounded-md border bg-card px-3 py-2">
-                {statusText[status]}：{count}
+              <div key={status} className="rounded-full border bg-card px-3 py-1.5">
+                <span>{statusText[status]}</span>
+                <span className="ml-2 font-semibold tabular-nums text-foreground">
+                  {count}
+                </span>
               </div>
             );
           })}
         </div>
       )}
       
-      <div className="overflow-hidden rounded-md border bg-card">
+      <div className="overflow-hidden rounded-xl border bg-card">
         {role >= 3 && (
-          <div className="flex-1 text-sm text-muted-foreground p-3 border-b">
-            {table.getFilteredSelectedRowModel().rows.length} /{' '}
-            {table.getFilteredRowModel().rows.length} 行选中
+          <div className="border-b bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {table.getFilteredSelectedRowModel().rows.length}
+            </span>{' '}
+            / {table.getFilteredRowModel().rows.length} 行选中
           </div>
         )}
 
@@ -294,6 +314,7 @@ export function DataTable<TData, TValue>({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && 'selected'}
+                    className="hover:bg-muted/30 data-[state=selected]:bg-primary/5"
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
@@ -334,7 +355,7 @@ export function DataTable<TData, TValue>({
               const offset = role >= 3 ? 1 : 0; // 有复选框时跳过第一列
               const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
               return (
-                <div key={row.id} className="flex p-4 gap-4 transition-colors hover:bg-muted/50">
+                <div key={row.id} className="flex gap-4 p-4 transition-colors hover:bg-muted/50">
                   {role >= 3 && (
                     <div className="pt-1">
                       {flexRender(cells[0].column.columnDef.cell, cells[0].getContext())}

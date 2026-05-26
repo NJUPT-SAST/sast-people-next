@@ -7,11 +7,16 @@ import { FlowTableServer } from "./flowTable";
 const FlowPage = async () => {
   return (
     <>
-      <div className="flex items-center justify-between w-full">
-        <PageTitle />
+      <div className="flex w-full flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <PageTitle />
+          <p className="text-sm text-muted-foreground">
+            管理招新、WOC、SOC 等流程，维护时间、步骤与笔试题目。
+          </p>
+        </div>
         <AddFlow />
       </div>
-      <div>
+      <div className="mt-1">
         <Suspense
           fallback={
             <>
