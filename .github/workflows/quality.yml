@@ -12,6 +12,8 @@ jobs:
   quality:
     name: TypeScript & Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
