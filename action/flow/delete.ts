@@ -15,4 +15,5 @@ export async function deleteFlow(id: number) {
     .where(eq(flow.id, id));
 
   revalidatePath("/dashboard/flow");
+  revalidatePath("/dashboard/user-flow");
 }

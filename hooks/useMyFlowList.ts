@@ -3,11 +3,17 @@ import { flow, flowStep, userFlow } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
 import { fullStepType } from "@/types/step";
 import { displayUserFlow } from "@/types/userflow";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
   const session = await verifySession();
-  const raw = await db.select().from(userFlow).innerJoin(flow, eq(userFlow.fkFlowId, flow.id)).leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId)).where(eq(userFlow.fkUserId, session.uid)).orderBy(flowStep.order);
+  const raw = await db
+    .select()
+    .from(userFlow)
+    .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+    .leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId))
+    .where(and(eq(userFlow.fkUserId, session.uid), eq(flow.isDeleted, false)))
+    .orderBy(flowStep.order);
 
   // Use a Map to group by user flow ID
   const flowMap = new Map<number, displayUserFlow>();
