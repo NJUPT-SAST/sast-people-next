@@ -6,7 +6,8 @@ import { TestLogin } from "@/components/testLogin";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 
-const sloganFontFamily = '"STXingkai", "KaiTi", "华文行楷", cursive';
+const sloganFontFamily =
+  '"Ma Shan Zheng", "STKaiti", "KaiTi", "华文楷体", cursive';
 
 const Login = async () => {
   return (
