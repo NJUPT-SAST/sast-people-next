@@ -1,8 +1,9 @@
 import 'server-only';
 import { createTransport } from 'nodemailer';
 import { mqClient } from './client';
-import { render } from '@react-email/components';
-import OfferEmail from '@/emails/offer';
+import { db } from '@/db/drizzle';
+import { emailBatch, emailDelivery } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 const transporter = createTransport({
   host: 'smtp.feishu.cn',
@@ -14,35 +15,85 @@ const transporter = createTransport({
   },
 });
 
+const emailFrom = '"SAST R&D Center" <recruitment@sast.fun>';
+
 export const sendEmail = mqClient.createFunction(
   { 
     id: 'step/send.email',
     triggers: [{ event: 'step/send.email' }]
   },
   async ({ event, step: _step }) => {
-    const { studentID, name, flowName, accept } = event.data;
-    // return { studentId: event.data.studentId, name: event.data.name };
-    await email(`${studentID}@njupt.edu.cn`, name, flowName, accept);
-    return { success: true };
+    const { deliveryId } = event.data;
+    await sendDelivery(Number(deliveryId));
+    return { success: true, deliveryId };
   },
 );
 
-export const email = async (
-  emailAddress: string,
-  name: string,
-  flowName: string,
-  accept: boolean,
-) => {
-  console.log(`Sending offer email to ${emailAddress}`);
-  const email = await render(
-    <OfferEmail name={name} flowName={flowName} accept={accept} />,
-  );
+export const sendDelivery = async (deliveryId: number) => {
+  const [delivery] = await db
+    .select()
+    .from(emailDelivery)
+    .where(eq(emailDelivery.id, deliveryId))
+    .limit(1);
+
+  if (!delivery) {
+    throw new Error(`Email delivery ${deliveryId} not found`);
+  }
+
+  if (delivery.status === 'sent') {
+    return;
+  }
+
+  await db
+    .update(emailDelivery)
+    .set({ status: 'sending', errorMessage: null })
+    .where(eq(emailDelivery.id, deliveryId));
+
   const mailOptions = {
-    from: '"SAST R&D Center" <recruitment@sast.fun>',
-    to: emailAddress,
-    subject: `SAST 2024 招新结果`,
-    html: email,
+    from: emailFrom,
+    to: delivery.toAddress,
+    subject: delivery.subject,
+    html: delivery.htmlSnapshot,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    const result = await transporter.sendMail(mailOptions);
+    await db
+      .update(emailDelivery)
+      .set({
+        status: 'sent',
+        providerMessageId: result.messageId ?? null,
+        sentAt: new Date(),
+        errorMessage: null,
+      })
+      .where(eq(emailDelivery.id, deliveryId));
+    await refreshBatchStatus(delivery.fkEmailBatchId);
+  } catch (error) {
+    await db
+      .update(emailDelivery)
+      .set({
+        status: 'failed',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
+      .where(eq(emailDelivery.id, deliveryId));
+    await refreshBatchStatus(delivery.fkEmailBatchId);
+    throw error;
+  }
 };
+
+async function refreshBatchStatus(batchId: number) {
+  const deliveries = await db
+    .select({ status: emailDelivery.status })
+    .from(emailDelivery)
+    .where(eq(emailDelivery.fkEmailBatchId, batchId));
+
+  if (deliveries.length === 0) return;
+
+  const hasFailed = deliveries.some((item) => item.status === 'failed');
+  const allSent = deliveries.every((item) => item.status === 'sent');
+
+  await db
+    .update(emailBatch)
+    .set({ status: hasFailed ? 'failed' : allSent ? 'completed' : 'queued' })
+    .where(eq(emailBatch.id, batchId));
+}

@@ -419,7 +419,7 @@ export const mockFlowSteps = [
 export const mockUserFlows = [
   {
     id: 1,
-    status: "ongoing",
+    status: "passed",
     current_step_order: 2,
     fk_flow_id: 1,
     fk_user_id: 3, // 王同学 - in checking stage
@@ -447,7 +447,7 @@ export const mockUserFlows = [
   },
   {
     id: 5,
-    status: "ongoing",
+    status: "failed",
     current_step_order: 3,
     fk_flow_id: 1,
     fk_user_id: 4, // 陈同学 - in judging stage (no phone though)
@@ -627,5 +627,59 @@ export const mockEmails = [
     content:
       "亲爱的同学，感谢您参加SAST 2024年秋季招新。很遗憾，您未能通过本次考核，期待您下次再来！",
     fk_flow_step_id: 4,
+  },
+];
+
+export const mockEmailBatches = [
+  {
+    id: 1,
+    template_key: "recruitment.result.accepted",
+    subject: "2024秋季招新 结果通知",
+    accept: true,
+    status: "draft",
+    total_count: 1,
+    fk_flow_id: 1,
+    fk_created_by: 1,
+    created_at: new Date("2024-10-25T10:00:00Z"),
+    updated_at: new Date("2024-10-25T10:00:00Z"),
+  },
+];
+
+export const mockEmailDeliveries = [
+  {
+    id: 1,
+    to_address: "104@njupt.edu.cn",
+    subject: "2024秋季招新 结果通知",
+    html_snapshot:
+      '<html><body style="margin:0;background:#f6f9fc;font-family:Arial,sans-serif;color:#404040"><div style="max-width:640px;margin:24px auto;background:#fff;border:1px solid #eee;padding:40px"><img src="https://storage.sast.fun/sast-email-header.png" width="300" alt="SAST" /><p style="margin-top:40px;font-size:16px;line-height:26px">Hi 赵雨涵,</p><p style="font-size:16px;line-height:26px">恭喜你顺利通过 2024秋季招新，正式成为南京邮电大学大学生科学技术协会的一员。</p><p style="font-size:16px;line-height:26px">我们欣赏你对技术的热情和积极的态度。未来，让我们在这条路上共同学习、进步。</p><a href="https://njupt-sast.feishu.cn/share/base/form/shrcnfwRMIhYP8N2I1i4YaTNg9b" style="display:inline-block;margin:12px 0;padding:12px 14px;border-radius:12px;background:#17A34A;color:#fff;text-decoration:none">点击填写 成员信息收集表</a><p style="font-size:16px;line-height:26px">如果你有更多疑问，请联系 recruitment@sast.fun</p></div></body></html>',
+    status: "pending",
+    error_message: null,
+    provider_message_id: "mock-message-1",
+    fk_email_batch_id: 1,
+    fk_user_flow_id: 3,
+    fk_user_id: 6,
+    created_at: new Date("2024-10-25T10:00:00Z"),
+    sent_at: null,
+    updated_at: new Date("2024-10-25T10:00:00Z"),
+  },
+];
+
+export const mockEmailTemplateSettings = [
+  {
+    id: 1,
+    template_key: "recruitment.result.accepted",
+    subject_template: "{flowName} 结果通知",
+    member_info_form_url:
+      "https://njupt-sast.feishu.cn/share/base/form/shrcnfwRMIhYP8N2I1i4YaTNg9b",
+    feishu_group_url:
+      "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=1ack8f0f-dea7-494a-9d11-09873f28d150",
+    calendar_url:
+      "https://www.feishu.cn/calendar/share/calendar?token=18E3hIfkra9WK2xhrs__6dsQmLD-cvf59shJz8ZEWoNQzRsv5VNz4ssCMIEaYP-yGTlM_or_eg==",
+    feishu_register_help_url:
+      "https://www.feishu.cn/hc/zh-CN/articles/360045688853-%E6%B3%A8%E5%86%8C%E8%B4%A6%E5%8F%B7",
+    contact_email: "recruitment@sast.fun",
+    member_form_label: "成员信息收集表",
+    feishu_group_name: "SAST.2025 软多Family",
+    updated_at: new Date("2024-10-25T10:00:00Z"),
   },
 ];

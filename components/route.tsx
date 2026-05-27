@@ -9,6 +9,7 @@ import {
   SquareChartGantt,
   ClipboardCheck,
   FileWarning,
+  Mail,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -52,6 +53,11 @@ export const menuItems: MenuItem[] = [
     title: '成绩管理',
     icon: ArrowDownWideNarrow,
     path: '/recruitment',
+  },
+  {
+    title: '邮件管理',
+    icon: Mail,
+    path: '/emails',
   },
   {
     title: '流程管理',

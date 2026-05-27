@@ -17,6 +17,9 @@ import {
   mockUserPoints,
   mockEmails,
   mockInterviewEvaluations,
+  mockEmailBatches,
+  mockEmailDeliveries,
+  mockEmailTemplateSettings,
 } from "./data";
 
 function escSql(val: unknown): string {
@@ -53,6 +56,12 @@ pgMem.public.none(
 );
 pgMem.public.none(
   `CREATE TYPE evaluation_status_enum AS ENUM ('pending', 'approved', 'rejected')`
+);
+pgMem.public.none(
+  `CREATE TYPE email_batch_status_enum AS ENUM ('draft', 'queued', 'completed', 'failed')`
+);
+pgMem.public.none(
+  `CREATE TYPE email_delivery_status_enum AS ENUM ('pending', 'sending', 'sent', 'failed')`
 );
 
 // Create tables matching the Drizzle schema
@@ -148,6 +157,55 @@ pgMem.public.none(`
 `);
 
 pgMem.public.none(`
+  CREATE TABLE "email_batch" (
+    id SERIAL PRIMARY KEY,
+    template_key VARCHAR(80) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    accept BOOLEAN NOT NULL,
+    status email_batch_status_enum NOT NULL DEFAULT 'draft',
+    total_count INTEGER NOT NULL DEFAULT 0,
+    fk_flow_id INTEGER NOT NULL REFERENCES "flow"(id),
+    fk_created_by INTEGER REFERENCES "user"(id),
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+  )
+`);
+
+pgMem.public.none(`
+  CREATE TABLE "email_delivery" (
+    id SERIAL PRIMARY KEY,
+    to_address VARCHAR(254) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    html_snapshot TEXT NOT NULL,
+    status email_delivery_status_enum NOT NULL DEFAULT 'pending',
+    error_message TEXT,
+    provider_message_id VARCHAR(255),
+    fk_email_batch_id INTEGER NOT NULL REFERENCES "email_batch"(id),
+    fk_user_flow_id INTEGER NOT NULL REFERENCES "user_flow"(id),
+    fk_user_id INTEGER NOT NULL REFERENCES "user"(id),
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    sent_at TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+  )
+`);
+
+pgMem.public.none(`
+  CREATE TABLE "email_template_setting" (
+    id SERIAL PRIMARY KEY,
+    template_key VARCHAR(80) NOT NULL UNIQUE,
+    subject_template VARCHAR(255) NOT NULL,
+    member_info_form_url TEXT NOT NULL,
+    feishu_group_url TEXT NOT NULL,
+    calendar_url TEXT NOT NULL,
+    feishu_register_help_url TEXT NOT NULL,
+    contact_email VARCHAR(254) NOT NULL,
+    member_form_label VARCHAR(100) NOT NULL,
+    feishu_group_name VARCHAR(100) NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+  )
+`);
+
+pgMem.public.none(`
   CREATE TABLE "interview_evaluation" (
     id SERIAL PRIMARY KEY,
     fk_user_flow_id INTEGER NOT NULL REFERENCES "user_flow"(id),
@@ -211,6 +269,27 @@ function seedDatabase() {
     pgMem.public.none(
       `INSERT INTO "email" (subject, content, fk_flow_step_id)
        VALUES (${escSql(e.subject)}, ${escSql(e.content)}, ${escSql(e.fk_flow_step_id)})`
+    );
+  }
+
+  for (const eb of mockEmailBatches) {
+    pgMem.public.none(
+      `INSERT INTO "email_batch" (template_key, subject, accept, status, total_count, fk_flow_id, fk_created_by, created_at, updated_at)
+       VALUES (${escSql(eb.template_key)}, ${escSql(eb.subject)}, ${escSql(eb.accept)}, ${escSql(eb.status)}, ${escSql(eb.total_count)}, ${escSql(eb.fk_flow_id)}, ${escSql(eb.fk_created_by)}, ${escSql(eb.created_at)}, ${escSql(eb.updated_at)})`
+    );
+  }
+
+  for (const ed of mockEmailDeliveries) {
+    pgMem.public.none(
+      `INSERT INTO "email_delivery" (to_address, subject, html_snapshot, status, error_message, provider_message_id, fk_email_batch_id, fk_user_flow_id, fk_user_id, created_at, sent_at, updated_at)
+       VALUES (${escSql(ed.to_address)}, ${escSql(ed.subject)}, ${escSql(ed.html_snapshot)}, ${escSql(ed.status)}, ${escSql(ed.error_message)}, ${escSql(ed.provider_message_id)}, ${escSql(ed.fk_email_batch_id)}, ${escSql(ed.fk_user_flow_id)}, ${escSql(ed.fk_user_id)}, ${escSql(ed.created_at)}, ${escSql(ed.sent_at)}, ${escSql(ed.updated_at)})`
+    );
+  }
+
+  for (const ets of mockEmailTemplateSettings) {
+    pgMem.public.none(
+      `INSERT INTO "email_template_setting" (template_key, subject_template, member_info_form_url, feishu_group_url, calendar_url, feishu_register_help_url, contact_email, member_form_label, feishu_group_name, updated_at)
+       VALUES (${escSql(ets.template_key)}, ${escSql(ets.subject_template)}, ${escSql(ets.member_info_form_url)}, ${escSql(ets.feishu_group_url)}, ${escSql(ets.calendar_url)}, ${escSql(ets.feishu_register_help_url)}, ${escSql(ets.contact_email)}, ${escSql(ets.member_form_label)}, ${escSql(ets.feishu_group_name)}, ${escSql(ets.updated_at)})`
     );
   }
 
