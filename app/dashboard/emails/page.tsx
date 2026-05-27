@@ -3,13 +3,22 @@ import { listEmailTemplateSettings } from "@/action/email/template";
 import { listEmailFlowTargets } from "@/action/email/workspace";
 import { EmailDashboardClient } from "@/components/email/emailDashboardClient";
 import { PageTitle } from "@/components/route";
+import { logServerError } from "@/lib/server-error-log";
 
 export default async function EmailDashboardPage() {
-  const [batches, flowTargets, templateSettings] = await Promise.all([
-    listEmailBatches(),
-    listEmailFlowTargets(),
-    listEmailTemplateSettings(),
-  ]);
+  let data: Awaited<ReturnType<typeof loadEmailDashboardData>>;
+
+  try {
+    data = await loadEmailDashboardData();
+  } catch (error) {
+    logServerError("dashboard:emails", error, {
+      path: "/dashboard/emails",
+      action: "load-email-dashboard",
+    });
+    throw error;
+  }
+
+  const [batches, flowTargets, templateSettings] = data;
 
   return (
     <>
@@ -29,4 +38,12 @@ export default async function EmailDashboardPage() {
       </div>
     </>
   );
+}
+
+async function loadEmailDashboardData() {
+  return Promise.all([
+    listEmailBatches(),
+    listEmailFlowTargets(),
+    listEmailTemplateSettings(),
+  ]);
 }

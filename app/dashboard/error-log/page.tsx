@@ -1,11 +1,17 @@
 import { PageTitle } from "@/components/route";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { verifyRole } from "@/lib/dal";
 import { readServerErrorLog } from "@/lib/server-error-log";
+import { ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
+
+const SENTRY_ISSUES_URL =
+  "https://sast-an.sentry.io/issues/?project=4511461071781888&statsPeriod=14d";
 
 const formatTime = (timestamp: string | null) => {
   if (!timestamp) return "未知时间";
@@ -35,7 +41,15 @@ const ErrorLogPage = async () => {
     <>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <PageTitle />
-        <Badge variant="outline">共 {count} 条</Badge>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button asChild variant="outline" size="sm">
+            <Link href={SENTRY_ISSUES_URL} target="_blank" rel="noreferrer">
+              <ExternalLink data-icon="inline-start" />
+              Sentry
+            </Link>
+          </Button>
+          <Badge variant="outline">共 {count} 条</Badge>
+        </div>
       </div>
 
       {entries.length === 0 ? (
@@ -67,6 +81,18 @@ const ErrorLogPage = async () => {
                     {entry.message}
                   </p>
                 )}
+                <div className="flex flex-wrap gap-2">
+                  {entry.name && (
+                    <Badge variant="outline" className="font-normal">
+                      类型: {entry.name}
+                    </Badge>
+                  )}
+                  {entry.digest && (
+                    <Badge variant="outline" className="font-mono font-normal">
+                      Digest: {entry.digest}
+                    </Badge>
+                  )}
+                </div>
                 {entry.context && (
                   <div className="flex flex-wrap gap-2">
                     {contextItems(entry.context).map(([label, value]) => (

@@ -23,7 +23,9 @@ export interface ServerErrorLogEntry {
   raw: string;
   timestamp: string | null;
   source: string | null;
+  name: string | null;
   message: string | null;
+  digest: string | null;
   context: ServerErrorLogContext | null;
 }
 
@@ -47,9 +49,13 @@ export function logServerError(
   context?: ServerErrorLogContext,
 ) {
   if (isNextControlFlowError(err)) return;
+  const digest = err instanceof Error
+    ? (err as Error & { digest?: string }).digest
+    : undefined;
 
   Sentry.withScope((scope) => {
     scope.setTag("source", source);
+    if (digest) scope.setTag("digest", digest);
     if (context) {
       scope.setContext("serverErrorLog", { ...context });
       if (context.path) scope.setTag("path", context.path);
@@ -71,6 +77,7 @@ export function logServerError(
         (context ? `context: ${safeStringify(context)}\n` : "") +
         `name: ${err instanceof Error ? err.name : "Unknown"}\n` +
         `message: ${err instanceof Error ? err.message : String(err)}\n` +
+        (digest ? `digest: ${digest}\n` : "") +
         `stack: ${err instanceof Error ? err.stack : "none"}\n` +
         `---\n`,
     );
@@ -88,7 +95,9 @@ export function readServerErrorLog(limit = 50) {
     const raw = entry.trim();
     const lines = raw.split("\n");
     const header = lines[0]?.match(/^\[(.+)]\s+(.+)$/);
+    const nameLine = lines.find((line) => line.startsWith("name: "));
     const messageLine = lines.find((line) => line.startsWith("message: "));
+    const digestLine = lines.find((line) => line.startsWith("digest: "));
     const contextLine = lines.find((line) => line.startsWith("context: "));
     let context: ServerErrorLogContext | null = null;
 
@@ -105,7 +114,9 @@ export function readServerErrorLog(limit = 50) {
       raw,
       timestamp: header?.[1] ?? null,
       source: header?.[2] ?? null,
+      name: nameLine?.replace("name: ", "") ?? null,
       message: messageLine?.replace("message: ", "") ?? null,
+      digest: digestLine?.replace("digest: ", "") ?? null,
       context,
     };
   });
