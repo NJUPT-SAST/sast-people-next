@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 
 const sloganFontFamily =
-  '"Ma Shan Zheng", "STKaiti", "KaiTi", "华文楷体", cursive';
+  '"FZYaoti", "STXingkai", "华文行楷", "Microsoft YaHei", cursive';
 
 const Login = async () => {
   return (
@@ -32,7 +32,7 @@ const Login = async () => {
               </div>
               <BlurIn
                 word="开源平等"
-                className="relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:-rotate-2 lg:text-8xl lg:tracking-[0.18em]"
+                className="relative text-left text-5xl leading-tight tracking-[0.1em] text-white sm:text-6xl lg:text-8xl lg:tracking-[0.12em]"
                 style={{
                   fontFamily: sloganFontFamily,
                   textShadow:
@@ -41,7 +41,7 @@ const Login = async () => {
               />
               <BlurIn
                 word="薪火相传"
-                className="relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:translate-x-12 lg:rotate-1 lg:text-8xl lg:tracking-[0.18em]"
+                className="relative text-left text-5xl leading-tight tracking-[0.1em] text-white sm:text-6xl lg:text-8xl lg:tracking-[0.12em]"
                 delay={0.3}
                 style={{
                   fontFamily: sloganFontFamily,
