@@ -91,7 +91,7 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
         <DialogHeader>
           <DialogTitle>{getSettingLabel(setting.templateKey)}</DialogTitle>
           <DialogDescription>
-            固定版式不开放 HTML；这里只改标题、链接、群名和联系邮箱。
+            邮件版式固定；这里只调整标题、链接、群名和联系邮箱。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -284,6 +284,7 @@ function SendLane({
 }) {
   const router = useRouter();
   const recipients = accept ? flow.passed : flow.failed;
+  const lockedRecipients = accept ? flow.accepted : flow.rejected;
   const subject = accept ? flow.acceptedSubject : flow.rejectedSubject;
   const previewHtml = accept ? flow.acceptedPreviewHtml : flow.rejectedPreviewHtml;
   const tone = accept ? "border-primary/25 bg-primary/5" : "border-destructive/20 bg-destructive/5";
@@ -299,13 +300,18 @@ function SendLane({
         </div>
         <div className="text-right">
           <p className="text-2xl font-semibold tabular-nums">{recipients.length}</p>
-          <p className="text-xs text-muted-foreground">待发送</p>
+          <p className="text-xs text-muted-foreground">待通知</p>
+          {lockedRecipients.length > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              已通知 {lockedRecipients.length}
+            </p>
+          )}
         </div>
       </div>
 
       <div className="rounded-md border bg-background/70 p-3">
         <p className="text-sm text-muted-foreground">
-          名单来自成绩管理中的{accept ? "通过" : "不通过"}状态。发送前可查看完整收件人列表。
+          名单来自成绩管理中的{accept ? "通过" : "不通过"}状态；已经通知过的人员不会重复发送。
         </p>
       </div>
 
@@ -326,7 +332,7 @@ function SendLane({
               sendResultEmailFromFlow(flow.id, accept).then(() => router.refresh()),
               {
                 loading: "正在创建批次并加入发送队列",
-                success: "邮件已加入发送队列，结果已锁定",
+                success: "邮件已加入发送队列，结果已更新",
                 error: "发送失败",
               },
             );
@@ -409,7 +415,8 @@ export function EmailDashboardClient({
                   >
                     <p className="truncate text-sm font-medium">{flow.title}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      通过 {flow.passed.length} · 不通过 {flow.failed.length}
+                      待通知 {flow.passed.length}/{flow.failed.length} · 已通知{" "}
+                      {flow.accepted.length}/{flow.rejected.length}
                     </p>
                   </button>
                 );
@@ -428,7 +435,7 @@ export function EmailDashboardClient({
                 <div className="flex flex-col gap-1">
                   <h3 className="text-lg font-semibold">{selectedFlow.title}</h3>
                   <p className="text-sm text-muted-foreground">
-                    发送会创建邮件批次、归档实际发送内容，并把对应结果锁定。
+                    发送后会保存每位同学的发送内容；已经通知过的结果只展示人数，不会重复发送。
                   </p>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
@@ -472,7 +479,7 @@ export function EmailDashboardClient({
               {batches.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="h-20 text-center text-muted-foreground">
-                    暂无发送记录。
+                    暂无发送记录。已有“邮件已发”状态的历史结果会显示在上方人数中，不会重复出现在这里。
                   </TableCell>
                 </TableRow>
               ) : (
@@ -533,7 +540,7 @@ export function EmailDashboardClient({
         <div className="flex flex-col gap-3 p-4 md:hidden">
           {batches.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              暂无发送记录。
+              暂无发送记录。已有“邮件已发”状态的历史结果会显示在上方人数中。
             </div>
           ) : (
             batches.map((batch) => {

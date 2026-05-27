@@ -76,6 +76,6 @@ describe("manage FlowCard", () => {
       />,
     );
 
-    expect(screen.getByText("邮件终态已锁定")).toBeInTheDocument();
+    expect(screen.getByText("结果已通知")).toBeInTheDocument();
   });
 });

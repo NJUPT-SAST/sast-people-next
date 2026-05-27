@@ -38,12 +38,16 @@ export async function listEmailFlowTargets() {
     })
     .from(userFlow)
     .innerJoin(user, eq(user.id, userFlow.fkUserId))
-    .where(inArray(userFlow.status, ["passed", "failed"]));
+    .where(inArray(userFlow.status, ["passed", "failed", "accepted", "rejected"]));
 
   return Promise.all(flows.map(async (item) => {
     const flowTargets = targets.filter((target) => target.flowId === item.id);
     const passed = flowTargets.filter((target) => target.status === "passed");
     const failed = flowTargets.filter((target) => target.status === "failed");
+    const accepted = flowTargets.filter((target) => target.status === "accepted");
+    const rejected = flowTargets.filter((target) => target.status === "rejected");
+    const acceptedSample = passed[0] ?? accepted[0];
+    const rejectedSample = failed[0] ?? rejected[0];
     const acceptedSetting = await getEmailTemplateSetting(
       getResultEmailTemplateKey(true),
     );
@@ -55,20 +59,22 @@ export async function listEmailFlowTargets() {
       ...item,
       passed,
       failed,
+      accepted,
+      rejected,
       acceptedSubject: renderResultEmailSubject(item.title, acceptedSetting),
       rejectedSubject: renderResultEmailSubject(item.title, rejectedSetting),
-      acceptedPreviewHtml: passed[0]
+      acceptedPreviewHtml: acceptedSample
         ? await renderResultEmail({
-            name: passed[0].name,
+            name: acceptedSample.name,
             flowName: item.title,
             accept: true,
             setting: acceptedSetting,
             genericGreeting: true,
           })
         : null,
-      rejectedPreviewHtml: failed[0]
+      rejectedPreviewHtml: rejectedSample
         ? await renderResultEmail({
-            name: failed[0].name,
+            name: rejectedSample.name,
             flowName: item.title,
             accept: false,
             setting: rejectedSetting,

@@ -229,7 +229,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
           <div className="flex flex-wrap gap-2">
             {role >= 3 && isFinalLocked ? (
               <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
-                邮件终态已锁定
+                结果已通知
               </Badge>
             ) : role >= 3 ? (
               <>
