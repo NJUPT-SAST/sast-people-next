@@ -154,7 +154,7 @@ export function DataTable<TData, TValue>({
               }
               className="h-9 w-full sm:w-[180px]"
             />
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start lg:justify-end">
           {role >= 3 && (
             <>
             <Button
@@ -262,7 +262,7 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
       {role >= 3 && (
-        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground md:flex-row md:justify-center">
           {[summaryStatuses.slice(0, 4), summaryStatuses.slice(4)].map((row, index) => (
             <div key={index} className="flex w-full flex-wrap justify-center gap-2">
               {row.map((status) => {
