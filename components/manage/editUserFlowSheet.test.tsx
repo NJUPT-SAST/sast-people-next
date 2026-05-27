@@ -67,11 +67,11 @@ describe("EditUserFlowSheet", () => {
   it("switches the selected flow and renders the related flow card", async () => {
     const user = userEvent.setup();
 
-    render(<EditUserFlowSheet userInfo={{ id: 1, name: "张三" } as never} role={2} />);
+    render(<EditUserFlowSheet userInfo={{ id: 1, name: "张三" } as never} role={3} />);
 
     expect(
       screen.getByText((_, element) =>
-        element?.textContent === "编辑 张三 的流程",
+        element?.textContent === "张三 的流程记录",
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "终试流程" }));

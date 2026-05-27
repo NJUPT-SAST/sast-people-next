@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { FlowCard } from "./flowCardClient";
 
 const forward = jest.fn().mockResolvedValue(undefined);
-const reopen = jest.fn().mockResolvedValue(undefined);
 const mutate = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("@/hooks/useFlowStepsInfoClient", () => ({
@@ -21,7 +20,6 @@ jest.mock("@/action/user-flow/edit", () => ({
   backward: jest.fn(),
   finish: jest.fn(),
   reject: jest.fn(),
-  reopen: (...args: unknown[]) => reopen(...args),
 }));
 
 jest.mock("swr", () => ({
@@ -31,7 +29,6 @@ jest.mock("swr", () => ({
 describe("manage FlowCard", () => {
   beforeEach(() => {
     forward.mockClear();
-    reopen.mockClear();
     mutate.mockClear();
   });
 
@@ -64,9 +61,7 @@ describe("manage FlowCard", () => {
     });
   });
 
-  it("shows reopen action for completed flows", async () => {
-    const user = userEvent.setup();
-
+  it("locks completed flows from manual adjustment", () => {
     render(
       <FlowCard
         flow={{
@@ -81,9 +76,6 @@ describe("manage FlowCard", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button"));
-
-    expect(reopen).toHaveBeenCalledWith(11);
-    expect(screen.getByText("流程进行中")).toBeInTheDocument();
+    expect(screen.getByText("邮件终态已锁定")).toBeInTheDocument();
   });
 });

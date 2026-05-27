@@ -9,7 +9,6 @@ import {
   ArrowRight,
   ArrowLeft,
   X,
-  LockOpen,
 } from 'lucide-react';
 import { displayUserFlow } from '@/types/userflow';
 import {
@@ -20,7 +19,7 @@ import {
 import { Badge } from '../ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
-import { backward, finish, forward, reject, reopen } from '@/action/user-flow/edit';
+import { backward, finish, forward, reject } from '@/action/user-flow/edit';
 import { mutate } from 'swr';
 import { toast } from 'sonner';
 
@@ -36,8 +35,8 @@ const statusIcons = {
 const statusName: Record<string, string> = {
   pending: '未开始',
   ongoing: '进行中',
-  passed: '拟通过',
-  failed: '拟不通过',
+  passed: '通过',
+  failed: '不通过',
   accepted: '已通过',
   rejected: '未通过',
 };
@@ -71,6 +70,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
   const isLastStep = useMemo(() => {
     return currentStepIndex === steps.length - 1;
   }, [currentStepIndex, steps.length]);
+  const isFinalLocked = flow.status === 'accepted' || flow.status === 'rejected';
 
   const [loading, setLoading] = React.useState(false);
 
@@ -122,11 +122,6 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
     () => reject(flow.id),
     (f) => ({ ...f, status: 'rejected' as const }),
   );
-  const handleReopen = () => doAction(
-    () => reopen(flow.id),
-    (f) => ({ ...f, status: 'ongoing' as const }),
-  );
-
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -232,15 +227,10 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {role >= 3 && (flow.status === 'accepted' || flow.status === 'rejected') ? (
-              <Button
-                disabled={loading}
-                variant="secondary"
-                size="icon-sm"
-                onClick={handleReopen}
-              >
-                <LockOpen />
-              </Button>
+            {role >= 3 && isFinalLocked ? (
+              <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+                邮件终态已锁定
+              </Badge>
             ) : role >= 3 ? (
               <>
                 {currentStepIndex > 0 && (

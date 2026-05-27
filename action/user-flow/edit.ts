@@ -8,10 +8,27 @@ import { verifyRole, verifySession } from '@/lib/dal';
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { syncUserRoleFromAcceptedFlows } from './roleTransition';
 
+const assertUserFlowCanBeManuallyAdjusted = async (userFlowId: number) => {
+  const [record] = await db
+    .select({ status: userFlow.status })
+    .from(userFlow)
+    .where(eq(userFlow.id, userFlowId))
+    .limit(1);
+
+  if (!record) {
+    throw new Error("User flow not found");
+  }
+
+  if (record.status === "accepted" || record.status === "rejected") {
+    throw new Error("Final email status cannot be adjusted here");
+  }
+};
+
 export const forward = async (
   userFlowId: number,
 ) => {
   await verifyRole(3);
+  await assertUserFlowCanBeManuallyAdjusted(userFlowId);
   await db.update(userFlow).set({currentStepOrder: sql`${userFlow.currentStepOrder} + 1`}).where(eq(userFlow.id, userFlowId));
 };
 
@@ -19,6 +36,7 @@ export const finish = async (
   userFlowId: number,
 ) => {
   await verifyRole(3);
+  await assertUserFlowCanBeManuallyAdjusted(userFlowId);
 
   const record = await db
     .select({
@@ -47,6 +65,7 @@ export const reject = async (
   userFlowId: number,
 ) => {
   await verifyRole(3);
+  await assertUserFlowCanBeManuallyAdjusted(userFlowId);
   const [record] = await db
     .select({ fkUserId: userFlow.fkUserId })
     .from(userFlow)
@@ -65,6 +84,7 @@ export const reopen = async (
   userFlowId: number,
 ) => {
   await verifyRole(3);
+  await assertUserFlowCanBeManuallyAdjusted(userFlowId);
   await db.update(userFlow).set({status: 'ongoing'}).where(eq(userFlow.id, userFlowId));
 };
 
@@ -73,6 +93,7 @@ export const backward = async (
   userFlowId: number,
 ) => {
   await verifyRole(3);
+  await assertUserFlowCanBeManuallyAdjusted(userFlowId);
   await db.update(userFlow).set({currentStepOrder: sql`${userFlow.currentStepOrder} - 1`}).where(eq(userFlow.id, userFlowId));
 };
 
