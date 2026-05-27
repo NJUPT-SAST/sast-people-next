@@ -191,8 +191,8 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
 function PreviewDialog({
   title,
   html,
-  triggerLabel = "查看邮件",
-  description = "使用当前待发送名单中的第一位同学渲染。",
+  triggerLabel = "模板样张",
+  description = "样张使用占位称呼；真实发送时会替换为收件人姓名。",
 }: {
   title: string;
   html: string | null;
@@ -426,7 +426,7 @@ export function EmailDashboardClient({
                 <div className="flex flex-col gap-1">
                   <h3 className="text-lg font-semibold">{selectedFlow.title}</h3>
                   <p className="text-sm text-muted-foreground">
-                    发送会创建邮件批次、保存 HTML 快照，并把对应结果锁定。
+                    发送会创建邮件批次、归档实际发送内容，并把对应结果锁定。
                   </p>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
@@ -496,10 +496,10 @@ export function EmailDashboardClient({
                       <TableCell>
                         <div className="flex justify-end gap-2">
                           <PreviewDialog
-                            title={`${batch.flowTitle} 邮件快照`}
+                            title={`${batch.flowTitle} 发送内容`}
                             html={preview}
-                            triggerLabel="邮件快照"
-                            description="这是该批次发送时保存的 HTML 内容。"
+                            triggerLabel="发送内容"
+                            description="每位收件人都会保存实际发送内容；这里展示该批次第一封。"
                           />
                           <Button
                             variant="outline"
@@ -571,10 +571,10 @@ export function EmailDashboardClient({
                   </p>
                   <div className="mt-3 flex flex-col gap-2">
                     <PreviewDialog
-                      title={`${batch.flowTitle} 邮件快照`}
+                      title={`${batch.flowTitle} 发送内容`}
                       html={preview}
-                      triggerLabel="邮件快照"
-                      description="这是该批次发送时保存的 HTML 内容。"
+                      triggerLabel="发送内容"
+                      description="每位收件人都会保存实际发送内容；这里展示该批次第一封。"
                     />
                     <Button
                       variant="outline"

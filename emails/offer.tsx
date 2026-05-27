@@ -17,6 +17,7 @@ interface OfferEmailProps {
   name?: string;
   flowName?: string;
   accept?: boolean;
+  genericGreeting?: boolean;
   memberInfoFormUrl?: string;
   feishuGroupUrl?: string;
   calendarUrl?: string;
@@ -30,6 +31,7 @@ export const OfferEmail = ({
   name,
   flowName,
   accept,
+  genericGreeting = false,
   memberInfoFormUrl = resultEmailLinks.memberInfoForm,
   feishuGroupUrl = resultEmailLinks.feishuGroup,
   calendarUrl = resultEmailLinks.calendar,
@@ -38,6 +40,11 @@ export const OfferEmail = ({
   memberFormLabel = resultEmailCopy.memberFormLabel,
   feishuGroupName = resultEmailCopy.feishuGroupName,
 }: OfferEmailProps) => {
+  const greeting =
+    genericGreeting || !name
+      ? '亲爱的 [同学姓名] 同学，'
+      : `亲爱的 ${name} 同学，`;
+
   return (
     <Html>
       <Head />
@@ -50,7 +57,7 @@ export const OfferEmail = ({
             alt="banner"
           />
           <Section>
-            <Text style={{ ...text, marginTop: '50px' }}>Hi {name},</Text>
+            <Text style={{ ...text, marginTop: '50px' }}>{greeting}</Text>
             {accept ? (
               <>
                 <Text style={text}>

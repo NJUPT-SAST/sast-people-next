@@ -63,6 +63,7 @@ export async function listEmailFlowTargets() {
             flowName: item.title,
             accept: true,
             setting: acceptedSetting,
+            genericGreeting: true,
           })
         : null,
       rejectedPreviewHtml: failed[0]
@@ -71,6 +72,7 @@ export async function listEmailFlowTargets() {
             flowName: item.title,
             accept: false,
             setting: rejectedSetting,
+            genericGreeting: true,
           })
         : null,
     };

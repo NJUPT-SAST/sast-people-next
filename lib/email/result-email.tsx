@@ -15,6 +15,7 @@ export type ResultEmailVariables = {
   flowName: string;
   accept: boolean;
   setting?: ResultEmailTemplateSetting;
+  genericGreeting?: boolean;
 };
 
 export function getResultEmailKind(accept: boolean): ResultEmailKind {
@@ -34,6 +35,7 @@ export async function renderResultEmail({
   flowName,
   accept,
   setting,
+  genericGreeting = false,
 }: ResultEmailVariables) {
   const resolvedSetting =
     setting ??
@@ -46,6 +48,7 @@ export async function renderResultEmail({
       name={name}
       flowName={flowName}
       accept={accept}
+      genericGreeting={genericGreeting}
       memberInfoFormUrl={resolvedSetting.memberInfoFormUrl}
       feishuGroupUrl={resolvedSetting.feishuGroupUrl}
       calendarUrl={resolvedSetting.calendarUrl}
