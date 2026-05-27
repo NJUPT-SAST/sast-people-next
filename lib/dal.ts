@@ -36,7 +36,9 @@ export const verifySession = cache(async () => {
   } catch (err) {
     if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
     console.error("verifySession error:", err);
-    logServerError("verifySession", err);
+    logServerError("verifySession", err, {
+      action: "verify-session",
+    });
     throw err;
   }
 });

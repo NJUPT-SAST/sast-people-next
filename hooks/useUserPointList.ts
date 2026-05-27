@@ -13,7 +13,11 @@ export const useUserPointList = async (userFlowId: number): Promise<Array<InferS
       .orderBy(desc(userPoint.fkProblemId));
     return userPoints;
   } catch (error) {
-    logServerError(`review:getUserPointList userFlowId=${userFlowId}`, error);
+    logServerError('review:getUserPointList', error, {
+      path: '/dashboard/review/marking',
+      action: 'load-user-points',
+      userFlowId,
+    });
     throw error;
   }
 };

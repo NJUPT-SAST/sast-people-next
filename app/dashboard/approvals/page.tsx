@@ -15,7 +15,10 @@ const Approvals = async () => {
   } catch (error) {
     loadError = true;
     console.error("Failed to load approval evaluations:", error);
-    logServerError("approvals:getAllEvaluations", error);
+    logServerError("approvals:getAllEvaluations", error, {
+      path: "/dashboard/approvals",
+      action: "load-approval-evaluations",
+    });
   }
 
   return (

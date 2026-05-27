@@ -14,6 +14,19 @@ const formatTime = (timestamp: string | null) => {
   return date.toLocaleString("zh-CN", { hour12: false });
 };
 
+const contextItems = (context: NonNullable<ReturnType<typeof readServerErrorLog>["entries"][number]["context"]>) =>
+  [
+    ["路由", context.path],
+    ["方法", context.method],
+    ["操作", context.action],
+    ["用户", context.userId],
+    ["权限", context.role],
+    ["流程", context.flowId],
+    ["报名", context.userFlowId],
+    ["学号", context.studentId],
+    ["目标用户", context.targetUserId],
+  ].filter(([, value]) => value !== undefined && value !== null && value !== "");
+
 const ErrorLogPage = async () => {
   await verifyRole(3);
   const { count, entries } = readServerErrorLog(30);
@@ -54,8 +67,27 @@ const ErrorLogPage = async () => {
                     {entry.message}
                   </p>
                 )}
+                {entry.context && (
+                  <div className="flex flex-wrap gap-2">
+                    {contextItems(entry.context).map(([label, value]) => (
+                      <Badge key={label} variant="outline" className="font-normal">
+                        {label}: {String(value)}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
+                {entry.context?.metadata && (
+                  <div className="mb-3 rounded-md border bg-muted/20 p-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      业务上下文
+                    </p>
+                    <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                      {JSON.stringify(entry.context.metadata, null, 2)}
+                    </pre>
+                  </div>
+                )}
                 <ScrollArea className="max-h-72 rounded-md border bg-muted/30">
                   <pre className="whitespace-pre-wrap break-words p-3 text-xs leading-relaxed">
                     {entry.raw}

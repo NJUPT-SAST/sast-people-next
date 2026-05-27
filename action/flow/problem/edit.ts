@@ -6,7 +6,7 @@ import { verifyRole } from '@/lib/dal';
 import { problemType } from '@/types/problem';
 import { eq, and, notInArray, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import fs from 'node:fs';
+import { logServerError } from '@/lib/server-error-log';
 
 type ProblemType = typeof problem.$inferInsert;
 
@@ -92,18 +92,19 @@ export const updateProblems = async (
 
     revalidatePath(`/dashboard/flow/edit-exam?id=${flowId}`);
   } catch (err) {
-    try {
-      fs.appendFileSync(
-        "/tmp/sast-error-log.txt",
-        `[${new Date().toISOString()}] updateProblems\n` +
-        `stepId: ${stepId}, flowId: ${flowId}\n` +
-        `problems: ${JSON.stringify(problems)}\n` +
-        `name: ${err instanceof Error ? err.name : 'Unknown'}\n` +
-        `message: ${err instanceof Error ? err.message : String(err)}\n` +
-        `stack: ${err instanceof Error ? err.stack : 'none'}\n` +
-        `---\n`
-      );
-    } catch {}
+    logServerError('flow:updateProblems', err, {
+      path: '/dashboard/flow/edit-exam',
+      action: 'update-problems',
+      flowId,
+      metadata: {
+        stepId,
+        problemGroups: Object.keys(problems),
+        problemCount: Object.values(problems).reduce(
+          (count, group) => count + group.length,
+          0,
+        ),
+      },
+    });
     throw err;
   }
 };
