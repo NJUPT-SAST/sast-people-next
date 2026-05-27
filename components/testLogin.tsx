@@ -40,7 +40,7 @@ export const TestLogin = () => {
           type="text"
           name="studentId"
           placeholder="请填写测试学号"
-          className="h-11"
+          className="h-11 border-[#dbe5da] bg-white text-[#18231d] placeholder:text-[#8a968e] focus-visible:ring-[#18A058]/30"
         />
         <FormContentWithStatus />
       </form>
