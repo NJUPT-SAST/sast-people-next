@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { batchUpsertPoint, upsertPoint } from '@/action/user-flow/user-point/upsert';
 import { userPoint } from '@/db/schema';
 import { InferInsertModel } from 'drizzle-orm';
+import { logServerError } from '@/lib/server-error-log';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('API Error:', error);
+    logServerError('api:user-point:post', error);
     return NextResponse.json(
       { success: false, message: error instanceof Error ? error.message : '操作失败' },
       { status: 500 }
