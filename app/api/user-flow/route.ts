@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findUserFlowId } from '@/action/user-flow/find';
+import { logServerError } from '@/lib/server-error-log';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,6 +27,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, userFlowId });
   } catch (error) {
     console.error('API Error:', error);
+    const { searchParams } = new URL(request.url);
+    logServerError('api:user-flow:get', error, {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      action: 'find-user-flow',
+      studentId: searchParams.get('studentId'),
+      flowId: Number(searchParams.get('flowId')) || null,
+    });
     return NextResponse.json(
       { success: false, message: error instanceof Error ? error.message : '查询失败' },
       { status: 500 }

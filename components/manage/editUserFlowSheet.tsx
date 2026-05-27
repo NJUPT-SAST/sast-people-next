@@ -22,8 +22,14 @@ export const EditUserFlowSheet = ({
   userInfo: Partial<userType>;
   role: number;
 }) => {
-  const { data: flowList, isLoading, error } = useFlowListClient(userInfo.id as number);
+  const { data: flowList, isLoading, error } = useFlowListClient(
+    role >= 3 ? (userInfo.id as number) : null,
+  );
   const [selectedFlowId, setSelectedFlowId] = useState<number>();
+
+  if (role < 3) {
+    return null;
+  }
 
   const selectedFlow = selectedFlowId !== undefined && Array.isArray(flowList)
     ? flowList.find((f) => f.id === selectedFlowId)
@@ -39,9 +45,11 @@ export const EditUserFlowSheet = ({
       <SheetContent className="w-full sm:max-w-[50vw] sm:w-3/4 overflow-y-auto p-4 sm:p-6 flex flex-col">
         <SheetHeader className="px-1 pt-2 pb-2">
           <SheetTitle>
-            编辑 <span className="text-primary">{userInfo.name}</span> 的流程
+            <span className="text-primary">{userInfo.name}</span> 的流程记录
           </SheetTitle>
-          <SheetDescription>在下方编辑用户的流程</SheetDescription>
+          <SheetDescription>
+            管理员人工核对和调整流程状态。正常审批、批卷和邮件流程应优先在对应页面完成。
+          </SheetDescription>
         </SheetHeader>
         <div className="rounded-lg border bg-muted/20 p-3 space-y-1 text-sm">
           <p className="text-xs text-muted-foreground">学号 / 邮箱</p>
@@ -59,7 +67,7 @@ export const EditUserFlowSheet = ({
               onValueChange={(value) => setSelectedFlowId(parseInt(value))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="选择流程" />
+                <SelectValue placeholder="选择流程记录" />
               </SelectTrigger>
               {Array.isArray(flowList) && flowList.length > 0 && (
                 <SelectContent>

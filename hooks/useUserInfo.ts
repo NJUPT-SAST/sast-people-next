@@ -4,7 +4,7 @@ import { user } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
-import fs from 'node:fs';
+import { logServerError } from '@/lib/server-error-log';
 
 export const useUserInfo = cache(async () => {
   try {
@@ -17,16 +17,10 @@ export const useUserInfo = cache(async () => {
   } catch (err) {
     if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
     console.error("useUserInfo error:", err);
-    try {
-      fs.appendFileSync(
-        "/tmp/sast-error-log.txt",
-        `[${new Date().toISOString()}] useUserInfo error\n` +
-        `name: ${err instanceof Error ? err.name : 'Unknown'}\n` +
-        `message: ${err instanceof Error ? err.message : String(err)}\n` +
-        `stack: ${err instanceof Error ? err.stack : 'none'}\n` +
-        `---\n`
-      );
-    } catch {}
+    logServerError('dashboard:useUserInfo', err, {
+      path: '/dashboard',
+      action: 'load-current-user',
+    });
     throw err;
   }
 });

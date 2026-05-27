@@ -10,6 +10,7 @@ import { getURLFromRedirectError } from "next/dist/client/components/redirect";
 import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
 import "server-only";
+import { logServerError } from "@/lib/server-error-log";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -64,6 +65,16 @@ export async function GET(request: NextRequest) {
       err instanceof AggregateError
         ? err.errors.map((e) => String(e))
         : undefined;
+    logServerError("api:auth:link", err, {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      action: cookieStore.get(IS_BINDING)?.value === "1" ? "bind-link" : "login-link",
+      metadata: {
+        hasCode: Boolean(code),
+        hasCodeVerifier: Boolean(code_verifier),
+        subErrors,
+      },
+    });
     return NextResponse.json(
       {
         message: "link auth failed",

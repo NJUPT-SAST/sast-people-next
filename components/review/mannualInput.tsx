@@ -8,7 +8,7 @@ import { checkUserByStuID } from './checkUser';
 import { resolveUserFlowForReview } from './resolveUserFlow';
 import { selectProbSchema } from '@/types/problem';
 
-export const MannualInput = () => {
+export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
   const [studentId, setStudentId] = useState('');
   const [hasReviewRange, setHasReviewRange] = useState(false);
   const [reviewFlowId, setReviewFlowId] = useState<number | null>(null);
@@ -33,8 +33,17 @@ export const MannualInput = () => {
           }
         })(),
       );
-      setHasReviewRange(parsed.success && !!parsed.data.flowTypeId);
-      setReviewFlowId(parsed.success ? parsed.data.flowTypeId : null);
+      const isActive =
+        parsed.success &&
+        !!parsed.data.flowTypeId &&
+        (!activeFlowIds || activeFlowIds.includes(parsed.data.flowTypeId));
+
+      if (!isActive) {
+        localStorage.removeItem('people_selectedProbs');
+      }
+
+      setHasReviewRange(isActive);
+      setReviewFlowId(isActive ? parsed.data.flowTypeId : null);
     };
 
     checkReviewRange();
@@ -48,7 +57,7 @@ export const MannualInput = () => {
     return () => {
       window.removeEventListener('reviewRangeUpdated', handleUpdate);
     };
-  }, []);
+  }, [activeFlowIds]);
 
   const handleStartMarking = async () => {
     const normalizedStudentId = studentId.trim().toUpperCase();

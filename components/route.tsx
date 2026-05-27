@@ -8,6 +8,7 @@ import {
   ArrowDownWideNarrow,
   SquareChartGantt,
   ClipboardCheck,
+  FileWarning,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -61,6 +62,11 @@ export const menuItems: MenuItem[] = [
     title: '面评审批',
     icon: ClipboardCheck,
     path: '/approvals',
+  },
+  {
+    title: '错误日志',
+    icon: FileWarning,
+    path: '/error-log',
   },
 ];
 

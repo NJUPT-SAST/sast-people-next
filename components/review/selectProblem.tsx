@@ -43,7 +43,26 @@ const SelectProblem = ({
 }: {
   flowList: Partial<displayUserFlow>[];
 }) => {
-  const storedRange = useMemo(readStoredRange, []);
+  const activeFlowIds = useMemo(
+    () =>
+      flowList
+        .map((flow) => flow.id)
+        .filter((id): id is number => typeof id === 'number'),
+    [flowList],
+  );
+  const storedRange = useMemo(() => {
+    const range = readStoredRange();
+    if (!range) {
+      return null;
+    }
+    if (!activeFlowIds.includes(range.flowTypeId)) {
+      localStorage.removeItem('people_selectedProbs');
+      window.dispatchEvent(new Event('reviewRangeUpdated'));
+      toast.error('已删除的流程不可继续阅卷，请重新设置阅卷范围');
+      return null;
+    }
+    return range;
+  }, [activeFlowIds]);
   const [probList, setProbList] = useState<displayProblemType[] | null>(null);
   const [selectedProbs, setSelectedProbs] = useState<
     selectProbType['problemList']

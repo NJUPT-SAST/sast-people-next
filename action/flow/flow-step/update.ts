@@ -3,6 +3,7 @@
 import { db } from "@/db/drizzle";
 import { flow, flowStep } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { logServerError } from "@/lib/server-error-log";
 import { fullStepType } from "@/types/step";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -14,61 +15,78 @@ export const updateFlowStep = async (
   id: number,
   stepList: fullStepType[]
 ) => {
-  await verifyRole(3);
-  const [flowRecord] = await db
-    .select({ type: flow.type })
-    .from(flow)
-    .where(eq(flow.id, id))
-    .limit(1);
+  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
-  const stepsWithAdminText = (
-    fixedSteps: ReturnType<typeof writtenRecruitmentSteps>,
-  ) => {
-    const customStepByOrder = new Map(
-      stepList.map((step) => [step.order, step]),
-    );
+  try {
+    session = await verifyRole(3);
+    const [flowRecord] = await db
+      .select({ type: flow.type })
+      .from(flow)
+      .where(eq(flow.id, id))
+      .limit(1);
 
-    return fixedSteps.map((step) => {
-      const customStep = customStepByOrder.get(step.order);
-      return {
-        ...step,
-        title: customStep?.title?.trim() || step.title,
-        description: customStep?.description ?? step.description,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-    });
-  };
+    const stepsWithAdminText = (
+      fixedSteps: ReturnType<typeof writtenRecruitmentSteps>,
+    ) => {
+      const customStepByOrder = new Map(
+        stepList.map((step) => [step.order, step]),
+      );
 
-  await db.transaction(async (tx) => {
-    await tx.delete(flowStep).where(eq(flowStep.fkFlowId, id));
+      return fixedSteps.map((step) => {
+        const customStep = customStepByOrder.get(step.order);
+        return {
+          ...step,
+          title: customStep?.title?.trim() || step.title,
+          description: customStep?.description ?? step.description,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      });
+    };
 
-    if (flowRecord) {
-      if (isWrittenRecruitmentFlow(flowRecord.type)) {
+    await db.transaction(async (tx) => {
+      await tx.delete(flowStep).where(eq(flowStep.fkFlowId, id));
+
+      if (flowRecord) {
+        if (isWrittenRecruitmentFlow(flowRecord.type)) {
+          await tx
+            .insert(flowStep)
+            .values(stepsWithAdminText(writtenRecruitmentSteps(id)));
+          return;
+        }
         await tx
           .insert(flowStep)
-          .values(stepsWithAdminText(writtenRecruitmentSteps(id)));
+          .values(stepsWithAdminText(evaluationFlowSteps(id)));
         return;
       }
-      await tx
-        .insert(flowStep)
-        .values(stepsWithAdminText(evaluationFlowSteps(id)));
-      return;
-    }
 
-    await tx.insert(flowStep).values(
-      stepList.map((step) => ({
-        title: step.title,
-        description: step.description,
-        type: step.type as FlowStepTypeValue,
-        order: step.order,
-        fkFlowId: id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        isDeleted: false,
-      }))
-    );
-  });
+      await tx.insert(flowStep).values(
+        stepList.map((step) => ({
+          title: step.title,
+          description: step.description,
+          type: step.type as FlowStepTypeValue,
+          order: step.order,
+          fkFlowId: id,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          isDeleted: false,
+        }))
+      );
+    });
 
-  revalidatePath("/dashboard/flow");
+    revalidatePath("/dashboard/flow");
+  } catch (error) {
+    logServerError("flow-step:update", error, {
+      path: "/dashboard/flow",
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "update-flow-steps",
+      flowId: id,
+      metadata: {
+        stepCount: stepList.length,
+        stepOrders: stepList.map((step) => step.order),
+      },
+    });
+    throw error;
+  }
 };

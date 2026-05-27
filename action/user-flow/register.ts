@@ -3,10 +3,12 @@ import { db } from "@/db/drizzle";
 import { flow, user, userFlow } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { logServerError } from "@/lib/server-error-log";
 // import eventManager from "@/event";
 
 export const register = async (flowId: number, uid: number) => {
-  return await db.transaction(async (tx) => {
+  try {
+    return await db.transaction(async (tx) => {
     // 检查用户是否已经报名
     const existingFlow = await db
       .select({ id: userFlow.id })
@@ -32,7 +34,7 @@ export const register = async (flowId: number, uid: number) => {
         type: flow.type,
       })
       .from(flow)
-      .where(eq(flow.id, flowId))
+      .where(and(eq(flow.id, flowId), eq(flow.isDeleted, false)))
       .limit(1);
 
     if (flowInfo.length === 0) {
@@ -117,5 +119,14 @@ export const register = async (flowId: number, uid: number) => {
     return {
       success: true
     }
-  });
+    });
+  } catch (error) {
+    logServerError("user-flow:register", error, {
+      path: "/dashboard/user-flow",
+      action: "register-flow",
+      userId: uid,
+      flowId,
+    });
+    throw error;
+  }
 };

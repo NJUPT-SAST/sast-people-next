@@ -8,8 +8,11 @@ import { InferSelectModel } from "drizzle-orm";
 import { useUserFlowId } from "@/hooks/useUserFlow";
 import { Loading } from "@/components/loading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 export const MarkProblemTableServer = ({ user }: { user: string }) => {
+  const router = useRouter();
   const flowId = useLocalFlowId();
   const {
     data: userFlowData,
@@ -20,6 +23,7 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
     Array<InferSelectModel<typeof userPoint>>
   >([]);
   const [loading, setLoading] = useState(false);
+  const [pointsError, setPointsError] = useState<string | null>(null);
 
   const userFlowId = userFlowData?.userFlowId ?? 0;
 
@@ -32,9 +36,18 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
       }
 
       setLoading(true);
-      const data = await getUserPointList(userFlowId);
-      setPoints(data);
-      setLoading(false);
+      setPointsError(null);
+      try {
+        const data = await getUserPointList(userFlowId);
+        setPoints(data);
+      } catch (error) {
+        setPoints([]);
+        setPointsError(
+          error instanceof Error ? error.message : '加载评分记录失败',
+        );
+      } finally {
+        setLoading(false);
+      }
     };
 
     void fetchPoints();
@@ -58,7 +71,42 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
   }
 
   if (userFlowError) {
-    throw userFlowError;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>未找到报名记录</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
+          <p>
+            当前阅卷范围下没有找到学号为 {user} 的报名记录，请确认该同学已报名当前流程。
+          </p>
+          <Button className="w-fit" onClick={() => router.push('/dashboard/review')}>
+            返回重新扫码
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (pointsError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>加载评分记录失败</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
+          <p>
+            无法读取该考生的历史评分记录，请确认数据库迁移已完成后再试。
+          </p>
+          <p className="rounded-md bg-muted px-3 py-2 font-mono text-xs">
+            {pointsError}
+          </p>
+          <Button className="w-fit" onClick={() => router.push('/dashboard/review')}>
+            返回重新扫码
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (!userFlowId) {

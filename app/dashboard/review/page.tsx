@@ -1,28 +1,29 @@
 import { PageTitle } from "@/components/route";
-import React, { Suspense } from "react";
+import React from "react";
 import QRCodeScanner from "@/components/review/qrcodeScanner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { MannualInput } from "@/components/review/mannualInput";
 import { SelectProblemServer } from "./selectProblem";
-import { Loading } from "@/components/loading";
 import { SelectedRangeDisplay } from "@/components/review/selectedRangeDisplay";
 import { ReviewSheet } from "@/components/review/reviewSheet";
+import { useFlowList as getFlowList } from "@/hooks/useFlowList";
 
 const Review: React.FC = async () => {
+  const flowList = await getFlowList();
+  const activeFlowIds = flowList.map((flow) => flow.id);
+
   return (
     <>
       <div className="flex items-center justify-between">
         <PageTitle />
         <ReviewSheet>
-          <Suspense fallback={<Loading />}>
-            <SelectProblemServer />
-          </Suspense>
+          <SelectProblemServer flowList={flowList} />
         </ReviewSheet>
       </div>
       <div className="flex flex-col gap-4">
         <Card>
           <CardHeader>
-            <SelectedRangeDisplay />
+            <SelectedRangeDisplay activeFlowIds={activeFlowIds} />
           </CardHeader>
         </Card>
         <Card className="overflow-hidden">
@@ -42,10 +43,10 @@ const Review: React.FC = async () => {
                 </p>
               </div>
               <div className="px-4 pb-4 pt-0 lg:px-6 lg:pb-6">
-                <QRCodeScanner />
+                <QRCodeScanner activeFlowIds={activeFlowIds} />
               </div>
               <div className="px-4 pb-6 pt-2 lg:px-6 lg:pb-8 lg:pt-3">
-                <MannualInput />
+                <MannualInput activeFlowIds={activeFlowIds} />
               </div>
             </div>
           </CardContent>

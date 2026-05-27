@@ -2,9 +2,9 @@ import { useMyFlowList } from './useMyFlowList';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/utils';
 
-export const useFlowListClient = (uid: number) => {
+export const useFlowListClient = (uid: number | null) => {
   return useSWR<Awaited<ReturnType<typeof useMyFlowList>>, Error>(
-    '/api/flow?uid=' + uid,
+    uid ? '/api/flow?uid=' + uid : null,
     fetcher,
   );
 };
