@@ -551,7 +551,7 @@ export function EmailDashboardClient({
           <div>
             <h2 className="text-base font-semibold">发送记录</h2>
             <p className="text-sm text-muted-foreground">
-              从这里发出的邮件会保存每位同学的发送内容。
+              从这里发出的邮件会保存每位同学收到的正文。
             </p>
           </div>
         </div>
@@ -599,10 +599,10 @@ export function EmailDashboardClient({
                       <TableCell>
                         <div className="flex justify-end gap-2">
                           <PreviewDialog
-                            title={`${batch.flowTitle} 发送内容`}
+                            title={`${batch.flowTitle} 查看邮件`}
                             html={preview}
-                            triggerLabel="发送内容"
-                            description="每位收件人都会保存实际发送内容；这里展示该批次第一封。"
+                            triggerLabel="查看邮件"
+                            description="每位收件人的邮件正文都会保存；这里展示该批次第一封。"
                           />
                           <Button
                             variant="outline"
@@ -674,10 +674,10 @@ export function EmailDashboardClient({
                   </p>
                   <div className="mt-3 flex flex-col gap-2">
                     <PreviewDialog
-                      title={`${batch.flowTitle} 发送内容`}
+                      title={`${batch.flowTitle} 查看邮件`}
                       html={preview}
-                      triggerLabel="发送内容"
-                      description="每位收件人都会保存实际发送内容；这里展示该批次第一封。"
+                      triggerLabel="查看邮件"
+                      description="每位收件人的邮件正文都会保存；这里展示该批次第一封。"
                     />
                     <Button
                       variant="outline"
