@@ -60,6 +60,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}:latest
             ${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
+          build-args: |
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
           outputs: type=docker,dest=./${{ env.TAR_FILE_NAME }}
 
       - name: Check image tar size before compression
@@ -169,6 +171,8 @@ jobs:
             APP_SECRET=${{ secrets.APP_SECRET }}
             NONCESTR=${{ secrets.NONCESTR }}
             EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}
+            SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
             DOTENV
             chmod 600 .env
 

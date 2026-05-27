@@ -262,18 +262,22 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
       {role >= 3 && (
-        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-          {summaryStatuses.map((status) => {
-            const count = allRows.filter((row) => getRowStatus(row) === status).length;
-            return (
-              <div key={status} className="rounded-full border bg-card px-3 py-1.5">
-                <span>{statusText[status]}</span>
-                <span className="ml-2 font-semibold tabular-nums text-foreground">
-                  {count}
-                </span>
-              </div>
-            );
-          })}
+        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+          {[summaryStatuses.slice(0, 4), summaryStatuses.slice(4)].map((row, index) => (
+            <div key={index} className="flex w-full flex-wrap justify-center gap-2">
+              {row.map((status) => {
+                const count = allRows.filter((item) => getRowStatus(item) === status).length;
+                return (
+                  <div key={status} className="rounded-full border bg-card px-3 py-1.5">
+                    <span>{statusText[status]}</span>
+                    <span className="ml-2 font-semibold tabular-nums text-foreground">
+                      {count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
       
@@ -352,37 +356,55 @@ export function DataTable<TData, TValue>({
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => {
               const cells = row.getVisibleCells();
-              const offset = role >= 3 ? 1 : 0; // 有复选框时跳过第一列
+              const cellById = new Map(cells.map((cell) => [cell.column.id, cell]));
+              const selectCell = cellById.get('select');
+              const studentIdCell = cellById.get('studentId');
+              const nameCell = cellById.get('name');
+              const phoneCell = cellById.get('phoneNumber');
+              const statusCell = cellById.get('status');
+              const totalScoreCell = cellById.get('totalScore');
               const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
               return (
                 <div key={row.id} className="flex gap-4 p-4 transition-colors hover:bg-muted/50">
-                  {role >= 3 && (
+                  {role >= 3 && selectCell && (
                     <div className="pt-1">
-                      {flexRender(cells[0].column.columnDef.cell, cells[0].getContext())}
+                      {flexRender(selectCell.column.columnDef.cell, selectCell.getContext())}
                     </div>
                   )}
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-base py-1">
-                        {flexRender(cells[1 + offset]?.column.columnDef.cell, cells[1 + offset]?.getContext()) || '未命名'}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-base font-semibold">
+                        {nameCell
+                          ? flexRender(nameCell.column.columnDef.cell, nameCell.getContext())
+                          : '未命名'}
                       </div>
                       <div className="shrink-0">
-                        {flexRender(cells[cells.length - 1]?.column.columnDef.cell, cells[cells.length - 1]?.getContext())}
+                        {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">学号: {flexRender(cells[0 + offset]?.column.columnDef.cell, cells[0 + offset]?.getContext())}</span>
+                    <div className="text-sm text-muted-foreground">
+                      学号:{' '}
+                      {studentIdCell
+                        ? flexRender(studentIdCell.column.columnDef.cell, studentIdCell.getContext())
+                        : '-'}
                     </div>
-                    {role >= 3 && (
+                    {role >= 3 && phoneCell && (
                       <div className="text-sm text-muted-foreground">
-                         手机: {flexRender(cells[2 + offset]?.column.columnDef.cell, cells[2 + offset]?.getContext())}
+                        手机: {flexRender(phoneCell.column.columnDef.cell, phoneCell.getContext()) || '-'}
                       </div>
                     )}
-                    {role >= 3 && problemScoresCell && (
-                      <div className="text-sm text-muted-foreground">
-                        {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      {role >= 3 && problemScoresCell ? (
+                        <div className="text-sm text-muted-foreground">
+                          {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
+                        </div>
+                      ) : (
+                        <span />
+                      )}
+                      <div className="shrink-0">
+                        {statusCell && flexRender(statusCell.column.columnDef.cell, statusCell.getContext())}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               );

@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ShieldQuestion } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -15,7 +16,7 @@ export default function GlobalError({
   const router = useRouter();
 
   useEffect(() => {
-    console.error(error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

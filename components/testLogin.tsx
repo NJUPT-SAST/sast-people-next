@@ -13,10 +13,10 @@ export const TestLogin = () => {
   const router = useRouter();
   return (
     <div className="flex w-full flex-col gap-4">
-      <Separator className="w-full" />
+      <Separator className="w-full bg-[#dbe5da]" />
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">使用测试帐号登入</p>
-        <p className="text-xs text-muted-foreground">仅开发环境可见。</p>
+        <p className="text-sm font-medium text-[#18231d]">使用测试帐号登入</p>
+        <p className="text-xs text-[#66756c]">仅开发环境可见。</p>
       </div>
       <form
         action={async (formdata) => {
@@ -40,7 +40,7 @@ export const TestLogin = () => {
           type="text"
           name="studentId"
           placeholder="请填写测试学号"
-          className="h-11"
+          className="h-11 border-[#dbe5da] bg-white text-[#18231d] placeholder:text-[#8a968e] focus-visible:ring-[#18A058]/30"
         />
         <FormContentWithStatus />
       </form>

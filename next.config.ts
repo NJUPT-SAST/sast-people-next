@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 import path from "path";
 
 const isMock = process.env.NEXT_PUBLIC_MOCK === "true";
@@ -41,4 +42,12 @@ const nextConfig: NextConfig = {
     : {}),
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: "sast-an",
+  project: "sast-people",
+  silent: true,
+  telemetry: false,
+  sourcemaps: {
+    disable: true,
+  },
+});

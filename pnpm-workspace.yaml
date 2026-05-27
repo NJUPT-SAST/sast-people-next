@@ -3,6 +3,7 @@ overrides:
   flatted: ^3.4.2
 
 allowBuilds:
+  '@sentry/cli': false
   esbuild: false
   inngest-cli: false
   msw: false
