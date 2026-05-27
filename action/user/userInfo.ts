@@ -4,62 +4,99 @@ import { experienceSchema } from "@/components/userInfo/experience";
 import { db } from "@/db/drizzle";
 import { user } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
+import { logServerError } from "@/lib/server-error-log";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 export async function editBasicInfo(values: z.infer<typeof basicInfoSchema>) {
-  const session = await verifySession();
+  let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
-  await db
-    .update(user)
-    .set({
-      name: values.name,
-      phone: values.phone,
-      email: values.email,
-      college: values.college,
-      major: values.major,
-      qq: values.qq || null,
-      updatedAt: new Date(),
-    })
-    .where(eq(user.id, session.uid));
+  try {
+    session = await verifySession();
 
-  revalidatePath("/dashboard");
-  return { success: true };
+    await db
+      .update(user)
+      .set({
+        name: values.name,
+        phone: values.phone,
+        email: values.email,
+        college: values.college,
+        major: values.major,
+        qq: values.qq || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(user.id, session.uid));
+
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error) {
+    logServerError("user:editBasicInfo", error, {
+      path: "/dashboard",
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "edit-basic-info",
+    });
+    throw error;
+  }
 }
 
 export async function editBasicInfoByUid(
   uid: number,
   values: z.infer<typeof basicInfoSchema>
 ) {
-  console.log("Server received values:", JSON.stringify(values));
-  const session = await verifySession();
+  let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
-  if (session.role < 2 && session.uid !== uid) {
-    throw new Error("Permission denied");
+  try {
+    session = await verifySession();
+
+    if (session.role < 2 && session.uid !== uid) {
+      throw new Error("Permission denied");
+    }
+
+    await db
+      .update(user)
+      .set({
+        ...values,
+        updatedAt: new Date(),
+      })
+      .where(eq(user.id, uid));
+    revalidatePath("/dashboard/manage");
+    return { success: true };
+  } catch (error) {
+    logServerError("user:editBasicInfoByUid", error, {
+      path: "/dashboard/manage",
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "edit-basic-info-by-uid",
+      targetUserId: uid,
+    });
+    throw error;
   }
-
-  await db
-    .update(user)
-    .set({
-      ...values,
-      updatedAt: new Date(),
-    })
-    .where(eq(user.id, uid));
-  revalidatePath("/dashboard/manage");
-  return { success: true };
 }
 
 export async function editExperience(values: z.infer<typeof experienceSchema>) {
-	const session = await verifySession();
+	let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
-	await db
-		.update(user)
-		.set({
-			...values,
-			updatedAt: new Date(),
-		})
-		.where(eq(user.id, session.uid));
+	try {
+		session = await verifySession();
 
-	revalidatePath("/dashboard");
+		await db
+			.update(user)
+			.set({
+				...values,
+				updatedAt: new Date(),
+			})
+			.where(eq(user.id, session.uid));
+
+		revalidatePath("/dashboard");
+	} catch (error) {
+		logServerError("user:editExperience", error, {
+			path: "/dashboard",
+			userId: session?.uid ?? null,
+			role: session?.role ?? null,
+			action: "edit-experience",
+		});
+		throw error;
+	}
 }

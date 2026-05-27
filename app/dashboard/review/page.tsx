@@ -1,10 +1,9 @@
 import { PageTitle } from "@/components/route";
-import React, { Suspense } from "react";
+import React from "react";
 import QRCodeScanner from "@/components/review/qrcodeScanner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { MannualInput } from "@/components/review/mannualInput";
 import { SelectProblemServer } from "./selectProblem";
-import { Loading } from "@/components/loading";
 import { SelectedRangeDisplay } from "@/components/review/selectedRangeDisplay";
 import { ReviewSheet } from "@/components/review/reviewSheet";
 import { useFlowList as getFlowList } from "@/hooks/useFlowList";

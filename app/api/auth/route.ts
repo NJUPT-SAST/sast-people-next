@@ -1,4 +1,5 @@
 import { getSignature } from '@/action/user/feishu';
+import { logServerError } from '@/lib/server-error-log';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -7,6 +8,16 @@ export async function GET(request: NextRequest) {
   if (!url) {
     return NextResponse.json({ message: 'url is required' }, { status: 400 });
   }
-  const params = await getSignature(url);
-  return NextResponse.json(params);
+  try {
+    const params = await getSignature(url);
+    return NextResponse.json(params);
+  } catch (error) {
+    logServerError('api:auth:signature', error, {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      action: 'get-feishu-signature',
+      metadata: { url },
+    });
+    return NextResponse.json({ message: 'signature failed' }, { status: 500 });
+  }
 }

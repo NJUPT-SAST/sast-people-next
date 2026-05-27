@@ -5,14 +5,16 @@ import FlickeringGrid from "@/components/magicui/flickering-grid";
 import { TestLogin } from "@/components/testLogin";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
+import { Ma_Shan_Zheng } from "next/font/google";
+
+const maShanZheng = Ma_Shan_Zheng({
+  weight: "400",
+  subsets: ["latin"],
+});
 
 const Login = async () => {
   return (
     <>
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap"
-      />
       <main className="min-h-dvh bg-[#f4f6f2] text-[#18231d]">
         <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.02fr)_minmax(420px,0.98fr)]">
           <section className="relative flex min-h-[320px] flex-col overflow-hidden bg-[#18A058] px-8 pb-20 pt-10 text-white sm:min-h-[380px] lg:min-h-dvh lg:justify-center lg:p-12">
@@ -33,21 +35,17 @@ const Login = async () => {
               </div>
               <BlurIn
                 word="开源平等"
-                className="relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:-rotate-2 lg:text-8xl lg:tracking-[0.18em]"
+                className={`relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:-rotate-2 lg:text-8xl lg:tracking-[0.18em] ${maShanZheng.className}`}
                 style={{
-                  fontFamily: '"Ma Shan Zheng", cursive',
-                  fontWeight: 400,
                   textShadow:
                     "0 2px 0 rgba(0,0,0,0.08), 0 18px 45px rgba(0,0,0,0.18)",
                 }}
               />
               <BlurIn
                 word="薪火相传"
-                className="relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:translate-x-12 lg:rotate-1 lg:text-8xl lg:tracking-[0.18em]"
+                className={`relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:translate-x-12 lg:rotate-1 lg:text-8xl lg:tracking-[0.18em] ${maShanZheng.className}`}
                 delay={0.3}
                 style={{
-                  fontFamily: '"Ma Shan Zheng", cursive',
-                  fontWeight: 400,
                   textShadow:
                     "0 2px 0 rgba(0,0,0,0.08), 0 18px 45px rgba(0,0,0,0.18)",
                 }}

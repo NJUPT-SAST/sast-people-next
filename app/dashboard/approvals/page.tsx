@@ -2,7 +2,6 @@ import { PageTitle } from "@/components/route";
 import React from "react";
 import { ApprovalsContent } from "@/components/manage/approvalsContent";
 import { getAllEvaluations } from "@/action/user-flow/evaluation";
-import { logServerError } from "@/lib/server-error-log";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +11,8 @@ const Approvals = async () => {
 
   try {
     evaluations = await getAllEvaluations();
-  } catch (error) {
+  } catch {
     loadError = true;
-    console.error("Failed to load approval evaluations:", error);
-    logServerError("approvals:getAllEvaluations", error, {
-      path: "/dashboard/approvals",
-      action: "load-approval-evaluations",
-    });
   }
 
   return (
