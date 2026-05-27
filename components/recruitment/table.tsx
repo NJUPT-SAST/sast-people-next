@@ -368,7 +368,7 @@ export function DataTable<TData, TValue>({
                     </div>
                   )}
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-h-[96px] items-stretch justify-between gap-3">
                       <div className="min-w-0 space-y-1">
                         <div className="text-base font-semibold">
                           {nameCell
@@ -382,9 +382,9 @@ export function DataTable<TData, TValue>({
                             : '-'}
                         </div>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        {statusCell && flexRender(statusCell.column.columnDef.cell, statusCell.getContext())}
+                      <div className="flex shrink-0 flex-col items-end justify-between gap-3">
                         {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
+                        {statusCell && flexRender(statusCell.column.columnDef.cell, statusCell.getContext())}
                       </div>
                     </div>
                     {role >= 3 && phoneCell && (
