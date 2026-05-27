@@ -367,35 +367,38 @@ export function DataTable<TData, TValue>({
                       {flexRender(selectCell.column.columnDef.cell, selectCell.getContext())}
                     </div>
                   )}
-                  <div className="grid min-h-[132px] flex-1 grid-cols-[minmax(0,1fr)_auto] gap-x-3">
-                    <div className="min-w-0 space-y-3">
-                      <div className="space-y-2">
-                        <div className="text-base font-semibold">
-                          {nameCell
-                            ? flexRender(nameCell.column.columnDef.cell, nameCell.getContext())
-                            : '未命名'}
-                        </div>
-                        <div className="inline-flex items-center rounded-full border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
-                          学号:{' '}
-                          {studentIdCell
-                            ? flexRender(studentIdCell.column.columnDef.cell, studentIdCell.getContext())
-                            : '-'}
-                        </div>
-                        {role >= 3 && phoneCell && (
-                          <div className="text-sm text-muted-foreground">
-                            手机: {flexRender(phoneCell.column.columnDef.cell, phoneCell.getContext()) || '-'}
-                          </div>
-                        )}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-base font-semibold">
+                        {nameCell
+                          ? flexRender(nameCell.column.columnDef.cell, nameCell.getContext())
+                          : '未命名'}
+                      </div>
+                      <div className="shrink-0">
+                        {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
                       </div>
                     </div>
-                    <div className="flex items-start justify-end">
-                      {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                        学号:{' '}
+                        {studentIdCell
+                          ? flexRender(studentIdCell.column.columnDef.cell, studentIdCell.getContext())
+                          : '-'}
+                      </span>
                     </div>
-                    <div className="col-span-2 mt-4 flex items-center justify-between gap-3">
-                      <div>
-                        {role >= 3 && problemScoresCell &&
-                          flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
+                    {role >= 3 && phoneCell && (
+                      <div className="text-sm text-muted-foreground">
+                        手机: {flexRender(phoneCell.column.columnDef.cell, phoneCell.getContext()) || '-'}
                       </div>
+                    )}
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      {role >= 3 && problemScoresCell ? (
+                        <div className="text-sm text-muted-foreground">
+                          {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
+                        </div>
+                      ) : (
+                        <span />
+                      )}
                       <div className="shrink-0">
                         {statusCell && flexRender(statusCell.column.columnDef.cell, statusCell.getContext())}
                       </div>
