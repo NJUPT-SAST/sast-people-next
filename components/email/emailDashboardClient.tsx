@@ -46,14 +46,16 @@ const batchStatusText: Record<string, string> = {
   failed: "有失败",
 };
 
-function formatDate(value: Date | null) {
+function formatDate(value: Date | string | null) {
   if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(value);
+  }).format(date);
 }
 
 function getSettingLabel(templateKey: string) {

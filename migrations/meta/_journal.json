@@ -64,6 +64,13 @@
       "when": 1770000000000,
       "tag": "0008_email_delivery_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1770000000001,
+      "tag": "0009_email_table_permissions",
+      "breakpoints": true
     }
   ]
 }

@@ -67,6 +67,18 @@ const ErrorLogPage = async () => {
                     {entry.message}
                   </p>
                 )}
+                <div className="flex flex-wrap gap-2">
+                  {entry.name && (
+                    <Badge variant="outline" className="font-normal">
+                      类型: {entry.name}
+                    </Badge>
+                  )}
+                  {entry.digest && (
+                    <Badge variant="outline" className="font-mono font-normal">
+                      Digest: {entry.digest}
+                    </Badge>
+                  )}
+                </div>
                 {entry.context && (
                   <div className="flex flex-wrap gap-2">
                     {contextItems(entry.context).map(([label, value]) => (
