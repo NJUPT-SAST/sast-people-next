@@ -382,13 +382,11 @@ export function DataTable<TData, TValue>({
                         {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                        学号:{' '}
-                        {studentIdCell
-                          ? flexRender(studentIdCell.column.columnDef.cell, studentIdCell.getContext())
-                          : '-'}
-                      </span>
+                    <div className="text-sm text-muted-foreground">
+                      学号:{' '}
+                      {studentIdCell
+                        ? flexRender(studentIdCell.column.columnDef.cell, studentIdCell.getContext())
+                        : '-'}
                     </div>
                     {role >= 3 && phoneCell && (
                       <div className="text-sm text-muted-foreground">
