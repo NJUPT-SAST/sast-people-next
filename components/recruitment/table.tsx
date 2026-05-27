@@ -262,18 +262,22 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
       {role >= 3 && (
-        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-          {summaryStatuses.map((status) => {
-            const count = allRows.filter((row) => getRowStatus(row) === status).length;
-            return (
-              <div key={status} className="rounded-full border bg-card px-3 py-1.5">
-                <span>{statusText[status]}</span>
-                <span className="ml-2 font-semibold tabular-nums text-foreground">
-                  {count}
-                </span>
-              </div>
-            );
-          })}
+        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+          {[summaryStatuses.slice(0, 4), summaryStatuses.slice(4)].map((row, index) => (
+            <div key={index} className="flex justify-center gap-2">
+              {row.map((status) => {
+                const count = allRows.filter((item) => getRowStatus(item) === status).length;
+                return (
+                  <div key={status} className="rounded-full border bg-card px-3 py-1.5">
+                    <span>{statusText[status]}</span>
+                    <span className="ml-2 font-semibold tabular-nums text-foreground">
+                      {count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
       
