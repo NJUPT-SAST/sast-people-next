@@ -367,9 +367,9 @@ export function DataTable<TData, TValue>({
                       {flexRender(selectCell.column.columnDef.cell, selectCell.getContext())}
                     </div>
                   )}
-                  <div className="flex-1 space-y-2">
-                    <div className="flex min-h-[96px] items-stretch justify-between gap-3">
-                      <div className="min-w-0 space-y-1">
+                  <div className="grid min-h-[150px] flex-1 grid-cols-[minmax(0,1fr)_auto] gap-x-3">
+                    <div className="min-w-0 space-y-2">
+                      <div className="space-y-1">
                         <div className="text-base font-semibold">
                           {nameCell
                             ? flexRender(nameCell.column.columnDef.cell, nameCell.getContext())
@@ -382,21 +382,23 @@ export function DataTable<TData, TValue>({
                             : '-'}
                         </div>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end justify-between gap-3">
-                        {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
-                        {statusCell && flexRender(statusCell.column.columnDef.cell, statusCell.getContext())}
+                      <div className="pt-8">
+                        {role >= 3 && phoneCell && (
+                          <div className="text-sm text-muted-foreground">
+                             手机: {flexRender(phoneCell.column.columnDef.cell, phoneCell.getContext())}
+                          </div>
+                        )}
+                        {role >= 3 && problemScoresCell && (
+                          <div className="mt-3 text-sm text-muted-foreground">
+                            {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {role >= 3 && phoneCell && (
-                      <div className="text-sm text-muted-foreground">
-                         手机: {flexRender(phoneCell.column.columnDef.cell, phoneCell.getContext())}
-                      </div>
-                    )}
-                    {role >= 3 && problemScoresCell && (
-                      <div className="text-sm text-muted-foreground">
-                        {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
-                      </div>
-                    )}
+                    <div className="flex h-full flex-col items-end justify-between gap-3">
+                      {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
+                      {statusCell && flexRender(statusCell.column.columnDef.cell, statusCell.getContext())}
+                    </div>
                   </div>
                 </div>
               );
