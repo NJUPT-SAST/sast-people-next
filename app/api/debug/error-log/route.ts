@@ -1,17 +1,24 @@
 import { NextResponse } from "next/server";
-import fs from "node:fs";
-
-const ERROR_LOG_PATH = "/tmp/sast-error-log.txt";
+import { verifyRole } from "@/lib/dal";
+import { readServerErrorLog } from "@/lib/server-error-log";
 
 export async function GET() {
   try {
-    if (!fs.existsSync(ERROR_LOG_PATH)) {
+    await verifyRole(3);
+  } catch {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const { count, entries } = readServerErrorLog(5);
+    if (count === 0) {
       return NextResponse.json({ message: "No errors logged yet" });
     }
-    const content = fs.readFileSync(ERROR_LOG_PATH, "utf-8");
-    const lines = content.trim().split("---\n").filter(Boolean);
-    const lastErrors = lines.slice(-5).map((entry) => entry.trim());
-    return NextResponse.json({ count: lines.length, lastErrors });
+    return NextResponse.json({
+      count,
+      lastErrors: entries.map((entry) => entry.raw),
+      entries,
+    });
   } catch {
     return NextResponse.json({ message: "Failed to read error log" }, { status: 500 });
   }
