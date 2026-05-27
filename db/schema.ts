@@ -41,6 +41,20 @@ export const evaluationStatusEnum = pgEnum("evaluation_status_enum", [
   "rejected",
 ]);
 
+export const emailBatchStatusEnum = pgEnum("email_batch_status_enum", [
+  "draft",
+  "queued",
+  "completed",
+  "failed",
+]);
+
+export const emailDeliveryStatusEnum = pgEnum("email_delivery_status_enum", [
+  "pending",
+  "sending",
+  "sent",
+  "failed",
+]);
+
 export const user = pgTable("user", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 30 }).notNull(),
@@ -165,6 +179,66 @@ export const email = pgTable("email", {
   fkFlowStepId: integer("fk_flow_step_id")
     .references(() => flowStep.id)
     .notNull(),
+});
+
+export const emailBatch = pgTable("email_batch", {
+  id: serial("id").primaryKey(),
+  templateKey: varchar("template_key", { length: 80 }).notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  accept: boolean("accept").notNull(),
+  status: emailBatchStatusEnum("status").notNull().default("queued"),
+  totalCount: integer("total_count").notNull().default(0),
+  fkFlowId: integer("fk_flow_id")
+    .references(() => flow.id)
+    .notNull(),
+  fkCreatedBy: integer("fk_created_by").references(() => user.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+});
+
+export const emailDelivery = pgTable("email_delivery", {
+  id: serial("id").primaryKey(),
+  toAddress: varchar("to_address", { length: 254 }).notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  htmlSnapshot: text("html_snapshot").notNull(),
+  status: emailDeliveryStatusEnum("status").notNull().default("pending"),
+  errorMessage: text("error_message"),
+  providerMessageId: varchar("provider_message_id", { length: 255 }),
+  fkEmailBatchId: integer("fk_email_batch_id")
+    .references(() => emailBatch.id)
+    .notNull(),
+  fkUserFlowId: integer("fk_user_flow_id")
+    .references(() => userFlow.id)
+    .notNull(),
+  fkUserId: integer("fk_user_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  sentAt: timestamp("sent_at"),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+});
+
+export const emailTemplateSetting = pgTable("email_template_setting", {
+  id: serial("id").primaryKey(),
+  templateKey: varchar("template_key", { length: 80 }).notNull().unique(),
+  subjectTemplate: varchar("subject_template", { length: 255 }).notNull(),
+  memberInfoFormUrl: text("member_info_form_url").notNull(),
+  feishuGroupUrl: text("feishu_group_url").notNull(),
+  calendarUrl: text("calendar_url").notNull(),
+  feishuRegisterHelpUrl: text("feishu_register_help_url").notNull(),
+  contactEmail: varchar("contact_email", { length: 254 }).notNull(),
+  memberFormLabel: varchar("member_form_label", { length: 100 }).notNull(),
+  feishuGroupName: varchar("feishu_group_name", { length: 100 }).notNull(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
 });
 
 export const userPoint = pgTable("user_point", {

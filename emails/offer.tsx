@@ -11,14 +11,40 @@ import {
   Text,
 } from '@react-email/components';
 import * as React from 'react';
+import { resultEmailCopy, resultEmailLinks } from '@/lib/email/result-email-config';
 
 interface OfferEmailProps {
   name?: string;
   flowName?: string;
   accept?: boolean;
+  genericGreeting?: boolean;
+  memberInfoFormUrl?: string;
+  feishuGroupUrl?: string;
+  calendarUrl?: string;
+  feishuRegisterHelpUrl?: string;
+  contactEmail?: string;
+  memberFormLabel?: string;
+  feishuGroupName?: string;
 }
 
-export const OfferEmail = ({ name, flowName, accept }: OfferEmailProps) => {
+export const OfferEmail = ({
+  name,
+  flowName,
+  accept,
+  genericGreeting = false,
+  memberInfoFormUrl = resultEmailLinks.memberInfoForm,
+  feishuGroupUrl = resultEmailLinks.feishuGroup,
+  calendarUrl = resultEmailLinks.calendar,
+  feishuRegisterHelpUrl = resultEmailLinks.feishuRegisterHelp,
+  contactEmail = resultEmailCopy.contactEmail,
+  memberFormLabel = resultEmailCopy.memberFormLabel,
+  feishuGroupName = resultEmailCopy.feishuGroupName,
+}: OfferEmailProps) => {
+  const greeting =
+    genericGreeting || !name
+      ? '亲爱的 [同学姓名] 同学，'
+      : `亲爱的 ${name} 同学，`;
+
   return (
     <Html>
       <Head />
@@ -31,7 +57,7 @@ export const OfferEmail = ({ name, flowName, accept }: OfferEmailProps) => {
             alt="banner"
           />
           <Section>
-            <Text style={{ ...text, marginTop: '50px' }}>Hi {name},</Text>
+            <Text style={{ ...text, marginTop: '50px' }}>{greeting}</Text>
             {accept ? (
               <>
                 <Text style={text}>
@@ -56,21 +82,21 @@ export const OfferEmail = ({ name, flowName, accept }: OfferEmailProps) => {
                 </Text>
                 <Button
                   style={button}
-                  href="https://njupt-sast.feishu.cn/share/base/form/shrcnfwRMIhYP8N2I1i4YaTNg9b">
-                  点击填写 成员信息收集表
+                  href={memberInfoFormUrl}>
+                  点击填写 {memberFormLabel}
                 </Button>
 
                 <Text style={text}>
                   2. 请注册个人飞书账号（
-                  <Link href="https://www.feishu.cn/hc/zh-CN/articles/360045688853-%E6%B3%A8%E5%86%8C%E8%B4%A6%E5%8F%B7" style={anchor}>
+                  <Link href={feishuRegisterHelpUrl} style={anchor}>
                     注册说明
                   </Link>
-                  ）并加入“SAST.2025 软多Family”飞书群，和学长及其他新成员一起交流
+                  ）并加入“{feishuGroupName}”飞书群，和学长及其他新成员一起交流
                 </Text>
                 <Button
                   style={button}
-                  href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=1ack8f0f-dea7-494a-9d11-09873f28d150">
-                  点击加入 SAST.2025 软多Family
+                  href={feishuGroupUrl}>
+                  点击加入 {feishuGroupName}
                 </Button>
 
                 <hr style={{ margin: '16px 0' }} />
@@ -80,7 +106,7 @@ export const OfferEmail = ({ name, flowName, accept }: OfferEmailProps) => {
                 </Text>
                 <Text style={text}>
                   通过个人飞书账号，订阅
-                  <Link href="https://www.feishu.cn/calendar/share/calendar?token=18E3hIfkra9WK2xhrs__6dsQmLD-cvf59shJz8ZEWoNQzRsv5VNz4ssCMIEaYP-yGTlM_or_eg==" style={anchor}>
+                  <Link href={calendarUrl} style={anchor}>
                     科协公开活动
                   </Link>
                   ，获取最新授课日历
@@ -114,7 +140,7 @@ export const OfferEmail = ({ name, flowName, accept }: OfferEmailProps) => {
                 </Text>
                 <Text style={text}>
                   通过个人飞书账号，订阅
-                  <Link href="https://www.feishu.cn/calendar/share/calendar?token=18E3hIfkra9WK2xhrs__6dsQmLD-cvf59shJz8ZEWoNQzRsv5VNz4ssCMIEaYP-yGTlM_or_eg==" style={anchor}>
+                  <Link href={calendarUrl} style={anchor}>
                     科协公开活动
                   </Link>
                   ，获取最新授课日历
@@ -128,7 +154,7 @@ export const OfferEmail = ({ name, flowName, accept }: OfferEmailProps) => {
               </>
             )}
             <Text style={text}>
-              如果你有更多疑问，请联系 recruitment@sast.fun
+              如果你有更多疑问，请联系 {contactEmail}
             </Text>
             <Text style={text}>祝心想事成!</Text>
           </Section>

@@ -4,9 +4,9 @@
  */
 
 const eventManager = {
-  offer: async (userFlowId: number, accept: boolean) => {
+  offer: async (deliveryId: number) => {
     console.log(
-      `[Mock] Email event: userFlowId=${userFlowId}, accept=${accept} (not actually sent)`
+      `[Mock] Email event: deliveryId=${deliveryId} (not actually sent)`
     );
   },
 };

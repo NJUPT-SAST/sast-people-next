@@ -2,7 +2,7 @@ import 'server-only';
 import offer from './offer';
 
 type EventManager = {
-  offer: (userFlowId: number, accept: boolean) => Promise<void>;
+  offer: (deliveryId: number) => Promise<void>;
 };
 
 

@@ -23,7 +23,6 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { batchSetOutcomeByUid } from '@/action/user-flow/edit';
-import { batchSendEmail } from '@/action/user/sendEmail';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -116,19 +115,9 @@ export function DataTable<TData, TValue>({
   const selectedMutableRows = table
     .getSelectedRowModel()
     .flatRows.filter((row) => !isFinalRow(row));
-  const selectedPassedRows = selectedMutableRows.filter(
-    (row) => getRowStatus(row) === 'passed',
-  );
-  const selectedFailedRows = selectedMutableRows.filter(
-    (row) => getRowStatus(row) === 'failed',
-  );
-  const selectedOutcomeRows = [...selectedPassedRows, ...selectedFailedRows];
   const canEditOutcomes = selectedMutableRows.length > 0;
-  const canSendSelectedEmails =
-    selectedMutableRows.length > 0 &&
-    selectedOutcomeRows.length === selectedMutableRows.length;
   const helperText =
-    '已发邮件的结果不可更改；选中未发邮件且已设为通过/不通过的同学后，可发送对应结果邮件并锁定';
+    '成绩管理只负责确定通过/不通过；结果邮件会在邮件管理中按当前流程自动匹配待通知人员';
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'accepted', 'rejected'];
 
   return (
@@ -222,64 +211,30 @@ export function DataTable<TData, TValue>({
           >
             设为不通过
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canSendSelectedEmails}
-            onClick={async () => {
-              const passedUids = selectedPassedRows.map((row) => toRecruitmentRow(row).uid);
-              const failedUids = selectedFailedRows.map((row) => toRecruitmentRow(row).uid);
-              toast.promise(
-                Promise.all([
-                  passedUids.length > 0
-                    ? batchSendEmail(passedUids, flowTypeId, true)
-                    : Promise.resolve(),
-                  failedUids.length > 0
-                    ? batchSendEmail(failedUids, flowTypeId, false)
-                    : Promise.resolve(),
-                ]).then(() => {
-                  setStatusOverrides((prev) => ({
-                    ...prev,
-                    ...Object.fromEntries(passedUids.map((uid) => [uid, 'accepted'])),
-                    ...Object.fromEntries(failedUids.map((uid) => [uid, 'rejected'])),
-                  }));
-                  setRowSelection({});
-                }),
-                {
-                  loading: '正在发送选中结果邮件',
-                  success: '选中结果邮件已加入发送队列，已发送人员结果锁定',
-                  error: '发送选中邮件失败',
-                },
-              );
-            }}
-          >
-            发送选中邮件
-          </Button>
             </>
           )}
             </div>
           </div>
         </div>
+        {role >= 3 && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t pt-3 text-xs text-muted-foreground">
+            {summaryStatuses.map((status) => {
+              const count = allRows.filter((item) => getRowStatus(item) === status).length;
+              return (
+                <div
+                  key={status}
+                  className="inline-flex items-center gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1"
+                >
+                  <span>{statusText[status]}</span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {count}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-      {role >= 3 && (
-        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground md:flex-row md:justify-center">
-          {[summaryStatuses.slice(0, 4), summaryStatuses.slice(4)].map((row, index) => (
-            <div key={index} className="flex w-full flex-wrap justify-center gap-2">
-              {row.map((status) => {
-                const count = allRows.filter((item) => getRowStatus(item) === status).length;
-                return (
-                  <div key={status} className="rounded-full border bg-card px-3 py-1.5">
-                    <span>{statusText[status]}</span>
-                    <span className="ml-2 font-semibold tabular-nums text-foreground">
-                      {count}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
       
       <div className="overflow-hidden rounded-xl border bg-card">
         {role >= 3 && (

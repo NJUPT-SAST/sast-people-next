@@ -6,7 +6,6 @@ import { DataTable } from "./table";
 
 const mockBatchEndByUid = jest.fn().mockResolvedValue(undefined);
 const mockBatchSetOutcomeByUid = jest.fn().mockResolvedValue(undefined);
-const mockBatchSendEmail = jest.fn().mockResolvedValue(undefined);
 const mockToastPromise = jest.fn((promise: Promise<unknown>) => promise);
 
 jest.mock("@/action/user-flow/edit", () => ({
@@ -14,11 +13,6 @@ jest.mock("@/action/user-flow/edit", () => ({
     mockBatchEndByUid(...args),
   batchSetOutcomeByUid: (...args: Parameters<typeof mockBatchSetOutcomeByUid>) =>
     mockBatchSetOutcomeByUid(...args),
-}));
-
-jest.mock("@/action/user/sendEmail", () => ({
-  batchSendEmail: (...args: Parameters<typeof mockBatchSendEmail>) =>
-    mockBatchSendEmail(...args),
 }));
 
 jest.mock("sonner", () => ({
@@ -57,7 +51,6 @@ describe("Recruitment DataTable", () => {
   beforeEach(() => {
     mockBatchEndByUid.mockClear();
     mockBatchSetOutcomeByUid.mockClear();
-    mockBatchSendEmail.mockClear();
     mockToastPromise.mockClear();
   });
 
@@ -86,7 +79,6 @@ describe("Recruitment DataTable", () => {
     await user.click(screen.getByRole("button", { name: "设为通过" }));
 
     await waitFor(() => {
-      expect(mockBatchSendEmail).not.toHaveBeenCalled();
       expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "passed", [1]);
       expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalledWith(9, 3, "failed", [2]);
       expect(mockToastPromise).toHaveBeenCalled();
@@ -116,9 +108,7 @@ describe("Recruitment DataTable", () => {
     });
   });
 
-  it("sends result email for selected passed and failed rows", async () => {
-    const user = userEvent.setup();
-
+  it("does not expose email sending controls in score management", () => {
     render(
       <DataTable
         columns={columns}
@@ -131,14 +121,6 @@ describe("Recruitment DataTable", () => {
       />,
     );
 
-    await user.click(screen.getAllByLabelText("select-1")[0]);
-    await user.click(screen.getAllByLabelText("select-2")[0]);
-    await user.click(screen.getByRole("button", { name: "发送选中邮件" }));
-
-    await waitFor(() => {
-      expect(mockBatchSendEmail).toHaveBeenCalledWith([1], 9, true);
-      expect(mockBatchSendEmail).toHaveBeenCalledWith([2], 9, false);
-      expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalled();
-    });
+    expect(screen.queryByRole("button", { name: /邮件/ })).not.toBeInTheDocument();
   });
 });
