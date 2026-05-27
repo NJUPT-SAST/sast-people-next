@@ -4,7 +4,7 @@ import { user } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
-import { logServerError } from '@/lib/server-error-log';
+import { isNextControlFlowError, logServerError } from '@/lib/server-error-log';
 
 export const useUserInfo = cache(async () => {
   try {
@@ -15,7 +15,7 @@ export const useUserInfo = cache(async () => {
     }
     return userInfo[0];
   } catch (err) {
-    if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
+    if (isNextControlFlowError(err)) throw err;
     console.error("useUserInfo error:", err);
     logServerError('dashboard:useUserInfo', err, {
       path: '/dashboard',

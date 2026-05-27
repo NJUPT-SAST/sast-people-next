@@ -8,7 +8,7 @@ import { SESSION } from "@/const/cookie";
 import { db } from "@/db/drizzle";
 import { user } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { logServerError } from "@/lib/server-error-log";
+import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 
 export const verifySession = cache(async () => {
   try {
@@ -34,7 +34,7 @@ export const verifySession = cache(async () => {
       name: userRecord?.name ?? (session.name as string),
     };
   } catch (err) {
-    if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
+    if (isNextControlFlowError(err)) throw err;
     console.error("verifySession error:", err);
     logServerError("verifySession", err, {
       action: "verify-session",

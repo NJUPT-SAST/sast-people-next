@@ -5,12 +5,8 @@ import FlickeringGrid from "@/components/magicui/flickering-grid";
 import { TestLogin } from "@/components/testLogin";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
-import { Ma_Shan_Zheng } from "next/font/google";
 
-const maShanZheng = Ma_Shan_Zheng({
-  weight: "400",
-  subsets: ["latin"],
-});
+const sloganFontFamily = '"STXingkai", "KaiTi", "华文行楷", cursive';
 
 const Login = async () => {
   return (
@@ -35,17 +31,19 @@ const Login = async () => {
               </div>
               <BlurIn
                 word="开源平等"
-                className={`relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:-rotate-2 lg:text-8xl lg:tracking-[0.18em] ${maShanZheng.className}`}
+                className="relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:-rotate-2 lg:text-8xl lg:tracking-[0.18em]"
                 style={{
+                  fontFamily: sloganFontFamily,
                   textShadow:
                     "0 2px 0 rgba(0,0,0,0.08), 0 18px 45px rgba(0,0,0,0.18)",
                 }}
               />
               <BlurIn
                 word="薪火相传"
-                className={`relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:translate-x-12 lg:rotate-1 lg:text-8xl lg:tracking-[0.18em] ${maShanZheng.className}`}
+                className="relative text-left text-5xl leading-tight tracking-[0.14em] text-white sm:text-6xl lg:translate-x-12 lg:rotate-1 lg:text-8xl lg:tracking-[0.18em]"
                 delay={0.3}
                 style={{
+                  fontFamily: sloganFontFamily,
                   textShadow:
                     "0 2px 0 rgba(0,0,0,0.08), 0 18px 45px rgba(0,0,0,0.18)",
                 }}
