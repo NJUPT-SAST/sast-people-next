@@ -1,7 +1,7 @@
 'use server';
 import { db } from '@/db/drizzle';
-import { problem, flowStep } from '@/db/schema';
-import { eq, count } from 'drizzle-orm';
+import { flow, problem, flowStep } from '@/db/schema';
+import { and, eq, count } from 'drizzle-orm';
 
 export const useStepWithProblem = async (flowId: number) => {
   // Join steps with problems and get count of problems for each step in one query
@@ -15,8 +15,9 @@ export const useStepWithProblem = async (flowId: number) => {
       problemCount: count(problem.id),
     })
     .from(flowStep)
+    .innerJoin(flow, eq(flowStep.fkFlowId, flow.id))
     .leftJoin(problem, eq(problem.fkFlowStepId, flowStep.id))
-    .where(eq(flowStep.fkFlowId, flowId))
+    .where(and(eq(flowStep.fkFlowId, flowId), eq(flow.isDeleted, false)))
     .groupBy(flowStep.id);
 
   // Find the first step with a problem count greater than 0

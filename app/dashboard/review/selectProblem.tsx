@@ -1,7 +1,6 @@
 import SelectProblem from "@/components/review/selectProblem";
-import { useFlowList as getFlowList } from "@/hooks/useFlowList";
+import { displayFlow } from "@/types/flow";
 
-export const SelectProblemServer = async () => {
-  const flow = await getFlowList();
-  return <SelectProblem flowList={flow} />;
+export const SelectProblemServer = ({ flowList }: { flowList: displayFlow[] }) => {
+  return <SelectProblem flowList={flowList} />;
 };

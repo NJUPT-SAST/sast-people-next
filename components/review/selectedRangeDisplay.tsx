@@ -6,7 +6,7 @@ import { selectProbSchema, selectProbType } from '@/types/problem';
 
 import { Badge } from '@/components/ui/badge';
 
-const readSelectedRange = (): selectProbType | null => {
+const readSelectedRange = (activeFlowIds?: number[]): selectProbType | null => {
   if (typeof window === 'undefined') {
     return null;
   }
@@ -18,18 +18,31 @@ const readSelectedRange = (): selectProbType | null => {
 
   try {
     const result = selectProbSchema.safeParse(JSON.parse(selectedProbs));
-    return result.success ? result.data : null;
+    if (!result.success) {
+      localStorage.removeItem('people_selectedProbs');
+      return null;
+    }
+    if (activeFlowIds && !activeFlowIds.includes(result.data.flowTypeId)) {
+      localStorage.removeItem('people_selectedProbs');
+      return null;
+    }
+    return result.data;
   } catch {
+    localStorage.removeItem('people_selectedProbs');
     return null;
   }
 };
 
-export const SelectedRangeDisplay = () => {
+export const SelectedRangeDisplay = ({
+  activeFlowIds,
+}: {
+  activeFlowIds?: number[];
+}) => {
   const [selectedRange, setSelectedRange] = useState<selectProbType | null>(null);
 
   useEffect(() => {
     const handleRangeUpdate = () => {
-      setSelectedRange(readSelectedRange());
+      setSelectedRange(readSelectedRange(activeFlowIds));
     };
 
     handleRangeUpdate();
@@ -38,7 +51,7 @@ export const SelectedRangeDisplay = () => {
     return () => {
       window.removeEventListener('reviewRangeUpdated', handleRangeUpdate);
     };
-  }, []);
+  }, [activeFlowIds]);
 
   if (!selectedRange || selectedRange.problemList.length === 0) {
     return (

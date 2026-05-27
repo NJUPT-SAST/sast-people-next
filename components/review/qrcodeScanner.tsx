@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '../ui/select';
 
-const QRCodeScanner = () => {
+const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
   const { devices } = useMediaDevices({
     constraints: { video: true, audio: false },
   });
@@ -39,7 +39,7 @@ const QRCodeScanner = () => {
   const [isResolving, setIsResolving] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [userInfo, setUserInfo] = useState<userType>();
-  const flowId = useLocalFlowId();
+  const flowId = useLocalFlowId(activeFlowIds);
 
   const filteredDevices = useMemo(
     () => devices?.filter((value) => value.deviceId) ?? [],

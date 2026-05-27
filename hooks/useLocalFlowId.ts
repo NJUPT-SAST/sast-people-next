@@ -3,7 +3,7 @@
 import { selectProbSchema } from '@/types/problem';
 import { useState } from 'react';
 
-export const useLocalFlowId = () => {
+export const useLocalFlowId = (activeFlowIds?: number[]) => {
   const [flowId] = useState<number | null>(() => {
     if (typeof window === 'undefined') {
       return null;
@@ -13,7 +13,11 @@ export const useLocalFlowId = () => {
       return null;
     }
     const res = selectProbSchema.safeParse(JSON.parse(selectedProbs));
-    if (res.success && res.data?.flowTypeId) {
+    if (
+      res.success &&
+      res.data?.flowTypeId &&
+      (!activeFlowIds || activeFlowIds.includes(res.data.flowTypeId))
+    ) {
       return res.data.flowTypeId;
     }
     localStorage.removeItem('people_selectedProbs');

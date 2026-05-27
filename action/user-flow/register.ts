@@ -32,7 +32,7 @@ export const register = async (flowId: number, uid: number) => {
         type: flow.type,
       })
       .from(flow)
-      .where(eq(flow.id, flowId))
+      .where(and(eq(flow.id, flowId), eq(flow.isDeleted, false)))
       .limit(1);
 
     if (flowInfo.length === 0) {

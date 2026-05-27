@@ -1,7 +1,7 @@
 import { db } from "@/db/drizzle";
 import { displayFlow } from "@/types/flow";
 import { flow, user, flowStep } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 export const useFlowList = async (): Promise<displayFlow[]> => {
   const flowList = await db
@@ -21,7 +21,7 @@ export const useFlowList = async (): Promise<displayFlow[]> => {
       const stepsList = await db
         .select()
         .from(flowStep)
-        .where(eq(flowStep.fkFlowId, flow.id));
+        .where(and(eq(flowStep.fkFlowId, flow.id), eq(flowStep.isDeleted, false)));
       return {
         ...flow,
         owner: userInfo[0].name,
