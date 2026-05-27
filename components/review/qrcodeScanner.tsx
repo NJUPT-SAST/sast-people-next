@@ -134,11 +134,11 @@ const QRCodeScanner = () => {
           </p>
         </div>
       </div>
-      <div className="relative min-h-[300px] overflow-hidden rounded-xl border bg-muted/40 shadow-inner">
+      <div className="relative h-[300px] overflow-hidden rounded-xl border bg-muted/40 shadow-inner sm:h-[320px]">
         {!paused && (
           <video
             ref={ref as React.RefObject<HTMLVideoElement>}
-            className="h-full min-h-[300px] w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         )}
         {paused && (
