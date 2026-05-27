@@ -264,7 +264,7 @@ export function DataTable<TData, TValue>({
       {role >= 3 && (
         <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
           {[summaryStatuses.slice(0, 4), summaryStatuses.slice(4)].map((row, index) => (
-            <div key={index} className="flex justify-center gap-2">
+            <div key={index} className="flex w-full flex-wrap justify-center gap-2">
               {row.map((status) => {
                 const count = allRows.filter((item) => getRowStatus(item) === status).length;
                 return (
