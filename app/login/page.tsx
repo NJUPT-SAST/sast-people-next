@@ -5,9 +5,10 @@ import FlickeringGrid from "@/components/magicui/flickering-grid";
 import { TestLogin } from "@/components/testLogin";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
+import "@fontsource/ma-shan-zheng/chinese-simplified.css";
 
 const sloganFontFamily =
-  '"FZYaoti", "STXingkai", "华文行楷", "Microsoft YaHei", cursive';
+  '"Ma Shan Zheng", "STXingkai", "华文行楷", "FZYaoti", cursive';
 
 const Login = async () => {
   return (
@@ -32,21 +33,21 @@ const Login = async () => {
               </div>
               <BlurIn
                 word="开源平等"
-                className="relative text-left text-5xl leading-tight tracking-[0.1em] text-white sm:text-6xl lg:text-8xl lg:tracking-[0.12em]"
+                className="relative text-left text-6xl leading-tight tracking-[0.04em] text-white sm:text-7xl lg:-translate-x-4 lg:text-8xl"
                 style={{
                   fontFamily: sloganFontFamily,
                   textShadow:
-                    "0 2px 0 rgba(0,0,0,0.08), 0 18px 45px rgba(0,0,0,0.18)",
+                    "0 2px 0 rgba(0,0,0,0.06), 0 18px 45px rgba(0,0,0,0.2)",
                 }}
               />
               <BlurIn
                 word="薪火相传"
-                className="relative text-left text-5xl leading-tight tracking-[0.1em] text-white sm:text-6xl lg:text-8xl lg:tracking-[0.12em]"
+                className="relative text-left text-6xl leading-tight tracking-[0.04em] text-white sm:text-7xl lg:translate-x-14 lg:text-8xl"
                 delay={0.3}
                 style={{
                   fontFamily: sloganFontFamily,
                   textShadow:
-                    "0 2px 0 rgba(0,0,0,0.08), 0 18px 45px rgba(0,0,0,0.18)",
+                    "0 2px 0 rgba(0,0,0,0.06), 0 18px 45px rgba(0,0,0,0.2)",
                 }}
               />
             </div>
