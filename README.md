@@ -153,15 +153,13 @@ This starts:
 
 ## Environment Variables
 
-Create `.env.local` in the project root:
+Copy `.env.example` to `.env.local` in the project root and fill in local values:
 
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/sast_people
-NEXT_PUBLIC_MOCK=true
-SESSION_SECRET=replace-with-a-long-random-secret
+```bash
+cp .env.example .env.local
 ```
 
-Use `NEXT_PUBLIC_MOCK=true` only for local mock mode.
+Use `NEXT_PUBLIC_MOCK=true` only for local mock mode. Keep real secrets in `.env.local` or GitHub Actions secrets, never in tracked files.
 
 ## Commands
 
@@ -239,7 +237,7 @@ pnpm test -- --runInBand components/recruitment/table.test.tsx
 
 ## Notes
 
-- Do not commit `.env*` files.
+- Do not commit real `.env*` files. `.env.example` is the tracked template.
 - Only expose safe client-side values through `NEXT_PUBLIC_*`.
 - Use mock mode for local UI and workflow testing when PostgreSQL is unavailable.
 - Run migrations before using features that depend on new enum values such as `passed` and `failed`.
