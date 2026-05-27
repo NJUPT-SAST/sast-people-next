@@ -167,6 +167,8 @@ jobs:
             LINK_CLIENT_SECRET=${{ secrets.LINK_CLIENT_SECRET }}
             APP_ID=${{ secrets.APP_ID }}
             APP_SECRET=${{ secrets.APP_SECRET }}
+            NONCESTR=${{ secrets.NONCESTR }}
+            EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}
             DOTENV
             chmod 600 .env
 
