@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExternalLink } from "lucide-react";
 import {
   getAllEvaluations,
   approveEvaluation,
@@ -39,6 +40,32 @@ const flowTypeLabel: Record<string, string> = {
   woc: "WOC/WOD",
   soc: "SOC/SOD",
 };
+
+const LinkLine = ({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "muted";
+}) => (
+  <a
+    href={externalHref(value)}
+    target="_blank"
+    rel="noopener noreferrer"
+    className={[
+      "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors hover:bg-muted/60",
+      tone === "muted"
+        ? "border-border bg-muted/20 text-muted-foreground"
+        : "border-primary/20 bg-primary/5 text-primary",
+    ].join(" ")}
+  >
+    <span className="shrink-0 font-medium">{label}</span>
+    <span className="min-w-0 flex-1 truncate">{value}</span>
+    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+  </a>
+);
 
 export const ApprovalsContent = ({
   initialEvaluations,
@@ -196,9 +223,9 @@ export const ApprovalsContent = ({
       ) : (
         <div className="grid gap-3 sm:gap-4">
           {displayed.map((row) => (
-            <Card key={row.evaluation.id} className="rounded-2xl">
+            <Card key={row.evaluation.id} className="rounded-xl">
               <CardHeader className="space-y-3 pb-3">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <CardTitle className="min-w-0 text-base leading-6 sm:text-sm">
                     {row.candidateName ?? "未知用户"}
                     <span className="text-muted-foreground font-normal">
@@ -207,7 +234,7 @@ export const ApprovalsContent = ({
                     </span>
                   </CardTitle>
                   <Badge
-                    className="shrink-0"
+                    className="w-fit shrink-0"
                     variant={
                       row.evaluation.status === "approved"
                         ? "default"
@@ -219,7 +246,7 @@ export const ApprovalsContent = ({
                     {statusLabel[row.evaluation.status] ?? row.evaluation.status}
                   </Badge>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   {row.flowTitle && (
                     <Badge variant="outline" className="text-xs">
                       {flowTypeLabel[row.flowType ?? ""] ?? row.flowType}
@@ -229,28 +256,14 @@ export const ApprovalsContent = ({
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {row.portfolioLink && (
+                  <LinkLine label="作品链接" value={row.portfolioLink} />
+                )}
                 <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
                 {row.meetingLink && (
-                  <a
-                    href={row.meetingLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
-                  >
-                    {row.meetingLink}
-                  </a>
-                )}
-                {row.portfolioLink && (
-                  <a
-                    href={externalHref(row.portfolioLink)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block text-xs text-primary hover:underline break-all"
-                  >
-                    作品链接：{row.portfolioLink}
-                  </a>
+                  <LinkLine label="会议链接" value={row.meetingLink} tone="muted" />
                 )}
                 <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
