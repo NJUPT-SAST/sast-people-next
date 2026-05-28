@@ -75,11 +75,11 @@ function CountPill({
   return (
     <div
       className={cn(
-        "flex min-w-14 flex-col items-center rounded-md border px-2.5 py-1.5",
+        "flex min-w-14 flex-col items-center rounded-md border px-2.5 py-1.5 lg:min-w-16 lg:px-3 lg:py-2",
         active ? "border-primary/30 bg-primary/10" : "bg-background/70",
       )}
     >
-      <span className="text-base font-semibold tabular-nums leading-none">
+      <span className="text-base font-semibold tabular-nums leading-none lg:text-lg">
         {value}
       </span>
       <span className="mt-1 text-[11px] text-muted-foreground">{label}</span>
@@ -380,30 +380,31 @@ function SendLane({
   const resultLabel = accept ? "通过" : "不通过";
 
   return (
-    <div className={cn("flex flex-col gap-4 rounded-lg border p-4 lg:p-5", tone)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className={cn("flex flex-col gap-4 rounded-lg border p-4 lg:min-h-[148px] lg:p-5", tone)}>
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold">
             {resultLabel}邮件
           </p>
           <p className="mt-1 break-words text-xs text-muted-foreground">{subject}</p>
         </div>
-        <div className="flex shrink-0 gap-2 sm:justify-end">
+        <div className="flex shrink-0 gap-2">
           <CountPill label="未发" value={recipients.length} active={recipients.length > 0} />
           <CountPill label="已发" value={sentRecipients.length} />
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="mt-auto flex flex-col gap-2">
         <div className="grid grid-cols-2 gap-2">
           <RecipientsDialog
             recipients={recipients}
             title={`${flow.title} ${resultLabel}邮件未发名单`}
-            triggerLabel="查看名单"
+            triggerLabel="名单"
           />
           <PreviewDialog
             title={`${flow.title} ${resultLabel}邮件`}
             html={previewHtml}
+            triggerLabel="样张"
             triggerClassName="w-full"
           />
         </div>
@@ -472,8 +473,31 @@ export function EmailDashboardClient({
         </div>
 
         <div className="border-b p-3 lg:hidden">
-          <MobileTemplateActions templateSettings={templateSettings} />
-          <div className="mb-3">
+          <div className="rounded-lg border bg-background/35 p-3">
+            <MobileTemplateActions templateSettings={templateSettings} />
+            <div className="mt-3">
+              <Label htmlFor="email-flow-picker" className="mb-2 block text-xs text-muted-foreground">
+                当前流程
+              </Label>
+              <select
+                id="email-flow-picker"
+                value={selectedFlow?.id ?? ""}
+                onChange={(event) => setSelectedFlowId(Number(event.target.value))}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                disabled={filteredFlows.length === 0}
+              >
+                {filteredFlows.map((flow) => (
+                  <option key={flow.id} value={flow.id}>
+                    {flow.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedFlow && (
+              <FlowSummary flow={selectedFlow} />
+            )}
+          </div>
+          <div className="mt-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -484,25 +508,6 @@ export function EmailDashboardClient({
               />
             </div>
           </div>
-          <Label htmlFor="email-flow-picker" className="mb-2 block text-xs text-muted-foreground">
-            当前流程
-          </Label>
-          <select
-            id="email-flow-picker"
-            value={selectedFlow?.id ?? ""}
-            onChange={(event) => setSelectedFlowId(Number(event.target.value))}
-            className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            disabled={filteredFlows.length === 0}
-          >
-            {filteredFlows.map((flow) => (
-              <option key={flow.id} value={flow.id}>
-                {flow.title}
-              </option>
-            ))}
-          </select>
-          {selectedFlow && (
-            <FlowSummary flow={selectedFlow} />
-          )}
         </div>
 
         <div className="grid lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -549,9 +554,9 @@ export function EmailDashboardClient({
             </div>
           </div>
 
-          <div className="p-3 sm:p-4">
+          <div className="p-3 sm:p-4 lg:p-5">
             {selectedFlow ? (
-                <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-4 lg:gap-5">
                 <div className="flex flex-col gap-1">
                   <div className="min-w-0">
                     <h3 className="truncate text-lg font-semibold">{selectedFlow.title}</h3>
