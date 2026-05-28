@@ -141,6 +141,34 @@ function createValuesFromForm(form: HTMLFormElement) {
   };
 }
 
+function TemplateField({
+  id,
+  name,
+  label,
+  defaultValue,
+  className,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  defaultValue: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        name={name}
+        defaultValue={defaultValue}
+        className="min-w-0"
+      />
+    </div>
+  );
+}
+
 function TemplateDialog({ setting }: { setting: TemplateSetting }) {
   const router = useRouter();
 
@@ -154,7 +182,7 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
       </DialogTrigger>
       <DialogContent
         className={cn(
-          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto",
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto",
           hiddenScrollbar,
         )}
       >
@@ -170,80 +198,76 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
             event.preventDefault();
             const values = createValuesFromForm(event.currentTarget);
             toast.promise(
-              updateEmailTemplateSetting(setting.templateKey, values).then(() =>
-                router.refresh(),
-              ),
+              updateEmailTemplateSetting(setting.templateKey, values).then((result) => {
+                if (!result.ok) throw new Error(result.message);
+                router.refresh();
+              }),
               {
                 loading: "正在保存模板",
                 success: "模板已保存",
-                error: "保存失败",
+                error: (error) =>
+                  error instanceof Error ? error.message : "保存失败",
               },
             );
           }}
         >
-          <div className="flex flex-col gap-2">
-            <Label>邮件标题</Label>
+          <div className="rounded-lg border bg-muted/10 p-3 md:col-span-2">
+            <p className="text-xs font-medium text-muted-foreground">邮件标题</p>
             <input
               type="hidden"
               name="subjectTemplate"
               value={setting.subjectTemplate}
             />
-            <div className="flex h-9 items-center rounded-md border bg-muted/30 px-3 text-sm text-muted-foreground">
-              按流程自动生成：流程名称 + 结果通知
+            <div className="mt-2 flex flex-col gap-1 rounded-md bg-background/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-sm">流程名称 + 结果通知</span>
+              <span className="text-xs text-muted-foreground">自动生成</span>
             </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`${setting.templateKey}-contact`}>联系邮箱</Label>
-            <Input
+
+          <div className="grid gap-3 rounded-lg border bg-muted/10 p-3 md:col-span-2 md:grid-cols-2">
+            <TemplateField
               id={`${setting.templateKey}-contact`}
+              label="联系邮箱"
               name="contactEmail"
               defaultValue={setting.contactEmail}
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`${setting.templateKey}-form-label`}>表单按钮文案</Label>
-            <Input
+            <TemplateField
               id={`${setting.templateKey}-form-label`}
+              label="表单按钮文案"
               name="memberFormLabel"
               defaultValue={setting.memberFormLabel}
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`${setting.templateKey}-group-name`}>飞书群名</Label>
-            <Input
+            <TemplateField
               id={`${setting.templateKey}-group-name`}
+              label="飞书群名"
               name="feishuGroupName"
               defaultValue={setting.feishuGroupName}
+              className="md:col-span-2"
             />
           </div>
-          <div className="flex flex-col gap-2 md:col-span-2">
-            <Label htmlFor={`${setting.templateKey}-form-url`}>成员信息表链接</Label>
-            <Input
+
+          <div className="grid gap-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
+            <TemplateField
               id={`${setting.templateKey}-form-url`}
+              label="成员信息表链接"
               name="memberInfoFormUrl"
               defaultValue={setting.memberInfoFormUrl}
             />
-          </div>
-          <div className="flex flex-col gap-2 md:col-span-2">
-            <Label htmlFor={`${setting.templateKey}-group-url`}>飞书群链接</Label>
-            <Input
+            <TemplateField
               id={`${setting.templateKey}-group-url`}
+              label="飞书群链接"
               name="feishuGroupUrl"
               defaultValue={setting.feishuGroupUrl}
             />
-          </div>
-          <div className="flex flex-col gap-2 md:col-span-2">
-            <Label htmlFor={`${setting.templateKey}-calendar-url`}>活动日历链接</Label>
-            <Input
+            <TemplateField
               id={`${setting.templateKey}-calendar-url`}
+              label="活动日历链接"
               name="calendarUrl"
               defaultValue={setting.calendarUrl}
             />
-          </div>
-          <div className="flex flex-col gap-2 md:col-span-2">
-            <Label htmlFor={`${setting.templateKey}-help-url`}>飞书注册说明</Label>
-            <Input
+            <TemplateField
               id={`${setting.templateKey}-help-url`}
+              label="飞书注册说明"
               name="feishuRegisterHelpUrl"
               defaultValue={setting.feishuRegisterHelpUrl}
             />
