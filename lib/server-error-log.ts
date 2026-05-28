@@ -1,11 +1,6 @@
 import "server-only";
 
 import * as Sentry from "@sentry/nextjs";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-
-const ERROR_LOG_PATH = path.join(os.tmpdir(), "sast-error-log.txt");
 
 export interface ServerErrorLogContext {
   path?: string;
@@ -18,25 +13,6 @@ export interface ServerErrorLogContext {
   studentId?: string | null;
   targetUserId?: number | null;
   metadata?: Record<string, unknown>;
-}
-
-export interface ServerErrorLogEntry {
-  index: number;
-  raw: string;
-  timestamp: string | null;
-  source: string | null;
-  name: string | null;
-  message: string | null;
-  digest: string | null;
-  context: ServerErrorLogContext | null;
-}
-
-function safeStringify(value: unknown) {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return JSON.stringify({ serializationError: "Unable to serialize context" });
-  }
 }
 
 export function isNextControlFlowError(err: unknown) {
@@ -71,63 +47,4 @@ export function logServerError(
     }
     Sentry.captureException(err instanceof Error ? err : new Error(String(err)));
   });
-
-  try {
-    fs.mkdirSync(path.dirname(ERROR_LOG_PATH), { recursive: true });
-    fs.appendFileSync(
-      ERROR_LOG_PATH,
-      `[${new Date().toISOString()}] ${source}\n` +
-        (context ? `context: ${safeStringify(context)}\n` : "") +
-        `name: ${err instanceof Error ? err.name : "Unknown"}\n` +
-        `message: ${err instanceof Error ? err.message : String(err)}\n` +
-        (digest ? `digest: ${digest}\n` : "") +
-        `stack: ${err instanceof Error ? err.stack : "none"}\n` +
-        `---\n`,
-    );
-  } catch (writeError) {
-    console.error("[server-error-log] failed to write local log", writeError);
-  }
-}
-
-export function readServerErrorLog(limit = 50) {
-  if (!fs.existsSync(ERROR_LOG_PATH)) {
-    return { count: 0, entries: [] as ServerErrorLogEntry[] };
-  }
-
-  const content = fs.readFileSync(ERROR_LOG_PATH, "utf-8");
-  const blocks = content.trim().split("---\n").filter(Boolean);
-  const entries = blocks.map((entry, index) => {
-    const raw = entry.trim();
-    const lines = raw.split("\n");
-    const header = lines[0]?.match(/^\[(.+)]\s+(.+)$/);
-    const nameLine = lines.find((line) => line.startsWith("name: "));
-    const messageLine = lines.find((line) => line.startsWith("message: "));
-    const digestLine = lines.find((line) => line.startsWith("digest: "));
-    const contextLine = lines.find((line) => line.startsWith("context: "));
-    let context: ServerErrorLogContext | null = null;
-
-    if (contextLine) {
-      try {
-        context = JSON.parse(contextLine.replace("context: ", "")) as ServerErrorLogContext;
-      } catch {
-        context = null;
-      }
-    }
-
-    return {
-      index: index + 1,
-      raw,
-      timestamp: header?.[1] ?? null,
-      source: header?.[2] ?? null,
-      name: nameLine?.replace("name: ", "") ?? null,
-      message: messageLine?.replace("message: ", "") ?? null,
-      digest: digestLine?.replace("digest: ", "") ?? null,
-      context,
-    };
-  });
-
-  return {
-    count: entries.length,
-    entries: entries.slice(-limit).reverse(),
-  };
 }

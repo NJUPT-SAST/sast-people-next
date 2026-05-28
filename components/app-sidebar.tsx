@@ -51,13 +51,21 @@ function SidebarNav({ role }: { role: number }) {
       {authRoutes.map((item) => {
         const active = isItemActive(pathname, item.path);
         const title = getMenuItemTitle(item, role);
+        const href = item.externalHref ?? `/dashboard${item.path}`;
         return (
           <SidebarMenuItem key={item.title}>
             <SidebarMenuButton asChild isActive={active} tooltip={title}>
-              <Link href={`/dashboard${item.path}`}>
-                <item.icon />
-                <span>{title}</span>
-              </Link>
+              {item.externalHref ? (
+                <a href={href} target="_blank" rel="noreferrer">
+                  <item.icon />
+                  <span>{title}</span>
+                </a>
+              ) : (
+                <Link href={href}>
+                  <item.icon />
+                  <span>{title}</span>
+                </Link>
+              )}
             </SidebarMenuButton>
           </SidebarMenuItem>
         );

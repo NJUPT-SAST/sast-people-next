@@ -21,11 +21,13 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from './ui/breadcrumb';
+import { SENTRY_ISSUES_URL } from '@/lib/sentry';
 
 export interface MenuItem {
   title: string;
   icon: LucideIcon;
   path: string;
+  externalHref?: string;
 }
 
 export const menuItems: MenuItem[] = [
@@ -73,6 +75,7 @@ export const menuItems: MenuItem[] = [
     title: '错误日志',
     icon: FileWarning,
     path: '/error-log',
+    externalHref: SENTRY_ISSUES_URL,
   },
 ];
 
