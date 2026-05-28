@@ -89,17 +89,40 @@ function CountPill({
 
 function FlowSummary({ flow }: { flow: FlowTarget }) {
   const unsent = flow.passed.length + flow.failed.length;
-  const sent = flow.accepted.length + flow.rejected.length;
 
   return (
-    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-      <span>
-        未发 <span className="font-mono text-foreground">{unsent}</span>
+    <div className="mt-2 text-xs text-muted-foreground">
+      <span className={cn(unsent > 0 && "text-primary")}>
+        {unsent > 0 ? `${unsent} 封待发` : "无待发邮件"}
       </span>
-      <span className="text-border">|</span>
-      <span>
-        已发 <span className="font-mono text-foreground">{sent}</span>
-      </span>
+    </div>
+  );
+}
+
+function MobileTemplateActions({
+  templateSettings,
+}: {
+  templateSettings: TemplateSetting[];
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 lg:hidden">
+      {templateSettings.map((setting) => (
+        <TemplateDialog key={setting.templateKey} setting={setting} />
+      ))}
+    </div>
+  );
+}
+
+function DesktopTemplateActions({
+  templateSettings,
+}: {
+  templateSettings: TemplateSetting[];
+}) {
+  return (
+    <div className="hidden gap-2 lg:flex lg:flex-wrap">
+      {templateSettings.map((setting) => (
+        <TemplateDialog key={setting.templateKey} setting={setting} />
+      ))}
     </div>
   );
 }
@@ -357,7 +380,7 @@ function SendLane({
   const resultLabel = accept ? "通过" : "不通过";
 
   return (
-    <div className={cn("flex flex-col gap-3 rounded-lg border p-3", tone)}>
+    <div className={cn("flex flex-col gap-4 rounded-lg border p-4 lg:p-5", tone)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold">
@@ -371,35 +394,37 @@ function SendLane({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <RecipientsDialog
-          recipients={recipients}
-          title={`${flow.title} ${resultLabel}邮件未发名单`}
-          triggerLabel="查看未发名单"
-        />
-        <PreviewDialog
-          title={`${flow.title} ${resultLabel}邮件`}
-          html={previewHtml}
-          triggerClassName="w-full sm:w-auto"
-        />
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-2">
+          <RecipientsDialog
+            recipients={recipients}
+            title={`${flow.title} ${resultLabel}邮件未发名单`}
+            triggerLabel="查看名单"
+          />
+          <PreviewDialog
+            title={`${flow.title} ${resultLabel}邮件`}
+            html={previewHtml}
+            triggerClassName="w-full"
+          />
+        </div>
         <Button
-          size="sm"
-          className="w-full sm:w-auto"
-          disabled={recipients.length === 0}
-          onClick={() => {
-            toast.promise(
-              sendResultEmailFromFlow(flow.id, accept).then(() => router.refresh()),
-              {
-                loading: "正在创建批次并加入发送队列",
-                success: "邮件已加入发送队列，结果已更新",
-                error: "发送失败",
-              },
-            );
-          }}
-        >
-          <Send data-icon="inline-start" />
-          发送
-        </Button>
+            size="sm"
+            className="w-full"
+            disabled={recipients.length === 0}
+            onClick={() => {
+              toast.promise(
+                sendResultEmailFromFlow(flow.id, accept).then(() => router.refresh()),
+                {
+                  loading: "正在创建批次并加入发送队列",
+                  success: "邮件已加入发送队列，结果已更新",
+                  error: "发送失败",
+                },
+              );
+            }}
+          >
+            <Send data-icon="inline-start" />
+            发送
+          </Button>
       </div>
     </div>
   );
@@ -443,14 +468,11 @@ export function EmailDashboardClient({
               选择一个招新流程，系统自动匹配当前通过/不通过名单。
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            {templateSettings.map((setting) => (
-              <TemplateDialog key={setting.templateKey} setting={setting} />
-            ))}
-          </div>
+          <DesktopTemplateActions templateSettings={templateSettings} />
         </div>
 
         <div className="border-b p-3 lg:hidden">
+          <MobileTemplateActions templateSettings={templateSettings} />
           <div className="mb-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -498,7 +520,7 @@ export function EmailDashboardClient({
             </div>
             <div
               className={cn(
-                "flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1",
+                "flex h-[220px] flex-col gap-2 overflow-y-auto pr-1",
                 hiddenScrollbar,
               )}
             >
@@ -529,12 +551,14 @@ export function EmailDashboardClient({
 
           <div className="p-3 sm:p-4">
             {selectedFlow ? (
-              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
-                  <h3 className="text-lg font-semibold">{selectedFlow.title}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    发送只处理未发名单，已发人员不会重复发送。
-                  </p>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-lg font-semibold">{selectedFlow.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      发送只处理未发名单，已发人员不会重复发送。
+                    </p>
+                  </div>
                 </div>
                 <div className="grid gap-3 xl:grid-cols-2">
                   <SendLane flow={selectedFlow} accept />
