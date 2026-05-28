@@ -389,6 +389,7 @@ export const getAllEvaluations = async () => {
       .select({
         evaluation: interviewEvaluation,
         meetingLink: interviewEvaluation.meetingLink,
+        portfolioLink: userFlow.portfolioLink,
         authorName: author.name,
         candidateName: candidate.name,
         candidateStudentId: candidate.studentId,
@@ -426,6 +427,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
         studentId: user.studentId,
         phoneNumber: user.phone,
         status: userFlow.status,
+        portfolioLink: userFlow.portfolioLink,
         evalId: interviewEvaluation.id,
         evalContent: interviewEvaluation.content,
         evalMeetingLink: interviewEvaluation.meetingLink,

@@ -17,6 +17,7 @@ import {
 import { displayUserFlow } from "@/types/userflow";
 import { cn } from "@/lib/utils";
 import { CancelRegistration } from "./cancelRegistration";
+import { PortfolioLinkEditor } from "./portfolioLinkEditor";
 
 const statusIcons = {
   pending: CircleDashed,
@@ -176,6 +177,14 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
             <CancelRegistration userFlowId={flow.id} />
           )}
         </div>
+        {flow.flowType && flow.flowType !== "recruitment" && (
+          <div className="mt-4">
+            <PortfolioLinkEditor
+              userFlowId={flow.id}
+              initialValue={flow.portfolioLink}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

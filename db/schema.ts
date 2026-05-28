@@ -155,6 +155,7 @@ export const userFlow = pgTable("user_flow", {
   id: serial("id").primaryKey(),
   status: userFlowStatusEnum("status").notNull().default("pending"),
   currentStepOrder: integer("current_step_order").notNull(),
+  portfolioLink: text("portfolio_link"),
   fkFlowId: integer("fk_flow_id")
     .references(() => flow.id)
     .notNull(),

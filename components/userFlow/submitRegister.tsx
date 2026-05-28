@@ -1,6 +1,8 @@
 'use client';
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +30,10 @@ const SubmitRegister = ({
 }: { flowList: displayFlow[]; uid: number }) => {
   const [open, setOpen] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<number | null>(null);
+  const [portfolioLink, setPortfolioLink] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const currentFlow = flowList.find((flow) => flow.id === selectedFlow);
+  const needsPortfolioLink = currentFlow?.type !== "recruitment" && !!currentFlow;
 
   const handleRegister = async () => {
     if (selectedFlow) {
@@ -36,12 +41,17 @@ const SubmitRegister = ({
       toast.promise(
         (async () => {
           try {
-            const result = await register(selectedFlow, uid);
+            const result = await register(
+              selectedFlow,
+              uid,
+              needsPortfolioLink ? portfolioLink : undefined,
+            );
             if ((result?.success ?? false) === false) {
               throw Error(result?.error?.message ?? "服务器错误")
             }
             setOpen(false);
             setSelectedFlow(null);
+            setPortfolioLink("");
           } catch (error) {
             if (error instanceof Error) {
               throw new Error(error.message);
@@ -74,7 +84,12 @@ const SubmitRegister = ({
           <DialogTitle>选择报名流程</DialogTitle>
           <DialogDescription>请选择您要报名的流程</DialogDescription>
         </DialogHeader>
-        <Select onValueChange={(value) => setSelectedFlow(Number(value))}>
+        <Select
+          onValueChange={(value) => {
+            setSelectedFlow(Number(value));
+            setPortfolioLink("");
+          }}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="选择流程" />
           </SelectTrigger>
@@ -97,9 +112,9 @@ const SubmitRegister = ({
                         {flow.title}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {isBeforeStart && `未开始 (${originalDayjs(flow.startedAt).format('MM-DD HH:mm')})`}
-                        {isAfterEnd && `已结束 (${originalDayjs(flow.endedAt).format('MM-DD HH:mm')})`}
-                        {isActive && `进行中 (${originalDayjs(flow.endedAt).format('MM-DD HH:mm')} 截止)`}
+                        {isBeforeStart && `未开始 (${originalDayjs(flow.startedAt).format('YYYY-MM-DD HH:mm')})`}
+                        {isAfterEnd && `已结束 (${originalDayjs(flow.endedAt).format('YYYY-MM-DD HH:mm')})`}
+                        {isActive && `进行中 (${originalDayjs(flow.endedAt).format('YYYY-MM-DD HH:mm')} 截止)`}
                       </span>
                     </div>
                   </SelectItem>
@@ -108,6 +123,21 @@ const SubmitRegister = ({
             </SelectContent>
           )}
         </Select>
+        {needsPortfolioLink && (
+          <div className="space-y-2">
+            <Label htmlFor="portfolio-link">作品链接</Label>
+            <Input
+              id="portfolio-link"
+              value={portfolioLink}
+              onChange={(event) => setPortfolioLink(event.target.value)}
+              placeholder="https://..."
+              inputMode="url"
+            />
+            <p className="text-xs text-muted-foreground">
+              可先留空，报名成功后也可以修改。
+            </p>
+          </div>
+        )}
         <DialogFooter>
           <Button
             onClick={handleRegister}

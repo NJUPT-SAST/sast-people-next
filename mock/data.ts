@@ -423,6 +423,7 @@ export const mockUserFlows = [
     current_step_order: 2,
     fk_flow_id: 1,
     fk_user_id: 3, // 王同学 - in checking stage
+    portfolio_link: null,
   },
   {
     id: 2,
@@ -430,6 +431,7 @@ export const mockUserFlows = [
     current_step_order: 1,
     fk_flow_id: 1,
     fk_user_id: 5, // 刘同学 - just registered
+    portfolio_link: null,
   },
   {
     id: 3,
@@ -437,6 +439,7 @@ export const mockUserFlows = [
     current_step_order: 5,
     fk_flow_id: 1,
     fk_user_id: 6, // 赵同学 - accepted
+    portfolio_link: null,
   },
   {
     id: 4,
@@ -444,6 +447,7 @@ export const mockUserFlows = [
     current_step_order: 3,
     fk_flow_id: 2,
     fk_user_id: 3, // 王同学 - rejected in spring
+    portfolio_link: null,
   },
   {
     id: 5,
@@ -451,6 +455,7 @@ export const mockUserFlows = [
     current_step_order: 3,
     fk_flow_id: 1,
     fk_user_id: 4, // 陈同学 - in judging stage (no phone though)
+    portfolio_link: null,
   },
   // WOC flow (id=4)
   {
@@ -459,6 +464,7 @@ export const mockUserFlows = [
     current_step_order: 2,
     fk_flow_id: 4,
     fk_user_id: 2, // 测试讲师 - WOC candidate
+    portfolio_link: "https://github.com/sast-demo/woc-work",
   },
   {
     id: 7,
@@ -466,6 +472,7 @@ export const mockUserFlows = [
     current_step_order: 2,
     fk_flow_id: 4,
     fk_user_id: 8, // 测试部员 - WOC candidate
+    portfolio_link: "https://example.com/portfolio/woc",
   },
   // SOC flow (id=5)
   {
@@ -474,6 +481,7 @@ export const mockUserFlows = [
     current_step_order: 2,
     fk_flow_id: 5,
     fk_user_id: 8, // 测试部员 - SOC candidate
+    portfolio_link: "https://github.com/sast-demo/soc-work",
   },
   // recruitment_exemption flow (id=6)
   {
@@ -482,6 +490,7 @@ export const mockUserFlows = [
     current_step_order: 2,
     fk_flow_id: 6,
     fk_user_id: 3, // 王小明 - exemption candidate
+    portfolio_link: "https://example.com/exemption-demo",
   },
   {
     id: 10,
@@ -489,6 +498,7 @@ export const mockUserFlows = [
     current_step_order: 2,
     fk_flow_id: 6,
     fk_user_id: 5, // 刘大力 - exemption candidate
+    portfolio_link: null,
   },
 ];
 

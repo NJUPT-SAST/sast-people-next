@@ -123,7 +123,8 @@ pgMem.public.none(`
     status user_flow_status_enum NOT NULL DEFAULT 'pending',
     current_step_order INTEGER NOT NULL,
     fk_flow_id INTEGER NOT NULL REFERENCES "flow"(id),
-    fk_user_id INTEGER NOT NULL REFERENCES "user"(id)
+    fk_user_id INTEGER NOT NULL REFERENCES "user"(id),
+    portfolio_link TEXT
   )
 `);
 
@@ -246,8 +247,8 @@ function seedDatabase() {
 
   for (const uf of mockUserFlows) {
     pgMem.public.none(
-      `INSERT INTO "user_flow" (status, current_step_order, fk_flow_id, fk_user_id)
-       VALUES (${escSql(uf.status)}, ${escSql(uf.current_step_order)}, ${escSql(uf.fk_flow_id)}, ${escSql(uf.fk_user_id)})`
+      `INSERT INTO "user_flow" (status, current_step_order, fk_flow_id, fk_user_id, portfolio_link)
+       VALUES (${escSql(uf.status)}, ${escSql(uf.current_step_order)}, ${escSql(uf.fk_flow_id)}, ${escSql(uf.fk_user_id)}, ${escSql(uf.portfolio_link ?? null)})`
     );
   }
 

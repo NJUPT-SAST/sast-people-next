@@ -71,6 +71,13 @@
       "when": 1770000000001,
       "tag": "0009_email_table_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1770000000002,
+      "tag": "0010_user_flow_portfolio_link",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -23,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { externalHref } from "@/lib/link";
 
 type Candidate = {
   userFlowId: number;
@@ -31,6 +33,7 @@ type Candidate = {
   studentId: string | null;
   phoneNumber: string | null;
   status: string;
+  portfolioLink: string | null;
   evalId: number | null;
   evalContent: string | null;
   evalMeetingLink: string | null;
@@ -52,6 +55,22 @@ const rejectButtonClass =
   "h-8 rounded-lg border-destructive/20 bg-destructive/8 px-3 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive";
 const neutralButtonClass =
   "h-8 rounded-lg border-border bg-background px-3 shadow-none hover:bg-muted";
+
+const PortfolioLink = ({ value }: { value: string | null }) => {
+  if (!value) return <span className="text-xs text-muted-foreground">未填写</span>;
+
+  return (
+    <a
+      href={externalHref(value)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
+    >
+      <span className="truncate">作品链接</span>
+      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+    </a>
+  );
+};
 
 export const EvaluationTable = ({
   candidates,
@@ -150,18 +169,20 @@ export const EvaluationTable = ({
         <Table className="table-fixed min-w-[760px]">
           {role >= 3 ? (
             <colgroup>
-              <col className="w-[15%]" />
-              <col className="w-[20%]" />
-              <col className="w-[22%]" />
+              <col className="w-[14%]" />
               <col className="w-[18%]" />
-              <col className="w-[25%]" />
+              <col className="w-[18%]" />
+              <col className="w-[16%]" />
+              <col className="w-[14%]" />
+              <col className="w-[20%]" />
             </colgroup>
           ) : (
             <colgroup>
               <col className="w-[18%]" />
-              <col className="w-[28%]" />
               <col className="w-[24%]" />
-              <col className="w-[30%]" />
+              <col className="w-[20%]" />
+              <col className="w-[18%]" />
+              <col className="w-[20%]" />
             </colgroup>
           )}
           <TableHeader>
@@ -171,6 +192,7 @@ export const EvaluationTable = ({
               {role >= 3 && (
                 <TableHead className="whitespace-nowrap px-4 py-3">手机号</TableHead>
               )}
+              <TableHead className="whitespace-nowrap px-4 py-3">作品</TableHead>
               <TableHead className="whitespace-nowrap px-4 py-3">状态</TableHead>
               {role >= 2 && (
                 <TableHead className="whitespace-nowrap px-4 py-3">操作</TableHead>
@@ -196,6 +218,9 @@ export const EvaluationTable = ({
                       {c.phoneNumber || "-"}
                     </TableCell>
                   )}
+                  <TableCell className="whitespace-nowrap px-4 py-4">
+                    <PortfolioLink value={c.portfolioLink} />
+                  </TableCell>
                   <TableCell className="whitespace-nowrap px-4 py-4">
                     {evalStatusBadge(c.evalStatus, c.status)}
                   </TableCell>
@@ -282,6 +307,10 @@ export const EvaluationTable = ({
                   手机: {c.phoneNumber || "-"}
                 </div>
               )}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>作品</span>
+                <PortfolioLink value={c.portfolioLink} />
+              </div>
               {role >= 2 && (
                 isEditing ? (
                   <div className="pt-1 text-sm text-muted-foreground">
@@ -355,6 +384,12 @@ export const EvaluationTable = ({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
+            {editingCandidate && (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="mb-1 text-xs text-muted-foreground">作品链接</p>
+                <PortfolioLink value={editingCandidate.portfolioLink} />
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-medium">面评内容</label>
               <Textarea

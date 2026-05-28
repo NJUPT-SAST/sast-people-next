@@ -14,10 +14,12 @@ import {
 import type { InferSelectModel } from "drizzle-orm";
 import type { interviewEvaluation } from "@/db/schema";
 import originalDayjs from "@/lib/dayjs";
+import { externalHref } from "@/lib/link";
 
 export type EvaluationRow = {
   evaluation: InferSelectModel<typeof interviewEvaluation>;
   meetingLink: string | null;
+  portfolioLink: string | null;
   authorName: string | null;
   candidateName: string | null;
   candidateStudentId: string | null;
@@ -238,6 +240,16 @@ export const ApprovalsContent = ({
                     className="inline-block mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
                   >
                     {row.meetingLink}
+                  </a>
+                )}
+                {row.portfolioLink && (
+                  <a
+                    href={externalHref(row.portfolioLink)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-xs text-primary hover:underline break-all"
+                  >
+                    作品链接：{row.portfolioLink}
                   </a>
                 )}
                 <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
