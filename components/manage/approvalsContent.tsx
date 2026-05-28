@@ -45,7 +45,7 @@ const InlineLink = ({ label, value }: { label: string; value: string }) => (
     href={externalHref(value)}
     target="_blank"
     rel="noopener noreferrer"
-    className="block max-w-full truncate text-xs text-primary hover:underline"
+    className="block max-w-full truncate text-xs text-blue-600 hover:underline dark:text-blue-400"
   >
     {label}：{value}
   </a>
