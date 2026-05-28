@@ -4,6 +4,10 @@ jest.mock("./cancelRegistration", () => ({
   CancelRegistration: () => null,
 }));
 
+jest.mock("./portfolioLinkEditor", () => ({
+  PortfolioLinkEditor: () => null,
+}));
+
 import { FlowCard } from "./flowCard";
 
 describe("FlowCard", () => {
