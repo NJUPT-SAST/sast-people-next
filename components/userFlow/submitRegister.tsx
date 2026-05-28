@@ -90,7 +90,7 @@ const SubmitRegister = ({
             setPortfolioLink("");
           }}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left">
             <SelectValue placeholder="选择流程" />
           </SelectTrigger>
           {flowList.length > 0 && (
@@ -106,8 +106,9 @@ const SubmitRegister = ({
                     key={flow.id}
                     value={flow.id.toString()}
                     disabled={!isActive}
+                    className="items-start text-left [&>span:last-child]:w-full"
                   >
-                    <div className="flex flex-col">
+                    <div className="flex w-full flex-col items-start text-left">
                       <span className={isActive ? '' : 'text-muted-foreground'}>
                         {flow.title}
                       </span>
@@ -134,7 +135,7 @@ const SubmitRegister = ({
               inputMode="url"
             />
             <p className="text-xs text-muted-foreground">
-              可先留空，报名成功后也可以修改。
+              报名后可补充或修改。
             </p>
           </div>
         )}
