@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: '无效的操作类型' }, { status: 400 });
     }
   } catch (error) {
-    console.error('API Error:', error);
     const data = body?.data;
     const firstPoint = Array.isArray(data) ? data[0] : data;
     logServerError('api:user-point:post', error, {

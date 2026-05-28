@@ -1,5 +1,6 @@
 'use client';
 import axios from 'axios';
+import * as Sentry from '@sentry/nextjs';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import React, { useEffect } from 'react';
@@ -57,7 +58,7 @@ export const FeishuSDKInject: React.FC = () => {
             },
             //鉴权失败回调
             onFail: (err: unknown) => {
-              throw `config failed: ${JSON.stringify(err)}`;
+              Sentry.captureException(new Error(`飞书配置失败: ${JSON.stringify(err)}`));
             },
           });
         });
@@ -74,12 +75,14 @@ export const FeishuSDKInject: React.FC = () => {
               }
             },
             fail: (error: unknown) => {
-              console.error(`requestAccess failed: `, error);
+              Sentry.captureException(error);
             },
           });
         });
       }
-    } catch (_e) {}
+    } catch (error) {
+      Sentry.captureException(error);
+    }
   }, []);
   return (
     <>

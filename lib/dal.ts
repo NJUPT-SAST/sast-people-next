@@ -35,7 +35,6 @@ export const verifySession = cache(async () => {
     };
   } catch (err) {
     if (isNextControlFlowError(err)) throw err;
-    console.error("verifySession error:", err);
     logServerError("verifySession", err, {
       action: "verify-session",
     });

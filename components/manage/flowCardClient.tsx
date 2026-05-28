@@ -22,6 +22,7 @@ import { Button } from '../ui/button';
 import { backward, finish, forward, reject } from '@/action/user-flow/edit';
 import { mutate } from 'swr';
 import { toast } from 'sonner';
+import * as Sentry from '@sentry/nextjs';
 
 const statusIcons = {
   pending: CircleDashed,
@@ -97,7 +98,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
       mutate(`/api/flow?uid=${flow.fkUserId}`);
       mutate(`/api/flow/${flow.id}`);
     } catch (e) {
-      console.error('[FlowCard] operation failed:', e);
+      Sentry.captureException(e);
       toast.error('操作失败，请重试');
       // 恢复为 initialFlow
       setFlow(initialFlow);

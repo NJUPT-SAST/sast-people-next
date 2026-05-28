@@ -60,7 +60,6 @@ export async function GET(request: NextRequest) {
     if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (getURLFromRedirectError(err as any) !== null) throw err;
-    console.error("link auth error:", err);
     const subErrors =
       err instanceof AggregateError
         ? err.errors.map((e) => String(e))

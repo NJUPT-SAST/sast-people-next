@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, userFlowId });
   } catch (error) {
-    console.error('API Error:', error);
     const { searchParams } = new URL(request.url);
     logServerError('api:user-flow:get', error, {
       path: request.nextUrl.pathname,
