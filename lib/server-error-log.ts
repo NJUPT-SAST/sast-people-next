@@ -2,8 +2,10 @@ import "server-only";
 
 import * as Sentry from "@sentry/nextjs";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-const ERROR_LOG_PATH = "/tmp/sast-error-log.txt";
+const ERROR_LOG_PATH = path.join(os.tmpdir(), "sast-error-log.txt");
 
 export interface ServerErrorLogContext {
   path?: string;
@@ -71,6 +73,7 @@ export function logServerError(
   });
 
   try {
+    fs.mkdirSync(path.dirname(ERROR_LOG_PATH), { recursive: true });
     fs.appendFileSync(
       ERROR_LOG_PATH,
       `[${new Date().toISOString()}] ${source}\n` +
@@ -81,7 +84,9 @@ export function logServerError(
         `stack: ${err instanceof Error ? err.stack : "none"}\n` +
         `---\n`,
     );
-  } catch {}
+  } catch (writeError) {
+    console.error("[server-error-log] failed to write local log", writeError);
+  }
 }
 
 export function readServerErrorLog(limit = 50) {
