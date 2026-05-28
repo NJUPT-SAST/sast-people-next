@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExternalLink } from "lucide-react";
 import {
   getAllEvaluations,
   approveEvaluation,
@@ -41,29 +40,14 @@ const flowTypeLabel: Record<string, string> = {
   soc: "SOC/SOD",
 };
 
-const LinkLine = ({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "muted";
-}) => (
+const InlineLink = ({ label, value }: { label: string; value: string }) => (
   <a
     href={externalHref(value)}
     target="_blank"
     rel="noopener noreferrer"
-    className={[
-      "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors hover:bg-muted/60",
-      tone === "muted"
-        ? "border-border bg-muted/20 text-muted-foreground"
-        : "border-primary/20 bg-primary/5 text-primary",
-    ].join(" ")}
+    className="block max-w-full truncate text-xs text-primary hover:underline"
   >
-    <span className="shrink-0 font-medium">{label}</span>
-    <span className="min-w-0 flex-1 truncate">{value}</span>
-    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+    {label}：{value}
   </a>
 );
 
@@ -256,14 +240,18 @@ export const ApprovalsContent = ({
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {row.portfolioLink && (
-                  <LinkLine label="作品链接" value={row.portfolioLink} />
-                )}
                 <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
-                {row.meetingLink && (
-                  <LinkLine label="会议链接" value={row.meetingLink} tone="muted" />
+                {(row.portfolioLink || row.meetingLink) && (
+                  <div className="space-y-1">
+                    {row.portfolioLink && (
+                      <InlineLink label="作品链接" value={row.portfolioLink} />
+                    )}
+                    {row.meetingLink && (
+                      <InlineLink label="会议链接" value={row.meetingLink} />
+                    )}
+                  </div>
                 )}
                 <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
