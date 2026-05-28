@@ -28,6 +28,17 @@ export async function listEmailFlowTargets() {
     .where(and(eq(flow.isDeleted, false), eq(flow.type, "recruitment")))
     .orderBy(desc(flow.createdAt));
 
+  if (flows.length === 0) {
+    return [];
+  }
+
+  const acceptedSetting = await getEmailTemplateSetting(
+    getResultEmailTemplateKey(true),
+  );
+  const rejectedSetting = await getEmailTemplateSetting(
+    getResultEmailTemplateKey(false),
+  );
+
   const targets = await db
     .select({
       flowId: userFlow.fkFlowId,
@@ -38,7 +49,12 @@ export async function listEmailFlowTargets() {
     })
     .from(userFlow)
     .innerJoin(user, eq(user.id, userFlow.fkUserId))
-    .where(inArray(userFlow.status, ["passed", "failed", "accepted", "rejected"]));
+    .where(
+      and(
+        inArray(userFlow.fkFlowId, flows.map((item) => item.id)),
+        inArray(userFlow.status, ["passed", "failed", "accepted", "rejected"]),
+      ),
+    );
 
   return Promise.all(flows.map(async (item) => {
     const flowTargets = targets.filter((target) => target.flowId === item.id);
@@ -48,13 +64,6 @@ export async function listEmailFlowTargets() {
     const rejected = flowTargets.filter((target) => target.status === "rejected");
     const acceptedSample = passed[0] ?? accepted[0];
     const rejectedSample = failed[0] ?? rejected[0];
-    const acceptedSetting = await getEmailTemplateSetting(
-      getResultEmailTemplateKey(true),
-    );
-    const rejectedSetting = await getEmailTemplateSetting(
-      getResultEmailTemplateKey(false),
-    );
-
     return {
       ...item,
       passed,

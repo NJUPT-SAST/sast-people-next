@@ -3,7 +3,7 @@
 import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, flow, user } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 
 export async function listEmailBatches() {
   await verifyRole(3);
@@ -27,6 +27,10 @@ export async function listEmailBatches() {
     .orderBy(desc(emailBatch.createdAt))
     .limit(20);
 
+  if (batches.length === 0) {
+    return [];
+  }
+
   const deliveries = await db
     .select({
       id: emailDelivery.id,
@@ -42,6 +46,7 @@ export async function listEmailBatches() {
     })
     .from(emailDelivery)
     .innerJoin(user, eq(user.id, emailDelivery.fkUserId))
+    .where(inArray(emailDelivery.fkEmailBatchId, batches.map((batch) => batch.id)))
     .orderBy(desc(emailDelivery.createdAt));
 
   return batches.map((batch) => {

@@ -45,6 +45,7 @@ const batchStatusText: Record<string, string> = {
   completed: "已完成",
   failed: "有失败",
 };
+const hiddenScrollbar = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
 function formatDate(value: Date | string | null) {
   if (!value) return "-";
@@ -74,11 +75,11 @@ function CountPill({
   return (
     <div
       className={cn(
-        "flex min-w-16 flex-col items-center rounded-md border px-3 py-2",
+        "flex min-w-14 flex-col items-center rounded-md border px-2.5 py-1.5",
         active ? "border-primary/30 bg-primary/10" : "bg-background/70",
       )}
     >
-      <span className="text-lg font-semibold tabular-nums leading-none">
+      <span className="text-base font-semibold tabular-nums leading-none">
         {value}
       </span>
       <span className="mt-1 text-[11px] text-muted-foreground">{label}</span>
@@ -86,21 +87,17 @@ function CountPill({
   );
 }
 
-function FlowCountLine({
-  label,
-  unsent,
-  sent,
-}: {
-  label: string;
-  unsent: number;
-  sent: number;
-}) {
+function FlowSummary({ flow }: { flow: FlowTarget }) {
+  const unsent = flow.passed.length + flow.failed.length;
+  const sent = flow.accepted.length + flow.rejected.length;
+
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md bg-muted/35 px-2.5 py-2 text-xs">
-      <span className="font-medium">{label}</span>
-      <span className="shrink-0 text-muted-foreground">
+    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+      <span>
         未发 <span className="font-mono text-foreground">{unsent}</span>
-        <span className="mx-1.5 text-border">|</span>
+      </span>
+      <span className="text-border">|</span>
+      <span>
         已发 <span className="font-mono text-foreground">{sent}</span>
       </span>
     </div>
@@ -132,7 +129,12 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
           {getSettingLabel(setting.templateKey)}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl">
+      <DialogContent
+        className={cn(
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto",
+          hiddenScrollbar,
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{getSettingLabel(setting.templateKey)}</DialogTitle>
           <DialogDescription>
@@ -140,7 +142,7 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
           </DialogDescription>
         </DialogHeader>
         <form
-          className="grid gap-4 md:grid-cols-2"
+          className="grid min-w-0 gap-4 md:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
             const values = createValuesFromForm(event.currentTarget);
@@ -224,7 +226,7 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
             />
           </div>
           <div className="flex justify-end md:col-span-2">
-            <Button type="submit">
+            <Button type="submit" className="w-full sm:w-auto">
               <Save data-icon="inline-start" />
               保存模板
             </Button>
@@ -256,7 +258,12 @@ function PreviewDialog({
           {triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl">
+      <DialogContent
+        className={cn(
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-5xl overflow-y-auto",
+          hiddenScrollbar,
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -295,7 +302,12 @@ function RecipientsDialog({
           {triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl">
+      <DialogContent
+        className={cn(
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto",
+          hiddenScrollbar,
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -345,7 +357,7 @@ function SendLane({
   const resultLabel = accept ? "通过" : "不通过";
 
   return (
-    <div className={cn("flex flex-col gap-4 rounded-lg border p-4", tone)}>
+    <div className={cn("flex flex-col gap-3 rounded-lg border p-3", tone)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold">
@@ -353,16 +365,10 @@ function SendLane({
           </p>
           <p className="mt-1 break-words text-xs text-muted-foreground">{subject}</p>
         </div>
-        <div className="flex gap-2 sm:justify-end">
+        <div className="flex shrink-0 gap-2 sm:justify-end">
           <CountPill label="未发" value={recipients.length} active={recipients.length > 0} />
           <CountPill label="已发" value={sentRecipients.length} />
         </div>
-      </div>
-
-      <div className="rounded-md border bg-background/70 p-3">
-        <p className="text-sm text-muted-foreground">
-          未发名单来自成绩管理中的“{resultLabel}”；已显示为“{resultLabel}邮件已发”的人员不会重复发送。
-        </p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -418,10 +424,14 @@ export function EmailDashboardClient({
       flow.title.toLowerCase().includes(query),
     );
   }, [flowQuery, flowTargets]);
-  const selectedFlow = useMemo(
-    () => flowTargets.find((flow) => flow.id === selectedFlowId) ?? flowTargets[0],
-    [flowTargets, selectedFlowId],
-  );
+  const selectedFlow = useMemo(() => {
+    const selected = flowTargets.find((flow) => flow.id === selectedFlowId);
+    if (!flowQuery.trim()) return selected ?? flowTargets[0];
+    if (selected && filteredFlows.some((flow) => flow.id === selected.id)) {
+      return selected;
+    }
+    return filteredFlows[0] ?? selected ?? flowTargets[0];
+  }, [filteredFlows, flowQuery, flowTargets, selectedFlowId]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -441,6 +451,17 @@ export function EmailDashboardClient({
         </div>
 
         <div className="border-b p-3 lg:hidden">
+          <div className="mb-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={flowQuery}
+                onChange={(event) => setFlowQuery(event.target.value)}
+                placeholder="搜索流程"
+                className="pl-9"
+              />
+            </div>
+          </div>
           <Label htmlFor="email-flow-picker" className="mb-2 block text-xs text-muted-foreground">
             当前流程
           </Label>
@@ -449,31 +470,20 @@ export function EmailDashboardClient({
             value={selectedFlow?.id ?? ""}
             onChange={(event) => setSelectedFlowId(Number(event.target.value))}
             className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            disabled={flowTargets.length === 0}
+            disabled={filteredFlows.length === 0}
           >
-            {flowTargets.map((flow) => (
+            {filteredFlows.map((flow) => (
               <option key={flow.id} value={flow.id}>
                 {flow.title}
               </option>
             ))}
           </select>
           {selectedFlow && (
-            <div className="mt-3 grid gap-2">
-              <FlowCountLine
-                label="通过邮件"
-                unsent={selectedFlow.passed.length}
-                sent={selectedFlow.accepted.length}
-              />
-              <FlowCountLine
-                label="不通过邮件"
-                unsent={selectedFlow.failed.length}
-                sent={selectedFlow.rejected.length}
-              />
-            </div>
+            <FlowSummary flow={selectedFlow} />
           )}
         </div>
 
-        <div className="grid lg:min-h-[420px] lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid lg:grid-cols-[260px_minmax(0,1fr)]">
           <div className="hidden p-3 lg:block lg:border-r">
             <div className="mb-3">
               <div className="relative">
@@ -486,7 +496,12 @@ export function EmailDashboardClient({
                 />
               </div>
             </div>
-            <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto pr-1">
+            <div
+              className={cn(
+                "flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1",
+                hiddenScrollbar,
+              )}
+            >
               {filteredFlows.map((flow) => {
                 const active = selectedFlow?.id === flow.id;
                 return (
@@ -500,18 +515,7 @@ export function EmailDashboardClient({
                     )}
                   >
                     <p className="truncate text-sm font-medium">{flow.title}</p>
-                    <div className="mt-3 grid gap-2">
-                      <FlowCountLine
-                        label="通过邮件"
-                        unsent={flow.passed.length}
-                        sent={flow.accepted.length}
-                      />
-                      <FlowCountLine
-                        label="不通过邮件"
-                        unsent={flow.failed.length}
-                        sent={flow.rejected.length}
-                      />
-                    </div>
+                    <FlowSummary flow={flow} />
                   </button>
                 );
               })}
@@ -529,10 +533,10 @@ export function EmailDashboardClient({
                 <div className="flex flex-col gap-1">
                   <h3 className="text-lg font-semibold">{selectedFlow.title}</h3>
                   <p className="text-sm text-muted-foreground">
-                    数字顺序为“通过邮件/不通过邮件”。发送只处理未发名单。
+                    发送只处理未发名单，已发人员不会重复发送。
                   </p>
                 </div>
-                <div className="grid gap-4 xl:grid-cols-2">
+                <div className="grid gap-3 xl:grid-cols-2">
                   <SendLane flow={selectedFlow} accept />
                   <SendLane flow={selectedFlow} accept={false} />
                 </div>
@@ -551,11 +555,11 @@ export function EmailDashboardClient({
           <div>
             <h2 className="text-base font-semibold">发送记录</h2>
             <p className="text-sm text-muted-foreground">
-              从这里发出的邮件会保存每位同学收到的正文。
+              最近 20 个批次；从这里发出的邮件会保存每位同学收到的正文。
             </p>
           </div>
         </div>
-        <div className="hidden overflow-x-auto p-4 md:block">
+        <div className={cn("hidden overflow-x-auto p-4 md:block", hiddenScrollbar)}>
           <Table>
             <TableHeader>
               <TableRow>
