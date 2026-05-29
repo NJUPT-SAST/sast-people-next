@@ -6,7 +6,11 @@ import { emailBatch, emailDelivery, userFlow } from "@/db/schema";
 import event from "@/event";
 import { verifyRole } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
+import { sendDelivery } from "@/queue/sendEmail";
 import { eq, inArray } from "drizzle-orm";
+
+const EMAIL_SERVICE_UNAVAILABLE =
+  "邮件发送服务未启动或未配置，请检查 Inngest 邮件队列和 EMAIL_PASSWORD。";
 
 export async function sendEmailBatch(batchId: number) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
@@ -76,7 +80,34 @@ export async function sendEmailBatch(batchId: number) {
       queueableDeliveries.map((item) => syncUserRoleFromAcceptedFlows(item.userId)),
     );
 
-    await Promise.all(queueableDeliveries.map((item) => event.offer(item.id)));
+    try {
+      await Promise.all(
+        queueableDeliveries.map(async (item) => {
+          try {
+            await event.offer(item.id);
+          } catch (_error) {
+            if (!process.env.EMAIL_PASSWORD) {
+              await db
+                .update(emailDelivery)
+                .set({
+                  status: "failed",
+                  errorMessage: EMAIL_SERVICE_UNAVAILABLE,
+                })
+                .where(eq(emailDelivery.id, item.id));
+              throw new Error(EMAIL_SERVICE_UNAVAILABLE);
+            }
+
+            await sendDelivery(item.id);
+          }
+        }),
+      );
+    } catch (error) {
+      await db
+        .update(emailBatch)
+        .set({ status: "failed" })
+        .where(eq(emailBatch.id, batchId));
+      throw error;
+    }
 
     return { queuedCount: queueableDeliveries.length };
   } catch (error) {
@@ -90,4 +121,3 @@ export async function sendEmailBatch(batchId: number) {
     throw error;
   }
 }
-

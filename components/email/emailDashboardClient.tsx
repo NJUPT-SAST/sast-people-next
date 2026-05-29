@@ -440,9 +440,10 @@ function SendLane({
               toast.promise(
                 sendResultEmailFromFlow(flow.id, accept).then(() => router.refresh()),
                 {
-                  loading: "正在创建批次并加入发送队列",
-                  success: "邮件已加入发送队列，结果已更新",
-                  error: "发送失败",
+                  loading: "正在处理邮件发送",
+                  success: "邮件发送任务已处理，结果已更新",
+                  error: (error) =>
+                    error instanceof Error ? error.message : "发送失败",
                 },
               );
             }}
@@ -669,9 +670,10 @@ export function EmailDashboardClient({
                               toast.promise(
                                 sendEmailBatch(batch.id).then(() => router.refresh()),
                                 {
-                                  loading: "正在重新加入队列",
-                                  success: "已加入发送队列",
-                                  error: "操作失败",
+                                  loading: "正在处理邮件发送",
+                                  success: "邮件发送任务已处理",
+                                  error: (error) =>
+                                    error instanceof Error ? error.message : "操作失败",
                                 },
                               );
                             }}
@@ -744,9 +746,10 @@ export function EmailDashboardClient({
                         toast.promise(
                           sendEmailBatch(batch.id).then(() => router.refresh()),
                           {
-                            loading: "正在重新加入队列",
-                            success: "已加入发送队列",
-                            error: "操作失败",
+                            loading: "正在处理邮件发送",
+                            success: "邮件发送任务已处理",
+                            error: (error) =>
+                              error instanceof Error ? error.message : "操作失败",
                           },
                         );
                       }}
