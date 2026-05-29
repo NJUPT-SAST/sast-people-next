@@ -36,6 +36,8 @@ updates:
           - "tailwind-merge"
           - "next-themes"
           - "sonner"
+          - "react-hook-form"
+          - "@hookform/resolvers"
         update-types:
           - "minor"
           - "patch"
