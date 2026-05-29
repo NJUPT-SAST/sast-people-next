@@ -7,7 +7,7 @@
 export const mockUsers = [
   {
     id: 1,
-    name: "测试管理员",
+    name: "管理员账号",
     student_id: "001",
     email: "admin@njupt.edu.cn",
     qq: "10001",
@@ -24,7 +24,7 @@ export const mockUsers = [
   },
   {
     id: 2,
-    name: "测试讲师",
+    name: "讲师账号",
     student_id: "002",
     email: "interviewer@njupt.edu.cn",
     qq: null,
@@ -41,9 +41,9 @@ export const mockUsers = [
   },
   {
     id: 3,
-    name: "王小明",
+    name: "新同学 A",
     student_id: "101",
-    email: "wangxm@njupt.edu.cn",
+    email: "candidate-a@njupt.edu.cn",
     qq: null,
     phone: "13900003333",
     college: "通信与信息工程学院",
@@ -58,9 +58,9 @@ export const mockUsers = [
   },
   {
     id: 4,
-    name: "陈小红",
+    name: "新同学 B",
     student_id: "102",
-    email: "chenxh@njupt.edu.cn",
+    email: "candidate-b@njupt.edu.cn",
     qq: null,
     phone: null,
     college: "电子与光学工程学院、柔性电子（未来技术）学院",
@@ -75,9 +75,9 @@ export const mockUsers = [
   },
   {
     id: 5,
-    name: "刘大力",
+    name: "新同学 C",
     student_id: "103",
-    email: "liudl@njupt.edu.cn",
+    email: "candidate-c@njupt.edu.cn",
     qq: null,
     phone: "13700005555",
     college: "自动化学院",
@@ -92,9 +92,9 @@ export const mockUsers = [
   },
   {
     id: 6,
-    name: "赵雨涵",
+    name: "新同学 D",
     student_id: "104",
-    email: "zhaoyh@njupt.edu.cn",
+    email: "candidate-d@njupt.edu.cn",
     qq: null,
     phone: "13600006666",
     college: "人工智能学院",
@@ -109,7 +109,7 @@ export const mockUsers = [
   },
   {
     id: 7,
-    name: "已封禁用户",
+    name: "停用账号",
     student_id: "999",
     email: "banned@njupt.edu.cn",
     qq: null,
@@ -126,7 +126,7 @@ export const mockUsers = [
   },
   {
     id: 8,
-    name: "测试部员",
+    name: "部员账号",
     student_id: "003",
     email: "member@njupt.edu.cn",
     qq: null,
@@ -315,7 +315,7 @@ export const mockFlowSteps = [
   {
     id: 9,
     title: "报名阶段",
-    description: "WOC候选人报名",
+    description: "WOC 报名",
     type: "registering",
     order: 1,
     fk_flow_id: 4,
@@ -326,7 +326,7 @@ export const mockFlowSteps = [
   {
     id: 10,
     title: "面试阶段",
-    description: "WOC候选人面试",
+    description: "WOC 面试",
     type: "judging",
     order: 2,
     fk_flow_id: 4,
@@ -349,7 +349,7 @@ export const mockFlowSteps = [
   {
     id: 12,
     title: "报名阶段",
-    description: "SOC候选人报名",
+    description: "SOC 报名",
     type: "registering",
     order: 1,
     fk_flow_id: 5,
@@ -360,7 +360,7 @@ export const mockFlowSteps = [
   {
     id: 13,
     title: "面试阶段",
-    description: "SOC候选人面试",
+    description: "SOC 面试",
     type: "judging",
     order: 2,
     fk_flow_id: 5,
@@ -394,7 +394,7 @@ export const mockFlowSteps = [
   {
     id: 16,
     title: "面试阶段",
-    description: "免试候选人面试",
+    description: "免试招新面试",
     type: "judging",
     order: 2,
     fk_flow_id: 6,
@@ -422,7 +422,7 @@ export const mockUserFlows = [
     status: "passed",
     current_step_order: 2,
     fk_flow_id: 1,
-    fk_user_id: 3, // 王同学 - in checking stage
+    fk_user_id: 3, // 新同学 A - in checking stage
     portfolio_link: null,
   },
   {
@@ -430,7 +430,7 @@ export const mockUserFlows = [
     status: "pending",
     current_step_order: 1,
     fk_flow_id: 1,
-    fk_user_id: 5, // 刘同学 - just registered
+    fk_user_id: 5, // 新同学 C - just registered
     portfolio_link: null,
   },
   {
@@ -438,7 +438,7 @@ export const mockUserFlows = [
     status: "accepted",
     current_step_order: 5,
     fk_flow_id: 1,
-    fk_user_id: 6, // 赵同学 - accepted
+    fk_user_id: 6, // 新同学 D - accepted
     portfolio_link: null,
   },
   {
@@ -446,7 +446,7 @@ export const mockUserFlows = [
     status: "rejected",
     current_step_order: 3,
     fk_flow_id: 2,
-    fk_user_id: 3, // 王同学 - rejected in spring
+    fk_user_id: 3, // 新同学 A - rejected in spring
     portfolio_link: null,
   },
   {
@@ -454,7 +454,7 @@ export const mockUserFlows = [
     status: "failed",
     current_step_order: 3,
     fk_flow_id: 1,
-    fk_user_id: 4, // 陈同学 - in judging stage (no phone though)
+    fk_user_id: 4, // 新同学 B - in judging stage (no phone though)
     portfolio_link: null,
   },
   // WOC flow (id=4)
@@ -463,7 +463,7 @@ export const mockUserFlows = [
     status: "ongoing",
     current_step_order: 2,
     fk_flow_id: 4,
-    fk_user_id: 2, // 测试讲师 - WOC candidate
+    fk_user_id: 2, // 讲师账号 - WOC candidate
     portfolio_link: "https://github.com/sast-demo/woc-work",
   },
   {
@@ -471,7 +471,7 @@ export const mockUserFlows = [
     status: "ongoing",
     current_step_order: 2,
     fk_flow_id: 4,
-    fk_user_id: 8, // 测试部员 - WOC candidate
+    fk_user_id: 8, // 部员账号 - WOC candidate
     portfolio_link: "https://example.com/portfolio/woc",
   },
   // SOC flow (id=5)
@@ -480,7 +480,7 @@ export const mockUserFlows = [
     status: "ongoing",
     current_step_order: 2,
     fk_flow_id: 5,
-    fk_user_id: 8, // 测试部员 - SOC candidate
+    fk_user_id: 8, // 部员账号 - SOC candidate
     portfolio_link: "https://github.com/sast-demo/soc-work",
   },
   // recruitment_exemption flow (id=6)
@@ -489,7 +489,7 @@ export const mockUserFlows = [
     status: "ongoing",
     current_step_order: 2,
     fk_flow_id: 6,
-    fk_user_id: 3, // 王小明 - exemption candidate
+    fk_user_id: 3, // 新同学 A - exemption candidate
     portfolio_link: "https://example.com/exemption-demo",
   },
   {
@@ -497,7 +497,7 @@ export const mockUserFlows = [
     status: "ongoing",
     current_step_order: 2,
     fk_flow_id: 6,
-    fk_user_id: 5, // 刘大力 - exemption candidate
+    fk_user_id: 5, // 新同学 C - exemption candidate
     portfolio_link: null,
   },
 ];
@@ -547,18 +547,18 @@ export const mockProblems = [
 
 // ==================== User Points ====================
 export const mockUserPoints = [
-  // 王同学 (userFlow 1) - checking stage scores
+  // 新同学 A (userFlow 1) - checking stage scores
   { id: 1, fk_user_flow_id: 1, fk_problem_id: 1, points: 25 },
   { id: 2, fk_user_flow_id: 1, fk_problem_id: 2, points: 35 },
   { id: 3, fk_user_flow_id: 1, fk_problem_id: 3, points: 22 },
-  // 赵同学 (userFlow 3) - all stages scored
+  // 新同学 D (userFlow 3) - all stages scored
   { id: 4, fk_user_flow_id: 3, fk_problem_id: 1, points: 28 },
   { id: 5, fk_user_flow_id: 3, fk_problem_id: 2, points: 38 },
   { id: 6, fk_user_flow_id: 3, fk_problem_id: 3, points: 27 },
   { id: 7, fk_user_flow_id: 3, fk_problem_id: 4, points: 45 },
   { id: 8, fk_user_flow_id: 3, fk_problem_id: 5, points: 42 },
-  // 刘同学 (userFlow 2) - no scores yet (just registered)
-  // 陈同学 (userFlow 5) - partial scores
+  // 新同学 C (userFlow 2) - no scores yet (just registered)
+  // 新同学 B (userFlow 5) - partial scores
   { id: 9, fk_user_flow_id: 5, fk_problem_id: 1, points: 20 },
   { id: 10, fk_user_flow_id: 5, fk_problem_id: 2, points: 30 },
 ];
@@ -568,8 +568,8 @@ export const mockInterviewEvaluations = [
   {
     id: 1,
     fk_user_flow_id: 5,
-    fk_user_id: 2, // 测试讲师 evaluated
-    content: "陈小红同学面试表现优秀，技术基础扎实，沟通能力强，建议通过。综合评价：对前端框架理解深入，有实际项目经验。",
+    fk_user_id: 2, // 讲师账号 evaluated
+    content: "新同学 B 面试表现优秀，技术基础扎实，沟通能力强，建议通过。综合评价：对前端框架理解深入，有实际项目经验。",
     meeting_link: "https://meeting.tencent.com/dm/abc123",
     status: "pending",
     fk_reviewed_by: null,
@@ -579,8 +579,8 @@ export const mockInterviewEvaluations = [
   {
     id: 2,
     fk_user_flow_id: 6,
-    fk_user_id: 8, // 测试部员 evaluated
-    content: "测试讲师在WOC面试中展现出良好的领导能力和技术视野，推荐通过。",
+    fk_user_id: 8, // 部员账号 evaluated
+    content: "讲师账号在 WOC 面试中展现出良好的领导能力和技术视野，推荐通过。",
     meeting_link: null,
     status: "pending",
     fk_reviewed_by: null,
@@ -590,8 +590,8 @@ export const mockInterviewEvaluations = [
   {
     id: 3,
     fk_user_flow_id: 7,
-    fk_user_id: 2, // 测试讲师 evaluated
-    content: "测试部员在WOC面试中表现一般，技术能力有待提升，建议考察后再决定。",
+    fk_user_id: 2, // 讲师账号 evaluated
+    content: "部员账号在 WOC 面试中表现一般，技术能力有待提升，建议考察后再决定。",
     meeting_link: null,
     status: "approved",
     fk_reviewed_by: 1,
@@ -601,8 +601,8 @@ export const mockInterviewEvaluations = [
   {
     id: 4,
     fk_user_flow_id: 9,
-    fk_user_id: 2, // 测试讲师 evaluated
-    content: "王小明免试面试表现突出，有丰富的开源项目经验，强烈推荐通过。",
+    fk_user_id: 2, // 讲师账号 evaluated
+    content: "新同学 A 免试面试表现突出，有丰富的开源项目经验，强烈推荐通过。",
     meeting_link: "https://meeting.feishu.cn/room/xyz789",
     status: "pending",
     fk_reviewed_by: null,
@@ -612,8 +612,8 @@ export const mockInterviewEvaluations = [
   {
     id: 5,
     fk_user_flow_id: 10,
-    fk_user_id: 2, // 测试讲师 evaluated
-    content: "刘大力免试面试表现良好，基础扎实态度端正，建议通过。",
+    fk_user_id: 2, // 讲师账号 evaluated
+    content: "新同学 C 免试面试表现良好，基础扎实态度端正，建议通过。",
     meeting_link: null,
     status: "rejected",
     fk_reviewed_by: 1,
@@ -661,7 +661,7 @@ export const mockEmailDeliveries = [
     to_address: "104@njupt.edu.cn",
     subject: "2024秋季招新 结果通知",
     html_snapshot:
-      '<html><body style="margin:0;background:#f6f9fc;font-family:Arial,sans-serif;color:#404040"><div style="max-width:640px;margin:24px auto;background:#fff;border:1px solid #eee;padding:40px"><img src="https://storage.sast.fun/sast-email-header.png" width="300" alt="SAST" /><p style="margin-top:40px;font-size:16px;line-height:26px">Hi 赵雨涵,</p><p style="font-size:16px;line-height:26px">恭喜你顺利通过 2024秋季招新，正式成为南京邮电大学大学生科学技术协会的一员。</p><p style="font-size:16px;line-height:26px">我们欣赏你对技术的热情和积极的态度。未来，让我们在这条路上共同学习、进步。</p><a href="https://njupt-sast.feishu.cn/share/base/form/shrcnfwRMIhYP8N2I1i4YaTNg9b" style="display:inline-block;margin:12px 0;padding:12px 14px;border-radius:12px;background:#17A34A;color:#fff;text-decoration:none">点击填写 成员信息收集表</a><p style="font-size:16px;line-height:26px">如果你有更多疑问，请联系 recruitment@sast.fun</p></div></body></html>',
+      '<html><body style="margin:0;background:#f6f9fc;font-family:Arial,sans-serif;color:#404040"><div style="max-width:640px;margin:24px auto;background:#fff;border:1px solid #eee;padding:40px"><img src="https://storage.sast.fun/sast-email-header.png" width="300" alt="SAST" /><p style="margin-top:40px;font-size:16px;line-height:26px">Hi 新同学 D,</p><p style="font-size:16px;line-height:26px">恭喜你顺利通过 2024秋季招新，正式成为南京邮电大学大学生科学技术协会的一员。</p><p style="font-size:16px;line-height:26px">我们欣赏你对技术的热情和积极的态度。未来，让我们在这条路上共同学习、进步。</p><a href="https://njupt-sast.feishu.cn/share/base/form/shrcnfwRMIhYP8N2I1i4YaTNg9b" style="display:inline-block;margin:12px 0;padding:12px 14px;border-radius:12px;background:#17A34A;color:#fff;text-decoration:none">点击填写 成员信息收集表</a><p style="font-size:16px;line-height:26px">如果你有更多疑问，请联系 recruitment@sast.fun</p></div></body></html>',
     status: "pending",
     error_message: null,
     provider_message_id: "mock-message-1",

@@ -20,7 +20,7 @@ function getSession(): MockSession | null {
     // First load: default to logged-in admin
     (globalThis as Record<string, unknown>)[GLOBAL_KEY] = {
       uid: 1,
-      name: "测试管理员",
+      name: "管理员账号",
       role: 3,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     };
