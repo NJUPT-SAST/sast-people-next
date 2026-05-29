@@ -16,6 +16,7 @@ export async function listEmailBatches() {
       accept: emailBatch.accept,
       status: emailBatch.status,
       totalCount: emailBatch.totalCount,
+      flowId: emailBatch.fkFlowId,
       createdAt: emailBatch.createdAt,
       updatedAt: emailBatch.updatedAt,
       flowTitle: flow.title,
@@ -35,6 +36,8 @@ export async function listEmailBatches() {
     .select({
       id: emailDelivery.id,
       batchId: emailDelivery.fkEmailBatchId,
+      userFlowId: emailDelivery.fkUserFlowId,
+      userId: emailDelivery.fkUserId,
       toAddress: emailDelivery.toAddress,
       subject: emailDelivery.subject,
       status: emailDelivery.status,

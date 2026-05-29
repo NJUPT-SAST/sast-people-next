@@ -42,6 +42,7 @@ export async function listEmailFlowTargets() {
   const targets = await db
     .select({
       flowId: userFlow.fkFlowId,
+      userFlowId: userFlow.id,
       userId: user.id,
       name: user.name,
       studentId: user.studentId,

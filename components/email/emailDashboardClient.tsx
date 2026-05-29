@@ -557,17 +557,34 @@ function TestEmailButton() {
 function SendLane({
   flow,
   accept,
+  batches,
 }: {
   flow: FlowTarget;
   accept: boolean;
+  batches: EmailBatch[];
 }) {
   const router = useRouter();
   const recipients = accept ? flow.passed : flow.failed;
-  const sentRecipients = accept ? flow.accepted : flow.rejected;
   const subject = accept ? flow.acceptedSubject : flow.rejectedSubject;
   const previewHtml = accept ? flow.acceptedPreviewHtml : flow.rejectedPreviewHtml;
   const tone = accept ? "border-primary/25 bg-primary/5" : "border-destructive/20 bg-destructive/5";
   const resultLabel = accept ? "通过" : "不通过";
+  const laneDeliveries = batches
+    .filter((batch) => batch.flowId === flow.id && batch.accept === accept)
+    .flatMap((batch) => batch.deliveries);
+  const deliveryUserFlowIds = new Set(
+    laneDeliveries.map((delivery) => delivery.userFlowId),
+  );
+  const newRecipientCount = recipients.filter(
+    (recipient) => !deliveryUserFlowIds.has(recipient.userFlowId),
+  ).length;
+  const pendingCount = laneDeliveries.filter(
+    (delivery) =>
+      delivery.status === "pending" ||
+      delivery.status === "sending" ||
+      delivery.status === "failed",
+  ).length;
+  const actionableCount = newRecipientCount + pendingCount;
 
   return (
     <div className={cn("flex flex-col gap-4 rounded-lg border p-4 lg:min-h-[148px] lg:p-5", tone)}>
@@ -578,9 +595,9 @@ function SendLane({
           </p>
           <p className="mt-1 break-words text-xs text-muted-foreground">{subject}</p>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <CountPill label="未发" value={recipients.length} active={recipients.length > 0} />
-          <CountPill label="已发" value={sentRecipients.length} />
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <CountPill label="待建邮件" value={newRecipientCount} active={newRecipientCount > 0} />
+          <CountPill label="待发送" value={pendingCount} active={pendingCount > 0} />
         </div>
       </div>
 
@@ -601,7 +618,7 @@ function SendLane({
         <Button
             size="sm"
             className="w-full"
-            disabled={recipients.length === 0}
+            disabled={actionableCount === 0}
             onClick={() => {
               toast.promise(
                 sendResultEmailFromFlow(flow.id, accept).then(() => router.refresh()),
@@ -758,13 +775,13 @@ export function EmailDashboardClient({
                   <div className="min-w-0">
                     <h3 className="truncate text-lg font-semibold">{selectedFlow.title}</h3>
                     <p className="text-sm text-muted-foreground">
-                      发送只处理未发名单，已发人员不会重复发送。
+                      发送会创建待建邮件，并继续处理待发送记录。
                     </p>
                   </div>
                 </div>
                 <div className="grid gap-3 xl:grid-cols-2">
-                  <SendLane flow={selectedFlow} accept />
-                  <SendLane flow={selectedFlow} accept={false} />
+                  <SendLane flow={selectedFlow} accept batches={batches} />
+                  <SendLane flow={selectedFlow} accept={false} batches={batches} />
                 </div>
               </div>
             ) : (
@@ -793,8 +810,8 @@ export function EmailDashboardClient({
                 <TableHead>类型</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>人数</TableHead>
-                <TableHead>已发送</TableHead>
-                <TableHead>失败</TableHead>
+                <TableHead>发送成功</TableHead>
+                <TableHead>发送失败</TableHead>
                 <TableHead>创建时间</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -893,11 +910,11 @@ export function EmailDashboardClient({
                       <p className="font-semibold tabular-nums">{batch.totalCount}</p>
                     </div>
                     <div className="rounded-md bg-muted/30 p-2">
-                      <p className="text-xs text-muted-foreground">已发送</p>
+                      <p className="text-xs text-muted-foreground">发送成功</p>
                       <p className="font-semibold tabular-nums">{batch.counts.sent}</p>
                     </div>
                     <div className="rounded-md bg-muted/30 p-2">
-                      <p className="text-xs text-muted-foreground">失败</p>
+                      <p className="text-xs text-muted-foreground">发送失败</p>
                       <p className="font-semibold tabular-nums">{batch.counts.failed}</p>
                     </div>
                   </div>
