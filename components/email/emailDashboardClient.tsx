@@ -27,7 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Eye, RotateCcw, Save, Search, Send, Settings2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type EmailBatch = Awaited<
@@ -53,6 +53,8 @@ const deliveryStatusText: Record<string, string> = {
   failed: "失败",
 };
 const hiddenScrollbar = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+const EMAIL_REFRESH_INTERVAL_MS = 3000;
+const EMAIL_REFRESH_MAX_ATTEMPTS = 20;
 
 function formatDate(value: Date | string | null) {
   if (!value) return "-";
@@ -646,6 +648,20 @@ export function EmailDashboardClient({
   const router = useRouter();
   const [selectedFlowId, setSelectedFlowId] = useState(flowTargets[0]?.id);
   const [flowQuery, setFlowQuery] = useState("");
+  const refreshAttemptsRef = useRef(0);
+  const hasActiveEmailWork = useMemo(
+    () =>
+      batches.some(
+        (batch) =>
+          batch.status === "draft" ||
+          batch.status === "queued" ||
+          batch.deliveries.some(
+            (delivery) =>
+              delivery.status === "pending" || delivery.status === "sending",
+          ),
+      ),
+    [batches],
+  );
   const filteredFlows = useMemo(() => {
     const query = flowQuery.trim().toLowerCase();
     if (!query) return flowTargets;
@@ -661,6 +677,24 @@ export function EmailDashboardClient({
     }
     return filteredFlows[0] ?? selected ?? flowTargets[0];
   }, [filteredFlows, flowQuery, flowTargets, selectedFlowId]);
+
+  useEffect(() => {
+    if (!hasActiveEmailWork) {
+      refreshAttemptsRef.current = 0;
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      if (refreshAttemptsRef.current >= EMAIL_REFRESH_MAX_ATTEMPTS) {
+        window.clearInterval(timer);
+        return;
+      }
+      refreshAttemptsRef.current += 1;
+      router.refresh();
+    }, EMAIL_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [hasActiveEmailWork, router]);
 
   return (
     <div className="flex flex-col gap-5">
