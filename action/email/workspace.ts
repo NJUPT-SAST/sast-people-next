@@ -4,14 +4,14 @@ import { batchSendEmail } from "@/action/user/sendEmail";
 import { sendEmailBatch } from "@/action/email/send";
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
-import { flow, user, userFlow } from "@/db/schema";
+import { emailBatch, emailDelivery, flow, user, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import {
   getResultEmailTemplateKey,
   renderResultEmail,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function listEmailFlowTargets() {
@@ -102,7 +102,7 @@ export async function createResultEmailBatchFromFlow(
 
   const sourceStatus = accept ? "passed" : "failed";
   const rows = await db
-    .select({ userId: userFlow.fkUserId })
+    .select({ userFlowId: userFlow.id, userId: userFlow.fkUserId })
     .from(userFlow)
     .where(and(eq(userFlow.fkFlowId, flowId), eq(userFlow.status, sourceStatus)));
 
@@ -110,8 +110,43 @@ export async function createResultEmailBatchFromFlow(
     return { batchId: null, deliveryCount: 0 };
   }
 
+  const existingDeliveries = await db
+    .select({
+      batchId: emailDelivery.fkEmailBatchId,
+      userFlowId: emailDelivery.fkUserFlowId,
+      status: emailDelivery.status,
+    })
+    .from(emailDelivery)
+    .innerJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
+    .where(
+      and(
+        eq(emailBatch.fkFlowId, flowId),
+        eq(emailBatch.accept, accept),
+        inArray(emailDelivery.fkUserFlowId, rows.map((item) => item.userFlowId)),
+      ),
+    )
+    .orderBy(asc(emailDelivery.createdAt));
+
+  const reusableDelivery = existingDeliveries.find(
+    (item) => item.status === "pending" || item.status === "failed",
+  );
+  if (reusableDelivery) {
+    return { batchId: reusableDelivery.batchId, deliveryCount: 0 };
+  }
+
+  const existingUserFlowIds = new Set(
+    existingDeliveries.map((item) => item.userFlowId),
+  );
+  const rowsWithoutDelivery = rows.filter(
+    (item) => !existingUserFlowIds.has(item.userFlowId),
+  );
+
+  if (rowsWithoutDelivery.length === 0) {
+    return { batchId: null, deliveryCount: 0 };
+  }
+
   const result = await batchSendEmail(
-    rows.map((item) => item.userId),
+    rowsWithoutDelivery.map((item) => item.userId),
     flowId,
     accept,
   );
