@@ -71,8 +71,7 @@ updates:
         update-types:
           - "version-update:semver-major"
       - dependency-name: "drizzle-orm"
-        update-types:
-          - "version-update:semver-major"
+      - dependency-name: "drizzle-kit"
       - dependency-name: "inngest"
         update-types:
           - "version-update:semver-major"
