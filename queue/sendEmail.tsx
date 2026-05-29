@@ -17,6 +17,30 @@ const transporter = createTransport({
 
 const emailFrom = '"SAST R&D Center" <recruitment@sast.fun>';
 
+export const assertEmailConfigured = () => {
+  if (!process.env.EMAIL_PASSWORD) {
+    throw new Error("邮件密码未配置，请先设置 EMAIL_PASSWORD。");
+  }
+};
+
+export const sendRawEmail = async ({
+  to,
+  subject,
+  html,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+}) => {
+  assertEmailConfigured();
+  return transporter.sendMail({
+    from: emailFrom,
+    to,
+    subject,
+    html,
+  });
+};
+
 export const sendEmail = mqClient.createFunction(
   { 
     id: 'step/send.email',
@@ -49,15 +73,12 @@ export const sendDelivery = async (deliveryId: number) => {
     .set({ status: 'sending', errorMessage: null })
     .where(eq(emailDelivery.id, deliveryId));
 
-  const mailOptions = {
-    from: emailFrom,
-    to: delivery.toAddress,
-    subject: delivery.subject,
-    html: delivery.htmlSnapshot,
-  };
-
   try {
-    const result = await transporter.sendMail(mailOptions);
+    const result = await sendRawEmail({
+      to: delivery.toAddress,
+      subject: delivery.subject,
+      html: delivery.htmlSnapshot,
+    });
     await db
       .update(emailDelivery)
       .set({

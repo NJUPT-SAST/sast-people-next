@@ -1,6 +1,7 @@
 "use client";
 
 import { sendEmailBatch } from "@/action/email/send";
+import { sendEmailTest } from "@/action/email/test-send";
 import { updateEmailTemplateSetting } from "@/action/email/template";
 import { sendResultEmailFromFlow } from "@/action/email/workspace";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,12 @@ const batchStatusText: Record<string, string> = {
   queued: "队列中",
   completed: "已完成",
   failed: "有失败",
+};
+const deliveryStatusText: Record<string, string> = {
+  pending: "待发送",
+  sending: "发送中",
+  sent: "已发送",
+  failed: "失败",
 };
 const hiddenScrollbar = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
@@ -388,6 +395,127 @@ function RecipientsDialog({
   );
 }
 
+function StatusDialog({ batch }: { batch: EmailBatch }) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          明细
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        className={cn(
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-5xl overflow-y-auto",
+          hiddenScrollbar,
+        )}
+      >
+        <DialogHeader>
+          <DialogTitle>{batch.flowTitle} 发送明细</DialogTitle>
+          <DialogDescription>
+            每位收件人的发送状态和失败原因会保留在这里。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>姓名</TableHead>
+                <TableHead>收件地址</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>发送时间</TableHead>
+                <TableHead>失败原因</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {batch.deliveries.map((delivery) => (
+                <TableRow key={delivery.id}>
+                  <TableCell className="whitespace-nowrap">
+                    {delivery.userName}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {delivery.toAddress}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        delivery.status === "failed"
+                          ? "destructive"
+                          : delivery.status === "sent"
+                            ? "default"
+                            : "outline"
+                      }
+                    >
+                      {deliveryStatusText[delivery.status] ?? delivery.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {formatDate(delivery.sentAt)}
+                  </TableCell>
+                  <TableCell className="min-w-64 max-w-md break-words text-xs text-muted-foreground">
+                    {delivery.errorMessage ?? "-"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TestEmailButton() {
+  const [address, setAddress] = useState("");
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full sm:w-auto">
+          <Send data-icon="inline-start" />
+          测试发送
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+        <DialogHeader>
+          <DialogTitle>测试发送</DialogTitle>
+          <DialogDescription>
+            仅支持南邮教育邮箱；也可以直接输入学号。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="test-email-address">收件地址</Label>
+          <Input
+            id="test-email-address"
+            value={address}
+            onChange={(event) => setAddress(event.target.value)}
+            placeholder="学号或 njupt.edu.cn 邮箱"
+            inputMode="email"
+          />
+        </div>
+        <Button
+          onClick={() => {
+            toast.promise(
+              sendEmailTest(address).then((result) => {
+                if (!result.ok) throw new Error("测试邮件发送失败");
+                return result;
+              }),
+              {
+                loading: "正在发送测试邮件",
+                success: (result) => `测试邮件已发送到 ${result.to}`,
+                error: (error) =>
+                  error instanceof Error ? error.message : "测试邮件发送失败",
+              },
+            );
+          }}
+        >
+          <Send data-icon="inline-start" />
+          发送测试邮件
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SendLane({
   flow,
   accept,
@@ -494,11 +622,17 @@ export function EmailDashboardClient({
               选择一个招新流程，系统自动匹配当前通过/不通过名单。
             </p>
           </div>
-          <DesktopTemplateActions templateSettings={templateSettings} />
+          <div className="hidden gap-2 lg:flex lg:flex-wrap">
+            <TestEmailButton />
+            <DesktopTemplateActions templateSettings={templateSettings} />
+          </div>
         </div>
 
         <div className="border-b p-3 lg:hidden">
           <div className="rounded-lg border bg-background/35 p-3">
+            <div className="mb-2">
+              <TestEmailButton />
+            </div>
             <MobileTemplateActions templateSettings={templateSettings} />
             <div className="mt-3">
               <Label htmlFor="email-flow-picker" className="mb-2 block text-xs text-muted-foreground">
@@ -662,6 +796,7 @@ export function EmailDashboardClient({
                             triggerLabel="查看邮件"
                             description="每位收件人的邮件正文都会保存；这里展示该批次第一封。"
                           />
+                          <StatusDialog batch={batch} />
                           <Button
                             variant="outline"
                             size="sm"
@@ -738,6 +873,7 @@ export function EmailDashboardClient({
                       triggerLabel="查看邮件"
                       description="每位收件人的邮件正文都会保存；这里展示该批次第一封。"
                     />
+                    <StatusDialog batch={batch} />
                     <Button
                       variant="outline"
                       size="sm"
