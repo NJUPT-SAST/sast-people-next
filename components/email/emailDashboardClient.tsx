@@ -578,13 +578,7 @@ function SendLane({
   const newRecipientCount = recipients.filter(
     (recipient) => !deliveryUserFlowIds.has(recipient.userFlowId),
   ).length;
-  const pendingCount = laneDeliveries.filter(
-    (delivery) =>
-      delivery.status === "pending" ||
-      delivery.status === "sending" ||
-      delivery.status === "failed",
-  ).length;
-  const actionableCount = newRecipientCount + pendingCount;
+  const actionableCount = newRecipientCount;
 
   return (
     <div className={cn("flex flex-col gap-4 rounded-lg border p-4 lg:min-h-[148px] lg:p-5", tone)}>
@@ -596,8 +590,7 @@ function SendLane({
           <p className="mt-1 break-words text-xs text-muted-foreground">{subject}</p>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
-          <CountPill label="待建邮件" value={newRecipientCount} active={newRecipientCount > 0} />
-          <CountPill label="待发送" value={pendingCount} active={pendingCount > 0} />
+          <CountPill label="待发送" value={newRecipientCount} active={newRecipientCount > 0} />
         </div>
       </div>
 
@@ -775,7 +768,7 @@ export function EmailDashboardClient({
                   <div className="min-w-0">
                     <h3 className="truncate text-lg font-semibold">{selectedFlow.title}</h3>
                     <p className="text-sm text-muted-foreground">
-                      发送会创建待建邮件，并继续处理待发送记录。
+                      发送会为待发送名单创建发送记录，已有记录不会重复创建。
                     </p>
                   </div>
                 </div>
