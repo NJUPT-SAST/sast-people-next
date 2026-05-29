@@ -41,8 +41,8 @@ type TemplateSetting = Awaited<
 >[number];
 
 const batchStatusText: Record<string, string> = {
-  draft: "待确认",
-  queued: "队列中",
+  draft: "待发送",
+  queued: "发送中",
   completed: "已完成",
   failed: "有失败",
 };
@@ -578,6 +578,7 @@ function SendLane({
   const newRecipientCount = recipients.filter(
     (recipient) => !deliveryUserFlowIds.has(recipient.userFlowId),
   ).length;
+  const sentCount = laneDeliveries.filter((delivery) => delivery.status === "sent").length;
   const actionableCount = newRecipientCount;
 
   return (
@@ -591,6 +592,7 @@ function SendLane({
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
           <CountPill label="待发送" value={newRecipientCount} active={newRecipientCount > 0} />
+          <CountPill label="已发送" value={sentCount} />
         </div>
       </div>
 
@@ -819,7 +821,7 @@ export function EmailDashboardClient({
               ) : (
                 batches.map((batch) => {
                   const preview = batch.deliveries[0]?.htmlSnapshot ?? null;
-                  const canRetry = batch.status === "draft" || batch.status === "failed";
+                  const canRetry = batch.counts.pending > 0 || batch.counts.failed > 0;
                   return (
                     <TableRow key={batch.id}>
                       <TableCell>
@@ -881,7 +883,7 @@ export function EmailDashboardClient({
           ) : (
             batches.map((batch) => {
               const preview = batch.deliveries[0]?.htmlSnapshot ?? null;
-              const canRetry = batch.status === "draft" || batch.status === "failed";
+              const canRetry = batch.counts.pending > 0 || batch.counts.failed > 0;
               return (
                 <div key={batch.id} className="rounded-md border p-3">
                   <div className="flex items-start justify-between gap-3">
