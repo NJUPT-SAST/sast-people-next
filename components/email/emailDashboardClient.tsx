@@ -59,6 +59,7 @@ function formatDate(value: Date | string | null) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -396,6 +397,20 @@ function RecipientsDialog({
 }
 
 function StatusDialog({ batch }: { batch: EmailBatch }) {
+  const renderDeliveryStatus = (status: string) => (
+    <Badge
+      variant={
+        status === "failed"
+          ? "destructive"
+          : status === "sent"
+            ? "default"
+            : "outline"
+      }
+    >
+      {deliveryStatusText[status] ?? status}
+    </Badge>
+  );
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -405,7 +420,7 @@ function StatusDialog({ batch }: { batch: EmailBatch }) {
       </DialogTrigger>
       <DialogContent
         className={cn(
-          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-5xl overflow-y-auto",
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto",
           hiddenScrollbar,
         )}
       >
@@ -415,43 +430,66 @@ function StatusDialog({ batch }: { batch: EmailBatch }) {
             每位收件人的发送状态和失败原因会保留在这里。
           </DialogDescription>
         </DialogHeader>
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
+
+        <div className="flex max-h-[62vh] flex-col gap-3 overflow-y-auto pr-1 md:hidden">
+          {batch.deliveries.map((delivery) => (
+            <div key={delivery.id} className="rounded-md border bg-card p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {delivery.userName}
+                  </p>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                    {delivery.toAddress}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  {renderDeliveryStatus(delivery.status)}
+                </div>
+              </div>
+              <div className="mt-3 grid gap-1.5 text-xs">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">发送时间</span>
+                  <span className="tabular-nums">{formatDate(delivery.sentAt)}</span>
+                </div>
+                <div className="rounded-md bg-muted/30 p-2">
+                  <p className="text-muted-foreground">失败原因</p>
+                  <p className="mt-1 break-words">
+                    {delivery.errorMessage ?? "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden max-h-[62vh] overflow-y-auto rounded-md border md:block">
+          <Table containerClassName="overflow-visible">
             <TableHeader>
               <TableRow>
-                <TableHead>姓名</TableHead>
-                <TableHead>收件地址</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>发送时间</TableHead>
+                <TableHead className="w-[96px]">姓名</TableHead>
+                <TableHead className="w-[190px]">收件地址</TableHead>
+                <TableHead className="w-[88px]">状态</TableHead>
+                <TableHead className="w-[116px]">发送时间</TableHead>
                 <TableHead>失败原因</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {batch.deliveries.map((delivery) => (
                 <TableRow key={delivery.id}>
-                  <TableCell className="whitespace-nowrap">
+                  <TableCell className="max-w-[96px] truncate">
                     {delivery.userName}
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="break-all font-mono text-xs whitespace-normal">
                     {delivery.toAddress}
                   </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        delivery.status === "failed"
-                          ? "destructive"
-                          : delivery.status === "sent"
-                            ? "default"
-                            : "outline"
-                      }
-                    >
-                      {deliveryStatusText[delivery.status] ?? delivery.status}
-                    </Badge>
+                  <TableCell className="whitespace-nowrap">
+                    {renderDeliveryStatus(delivery.status)}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                     {formatDate(delivery.sentAt)}
                   </TableCell>
-                  <TableCell className="min-w-64 max-w-md break-words text-xs text-muted-foreground">
+                  <TableCell className="break-words text-xs text-muted-foreground whitespace-normal">
                     {delivery.errorMessage ?? "-"}
                   </TableCell>
                 </TableRow>
@@ -814,7 +852,7 @@ export function EmailDashboardClient({
                             }}
                           >
                             <RotateCcw data-icon="inline-start" />
-                            发送
+                            重试
                           </Button>
                         </div>
                       </TableCell>
@@ -891,7 +929,7 @@ export function EmailDashboardClient({
                       }}
                     >
                       <RotateCcw data-icon="inline-start" />
-                      发送
+                      重试
                     </Button>
                   </div>
                 </div>
