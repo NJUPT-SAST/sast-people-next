@@ -108,7 +108,7 @@ export const OfferEmail = ({
                   <Button
                     style={{ ...button, backgroundColor: acceptedTone.primary }}
                     href={memberInfoFormUrl}>
-                    点击填写 {memberFormLabel}
+                    点击填写信息表
                   </Button>
 
                   <Hr style={innerDivider} />
@@ -123,7 +123,7 @@ export const OfferEmail = ({
                   <Button
                     style={buttonDark}
                     href={feishuGroupUrl}>
-                    点击加入 {feishuGroupName}
+                    点击加入飞书群
                   </Button>
                 </Section>
 
@@ -355,6 +355,7 @@ const button = {
   padding: '11px 16px',
   textAlign: 'center' as const,
   textDecoration: 'none',
+  whiteSpace: 'nowrap' as const,
 };
 
 const buttonDark = {
