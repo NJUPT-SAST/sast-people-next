@@ -1,9 +1,11 @@
 "use server";
 import { db } from "@/db/drizzle";
-import { flow, user, userFlow } from "@/db/schema";
+import { flow, userFlow } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logServerError } from "@/lib/server-error-log";
+import { verifySession } from "@/lib/dal";
+import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 // import eventManager from "@/event";
 
 export const register = async (
@@ -12,6 +14,48 @@ export const register = async (
   portfolioLink?: string,
 ) => {
   try {
+    const session = await verifySession();
+    if (session.uid !== uid) {
+      return {
+        success: false,
+        error: {
+          message: "只能为当前登录账号报名",
+        },
+      };
+    }
+
+    const userInfo = await getPeopleUserByLinkId(uid, {
+      canViewSensitiveInfo: true,
+    });
+
+    if (userInfo.isDeleted) {
+      return {
+        success: false,
+        error: {
+          message: "账号已被封禁，无法报名",
+        },
+      };
+    }
+
+    const missingFields = [
+      ["name", "姓名"],
+      ["studentId", "学号"],
+      ["phone", "手机号"],
+      ["email", "邮箱"],
+      ["college", "学院"],
+      ["major", "专业"],
+      ["qq", "QQ号"],
+    ].filter(([key]) => !userInfo?.[key as keyof typeof userInfo]);
+
+    if (missingFields.length > 0) {
+      return {
+        success: false,
+        error: {
+          message: `请先补全基本信息：${missingFields.map(([, label]) => label).join("、")}`,
+        },
+      };
+    }
+
     return await db.transaction(async (tx) => {
       // 检查用户是否已经报名
       const existingFlow = await tx
@@ -69,41 +113,6 @@ export const register = async (
           success: false,
           error: {
             message: `流程"${title}"已结束，结束时间为 ${endedAt.toLocaleString("zh-CN")}`,
-          },
-        };
-      }
-
-      const userInfo = (
-        await tx
-          .select({
-            name: user.name,
-            studentId: user.studentId,
-            phone: user.phone,
-            email: user.email,
-            college: user.college,
-            major: user.major,
-            qq: user.qq,
-          })
-          .from(user)
-          .where(eq(user.id, uid))
-          .limit(1)
-      )[0];
-
-      const missingFields = [
-        ["name", "姓名"],
-        ["studentId", "学号"],
-        ["phone", "手机号"],
-        ["email", "邮箱"],
-        ["college", "学院"],
-        ["major", "专业"],
-        ["qq", "QQ号"],
-      ].filter(([key]) => !userInfo?.[key as keyof typeof userInfo]);
-
-      if (missingFields.length > 0) {
-        return {
-          success: false,
-          error: {
-            message: `请先补全基本信息：${missingFields.map(([, label]) => label).join("、")}`,
           },
         };
       }

@@ -3,26 +3,8 @@ import userEvent from "@testing-library/user-event";
 
 import { ExperienceInfo } from "./experience";
 
-const mockEditExperience = jest.fn().mockResolvedValue(undefined);
-const mockToast = jest.fn();
-
-jest.mock("@/action/user/userInfo", () => ({
-  editExperience: (...args: unknown[]) => mockEditExperience(...args),
-}));
-
-jest.mock("sonner", () => ({
-  toast: {
-    promise: (...args: unknown[]) => mockToast(...args),
-  },
-}));
-
 describe("ExperienceInfo", () => {
-  beforeEach(() => {
-    mockEditExperience.mockClear();
-    mockToast.mockClear();
-  });
-
-  it("renders editable experience fields and submits them", async () => {
+  it("renders readonly experience fields and links to Link", async () => {
     const user = userEvent.setup();
 
     render(
@@ -45,14 +27,14 @@ describe("ExperienceInfo", () => {
       screen.getByPlaceholderText("请填写你的个人介绍"),
     ).toHaveValue("old intro");
 
-    await user.type(
-      screen.getByPlaceholderText("请填写你的博客地址"),
-      "https://blog.example.com",
-    );
-    await user.click(screen.getByRole("button", { name: "保存" }));
+    await user.click(screen.getByRole("link", { name: "前往 Link 修改" }));
 
     await waitFor(() => {
-      expect(mockEditExperience).toHaveBeenCalled();
+      expect(
+        screen.getByPlaceholderText("请填写你的GitHub主页地址"),
+      ).toBeDisabled();
+      expect(screen.getByPlaceholderText("请填写你的博客地址")).toBeDisabled();
+      expect(screen.getByPlaceholderText("请填写你的个人介绍")).toBeDisabled();
     });
   });
 });

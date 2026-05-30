@@ -10,7 +10,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShowQrCode } from "@/components/userInfo/showQrCode";
 import originalDayjs from "@/lib/dayjs";
-import Link from "next/link";
 import { Suspense } from "react";
 import { useUserInfo as getUserInfo } from "@/hooks/useUserInfo";
 import { BasicInfoServer } from "./basicInfo";
@@ -27,6 +26,8 @@ export default async function Home({
 }) {
   const userInfo = await getUserInfo();
   const awaitedSearchParams = await searchParams;
+  const linkProfileUrl =
+    process.env.NEXT_PUBLIC_LINK_PROFILE_URL || "https://link.sast.fun";
   return (
     <>
       <div className="flex justify-between items-start pb-4 border-b">
@@ -57,9 +58,11 @@ export default async function Home({
               <p className="text-sm text-muted-foreground">
                 看起来是新同学呢，在报名之前介绍一下你自己吧！
               </p>
-              <Link href="/dashboard?start=true">
-                <Button className="mt-2">开始编辑资料</Button>
-              </Link>
+              <Button className="mt-2" asChild>
+                <a href={linkProfileUrl} target="_blank" rel="noreferrer">
+                  前往 Link 完善资料
+                </a>
+              </Button>
             </div>
           </div>
         ) : (

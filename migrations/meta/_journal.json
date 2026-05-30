@@ -78,6 +78,13 @@
       "when": 1770000000002,
       "tag": "0010_user_flow_portfolio_link",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1770000000003,
+      "tag": "0011_link_user_ids",
+      "breakpoints": true
     }
   ]
 }

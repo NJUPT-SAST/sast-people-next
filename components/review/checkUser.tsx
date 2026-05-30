@@ -1,16 +1,19 @@
 'use server';
-import { user } from '@/db/schema';
-import { db } from '@/db/drizzle';
-import { eq } from 'drizzle-orm';
+
+import {
+  findPeopleUserByStudentId,
+  getPeopleUserByLinkId,
+} from '@/lib/link/user-lookup';
 
 export const checkUserByStuID = async (data: string) => {
-  const userInfo = await db.select().from(user).where(eq(user.studentId, data));
-  if (userInfo.length > 0) return true;
-  return false;
+  const userInfo = await findPeopleUserByStudentId(data);
+  return userInfo !== null;
 };
 
 export const findUserByUid = async (uid: number) => {
-  const userInfo = await db.select().from(user).where(eq(user.id, uid));
-  if (userInfo.length != 1) throw new Error('错误的考生学号，请重新输入或扫描');
-  return userInfo[0];
+  try {
+    return await getPeopleUserByLinkId(uid);
+  } catch {
+    throw new Error('错误的考生学号，请重新输入或扫描');
+  }
 };

@@ -1,4 +1,3 @@
-import { FeishuRedirect } from "@/components/feishuInject";
 import { LinkLogin } from "@/components/linkLogin";
 import BlurIn from "@/components/magicui/blur-in";
 import FlickeringGrid from "@/components/magicui/flickering-grid";
@@ -86,7 +85,6 @@ const Login = async () => {
           </section>
         </div>
       </main>
-      <FeishuRedirect />
     </>
   );
 };

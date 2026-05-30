@@ -1,11 +1,9 @@
 "use client";
-import { editBasicInfo } from "@/action/user/userInfo";
 import { user } from "@/db/schema";
 import type { userType } from "@/types/user";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createInsertSchema } from "drizzle-zod";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "../ui/button";
 import {
@@ -69,6 +67,8 @@ export const basicInfoSchema = fullUserSchema.pick({
 });
 export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
   const collegeList = useCollegeList();
+  const linkProfileUrl =
+    process.env.NEXT_PUBLIC_LINK_PROFILE_URL || "https://link.sast.fun";
   const basicInfoForm = useForm<z.infer<typeof basicInfoSchema>>({
     resolver: zodResolver(basicInfoSchema),
     defaultValues: {
@@ -77,12 +77,11 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
       ),
     },
   });
-  const { isSubmitting } = basicInfoForm.formState;
   return (
     <Card className="h-full">
       <CardHeader>
         <CardTitle>基本信息</CardTitle>
-        <CardDescription>个人基本信息</CardDescription>
+        <CardDescription>个人基本信息来自 SAST Link</CardDescription>
       </CardHeader>
       <CardContent className="flex-1">
         <Form {...basicInfoForm}>
@@ -90,7 +89,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
             <FormField
               control={basicInfoForm.control}
               name="name"
-              disabled={isSubmitting}
+              disabled
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>姓名</FormLabel>
@@ -104,7 +103,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
             <FormField
               control={basicInfoForm.control}
               name="studentId"
-              disabled={isSubmitting}
+              disabled
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>学号</FormLabel>
@@ -123,7 +122,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
             <FormField
               control={basicInfoForm.control}
               name="phone"
-              disabled={isSubmitting}
+              disabled
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>手机号码</FormLabel>
@@ -140,7 +139,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
             />
             <FormField
               control={basicInfoForm.control}
-              disabled={isSubmitting}
+              disabled
               name="email"
               render={({ field }) => (
                 <FormItem>
@@ -158,7 +157,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
             />
             <FormField
               control={basicInfoForm.control}
-              disabled={isSubmitting}
+              disabled
               name="qq"
               render={({ field }) => (
                 <FormItem>
@@ -176,13 +175,17 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
             />
             <FormField
               control={basicInfoForm.control}
-              disabled={isSubmitting}
+              disabled
               name="college"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>学院</FormLabel>
                   <FormControl>
-                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value || ""}
+                      onValueChange={field.onChange}
+                      disabled
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="请选择你的学院" />
                       </SelectTrigger>
@@ -203,7 +206,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
             />
             <FormField
               control={basicInfoForm.control}
-              disabled={isSubmitting}
+              disabled
               name="major"
               render={({ field }) => (
                 <FormItem>
@@ -223,19 +226,10 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
         </Form>
       </CardContent>
       <CardFooter className="mt-auto justify-end border-t pt-4">
-        <Button
-          onClick={basicInfoForm.handleSubmit(async () => {
-            const val = basicInfoForm.getValues();
-            toast.promise(editBasicInfo(val), {
-              loading: "正在保存",
-              success: "个人信息保存成功",
-              error: "个人信息保存失败",
-            });
-          })}
-          loading={isSubmitting}
-          disabled={isSubmitting}
-        >
-          保存
+        <Button asChild>
+          <a href={linkProfileUrl} target="_blank" rel="noreferrer">
+            前往 Link 修改
+          </a>
         </Button>
       </CardFooter>
     </Card>

@@ -18,6 +18,9 @@ export async function encrypt(payload: {
   uid: number;
   name: string;
   expiresAt: Date;
+  linkAccessToken?: string;
+  linkRefreshToken?: string;
+  linkAccessTokenExpiresAt?: number;
 }) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
@@ -37,7 +40,16 @@ export async function decrypt(session: string | undefined = "") {
   }
 }
 
-export async function createSession(uid: number, name: string, role: number) {
+export async function createSession(
+  uid: number,
+  name: string,
+  role: number,
+  linkTokens?: {
+    accessToken?: string;
+    refreshToken?: string;
+    accessTokenExpiresAt?: number;
+  },
+) {
   let expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   if (role === 0) {
     expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000);
@@ -47,6 +59,9 @@ export async function createSession(uid: number, name: string, role: number) {
     expiresAt,
     name,
     role,
+    linkAccessToken: linkTokens?.accessToken,
+    linkRefreshToken: linkTokens?.refreshToken,
+    linkAccessTokenExpiresAt: linkTokens?.accessTokenExpiresAt,
   });
 
   const cookieStore = await cookies();

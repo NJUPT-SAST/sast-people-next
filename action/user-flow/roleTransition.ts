@@ -1,7 +1,11 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { flow, user, userFlow } from "@/db/schema";
+import { flow, userFlow } from "@/db/schema";
+import { updateLinkUserRole } from "@/lib/link/admin";
+import { peopleRoleToLinkRole } from "@/lib/link/role";
+import { getLinkAccessTokenFromSession } from "@/lib/link/session";
+import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -18,11 +22,7 @@ const roleGrantedByFlow = (flowType: string) => {
 };
 
 export const syncUserRoleFromAcceptedFlows = async (uid: number) => {
-  const [userRecord] = await db
-    .select({ role: user.role })
-    .from(user)
-    .where(eq(user.id, uid))
-    .limit(1);
+  const userRecord = await getPeopleUserByLinkId(uid);
 
   if (!userRecord || userRecord.role === null || userRecord.role >= 3) {
     return;
@@ -46,10 +46,12 @@ export const syncUserRoleFromAcceptedFlows = async (uid: number) => {
   );
 
   if (calculatedRole !== userRecord.role) {
-    await db
-      .update(user)
-      .set({ role: calculatedRole, updatedAt: new Date() })
-      .where(eq(user.id, uid));
+    const accessToken = await getLinkAccessTokenFromSession();
+    await updateLinkUserRole(
+      accessToken,
+      uid,
+      peopleRoleToLinkRole(calculatedRole),
+    );
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/manage");
   }

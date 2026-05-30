@@ -1,10 +1,11 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { flow, interviewEvaluation, user, userFlow } from "@/db/schema";
+import { flow, interviewEvaluation, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { logServerError } from "@/lib/server-error-log";
-import { aliasedTable, and, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 
@@ -350,19 +351,20 @@ export const getEvaluation = async (userFlowId: number) => {
     const result = await db
       .select({
         evaluation: interviewEvaluation,
-        authorName: user.name,
       })
       .from(interviewEvaluation)
-      .leftJoin(user, eq(interviewEvaluation.fkUserId, user.id))
       .where(eq(interviewEvaluation.fkUserFlowId, userFlowId))
       .orderBy(interviewEvaluation.createdAt)
       .limit(1);
 
     if (!result[0]) return null;
+    const authorMap = await listPeopleUsersByLinkIds([
+      result[0].evaluation.fkUserId,
+    ]);
 
     return {
       evaluation: result[0].evaluation,
-      authorName: result[0].authorName,
+      authorName: authorMap.get(result[0].evaluation.fkUserId)?.name ?? null,
     };
   } catch (error) {
     logServerError("evaluation:get", error, {
@@ -382,26 +384,38 @@ export const getAllEvaluations = async () => {
   try {
     session = await verifyRole(3);
 
-    const author = aliasedTable(user, "author");
-    const candidate = aliasedTable(user, "candidate");
-
-    return db
+    const rows = await db
       .select({
         evaluation: interviewEvaluation,
         meetingLink: interviewEvaluation.meetingLink,
         portfolioLink: userFlow.portfolioLink,
-        authorName: author.name,
-        candidateName: candidate.name,
-        candidateStudentId: candidate.studentId,
+        authorId: interviewEvaluation.fkUserId,
+        candidateId: userFlow.fkUserId,
         flowTitle: flow.title,
         flowType: flow.type,
       })
       .from(interviewEvaluation)
-      .leftJoin(author, eq(interviewEvaluation.fkUserId, author.id))
       .leftJoin(userFlow, eq(interviewEvaluation.fkUserFlowId, userFlow.id))
       .leftJoin(flow, eq(userFlow.fkFlowId, flow.id))
-      .leftJoin(candidate, eq(userFlow.fkUserId, candidate.id))
       .orderBy(interviewEvaluation.createdAt);
+
+    const userMap = await listPeopleUsersByLinkIds(
+      rows.flatMap((row) => [
+        row.authorId,
+        row.candidateId,
+      ]).filter((id): id is number => id !== null),
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      authorName: userMap.get(row.authorId)?.name ?? null,
+      candidateName: row.candidateId
+        ? userMap.get(row.candidateId)?.name ?? null
+        : null,
+      candidateStudentId: row.candidateId
+        ? userMap.get(row.candidateId)?.studentId ?? null
+        : null,
+    }));
   } catch (error) {
     logServerError("evaluation:getAll", error, {
       path: "/dashboard/approvals",
@@ -422,10 +436,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
     const candidates = await db
       .select({
         userFlowId: userFlow.id,
-        uid: user.id,
-        name: user.name,
-        studentId: user.studentId,
-        phoneNumber: user.phone,
+        uid: userFlow.fkUserId,
         status: userFlow.status,
         portfolioLink: userFlow.portfolioLink,
         evalId: interviewEvaluation.id,
@@ -434,18 +445,23 @@ export const getEvaluationCandidates = async (flowId: number) => {
         evalStatus: interviewEvaluation.status,
       })
       .from(userFlow)
-      .innerJoin(user, eq(userFlow.fkUserId, user.id))
       .leftJoin(
         interviewEvaluation,
         eq(interviewEvaluation.fkUserFlowId, userFlow.id),
       )
-      .where(eq(userFlow.fkFlowId, flowId))
-      .orderBy(user.studentId);
+      .where(eq(userFlow.fkFlowId, flowId));
+
+    const userMap = await listPeopleUsersByLinkIds(
+      candidates.map((candidate) => candidate.uid),
+      { canViewSensitiveInfo: session.role >= 3 },
+    );
 
     return candidates.map((candidate) => ({
       ...candidate,
-      phoneNumber: session!.role >= 3 ? candidate.phoneNumber : null,
-    }));
+      name: userMap.get(candidate.uid)?.name ?? "未知用户",
+      studentId: userMap.get(candidate.uid)?.studentId ?? null,
+      phoneNumber: session!.role >= 3 ? userMap.get(candidate.uid)?.phone ?? null : null,
+    })).sort((a, b) => (a.studentId ?? "").localeCompare(b.studentId ?? ""));
   } catch (error) {
     logServerError("evaluation:getCandidates", error, {
       path: "/dashboard/recruitment",

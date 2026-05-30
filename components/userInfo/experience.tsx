@@ -22,8 +22,6 @@ import {
 import { Input } from '../ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { userType } from '@/types/user';
-import { toast } from 'sonner';
-import { editExperience } from '@/action/user/userInfo';
 
 const experienceFieldsSchema = z.object({
   github: z.string().trim().optional(),
@@ -41,6 +39,8 @@ export const ExperienceInfo = ({
 }: {
   initialInfo: ExperienceInfoValue;
 }) => {
+  const linkProfileUrl =
+    process.env.NEXT_PUBLIC_LINK_PROFILE_URL || 'https://link.sast.fun';
   const form = useForm<ExperienceFields>({
     resolver: zodResolver(experienceSchema),
     defaultValues: {
@@ -49,14 +49,13 @@ export const ExperienceInfo = ({
       personalStatement: initialInfo.personalStatement ?? '',
     },
   });
-  const { isSubmitting } = form.formState;
 
   return (
     <Card className="h-full">
       <CardHeader>
         <CardTitle>我的能力</CardTitle>
         <CardDescription>
-          请与我们分享你目前的兴趣与能力，以便找到最合适的部门
+          能力信息来自 SAST Link
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-1">
@@ -65,6 +64,7 @@ export const ExperienceInfo = ({
             <FormField
               control={form.control}
               name="github"
+              disabled
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>GitHub 主页地址</FormLabel>
@@ -73,6 +73,7 @@ export const ExperienceInfo = ({
                       placeholder="请填写你的GitHub主页地址"
                       {...field}
                       value={field.value ?? ''}
+                      disabled
                     />
                   </FormControl>
                   <FormMessage />
@@ -82,6 +83,7 @@ export const ExperienceInfo = ({
             <FormField
               control={form.control}
               name="blog"
+              disabled
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>博客地址</FormLabel>
@@ -90,6 +92,7 @@ export const ExperienceInfo = ({
                       placeholder="请填写你的博客地址"
                       {...field}
                       value={field.value ?? ''}
+                      disabled
                     />
                   </FormControl>
                   <FormMessage />
@@ -99,6 +102,7 @@ export const ExperienceInfo = ({
             <FormField
               control={form.control}
               name="personalStatement"
+              disabled
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>自我介绍</FormLabel>
@@ -108,6 +112,7 @@ export const ExperienceInfo = ({
                       className="min-h-48"
                       {...field}
                       value={field.value ?? ''}
+                      disabled
                     />
                   </FormControl>
                   <FormMessage />
@@ -118,19 +123,10 @@ export const ExperienceInfo = ({
         </Form>
       </CardContent>
       <CardFooter className="mt-auto justify-end border-t pt-4">
-        <Button
-          type="button"
-          loading={isSubmitting}
-          disabled={isSubmitting}
-          onClick={form.handleSubmit(async (values) => {
-            toast.promise(editExperience(values), {
-              loading: '正在保存',
-              success: '个人信息保存成功',
-              error: '个人信息保存失败',
-            });
-          })}
-        >
-          保存
+        <Button asChild>
+          <a href={linkProfileUrl} target="_blank" rel="noreferrer">
+            前往 Link 修改
+          </a>
         </Button>
       </CardFooter>
     </Card>

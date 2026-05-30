@@ -1,10 +1,10 @@
 "use server";
 
-import { db } from "@/db/drizzle";
-import { user } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { updateLinkUserRole } from "@/lib/link/admin";
+import { peopleRoleToLinkRole } from "@/lib/link/role";
+import { getLinkAccessTokenFromSession } from "@/lib/link/session";
 import { logServerError } from "@/lib/server-error-log";
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export const updateUserRole = async (uid: number, role: number) => {
@@ -17,10 +17,8 @@ export const updateUserRole = async (uid: number, role: number) => {
       throw new Error("不能设置管理员身份");
     }
 
-    await db
-      .update(user)
-      .set({ role, updatedAt: new Date() })
-      .where(eq(user.id, uid));
+    const accessToken = await getLinkAccessTokenFromSession();
+    await updateLinkUserRole(accessToken, uid, peopleRoleToLinkRole(role));
 
     revalidatePath("/dashboard/manage");
   } catch (error) {

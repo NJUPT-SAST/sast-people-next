@@ -1,8 +1,9 @@
 "use server";
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow, user, userFlow } from "@/db/schema";
+import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { getEducationEmail } from "@/lib/email/address";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import {
   getResultEmailTemplateKey,
   renderResultEmailSubject,
@@ -27,13 +28,10 @@ export const batchSendEmail = async (
       await db
         .select({
           userFlowId: userFlow.id,
-          userId: user.id,
-          studentId: user.studentId,
-          name: user.name,
+          userId: userFlow.fkUserId,
           flowName: flow.title,
         })
         .from(userFlow)
-        .innerJoin(user, eq(user.id, userFlow.fkUserId))
         .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
         .where(
           and(
@@ -47,6 +45,8 @@ export const batchSendEmail = async (
     if (targets.length === 0) {
       return { batchId: null, deliveryCount: 0 };
     }
+
+    const userMap = await listPeopleUsersByLinkIds(targets.map((item) => item.userId));
 
     const templateKey = getResultEmailTemplateKey(accept);
     const templateSetting = await getEmailTemplateSetting(templateKey);
@@ -66,9 +66,10 @@ export const batchSendEmail = async (
 
     const deliveries = await Promise.all(
       targets.map(async (item) => {
-        const toAddress = getEducationEmail(item.studentId);
+        const targetUser = userMap.get(item.userId);
+        const toAddress = getEducationEmail(targetUser?.studentId);
         const htmlSnapshot = await renderResultEmail({
-          name: item.name,
+          name: targetUser?.name ?? "同学",
           flowName: item.flowName,
           accept,
           setting: templateSetting,

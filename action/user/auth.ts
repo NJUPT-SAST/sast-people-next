@@ -7,12 +7,22 @@ import { logServerError } from '@/lib/server-error-log';
 
 import { userType } from '@/types/user';
 
+const assertLegacyAuthAllowed = () => {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.PEOPLE_ALLOW_LEGACY_AUTH !== 'true'
+  ) {
+    throw new Error('旧 People 登录已关闭，请使用 SAST Link 登录。');
+  }
+};
+
 export async function loginFromX(
   openid: string,
   userIdentifier: string,
   type: 'feishu' | 'link',
 ) {
   try {
+    assertLegacyAuthAllowed();
     let uidList: Partial<userType>[] | null = null;
     // check if openid exists
     if (type === 'feishu') {
@@ -107,6 +117,7 @@ export async function loginFromX(
 export async function loginFromTest(formData: FormData) {
   const studentId = formData.get('studentId') as string;
   try {
+    assertLegacyAuthAllowed();
     const uidList = await db
       .select({
         uid: user.id,
