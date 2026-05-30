@@ -14,6 +14,14 @@ import { logServerError } from "@/lib/server-error-log";
 import { sendRawEmail } from "@/queue/sendEmail";
 import { eq } from "drizzle-orm";
 
+function getStudentIdFromTestAddress(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  return normalized.includes("@")
+    ? normalized.split("@")[0] || null
+    : normalized;
+}
+
 export async function sendEmailTest(
   toAddress?: string,
   accept = true,
@@ -40,12 +48,22 @@ export async function sendEmailTest(
     const to = toAddress
       ? normalizeEducationEmailInput(toAddress)
       : getEducationEmail(currentUser.studentId);
+    const targetStudentId = toAddress
+      ? getStudentIdFromTestAddress(toAddress)
+      : currentUser.studentId;
+    const [targetUser] = targetStudentId
+      ? await db
+          .select({ name: user.name })
+          .from(user)
+          .where(eq(user.studentId, targetStudentId))
+          .limit(1)
+      : [];
     const templateSetting = await getEmailTemplateSetting(
       getResultEmailTemplateKey(accept),
     );
     const subject = renderResultEmailSubject(flowName, templateSetting);
     const html = await renderResultEmail({
-      name: currentUser.name,
+      name: targetUser?.name ?? currentUser.name,
       flowName,
       accept,
       setting: templateSetting,

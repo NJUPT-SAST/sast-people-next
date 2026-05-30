@@ -922,6 +922,7 @@ export function EmailDashboardClient({
                 <TableHead>人数</TableHead>
                 <TableHead>发送成功</TableHead>
                 <TableHead>发送失败</TableHead>
+                <TableHead>操作人</TableHead>
                 <TableHead>创建时间</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -929,7 +930,7 @@ export function EmailDashboardClient({
             <TableBody>
               {batches.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-20 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="h-20 text-center text-muted-foreground">
                     暂无发送记录。已有“邮件已发”状态的人员会计入上方已发人数。
                   </TableCell>
                 </TableRow>
@@ -952,6 +953,7 @@ export function EmailDashboardClient({
                       <TableCell>{batch.totalCount}</TableCell>
                       <TableCell>{batch.counts.sent}</TableCell>
                       <TableCell>{batch.counts.failed}</TableCell>
+                      <TableCell>{batch.createdByName ?? "-"}</TableCell>
                       <TableCell>{formatDate(batch.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
@@ -1006,6 +1008,9 @@ export function EmailDashboardClient({
                       <p className="truncate text-sm font-medium">{batch.flowTitle}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {batch.accept ? "通过" : "不通过"} · {formatDate(batch.createdAt)}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        操作人：{batch.createdByName ?? "-"}
                       </p>
                     </div>
                     <Badge
