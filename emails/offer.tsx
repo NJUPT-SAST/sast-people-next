@@ -340,7 +340,7 @@ const calendarCard = {
   margin: '22px 0',
   padding: '20px 22px',
   backgroundColor: '#fbfaf6',
-  border: '1px solid #e7dfd2',
+  border: '1px solid #efe7dc',
   borderRadius: '14px',
 };
 
@@ -373,7 +373,7 @@ const innerDivider = {
 };
 
 const divider = {
-  borderColor: '#e3e8e5',
+  borderColor: '#edf1ef',
   margin: '26px 0 20px',
 };
 
@@ -389,7 +389,6 @@ const signOff = {
 const footer = {
   padding: '26px 34px 32px',
   backgroundColor: '#fffdfa',
-  borderTop: '1px solid #e3e8e5',
   textAlign: 'center' as const,
 };
 
