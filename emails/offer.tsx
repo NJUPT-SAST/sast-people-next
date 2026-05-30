@@ -224,9 +224,8 @@ const container = {
 };
 
 const topBar = {
-  height: '12px',
-  backgroundImage:
-    'linear-gradient(90deg, #157347 0%, #157347 58%, #d8b65a 58%, #d8b65a 70%, #172033 70%, #172033 100%)',
+  height: '8px',
+  backgroundColor: '#157347',
   borderBottom: '1px solid #d7e5dc',
 };
 
@@ -389,8 +388,8 @@ const signOff = {
 
 const footer = {
   padding: '26px 34px 32px',
-  backgroundColor: '#f7f3eb',
-  borderTop: '1px solid #e4ddd2',
+  backgroundColor: '#fffdfa',
+  borderTop: '1px solid #e3e8e5',
   textAlign: 'center' as const,
 };
 
