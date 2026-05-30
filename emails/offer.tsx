@@ -224,7 +224,10 @@ const container = {
 };
 
 const topBar = {
-  height: '7px',
+  height: '12px',
+  backgroundImage:
+    'linear-gradient(90deg, #157347 0%, #157347 58%, #d8b65a 58%, #d8b65a 70%, #172033 70%, #172033 100%)',
+  borderBottom: '1px solid #d7e5dc',
 };
 
 const header = {
