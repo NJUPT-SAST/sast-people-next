@@ -224,6 +224,7 @@ function TemplateField({
 
 function TemplateDialog({ setting }: { setting: TemplateSetting }) {
   const router = useRouter();
+  const isAcceptedTemplate = setting.templateKey.endsWith("accepted");
 
   return (
     <Dialog>
@@ -242,7 +243,9 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
         <DialogHeader>
           <DialogTitle>{getSettingLabel(setting.templateKey)}</DialogTitle>
           <DialogDescription>
-            邮件版式固定；这里只调整标题、链接、群名和联系邮箱。
+            {isAcceptedTemplate
+              ? "邮件版式固定；这里只调整链接、飞书群和联系邮箱。"
+              : "邮件版式固定；这里只调整活动日历和联系邮箱。"}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -285,46 +288,66 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
               defaultValue={setting.contactEmail}
             />
             <TemplateField
-              id={`${setting.templateKey}-form-label`}
-              label="表单按钮文案"
-              name="memberFormLabel"
-              defaultValue={setting.memberFormLabel}
-            />
-            <TemplateField
-              id={`${setting.templateKey}-group-name`}
-              label="飞书群名"
-              name="feishuGroupName"
-              defaultValue={setting.feishuGroupName}
-              className="md:col-span-2"
-            />
-          </div>
-
-          <div className="grid gap-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
-            <TemplateField
-              id={`${setting.templateKey}-form-url`}
-              label="成员信息表链接"
-              name="memberInfoFormUrl"
-              defaultValue={setting.memberInfoFormUrl}
-            />
-            <TemplateField
-              id={`${setting.templateKey}-group-url`}
-              label="飞书群链接"
-              name="feishuGroupUrl"
-              defaultValue={setting.feishuGroupUrl}
-            />
-            <TemplateField
               id={`${setting.templateKey}-calendar-url`}
               label="活动日历链接"
               name="calendarUrl"
               defaultValue={setting.calendarUrl}
             />
-            <TemplateField
-              id={`${setting.templateKey}-help-url`}
-              label="飞书注册说明"
-              name="feishuRegisterHelpUrl"
-              defaultValue={setting.feishuRegisterHelpUrl}
-            />
+            {isAcceptedTemplate ? (
+              <>
+                <TemplateField
+                  id={`${setting.templateKey}-form-label`}
+                  label="表单按钮文案"
+                  name="memberFormLabel"
+                  defaultValue={setting.memberFormLabel}
+                />
+                <TemplateField
+                  id={`${setting.templateKey}-group-name`}
+                  label="飞书群名"
+                  name="feishuGroupName"
+                  defaultValue={setting.feishuGroupName}
+                />
+              </>
+            ) : (
+              <>
+                <input type="hidden" name="memberFormLabel" value={setting.memberFormLabel} />
+                <input type="hidden" name="feishuGroupName" value={setting.feishuGroupName} />
+              </>
+            )}
           </div>
+
+          {isAcceptedTemplate ? (
+            <div className="grid gap-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
+              <TemplateField
+                id={`${setting.templateKey}-form-url`}
+                label="成员信息表链接"
+                name="memberInfoFormUrl"
+                defaultValue={setting.memberInfoFormUrl}
+              />
+              <TemplateField
+                id={`${setting.templateKey}-group-url`}
+                label="飞书群链接"
+                name="feishuGroupUrl"
+                defaultValue={setting.feishuGroupUrl}
+              />
+              <TemplateField
+                id={`${setting.templateKey}-help-url`}
+                label="飞书注册说明"
+                name="feishuRegisterHelpUrl"
+                defaultValue={setting.feishuRegisterHelpUrl}
+              />
+            </div>
+          ) : (
+            <>
+              <input type="hidden" name="memberInfoFormUrl" value={setting.memberInfoFormUrl} />
+              <input type="hidden" name="feishuGroupUrl" value={setting.feishuGroupUrl} />
+              <input
+                type="hidden"
+                name="feishuRegisterHelpUrl"
+                value={setting.feishuRegisterHelpUrl}
+              />
+            </>
+          )}
           <div className="flex justify-end md:col-span-2">
             <Button type="submit" className="w-full sm:w-auto">
               <Save data-icon="inline-start" />
