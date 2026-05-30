@@ -547,8 +547,9 @@ function StatusDialog({ batch }: { batch: EmailBatch }) {
   );
 }
 
-function TestEmailButton() {
+function TestEmailButton({ flowName }: { flowName?: string }) {
   const [address, setAddress] = useState("");
+  const [accept, setAccept] = useState(true);
 
   return (
     <Dialog>
@@ -562,9 +563,27 @@ function TestEmailButton() {
         <DialogHeader>
           <DialogTitle>测试发送</DialogTitle>
           <DialogDescription>
-            仅支持南邮教育邮箱；也可以直接输入学号。
+            使用当前结果邮件模板发送样张；仅支持南邮教育邮箱，也可以直接输入学号。
           </DialogDescription>
         </DialogHeader>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            variant={accept ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAccept(true)}
+          >
+            通过邮件
+          </Button>
+          <Button
+            type="button"
+            variant={!accept ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAccept(false)}
+          >
+            不通过邮件
+          </Button>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="test-email-address">收件地址</Label>
           <Input
@@ -578,7 +597,7 @@ function TestEmailButton() {
         <Button
           onClick={() => {
             toast.promise(
-              sendEmailTest(address).then((result) => {
+              sendEmailTest(address, accept, flowName).then((result) => {
                 if (!result.ok) throw new Error("测试邮件发送失败");
                 return result;
               }),
@@ -592,7 +611,7 @@ function TestEmailButton() {
           }}
         >
           <Send data-icon="inline-start" />
-          发送测试邮件
+          发送{accept ? "通过" : "不通过"}测试邮件
         </Button>
       </DialogContent>
     </Dialog>
@@ -746,7 +765,7 @@ export function EmailDashboardClient({
             </p>
           </div>
           <div className="hidden gap-2 lg:flex lg:flex-wrap">
-            <TestEmailButton />
+            <TestEmailButton flowName={selectedFlow?.title} />
             <DesktopTemplateActions templateSettings={templateSettings} />
           </div>
         </div>
@@ -754,7 +773,7 @@ export function EmailDashboardClient({
         <div className="border-b p-3 lg:hidden">
           <div className="rounded-lg border bg-background/35 p-3">
             <div className="mb-2">
-              <TestEmailButton />
+              <TestEmailButton flowName={selectedFlow?.title} />
             </div>
             <MobileTemplateActions templateSettings={templateSettings} />
             <div className="mt-3">

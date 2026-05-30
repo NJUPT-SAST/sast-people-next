@@ -2,13 +2,23 @@
 
 import { db } from "@/db/drizzle";
 import { user } from "@/db/schema";
+import { getEmailTemplateSetting } from "@/action/email/template";
 import { verifyRole } from "@/lib/dal";
+import {
+  getResultEmailTemplateKey,
+  renderResultEmail,
+  renderResultEmailSubject,
+} from "@/lib/email/result-email";
 import { getEducationEmail, normalizeEducationEmailInput } from "@/lib/email/address";
 import { logServerError } from "@/lib/server-error-log";
 import { sendRawEmail } from "@/queue/sendEmail";
 import { eq } from "drizzle-orm";
 
-export async function sendEmailTest(toAddress?: string) {
+export async function sendEmailTest(
+  toAddress?: string,
+  accept = true,
+  flowName = "SAST 招新",
+) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
@@ -30,16 +40,20 @@ export async function sendEmailTest(toAddress?: string) {
     const to = toAddress
       ? normalizeEducationEmailInput(toAddress)
       : getEducationEmail(currentUser.studentId);
+    const templateSetting = await getEmailTemplateSetting(
+      getResultEmailTemplateKey(accept),
+    );
+    const subject = renderResultEmailSubject(flowName, templateSetting);
+    const html = await renderResultEmail({
+      name: currentUser.name,
+      flowName,
+      accept,
+      setting: templateSetting,
+    });
     const result = await sendRawEmail({
       to,
-      subject: "SAST 邮件发送测试",
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.7;">
-          <p>${currentUser.name}，你好：</p>
-          <p>这是一封 SAST 人员管理平台的测试邮件。</p>
-          <p>如果你收到这封邮件，说明当前邮件账号可以正常发送。</p>
-        </div>
-      `,
+      subject,
+      html,
     });
 
     return {
@@ -53,7 +67,7 @@ export async function sendEmailTest(toAddress?: string) {
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       action: "send-test-email",
-      metadata: { hasCustomAddress: Boolean(toAddress?.trim()) },
+      metadata: { hasCustomAddress: Boolean(toAddress?.trim()), accept, flowName },
     });
     throw error;
   }

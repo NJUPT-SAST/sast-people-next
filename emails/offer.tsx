@@ -43,8 +43,8 @@ export const OfferEmail = ({
 }: OfferEmailProps) => {
   const greeting =
     genericGreeting || !name
-      ? '亲爱的 [同学姓名] 同学，'
-      : `亲爱的 ${name} 同学，`;
+      ? '亲爱的[同学姓名]同学，'
+      : `亲爱的${name}同学，`;
   const tone = accept ? acceptedTone : rejectedTone;
 
   return (
