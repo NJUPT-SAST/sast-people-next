@@ -68,16 +68,18 @@ export const OfferEmail = ({
             </Text>
           </Section>
 
-          <Section style={{ ...resultPanel, borderColor: tone.border, backgroundColor: tone.panel }}>
-            <Text style={{ ...resultBadge, color: tone.primary, backgroundColor: tone.badge }}>
-              {accept ? '通过通知' : '结果通知'}
-            </Text>
-            <Text style={{ ...resultTitle, color: tone.primary }}>
-              {flowName}
-            </Text>
-            <Text style={resultText}>
-              {accept ? '恭喜你顺利通过本次考核。' : '感谢你认真完成这次招新流程。'}
-            </Text>
+          <Section style={resultPanelWrap}>
+            <Section style={{ ...resultPanel, borderColor: tone.border, backgroundColor: tone.panel }}>
+              <Text style={{ ...resultBadge, color: tone.primary, backgroundColor: tone.badge }}>
+                {accept ? '通过通知' : '结果通知'}
+              </Text>
+              <Text style={{ ...resultTitle, color: tone.primary }}>
+                {flowName}
+              </Text>
+              <Text style={resultText}>
+                {accept ? '恭喜你顺利通过本次考核。' : '感谢你认真完成这次招新流程。'}
+              </Text>
+            </Section>
           </Section>
 
           <Section style={content}>
@@ -262,11 +264,16 @@ const subtitle = {
   lineHeight: '25px',
 };
 
+const resultPanelWrap = {
+  padding: '0 34px 26px',
+};
+
 const resultPanel = {
-  margin: '0 34px 26px',
+  margin: '0',
   padding: '20px 22px',
   border: '1px solid',
   borderRadius: '14px',
+  width: 'auto',
 };
 
 const resultBadge = {
