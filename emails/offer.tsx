@@ -62,7 +62,7 @@ export const OfferEmail = ({
               style={logo}
             />
             <Text style={eyebrow}>SAST R&D Center</Text>
-            <Text style={title}>{flowName} 结果通知</Text>
+            <Text style={title}>SAST 招新结果通知</Text>
             <Text style={subtitle}>
               {accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程'}
             </Text>
@@ -74,10 +74,10 @@ export const OfferEmail = ({
                 {accept ? '通过通知' : '结果通知'}
               </Text>
               <Text style={{ ...resultTitle, color: tone.primary }}>
-                {flowName}
+                {accept ? '恭喜你顺利通过' : '感谢你的参与'}
               </Text>
               <Text style={resultText}>
-                {accept ? '恭喜你顺利通过本次考核。' : '感谢你认真完成这次招新流程。'}
+                {accept ? '本次考核结果已确认。' : '本次招新结果已确认。'}
               </Text>
             </Section>
           </Section>
@@ -270,10 +270,11 @@ const resultPanelWrap = {
 
 const resultPanel = {
   margin: '0',
-  padding: '20px 22px',
+  padding: '24px 26px',
   border: '1px solid',
   borderRadius: '14px',
-  width: 'auto',
+  width: '100%',
+  boxSizing: 'border-box' as const,
 };
 
 const resultBadge = {
@@ -288,11 +289,11 @@ const resultBadge = {
 };
 
 const resultTitle = {
-  margin: '0 0 8px',
+  margin: '0 0 10px',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '23px',
+  fontSize: '28px',
   fontWeight: '700',
-  lineHeight: '31px',
+  lineHeight: '36px',
 };
 
 const resultText = {
