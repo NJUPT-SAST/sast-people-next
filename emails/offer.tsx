@@ -57,7 +57,7 @@ export const OfferEmail = ({
           <Section style={header}>
             <Img
               src="https://storage.sast.fun/sast-logo.png"
-              width="72"
+              width="64"
               alt="SAST"
               style={logo}
             />
@@ -187,7 +187,7 @@ export const OfferEmail = ({
           <Section style={footer}>
             <Img
               src="https://storage.sast.fun/sast-email-header.png"
-              width="220"
+              width="180"
               alt="SAST - Igniting the thought"
               style={footerImage}
             />
@@ -230,22 +230,22 @@ const topBar = {
 };
 
 const header = {
-  padding: '34px 34px 24px',
+  padding: '28px 28px 20px',
   backgroundColor: '#fffdfa',
 };
 
 const logo = {
   display: 'block',
-  margin: '0 0 18px',
+  margin: '0 0 14px',
 };
 
 const eyebrow = {
-  margin: '0 0 10px',
+  margin: '0 0 8px',
   color: '#6f7f78',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '12px',
+  fontSize: '11px',
   fontWeight: '700',
-  letterSpacing: '1.2px',
+  letterSpacing: '0.6px',
   textTransform: 'uppercase' as const,
 };
 
@@ -253,17 +253,17 @@ const title = {
   margin: '0',
   color: '#111827',
   fontFamily: 'Georgia, Times New Roman, serif',
-  fontSize: '30px',
+  fontSize: '26px',
   fontWeight: '700',
-  lineHeight: '38px',
+  lineHeight: '32px',
 };
 
 const subtitle = {
-  margin: '12px 0 0',
+  margin: '10px 0 0',
   color: '#52615a',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '15px',
-  lineHeight: '25px',
+  fontSize: '14px',
+  lineHeight: '22px',
 };
 
 const resultPanelWrap = {
@@ -272,76 +272,76 @@ const resultPanelWrap = {
 
 const resultPanel = {
   margin: '0',
-  padding: '24px 26px',
+  padding: '20px 22px',
   border: '1px solid',
-  borderRadius: '14px',
+  borderRadius: '12px',
   width: '100%',
   boxSizing: 'border-box' as const,
 };
 
 const resultBadge = {
   display: 'inline-block',
-  margin: '0 0 12px',
-  padding: '6px 10px',
+  margin: '0 0 10px',
+  padding: '5px 10px',
   borderRadius: '999px',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '13px',
+  fontSize: '12px',
   fontWeight: '700',
-  lineHeight: '18px',
+  lineHeight: '16px',
 };
 
 const resultTitle = {
-  margin: '0 0 10px',
+  margin: '0 0 8px',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '28px',
+  fontSize: '24px',
   fontWeight: '700',
-  lineHeight: '36px',
+  lineHeight: '30px',
 };
 
 const resultText = {
   margin: '0',
   color: '#5b6570',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '15px',
-  lineHeight: '24px',
+  fontSize: '14px',
+  lineHeight: '22px',
 };
 
 const content = {
-  padding: '0 34px 8px',
+  padding: '0 28px 8px',
 };
 
 const text = {
-  margin: '0 0 16px',
+  margin: '0 0 14px',
   color: '#172033',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '16px',
+  fontSize: '15px',
   fontWeight: '400',
-  lineHeight: '29px',
+  lineHeight: '26px',
 };
 
 const importantText = {
-  margin: '0 0 14px',
+  margin: '0 0 12px',
   color: '#111827',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '16px',
+  fontSize: '15px',
   fontWeight: '700',
-  lineHeight: '27px',
+  lineHeight: '24px',
 };
 
 const noticeCard = {
-  margin: '24px 0',
-  padding: '22px 22px 24px',
+  margin: '20px 0',
+  padding: '18px 18px 20px',
   backgroundColor: '#f7faf8',
   border: '1px solid #d7e5dc',
-  borderRadius: '14px',
+  borderRadius: '12px',
 };
 
 const calendarCard = {
-  margin: '22px 0',
-  padding: '20px 22px',
+  margin: '20px 0',
+  padding: '18px 18px',
   backgroundColor: '#fbfaf6',
   border: '1px solid #efe7dc',
-  borderRadius: '14px',
+  borderRadius: '12px',
 };
 
 const button = {
@@ -349,10 +349,10 @@ const button = {
   color: '#ffffff',
   display: 'inline-block',
   fontFamily: 'Arial, Helvetica, sans-serif',
-  fontSize: '15px',
+  fontSize: '14px',
   fontWeight: '700',
-  lineHeight: '20px',
-  padding: '12px 18px',
+  lineHeight: '18px',
+  padding: '11px 16px',
   textAlign: 'center' as const,
   textDecoration: 'none',
 };
@@ -369,32 +369,32 @@ const anchor = {
 
 const innerDivider = {
   borderColor: '#dce7df',
-  margin: '22px 0',
+  margin: '18px 0',
 };
 
 const divider = {
   borderColor: '#edf1ef',
-  margin: '26px 0 20px',
+  margin: '22px 0 18px',
 };
 
 const signOff = {
   margin: '4px 0 0',
   color: '#111827',
   fontFamily: 'Georgia, Times New Roman, serif',
-  fontSize: '19px',
+  fontSize: '17px',
   fontWeight: '700',
-  lineHeight: '30px',
+  lineHeight: '26px',
 };
 
 const footer = {
-  padding: '26px 34px 32px',
+  padding: '22px 28px 28px',
   backgroundColor: '#fffdfa',
   textAlign: 'center' as const,
 };
 
 const footerImage = {
   display: 'block',
-  margin: '0 auto 12px',
+  margin: '0 auto 10px',
 };
 
 const footerText = {
