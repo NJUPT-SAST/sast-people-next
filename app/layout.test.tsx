@@ -18,8 +18,8 @@ import RootLayout, { metadata } from "./layout";
 describe("RootLayout", () => {
   it("exports metadata used by Next.js", () => {
     expect(metadata).toMatchObject({
-      title: "SAST 人员管理",
-      description: "南京邮电大学大学生科学技术协会人员管理平台",
+      title: "SAST People",
+      description: "南京邮电大学大学生科学技术协会People平台",
     });
   });
 
