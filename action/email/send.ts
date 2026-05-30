@@ -53,7 +53,7 @@ export async function sendEmailBatch(batchId: number) {
 
     await db
       .update(emailDelivery)
-      .set({ status: "pending", errorMessage: null })
+      .set({ status: "pending", errorMessage: null, updatedAt: new Date() })
       .where(
         inArray(
           emailDelivery.id,
@@ -63,7 +63,7 @@ export async function sendEmailBatch(batchId: number) {
 
     await db
       .update(emailBatch)
-      .set({ status: "queued" })
+      .set({ status: "queued", updatedAt: new Date() })
       .where(eq(emailBatch.id, batchId));
 
     await db
@@ -92,6 +92,7 @@ export async function sendEmailBatch(batchId: number) {
                 .set({
                   status: "failed",
                   errorMessage: EMAIL_SERVICE_UNAVAILABLE,
+                  updatedAt: new Date(),
                 })
                 .where(eq(emailDelivery.id, item.id));
               throw new Error(EMAIL_SERVICE_UNAVAILABLE);
@@ -104,7 +105,7 @@ export async function sendEmailBatch(batchId: number) {
     } catch (error) {
       await db
         .update(emailBatch)
-        .set({ status: "failed" })
+        .set({ status: "failed", updatedAt: new Date() })
         .where(eq(emailBatch.id, batchId));
       throw error;
     }

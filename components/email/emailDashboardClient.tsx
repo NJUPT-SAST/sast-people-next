@@ -97,8 +97,51 @@ function CountPill({
   );
 }
 
-function FlowSummary({ flow }: { flow: FlowTarget }) {
-  const unsent = flow.passed.length + flow.failed.length;
+function getLaneDeliveries({
+  batches,
+  flowId,
+  accept,
+}: {
+  batches: EmailBatch[];
+  flowId: number;
+  accept: boolean;
+}) {
+  return batches
+    .filter((batch) => batch.flowId === flowId && batch.accept === accept)
+    .flatMap((batch) => batch.deliveries);
+}
+
+function countRemainingRecipients({
+  recipients,
+  deliveries,
+}: {
+  recipients: Array<FlowTarget["passed"][number]>;
+  deliveries: EmailBatch["deliveries"];
+}) {
+  const deliveryUserFlowIds = new Set(
+    deliveries.map((delivery) => delivery.userFlowId),
+  );
+  return recipients.filter(
+    (recipient) => !deliveryUserFlowIds.has(recipient.userFlowId),
+  ).length;
+}
+
+function FlowSummary({
+  flow,
+  batches,
+}: {
+  flow: FlowTarget;
+  batches: EmailBatch[];
+}) {
+  const unsent =
+    countRemainingRecipients({
+      recipients: flow.passed,
+      deliveries: getLaneDeliveries({ batches, flowId: flow.id, accept: true }),
+    }) +
+    countRemainingRecipients({
+      recipients: flow.failed,
+      deliveries: getLaneDeliveries({ batches, flowId: flow.id, accept: false }),
+    });
 
   return (
     <div className="mt-2 text-xs text-muted-foreground">
@@ -571,15 +614,11 @@ function SendLane({
   const previewHtml = accept ? flow.acceptedPreviewHtml : flow.rejectedPreviewHtml;
   const tone = accept ? "border-primary/25 bg-primary/5" : "border-destructive/20 bg-destructive/5";
   const resultLabel = accept ? "通过" : "不通过";
-  const laneDeliveries = batches
-    .filter((batch) => batch.flowId === flow.id && batch.accept === accept)
-    .flatMap((batch) => batch.deliveries);
-  const deliveryUserFlowIds = new Set(
-    laneDeliveries.map((delivery) => delivery.userFlowId),
-  );
-  const newRecipientCount = recipients.filter(
-    (recipient) => !deliveryUserFlowIds.has(recipient.userFlowId),
-  ).length;
+  const laneDeliveries = getLaneDeliveries({ batches, flowId: flow.id, accept });
+  const newRecipientCount = countRemainingRecipients({
+    recipients,
+    deliveries: laneDeliveries,
+  });
   const sentCount = laneDeliveries.filter((delivery) => delivery.status === "sent").length;
   const actionableCount = newRecipientCount;
 
@@ -737,7 +776,7 @@ export function EmailDashboardClient({
               </select>
             </div>
             {selectedFlow && (
-              <FlowSummary flow={selectedFlow} />
+              <FlowSummary flow={selectedFlow} batches={batches} />
             )}
           </div>
           <div className="mt-3">
@@ -785,7 +824,7 @@ export function EmailDashboardClient({
                     )}
                   >
                     <p className="truncate text-sm font-medium">{flow.title}</p>
-                    <FlowSummary flow={flow} />
+                    <FlowSummary flow={flow} batches={batches} />
                   </button>
                 );
               })}

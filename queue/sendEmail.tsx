@@ -70,7 +70,7 @@ export const sendDelivery = async (deliveryId: number) => {
 
   await db
     .update(emailDelivery)
-    .set({ status: 'sending', errorMessage: null })
+    .set({ status: 'sending', errorMessage: null, updatedAt: new Date() })
     .where(eq(emailDelivery.id, deliveryId));
 
   try {
@@ -86,6 +86,7 @@ export const sendDelivery = async (deliveryId: number) => {
         providerMessageId: result.messageId ?? null,
         sentAt: new Date(),
         errorMessage: null,
+        updatedAt: new Date(),
       })
       .where(eq(emailDelivery.id, deliveryId));
     await refreshBatchStatus(delivery.fkEmailBatchId);
@@ -95,6 +96,7 @@ export const sendDelivery = async (deliveryId: number) => {
       .set({
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : String(error),
+        updatedAt: new Date(),
       })
       .where(eq(emailDelivery.id, deliveryId));
     await refreshBatchStatus(delivery.fkEmailBatchId);
@@ -115,6 +117,9 @@ async function refreshBatchStatus(batchId: number) {
 
   await db
     .update(emailBatch)
-    .set({ status: hasFailed ? 'failed' : allSent ? 'completed' : 'queued' })
+    .set({
+      status: hasFailed ? 'failed' : allSent ? 'completed' : 'queued',
+      updatedAt: new Date(),
+    })
     .where(eq(emailBatch.id, batchId));
 }
