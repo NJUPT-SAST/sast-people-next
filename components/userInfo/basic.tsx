@@ -4,7 +4,7 @@ import type { userType } from "@/types/user";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createInsertSchema } from "drizzle-zod";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { Button } from "../ui/button";
 import {
   Card,

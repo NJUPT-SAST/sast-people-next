@@ -4,6 +4,7 @@ import { experienceSchema } from "@/components/userInfo/experience";
 import { verifySession } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
 import { z } from "zod";
+import { z as z4 } from "zod/v4";
 
 const readonlyProfileResult = {
   success: false,
@@ -12,7 +13,7 @@ const readonlyProfileResult = {
   },
 };
 
-export async function editBasicInfo(values: z.infer<typeof basicInfoSchema>) {
+export async function editBasicInfo(values: z4.infer<typeof basicInfoSchema>) {
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
   try {
@@ -32,7 +33,7 @@ export async function editBasicInfo(values: z.infer<typeof basicInfoSchema>) {
 
 export async function editBasicInfoByUid(
   uid: number,
-  values: z.infer<typeof basicInfoSchema>
+  values: z4.infer<typeof basicInfoSchema>
 ) {
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
