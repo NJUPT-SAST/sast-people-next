@@ -1,92 +1,181 @@
-# SAST People v3 与 SAST Link 对接开发说明
+# SAST People v3 用户体系接入 SAST Link 技术方案
 
-本文档用于说明 `sast-people-v3` 分支的用户体系改造、数据库迁移、环境配置和后续联调事项。它不是严格意义上的 PRD，更接近技术对接说明和维护手册。
+| 项目 | 内容 |
+| --- | --- |
+| 文档状态 | Draft |
+| 适用分支 | `sast-people-v3` |
+| 适用范围 | SAST People 用户体系改造、Link 接口对接、v3 数据迁移与联调 |
+| 最后更新 | 2026-05-30 |
 
-## 当前结论
+## 1. 背景
 
-- 线上当前继续运行原版 People，不合并 v3。
-- `sast-people-v3` 分支先保留，等待 Link 后端真实接口补齐后再联调。
-- People v3 不再直接维护用户资料。用户基础资料、登录、角色和账号状态以 Link 为准。
-- People v3 自己维护流程、报名、评分、面评、邮件等业务数据。
-- v3 数据库已经完成本地迁移，业务表中的用户 id 已迁为 Link 用户 id。
+SAST People 原有用户体系由 People 本地 `public.user` 表维护。SAST Link 也维护了一套用户表，两边存在重复的用户基础信息。v3 改造目标是将重复的用户资料统一到 SAST Link，由 People 仅维护自身业务数据。
 
-## 系统边界
+本次改造后，People 不再作为用户基础资料的数据源。People 运行时通过 Link API 获取用户资料，并通过 Link API 完成用户角色变更和封禁操作。
 
-### Link 负责
+## 2. 目标
 
-- 用户登录和 OAuth 授权。
-- 用户基础信息：
-  - `id`
-  - `name`
-  - `student_id`
-  - `login_email`
-  - `phone_number`
-  - `qq_number`
-  - `college`
-  - `major`
-  - `profile.intro`
-  - `profile.github_url`
-  - `profile.blog_url`
-  - `profile.avatar`
-- 用户角色：
-  - `freshman`
-  - `member`
-  - `lecturer`
-  - `admin`
-- 用户状态：
-  - `njupter`
-  - `on-sast`
-  - `retired-sast`
-  - `is_deleted`
-- 管理员封禁用户。
+本次 v3 改造目标如下：
 
-### People 负责
+1. People 登录切换为 SAST Link OAuth。
+2. People 用户资料读取切换为 Link API。
+3. People 用户资料页面改为只读，资料修改跳转至 Link。
+4. People 管理端的角色变更和封禁操作切换为 Link API。
+5. People 新库仅保留流程、报名、评分、面评、邮件等业务数据。
+6. People 业务表中的用户关联字段统一迁移为 Link 用户 ID。
+7. 保留本地 mock 和 legacy fallback，用于 Link 接口未完成前的本地开发和排障。
 
-- 流程管理。
-- 用户报名 `user_flow`。
-- 笔试/阅卷/评分。
-- 面试评价。
-- 邮件模板、邮件批次、邮件发送记录。
-- 业务表中保存 Link 用户 id，用于关联业务记录。
+## 3. 非目标
 
-## 关键规则
+以下内容不属于本次 v3 改造范围：
 
-- People 不直接读取 Link 数据库。
-- People 只通过 Link API 读取用户信息。
-- People 只能通过 Link API 修改用户角色和封禁用户。
-- People 不能修改用户基础资料。资料页只读，并提供跳转到 Link 修改的入口。
-- `personalStatement` 迁移为 `profile.intro`。
-- `college`、`major` 由 Link 的用户表管理。
-- People 业务表中的用户 id 使用 Link `user.id`，不是旧 People `public.user.id`。
+1. People 不实现用户资料编辑能力。
+2. People 不直接读取或写入 Link 数据库。
+3. People 不负责维护 `college`、`major`、`profile.intro` 等用户资料字段。
+4. 本次不立即删除 People 旧 `public.user` 表。
+5. 本次不将 v3 直接合入线上主分支。
 
-## Link API 契约
+## 4. 术语
 
-People v3 当前依赖以下接口：
+| 术语 | 说明 |
+| --- | --- |
+| Link 用户 ID | Link `public.user.id`，v3 运行时使用的用户主键 |
+| Legacy 用户 ID | 旧 People `public.user.id`，仅用于一次性迁移 |
+| `people_legacy_user_map` | 一次性迁移映射表，用于将旧 People 用户 ID 映射到 Link 用户 ID |
+| legacy fallback | 本地开发兜底逻辑，在缺少 Link token 时读取旧 People 用户表 |
 
-| 用途 | 方法 | 路径 |
-| --- | --- | --- |
-| OAuth 授权 | `GET` | `/oauth/authorize` |
-| OAuth 换 token / 刷新 token | `POST` | `/oauth/token` |
-| 当前用户资料 | `GET` | `/user/profile` |
-| 管理员用户列表 | `GET` | `/admin/users` |
-| 管理员用户详情 | `GET` | `/admin/users/{id}` |
-| 修改用户角色 | `PUT` | `/admin/users/{id}` |
-| 封禁用户 | `DELETE` | `/admin/users/{id}` |
+## 5. 架构边界
 
-People v3 期望的用户字段：
+### 5.1 SAST Link 负责的数据
+
+Link 作为用户基础资料和账号状态的数据源，负责维护：
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | Link 用户 ID |
+| `name` | 姓名 |
+| `student_id` | 学号 |
+| `login_email` | 登录邮箱 |
+| `phone_number` | 手机号 |
+| `qq_number` | QQ 号 |
+| `college` | 学院 |
+| `major` | 专业 |
+| `role` | 用户角色 |
+| `state` | 用户状态 |
+| `profile.intro` | 个人简介，对应旧 People `personalStatement` |
+| `profile.email` | 对外展示邮箱 |
+| `profile.github_url` | GitHub 地址 |
+| `profile.blog_url` | 博客地址 |
+| `profile.avatar` | 头像地址 |
+| `profile.department` | 方向或部门 |
+
+### 5.2 SAST People 负责的数据
+
+People v3 仅维护业务数据，包括：
+
+| 模块 | 数据 |
+| --- | --- |
+| 流程管理 | `flow`、`flow_step`、`problem` |
+| 报名 | `user_flow` |
+| 阅卷评分 | `user_point` |
+| 面评 | `interview_evaluation` |
+| 邮件 | `email_template_setting`、`email_batch`、`email_delivery` |
+| 错误日志 | People 自身错误日志 |
+
+People 业务表中的用户字段保存 Link 用户 ID。
+
+## 6. 运行时数据流
+
+### 6.1 登录流程
+
+1. 用户在 People 点击 SAST Link 登录。
+2. People 跳转到 Link `/oauth/authorize`。
+3. Link 完成授权后回调 People `/api/auth/link`。
+4. People 调用 Link `/oauth/token` 换取 token。
+5. People 调用 Link `/user/profile` 获取当前用户资料。
+6. People 创建本地 session，session 中保存：
+   - `uid`: Link 用户 ID
+   - `role`: People 内部角色数字
+   - `name`: 用户姓名
+   - `linkAccessToken`
+   - `linkRefreshToken`
+   - `linkAccessTokenExpiresAt`
+
+### 6.2 用户资料读取
+
+| 场景 | Link 接口 |
+| --- | --- |
+| 当前登录用户资料 | `GET /user/profile` |
+| 管理端用户列表 | `GET /admin/users` |
+| 管理端用户详情 | `GET /admin/users/{id}` |
+| 根据学号查用户 | `GET /admin/users?keyword={student_id}` 后由 People 精确匹配 |
+
+People 读取 Link 返回后，会转换为现有 People UI 使用的 `userType` 视图模型。
+
+### 6.3 用户角色变更
+
+People 管理端角色变更不再更新本地 `public.user.role`，而是调用：
+
+```http
+PUT /admin/users/{id}
+Content-Type: application/json
+
+{
+  "role": "member"
+}
+```
+
+角色映射关系：
+
+| People role | Link role |
+| --- | --- |
+| `0` | `freshman` |
+| `1` | `member` |
+| `2` | `lecturer` |
+| `3` | `admin` |
+
+### 6.4 用户封禁
+
+People 管理端封禁用户不再更新本地 `public.user.is_deleted`，而是调用：
+
+```http
+DELETE /admin/users/{id}
+```
+
+Link 侧预期将 `user.state` 设为 `is_deleted`。
+
+### 6.5 用户资料修改
+
+People 不提供用户资料修改能力。资料页展示为只读，并提供跳转 Link 资料页的入口。
+
+## 7. Link API 依赖
+
+People v3 当前依赖以下 Link API：
+
+| 用途 | 方法 | 路径 | 权限预期 |
+| --- | --- | --- | --- |
+| OAuth 授权 | `GET` | `/oauth/authorize` | 已登录 Link 用户 |
+| OAuth token | `POST` | `/oauth/token` | OAuth client |
+| 当前用户资料 | `GET` | `/user/profile` | 当前用户 |
+| 用户列表 | `GET` | `/admin/users` | `admin` 或 `lecturer` |
+| 用户详情 | `GET` | `/admin/users/{id}` | `admin` 或 `lecturer` |
+| 更新用户 | `PUT` | `/admin/users/{id}` | `admin` |
+| 封禁用户 | `DELETE` | `/admin/users/{id}` | `admin` |
+
+### 7.1 People 需要的用户字段
 
 ```ts
-{
+type LinkUserProfile = {
   id: number;
   name: string;
-  student_id?: string | null;
   login_email?: string | null;
-  phone_number?: string | null;
-  qq_number?: string | null;
-  college?: string | null;
-  major?: string | null;
   role: "freshman" | "member" | "lecturer" | "admin";
   state: "njupter" | "on-sast" | "retired-sast" | "is_deleted";
+  phone_number?: string | null;
+  qq_number?: string | null;
+  student_id?: string | null;
+  college?: string | null;
+  major?: string | null;
   profile?: {
     department?: "software" | "media" | null;
     intro?: string | null;
@@ -97,20 +186,35 @@ People v3 期望的用户字段：
   } | null;
   created_at?: string;
   updated_at?: string;
-}
+};
 ```
 
-当前 MCP OpenAPI 中已经能看到这些接口路径，但 schema 还没有完全补齐：
+### 7.2 当前 Link OpenAPI 状态
 
-- `/user/profile` 目前缺 `college`、`major`。
-- `/admin/users` 列表项目前缺 `phone_number`、`qq_number`、`college`、`major`。
-- `profile.intro` 已经在 schema 中。
+根据 MCP 读取到的 Link OpenAPI：
 
-所以现在 People v3 可以用 mock 本地测试，但还不适合切真实 Link API 上线。
+已存在：
 
-## 环境变量
+- `/oauth/authorize`
+- `/oauth/token`
+- `/user/profile`
+- `/admin/users`
+- `/admin/users/{id}`
+- `/admin/users/{id}` 的 `PUT`
+- `/admin/users/{id}` 的 `DELETE`
 
-`.env.example` 中已经包含 v3 需要的 Link 配置：
+仍需 Link 补齐或确认：
+
+| 位置 | 缺失字段 |
+| --- | --- |
+| `UserProfileResponse.data` | `college`、`major` |
+| `AdminUserItem` | `phone_number`、`qq_number`、`college`、`major` |
+
+因此，当前 Link 接口契约路径已具备，但字段 schema 尚未完全满足 People v3 联调要求。
+
+## 8. 环境变量
+
+`.env.example` 中包含 v3 需要的环境变量：
 
 ```env
 LINK_CLIENT_ID=
@@ -124,7 +228,9 @@ PEOPLE_ALLOW_LEGACY_AUTH=false
 NEXT_PUBLIC_LINK_PROFILE_URL=
 ```
 
-本地等待 Link 接口时可以使用 mock：
+### 8.1 本地 mock 模式
+
+Link 接口未完成前，本地建议使用：
 
 ```env
 LINK_USE_MOCK=true
@@ -132,7 +238,9 @@ LINK_ALLOW_LEGACY_FALLBACK=true
 PEOPLE_ALLOW_LEGACY_AUTH=false
 ```
 
-真实联调时建议：
+### 8.2 真实联调模式
+
+Link 接口完成后，联调环境建议使用：
 
 ```env
 LINK_USE_MOCK=false
@@ -140,24 +248,47 @@ LINK_ALLOW_LEGACY_FALLBACK=false
 PEOPLE_ALLOW_LEGACY_AUTH=false
 ```
 
-## 数据库迁移
+## 9. 数据库迁移方案
 
-v3 数据库不直接复用线上原库。推荐保留原版数据库，单独创建 People v3 数据库。
+### 9.1 v3 数据库原则
 
-已新增迁移：
+v3 使用独立 People 数据库，不直接修改线上原版数据库。
 
-- `migrations/0011_link_user_ids.sql`
+线上原版继续运行当前 master 对应数据库。v3 数据库保留已迁移状态，用于后续真实 Link 接口联调。
 
-作用：
+### 9.2 表结构迁移
 
-- 去掉业务表到旧 `public.user` 的外键约束。
-- 允许业务表保存 Link 用户 id。
+新增迁移文件：
 
-已新增一次性迁移脚本：
+```text
+migrations/0011_link_user_ids.sql
+```
 
-- `scripts/people-v3-link-user-id-migration.sql`
+迁移内容：
 
-迁移前需要先准备映射表：
+- 移除业务表到旧 `public.user` 的外键约束。
+- 保留业务表中的用户 id 字段。
+- 这些字段后续保存 Link 用户 ID。
+
+涉及字段包括：
+
+- `flow.owner_id`
+- `user_flow.fk_user_id`
+- `email_batch.fk_created_by`
+- `email_delivery.fk_user_id`
+- `user_point.fk_judger_id`
+- `interview_evaluation.fk_user_id`
+- `interview_evaluation.fk_reviewed_by`
+
+### 9.3 数据迁移
+
+新增一次性脚本：
+
+```text
+scripts/people-v3-link-user-id-migration.sql
+```
+
+脚本依赖映射表：
 
 ```sql
 create table people_legacy_user_map (
@@ -166,7 +297,7 @@ create table people_legacy_user_map (
 );
 ```
 
-映射来源是 Link 数据库中已迁好的用户表，按学号匹配旧 People 用户和 Link 用户：
+映射表生成逻辑：
 
 ```sql
 select
@@ -178,141 +309,116 @@ join public."user" u
 where nullif(trim(p.student_id), '') is not null;
 ```
 
-导入 `people_legacy_user_map` 后运行：
+本地已完成：
 
-```sql
-\i scripts/people-v3-link-user-id-migration.sql
+- 创建 `sastpeoplev3`。
+- 从 v2 数据复制到 v3。
+- 导入 `people_legacy_user_map`。
+- 运行一次性迁移脚本。
+- 验证业务表用户字段已切换为 Link 用户 ID。
+
+## 10. 代码改造范围
+
+### 10.1 Link 适配层
+
+新增目录：
+
+```text
+lib/link/
 ```
 
-本地已验证映射数量为 384，且 `user_flow.fk_user_id` 等业务字段已从旧 People 用户 id 替换为 Link 用户 id。
+主要文件：
 
-## 代码结构
+| 文件 | 作用 |
+| --- | --- |
+| `client.ts` | Link API 请求封装 |
+| `oauth.ts` | OAuth token 交换与刷新 |
+| `session.ts` | session 中 Link token 读取与刷新 |
+| `user.ts` | 当前用户资料 API |
+| `admin.ts` | 管理端用户 API |
+| `user-lookup.ts` | 按 Link ID 或学号查询用户 |
+| `people-user.ts` | Link 用户模型转换为 People 视图模型 |
+| `role.ts` | People 角色与 Link 角色映射 |
+| `types.ts` | Link API 类型 |
+| `mock.ts` | 本地 mock 数据 |
 
-Link 适配层集中在：
+### 10.2 已迁移功能
 
-- `lib/link/client.ts`
-- `lib/link/oauth.ts`
-- `lib/link/session.ts`
-- `lib/link/user.ts`
-- `lib/link/admin.ts`
-- `lib/link/user-lookup.ts`
-- `lib/link/people-user.ts`
-- `lib/link/role.ts`
-- `lib/link/types.ts`
-- `lib/link/mock.ts`
+| 模块 | 状态 |
+| --- | --- |
+| Link OAuth 登录 | 已改造 |
+| 当前用户资料 | 已改造 |
+| 用户列表 | 已改造 |
+| 用户详情 | 已改造 |
+| 改角色 | 已改造 |
+| 封禁用户 | 已改造 |
+| 用户资料页 | 已改为只读 |
+| 报名校验 | 已改造 |
+| 按学号查报名 | 已改造 |
+| 阅卷成绩列表 | 已改造 |
+| 面评列表 | 已改造 |
+| 邮件目标和邮件批次 | 已改造 |
+| 旧飞书登录 | 生产默认关闭 |
+| 测试登录 | 生产默认关闭 |
 
-主要职责：
+## 11. 保留旧 `public.user` 的原因
 
-- 统一请求 Link API。
-- 处理 OAuth token。
-- 处理 session 中的 Link token。
-- 将 Link 用户模型转换成 People 当前使用的 `userType` 视图模型。
-- 在本地开发时提供 mock 或 legacy fallback。
-
-## 已迁移的 People 功能
-
-- Link OAuth 登录。
-- 当前用户资料读取。
-- 用户列表读取。
-- 用户详情读取。
-- 管理员修改用户角色。
-- 管理员封禁用户。
-- 个人资料页只读，跳转 Link 修改。
-- 报名校验。
-- 按学号查报名记录。
-- 流程 owner 展示。
-- 阅卷成绩列表。
-- 面评列表和候选人列表。
-- 邮件目标列表、邮件批次和测试邮件。
-- 旧飞书/测试登录生产默认关闭。
-
-## 仍然保留的旧 `public.user`
-
-短期不要删除 `public.user`。
+短期内不删除旧 `public.user` 表。
 
 原因：
 
-- 本地开发 fallback 仍可能读取旧表。
-- Link 真实接口未完成前，旧表有助于排查迁移问题。
-- 删除旧表前需要确认所有环境已经关闭：
-  - `LINK_USE_MOCK=false`
-  - `LINK_ALLOW_LEGACY_FALLBACK=false`
-  - `PEOPLE_ALLOW_LEGACY_AUTH=false`
+1. 本地 legacy fallback 仍依赖该表。
+2. Link 真实接口未完成前，该表可用于排查迁移问题。
+3. 删除旧表前需要确认所有环境均已关闭 legacy 入口。
 
-等真实 Link 联调稳定后，可以考虑：
+后续清理建议：
 
-1. 将 `public.user` 改名为 `legacy_user`。
-2. 观察一段时间。
-3. 最后再删除。
+1. 真实 Link 联调通过。
+2. 设置 `LINK_ALLOW_LEGACY_FALLBACK=false`。
+3. 设置 `PEOPLE_ALLOW_LEGACY_AUTH=false`。
+4. 观察一段时间。
+5. 将 `public.user` 改名为 `legacy_user` 或删除。
 
-## 联调清单
+## 12. 联调计划
 
-Link 接口完成后，按以下顺序联调：
+Link 接口补齐后，按以下顺序联调：
 
-1. OAuth 登录
-   - 跳转 Link 授权页。
-   - 回调 `/api/auth/link`。
-   - People session 中保存 Link `access_token` / `refresh_token`。
+| 阶段 | 验收项 |
+| --- | --- |
+| OAuth 登录 | 授权跳转、回调、token 保存、session 创建 |
+| 当前用户资料 | 姓名、学号、手机号、QQ、学院、专业、简介正常显示 |
+| 用户管理 | 分页、搜索、详情、改角色、封禁 |
+| 报名 | 普通用户报名、缺字段提示、业务表保存 Link 用户 ID |
+| 阅卷 | 按学号查考生、成绩列表展示 |
+| 面评 | 候选人列表、评价提交、审批列表 |
+| 邮件 | 目标列表、批次生成、测试邮件、发送记录 |
 
-2. 当前用户资料
-   - `/dashboard` 显示姓名、角色和只读资料。
-   - `college`、`major`、`profile.intro` 正常显示。
+## 13. 风险与处理
 
-3. 用户管理
-   - 用户列表分页、搜索。
-   - 用户详情。
-   - 改角色。
-   - 封禁用户。
+| 风险 | 影响 | 处理方式 |
+| --- | --- | --- |
+| Link 字段未补齐 | People 页面显示空字段或报名校验失败 | 保持 mock；等待 Link 补齐字段后联调 |
+| Link 权限不足 | lecturer/admin 页面调用失败 | 确认 `/admin/users` 权限策略 |
+| 业务表用户 ID 映射错误 | 报名、阅卷、邮件关联错误 | 使用 `people_legacy_user_map` 抽样校验 |
+| 旧登录入口误用 | 继续写旧 People 用户表 | 生产默认关闭 `PEOPLE_ALLOW_LEGACY_AUTH` |
+| 过早删除旧 user 表 | fallback 和排障能力丢失 | 暂不删除，联调稳定后再清理 |
 
-4. 报名流程
-   - 普通用户报名。
-   - 缺少必要资料时正确提示。
-   - `user_flow.fk_user_id` 保存 Link 用户 id。
+## 14. 当前状态
 
-5. 阅卷与面评
-   - 按学号查考生。
-   - 阅卷列表姓名/学号/手机号显示正确。
-   - 面评候选人和审批列表显示正确。
+当前状态：
 
-6. 邮件
-   - 邮件目标列表。
-   - 生成邮件批次。
-   - 测试邮件。
-   - 发送记录中的用户姓名和学号显示正确。
+- v3 代码已提交并推送到 `sast-people-v3`。
+- v3 本地数据库迁移已完成。
+- Dependabot 旧 PR 已关闭。
+- 线上仍运行原版 People。
+- v3 暂不合并上线。
 
-## 上线建议
+阻塞项：
 
-当前不建议将 v3 合入线上。
+- Link 真实接口实现和字段 schema 仍需补齐。
 
-推荐节奏：
+下一步：
 
-1. 线上继续运行原版 People。
-2. `sast-people-v3` 分支保留。
-3. 等 Link 后端接口字段补齐。
-4. 在测试环境关闭 mock 做真实联调。
-5. 验收通过后再合并和部署。
-
-## 常见问题
-
-### v3 是否按学号映射？
-
-一次性数据迁移按学号映射旧 People 用户和 Link 用户。运行后的业务表保存 Link `user.id`，后续运行时不再用学号做主关联。
-
-### `legacy_user_id` 是什么？
-
-`legacy_user_id` 是旧 People `public.user.id`。它只用于一次性迁移映射，不参与 v3 运行时逻辑。
-
-### People 还能改用户资料吗？
-
-不能。People 只读用户资料。修改资料去 Link。
-
-### People 能改角色和封禁吗？
-
-可以，但必须通过 Link API：
-
-- 改角色：`PUT /admin/users/{id}`
-- 封禁：`DELETE /admin/users/{id}`
-
-### 为什么现在还要保留 mock？
-
-因为 Link 真实接口字段还没完全补齐。mock 用来验证 People 侧调用链、页面渲染和业务流程。
+1. 等 Link 补齐接口字段。
+2. 切换 `LINK_USE_MOCK=false` 做真实联调。
+3. 联调通过后再评估是否合并 v3。
