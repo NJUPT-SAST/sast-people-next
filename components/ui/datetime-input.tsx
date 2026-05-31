@@ -62,8 +62,8 @@ const segmentConfigs = [
 ];
 
 function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
-  const { format: formatProp, value: _value, timezone } = options;
-  const value = useMemo(() => _value ? new Date(_value) : undefined, [_value, timezone]);
+  const { format: formatProp, onChange, value: _value, timezone } = options;
+  const value = useMemo(() => _value ? new Date(_value) : undefined, [_value]);
   const form = useFormContext();
   const formatStr = React.useMemo(() => formatProp || 'yyyy-MM-dd HH:mm:ss', [formatProp]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -76,7 +76,7 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
     if (form?.formState.isSubmitted) {
       setSegments(parseFormat(formatStr, value));
     }
-  }, [form?.formState.isSubmitted]);
+  }, [form?.formState.isSubmitted, formatStr, value]);
   useEffect(() => {
     // console.error('valueChanged', {formatStr, inputStr, value});
     setSegments(parseFormat(formatStr, value));
@@ -90,7 +90,9 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
   const setCurrentSegment = useCallback(
     (segment: Segment | undefined) => {
       const at = segments?.findIndex((s) => s.index === segment?.index);
-      at !== -1 && setSelectedSegmentAt(at);
+      if (at !== -1) {
+        setSelectedSegmentAt(at);
+      }
     },
     [segments, setSelectedSegmentAt]
   );
@@ -110,14 +112,14 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
     if (isValid(date) && year > 1900 && year < 2100) {
       return date;
     }
-  }, [validSegments, inputStr, formatStr]);
+  }, [validSegments, inputStr, formatStr, value]);
   useEffect(() => {
     if (!inputValue) return;
     if (value?.getTime() !== inputValue.getTime()) {
       // console.log('inputValueChanged', {formatStr, inputStr, value, inputValue, });
-      options.onChange?.(inputValue);
+      onChange?.(inputValue);
     }
-  }, [inputValue]);
+  }, [inputValue, onChange, value]);
 
 
   const onClick = useEventCallback(
@@ -130,8 +132,12 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         let segment = validSegments.find(
           (s) => s.index <= selectionStart && s.index + s.symbols.length >= selectionStart
         );
-        !segment && (segment = [...validSegments].reverse().find((s) => s.index <= selectionStart));
-        !segment && (segment = validSegments.find((s) => s.index >= selectionStart));
+        if (!segment) {
+          segment = [...validSegments].reverse().find((s) => s.index <= selectionStart);
+        }
+        if (!segment) {
+          segment = validSegments.find((s) => s.index >= selectionStart);
+        }
         setCurrentSegment(segment);
         setSelection(inputRef, segment);
       }
@@ -191,7 +197,11 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
           }
         }
       }
-      shouldNext ? onSegmentChange('right') : setSelection(inputRef, segment);
+      if (shouldNext) {
+        onSegmentChange('right');
+      } else {
+        setSelection(inputRef, segment);
+      }
     }
   );
 

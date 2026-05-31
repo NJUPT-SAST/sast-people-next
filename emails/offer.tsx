@@ -1,18 +1,48 @@
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text,
-} from '@react-email/components';
 import * as React from 'react';
 import { resultEmailCopy, resultEmailLinks } from '@/lib/email/result-email-config';
+
+type ElementProps<T extends keyof React.JSX.IntrinsicElements> =
+  React.ComponentPropsWithoutRef<T>;
+
+const Html = ({ children }: { children: React.ReactNode }) => (
+  <html>{children}</html>
+);
+const Body = ({ children, ...props }: ElementProps<'body'>) => (
+  <body {...props}>{children}</body>
+);
+const Container = ({ children, ...props }: ElementProps<'div'>) => (
+  <div {...props}>{children}</div>
+);
+const Section = ({ children, ...props }: ElementProps<'div'>) => (
+  <div {...props}>{children}</div>
+);
+const Text = ({ children, ...props }: ElementProps<'p'>) => (
+  <p {...props}>{children}</p>
+);
+const Hr = (props: ElementProps<'hr'>) => <hr {...props} />;
+const Img = ({ alt, ...props }: ElementProps<'img'> & { alt: string }) => (
+  // eslint-disable-next-line @next/next/no-img-element
+  <img alt={alt} {...props} />
+);
+const Link = ({ children, ...props }: ElementProps<'a'>) => (
+  <a {...props}>{children}</a>
+);
+const Button = ({ children, ...props }: ElementProps<'a'>) => (
+  <a {...props}>{children}</a>
+);
+const Preview = ({ children }: { children: React.ReactNode }) => (
+  <div
+    style={{
+      display: 'none',
+      maxHeight: 0,
+      maxWidth: 0,
+      opacity: 0,
+      overflow: 'hidden',
+    }}
+  >
+    {children}
+  </div>
+);
 
 interface OfferEmailProps {
   name?: string;
@@ -49,7 +79,6 @@ export const OfferEmail = ({
 
   return (
     <Html>
-      <Head />
       <Preview>SAST Invitation</Preview>
       <Body style={main}>
         <Container style={container}>
