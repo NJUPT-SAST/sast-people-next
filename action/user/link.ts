@@ -1,65 +1,43 @@
 "use server";
 
-import { IS_BINDING } from "@/const/cookie";
-import { db } from "@/db/drizzle";
-import { flow, user, userFlow } from "@/db/schema";
+import { IS_BINDING, LINK_OAUTH_STATE } from "@/const/cookie";
 import { verifyRole } from "@/lib/dal";
+import { getCurrentUserProfile } from "@/lib/link/user";
+import {
+  exchangeLinkOAuthCode,
+  getLinkOAuthBaseUrl,
+  getLinkOAuthScopes,
+} from "@/lib/link/oauth";
 import { logServerError } from "@/lib/server-error-log";
-import { userType } from "@/types/user";
-import { eq, or } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import crypto from "node:crypto";
 
 export async function redirectSASTLink(isBinding: boolean) {
-  const code_challenge = await createCodeChallenge(isBinding);
+  const { codeChallenge, state } = await createCodeChallenge(isBinding);
   const redirect_uri = await getCurrentRedirectUri();
-  const url = `https://link.sast.fun/auth?client_id=${
-    process.env.LINK_CLIENT_ID
-  }&code_challenge=${code_challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
-    redirect_uri
-  )}&response_type=code&scope=all&state=xyz`;
-  console.log(url);
-  return redirect(url);
+  const url = new URL("/oauth/authorize", getLinkOAuthBaseUrl());
+  url.searchParams.set("client_id", process.env.LINK_CLIENT_ID!);
+  url.searchParams.set("code_challenge", codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("redirect_uri", redirect_uri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scopes", getLinkOAuthScopes());
+  url.searchParams.set("state", state);
+  return redirect(url.toString());
 }
 
 export const get_user_access_token = async (
   code: string,
   code_verifier: string
 ) => {
-  const formData = new FormData();
   const redirect_uri = await getCurrentRedirectUri();
-  console.log("token request:", {
-    client_id: process.env.LINK_CLIENT_ID?.slice(0, 8) + "...",
-    redirect_uri,
-    code: code?.slice(0, 10) + "...",
-  });
-  formData.append("client_id", process.env.LINK_CLIENT_ID!);
-  formData.append("client_secret", process.env.LINK_CLIENT_SECRET!);
-  formData.append("code", code);
-  formData.append("code_verifier", code_verifier);
-  formData.append("grant_type", "authorization_code");
-  formData.append("redirect_uri", redirect_uri);
-  const res = await fetch("https://link.sast.fun/apis/oauth2/token", {
-    method: "POST",
-    body: formData,
-  }).then((res) => res.json());
-  console.log("token response:", res);
-  const access_token = res?.Data?.access_token;
-  if (!access_token) {
-    throw new Error(`get access token failed: ${JSON.stringify(res)}`);
-  }
-  return access_token;
+  const token = await exchangeLinkOAuthCode(code, code_verifier, redirect_uri);
+  return token.access_token;
 };
 
 export const get_user_info = async (access_token: string) => {
-  const res = await fetch("https://link.sast.fun/apis/oauth2/userinfo", {
-    headers: {
-      Authorization: `Bearer ${access_token}`,
-    },
-  }).then((res) => res.json());
-  console.log("userinfo response:", res);
-  return res.Data;
+  return getCurrentUserProfile(access_token);
 };
 
 function base64URLEncode(str: Buffer) {
@@ -76,14 +54,22 @@ function sha256(buffer: Buffer | string) {
 
 export async function createCodeChallenge(isBinding: boolean) {
   const code_verifier = base64URLEncode(crypto.randomBytes(32));
+  const state = base64URLEncode(crypto.randomBytes(24));
   const cookieStore = await cookies();
-  const code_challenge = base64URLEncode(sha256(code_verifier));
+  const codeChallenge = base64URLEncode(sha256(code_verifier));
   cookieStore.set("link_code_verifier", code_verifier, {
     path: "/",
     httpOnly: true,
     secure: true,
     sameSite: "lax",
     maxAge: 600, // 10 minutes
+  });
+  cookieStore.set(LINK_OAUTH_STATE, state, {
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    maxAge: 600,
   });
   if (isBinding) {
     cookieStore.set(IS_BINDING, "1", {
@@ -94,7 +80,7 @@ export async function createCodeChallenge(isBinding: boolean) {
       maxAge: 600,
     });
   }
-  return code_challenge;
+  return { codeChallenge, state };
 }
 
 export async function getCurrentRedirectUri() {
@@ -109,94 +95,14 @@ export async function bindingLinkAccount(studentId: string) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
+    void studentId;
     session = await verifyRole(3);
-    await db.transaction(async (tx) => {
-      console.debug("binding link account", studentId);
-      let uidList: Partial<userType>[] | null = null;
-      uidList = await tx
-        .select({
-          id: user.id,
-          linkOpenid: user.linkOpenid,
-          studentId: user.studentId,
-          email: user.email,
-          phone: user.phone,
-          college: user.college,
-          major: user.major,
-          isDeleted: user.isDeleted,
-          role: user.role,
-        })
-        .from(user)
-        .where(
-          or(eq(user.id, session?.uid as number), eq(user.linkOpenid, studentId))
-        );
-      if (!uidList || uidList.length === 0) {
-        throw new Error("User not found");
-      } else if (uidList.length === 1) {
-        if (uidList[0].id !== session?.uid) {
-          throw new Error("Unknown feishu user");
-        }
-        if (uidList[0].linkOpenid === studentId) {
-          console.debug("this link account has already been bound", studentId);
-          return;
-        }
-        if (uidList[0].linkOpenid === null) {
-          console.debug("binding link account update", studentId);
-          await tx
-            .update(user)
-            .set({
-              linkOpenid: studentId,
-              studentId: studentId,
-              updatedAt: new Date(),
-            })
-            .where(eq(user.id, uidList[0].id as number));
-        }
-      } else if (uidList.length === 2) {
-        console.debug("binding link account merge", studentId);
-        let feishuUser: Partial<userType> | null = null;
-        let linkUser: Partial<userType> | null = null;
-        if (uidList[0].linkOpenid === studentId) {
-          feishuUser = uidList[1];
-          linkUser = uidList[0];
-        } else {
-          feishuUser = uidList[0];
-          linkUser = uidList[1];
-        }
-        if (feishuUser.id !== session?.uid) {
-          throw new Error("Unknown feishu user");
-        }
-        const flowIds = await tx
-          .select()
-          .from(flow)
-          .where(eq(flow.ownerId, linkUser?.id as number));
-        if (flowIds.length > 0) {
-          throw new Error(
-            "This Link account has created flows, cannot be merged, please contact admin"
-          );
-        }
-        await tx
-          .update(userFlow)
-          .set({ fkUserId: feishuUser?.id as number })
-          .where(eq(userFlow.fkUserId, linkUser?.id as number));
-        await tx.delete(user).where(eq(user.id, linkUser?.id as number));
-        await tx
-          .update(user)
-          .set({
-            linkOpenid: studentId,
-            studentId: studentId,
-            email: linkUser.email,
-            phone: linkUser.phone,
-            college: linkUser.college,
-            major: linkUser.major,
-            updatedAt: new Date(),
-          })
-          .where(eq(user.id, session?.uid as number));
-      } else {
-        throw new Error(
-          "User merge error, too many users, please contact admin, uid:" +
-            session?.uid
-        );
-      }
-    });
+    return {
+      success: false,
+      error: {
+        message: "People v3 不再绑定本地 Link 账号，请直接使用 SAST Link 登录。",
+      },
+    };
   } catch (error) {
     logServerError("user:bindingLinkAccount", error, {
       path: "/dashboard/manage",

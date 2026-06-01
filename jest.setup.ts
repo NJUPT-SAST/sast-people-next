@@ -5,6 +5,12 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
+import { TextDecoder, TextEncoder } from 'util';
+
+Object.assign(globalThis, {
+  TextDecoder,
+  TextEncoder,
+});
 
 type MockNextImageProps = React.ComponentPropsWithoutRef<'img'> & {
   priority?: boolean;

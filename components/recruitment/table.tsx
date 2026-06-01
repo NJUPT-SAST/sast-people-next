@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -58,13 +58,13 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
-  const getDisplayStatus = (row: RecruitmentRowLike) => {
+  const getDisplayStatus = useCallback((row: RecruitmentRowLike) => {
     const status = statusOverrides[row.uid] ?? row.status ?? 'ongoing';
     if ((status === 'pending' || status === 'ongoing') && row.isGraded === false) {
       return 'ungraded';
     }
     return status;
-  };
+  }, [statusOverrides]);
   const tableData = useMemo(
     () =>
       data.map((item) => {
@@ -72,7 +72,7 @@ export function DataTable<TData, TValue>({
         const status = getDisplayStatus(row);
         return status !== row.status ? ({ ...item, status } as TData) : item;
       }),
-    [data, statusOverrides],
+    [data, getDisplayStatus],
   );
   const toRecruitmentRow = (row: { original: unknown }): RecruitmentRowLike =>
     row.original as RecruitmentRowLike;
@@ -98,6 +98,7 @@ export function DataTable<TData, TValue>({
     [columns, role],
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: tableData,
     columns: visibleColumns,

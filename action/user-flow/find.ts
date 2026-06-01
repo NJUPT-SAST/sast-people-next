@@ -1,21 +1,26 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { user, userFlow } from '@/db/schema';
+import { userFlow } from '@/db/schema';
+import { findPeopleUserByStudentId } from '@/lib/link/user-lookup';
 import { and, eq } from 'drizzle-orm';
 
 export const findUserFlowId = async (
   studentId: string,
   flowId: number,
 ) => {
-  const result = await db.select()
+  const userInfo = await findPeopleUserByStudentId(studentId);
+  if (!userInfo) {
+    return null;
+  }
+
+  const result = await db.select({ id: userFlow.id })
     .from(userFlow)
-    .innerJoin(user, eq(user.id, userFlow.fkUserId))
-    .where(and(eq(user.studentId, studentId), eq(userFlow.fkFlowId, flowId)));
+    .where(and(eq(userFlow.fkUserId, userInfo.id), eq(userFlow.fkFlowId, flowId)));
 
   if (result.length === 0) {
     return null;
   }
 
-  return result[0].user_flow.id;
+  return result[0].id;
 };

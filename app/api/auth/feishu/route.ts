@@ -5,6 +5,13 @@ import { redirect } from 'next/navigation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
+  if (process.env.PEOPLE_ALLOW_LEGACY_AUTH !== 'true') {
+    return NextResponse.json(
+      { message: 'feishu auth is disabled, please use SAST Link login' },
+      { status: 410 },
+    );
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
   if (!code) {

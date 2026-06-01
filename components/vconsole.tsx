@@ -11,7 +11,7 @@ export const VConsole = () => {
         <>
           <Script
             src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"
-            strategy="beforeInteractive"
+            strategy="afterInteractive"
           ></Script>
           <Script id="vconsole">var vConsole = new window.VConsole()</Script>
         </>

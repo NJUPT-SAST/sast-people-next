@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow, user } from "@/db/schema";
+import { emailBatch, emailDelivery, flow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { desc, eq, inArray } from "drizzle-orm";
 
 export async function listEmailBatches() {
@@ -20,11 +21,10 @@ export async function listEmailBatches() {
       createdAt: emailBatch.createdAt,
       updatedAt: emailBatch.updatedAt,
       flowTitle: flow.title,
-      createdByName: user.name,
+      createdById: emailBatch.fkCreatedBy,
     })
     .from(emailBatch)
     .innerJoin(flow, eq(flow.id, emailBatch.fkFlowId))
-    .leftJoin(user, eq(user.id, emailBatch.fkCreatedBy))
     .orderBy(desc(emailBatch.createdAt))
     .limit(20);
 
@@ -44,18 +44,31 @@ export async function listEmailBatches() {
       errorMessage: emailDelivery.errorMessage,
       sentAt: emailDelivery.sentAt,
       htmlSnapshot: emailDelivery.htmlSnapshot,
-      userName: user.name,
-      studentId: user.studentId,
     })
     .from(emailDelivery)
-    .innerJoin(user, eq(user.id, emailDelivery.fkUserId))
     .where(inArray(emailDelivery.fkEmailBatchId, batches.map((batch) => batch.id)))
     .orderBy(desc(emailDelivery.createdAt));
 
+  const userMap = await listPeopleUsersByLinkIds([
+    ...batches
+      .map((batch) => batch.createdById)
+      .filter((id): id is number => id !== null),
+    ...deliveries.map((delivery) => delivery.userId),
+  ]);
+
   return batches.map((batch) => {
-    const batchDeliveries = deliveries.filter((item) => item.batchId === batch.id);
+    const batchDeliveries = deliveries
+      .filter((item) => item.batchId === batch.id)
+      .map((item) => ({
+        ...item,
+        userName: userMap.get(item.userId)?.name ?? "未知用户",
+        studentId: userMap.get(item.userId)?.studentId ?? null,
+      }));
     return {
       ...batch,
+      createdByName: batch.createdById
+        ? userMap.get(batch.createdById)?.name ?? null
+        : null,
       deliveries: batchDeliveries,
       counts: {
         pending: batchDeliveries.filter((item) => item.status === "pending").length,

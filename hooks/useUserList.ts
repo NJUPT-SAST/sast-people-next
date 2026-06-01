@@ -1,6 +1,13 @@
 import { db } from "@/db/drizzle";
 import { user } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { listLinkUsers } from "@/lib/link/admin";
+import {
+  canUseLegacyUserFallback,
+  getLinkAccessTokenFromSession,
+  MissingLinkAccessTokenError,
+} from "@/lib/link/session";
+import { toPeopleUserFromLinkAdminItem } from "@/lib/link/people-user";
 import { and, asc, count, desc, eq, ilike, or, SQL } from "drizzle-orm";
 
 export type UserListParams = {
@@ -19,8 +26,51 @@ export const useUserList = async ({
   sortOrder = "desc",
 }: UserListParams) => {
   const session = await verifyRole(2);
-  const offset = (page - 1) * pageSize;
+  try {
+    const accessToken = await getLinkAccessTokenFromSession();
+    const result = await listLinkUsers(accessToken, {
+      page,
+      pageSize,
+      keyword: search,
+    });
 
+    return {
+      users: result.users.map((item) =>
+        toPeopleUserFromLinkAdminItem(item, session.role >= 3),
+      ),
+      totalCount: result.total,
+      totalPages: Math.ceil(result.total / pageSize),
+    };
+  } catch (err) {
+    if (
+      err instanceof MissingLinkAccessTokenError &&
+      canUseLegacyUserFallback()
+    ) {
+      return getLegacyUserList({
+        page,
+        pageSize,
+        search,
+        sortBy,
+        sortOrder,
+        canViewSensitiveInfo: session.role >= 3,
+      });
+    }
+    throw err;
+  }
+};
+
+const getLegacyUserList = async ({
+  page,
+  pageSize,
+  search,
+  sortBy,
+  sortOrder,
+  canViewSensitiveInfo,
+}: Required<Pick<UserListParams, "page" | "pageSize" | "sortBy" | "sortOrder">> & {
+  search?: string;
+  canViewSensitiveInfo: boolean;
+}) => {
+  const offset = (page - 1) * pageSize;
   let whereConditions: SQL<unknown> | undefined = eq(user.isDeleted, false);
 
   if (search) {
@@ -29,10 +79,10 @@ export const useUserList = async ({
       or(
         ilike(user.name, `%${search}%`),
         ilike(user.studentId, `%${search}%`),
-        ...(session.role >= 3 ? [ilike(user.phone, `%${search}%`)] : []),
-        ...(session.role >= 3 ? [ilike(user.qq, `%${search}%`)] : []),
-        ilike(user.email, `%${search}%`)
-      )
+        ...(canViewSensitiveInfo ? [ilike(user.phone, `%${search}%`)] : []),
+        ...(canViewSensitiveInfo ? [ilike(user.qq, `%${search}%`)] : []),
+        ilike(user.email, `%${search}%`),
+      ),
     );
   }
 
@@ -41,7 +91,6 @@ export const useUserList = async ({
     .from(user)
     .where(whereConditions)
     .execute();
-
   const totalCount = Number(totalCountResult[0]?.count) || 0;
 
   const users = await db
@@ -51,7 +100,7 @@ export const useUserList = async ({
     .orderBy((column) =>
       sortOrder === "asc"
         ? asc(column[sortBy as keyof typeof column])
-        : desc(column[sortBy as keyof typeof column])
+        : desc(column[sortBy as keyof typeof column]),
     )
     .limit(pageSize)
     .offset(offset)
@@ -59,7 +108,7 @@ export const useUserList = async ({
 
   return {
     users: users.map((item) =>
-      session.role >= 3 ? item : { ...item, phone: null, qq: null },
+      canViewSensitiveInfo ? item : { ...item, phone: null, qq: null },
     ),
     totalCount,
     totalPages: Math.ceil(totalCount / pageSize),

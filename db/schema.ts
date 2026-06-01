@@ -87,9 +87,7 @@ export const flow = pgTable("flow", {
   title: varchar("title", { length: 100 }).notNull(),
   description: varchar("description", { length: 1000 }),
   type: flowTypeEnum("type").notNull().default("recruitment"),
-  ownerId: integer("owner_id")
-    .references(() => user.id)
-    .notNull(),
+  ownerId: integer("owner_id").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   endedAt: timestamp("ended_at").notNull().defaultNow(),
@@ -159,9 +157,7 @@ export const userFlow = pgTable("user_flow", {
   fkFlowId: integer("fk_flow_id")
     .references(() => flow.id)
     .notNull(),
-  fkUserId: integer("fk_user_id")
-    .references(() => user.id)
-    .notNull(),
+  fkUserId: integer("fk_user_id").notNull(),
 });
 
 export const problem = pgTable("problem", {
@@ -192,7 +188,7 @@ export const emailBatch = pgTable("email_batch", {
   fkFlowId: integer("fk_flow_id")
     .references(() => flow.id)
     .notNull(),
-  fkCreatedBy: integer("fk_created_by").references(() => user.id),
+  fkCreatedBy: integer("fk_created_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()
@@ -214,9 +210,7 @@ export const emailDelivery = pgTable("email_delivery", {
   fkUserFlowId: integer("fk_user_flow_id")
     .references(() => userFlow.id)
     .notNull(),
-  fkUserId: integer("fk_user_id")
-    .references(() => user.id)
-    .notNull(),
+  fkUserId: integer("fk_user_id").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   sentAt: timestamp("sent_at"),
   updatedAt: timestamp("updated_at")
@@ -251,7 +245,7 @@ export const userPoint = pgTable("user_point", {
     .references(() => problem.id)
     .notNull(),
   points: integer("points").notNull(),
-  fkJudgerId: integer("fk_judger_id").references(() => user.id),
+  fkJudgerId: integer("fk_judger_id"),
 }, (table) => ({
   userFlowProblemUnique: unique().on(table.fkUserFlowId, table.fkProblemId),
 }));
@@ -261,13 +255,11 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
   fkUserFlowId: integer("fk_user_flow_id")
     .references(() => userFlow.id)
     .notNull(),
-  fkUserId: integer("fk_user_id")
-    .references(() => user.id)
-    .notNull(),
+  fkUserId: integer("fk_user_id").notNull(),
   content: text("content").notNull(),
   meetingLink: text("meeting_link"),
   status: evaluationStatusEnum("status").notNull().default("pending"),
-  fkReviewedBy: integer("fk_reviewed_by").references(() => user.id),
+  fkReviewedBy: integer("fk_reviewed_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()

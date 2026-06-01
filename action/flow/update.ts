@@ -7,7 +7,7 @@ import { verifyRole } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const updateFlow = async (
   id: number,

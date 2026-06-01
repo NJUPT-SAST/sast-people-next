@@ -13,7 +13,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { createInsertSchema } from 'drizzle-zod';
 import { flow } from '@/db/schema';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
@@ -39,8 +39,8 @@ import { DateTimeInput } from '../ui/datetime-input';
 export const fullFlowSchema = createInsertSchema(flow, {
   title: z.string().min(1, '请输入流程名称').trim(),
   description: z.string().min(1, '请输入流程描述').trim(),
-  startedAt: z.date({ required_error: '请选择开始时间' }),
-  endedAt: z.date({ required_error: '请选择结束时间' }),
+  startedAt: z.date({ error: '请选择开始时间' }),
+  endedAt: z.date({ error: '请选择结束时间' }),
 });
 
 export const addFlowSchema = fullFlowSchema.pick({

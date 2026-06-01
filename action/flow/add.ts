@@ -3,7 +3,7 @@ import { verifyRole } from '@/lib/dal';
 import { db } from '@/db/drizzle';
 import { flow, flowStep } from '@/db/schema';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { addFlowSchema } from '@/components/flow/add';
 import { evaluationFlowSteps, isWrittenRecruitmentFlow, writtenRecruitmentSteps } from './defaultSteps';
 import { logServerError } from '@/lib/server-error-log';

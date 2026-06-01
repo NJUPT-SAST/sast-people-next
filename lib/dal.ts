@@ -5,9 +5,6 @@ import { decrypt } from "@/lib/session";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { SESSION } from "@/const/cookie";
-import { db } from "@/db/drizzle";
-import { user } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 
 export const verifySession = cache(async () => {
@@ -21,17 +18,12 @@ export const verifySession = cache(async () => {
     }
 
     const uid = Number(session.uid);
-    const [userRecord] = await db
-      .select({ role: user.role, name: user.name })
-      .from(user)
-      .where(eq(user.id, uid))
-      .limit(1);
 
     return {
       isAuth: true,
       uid,
-      role: userRecord?.role ?? (session.role as number),
-      name: userRecord?.name ?? (session.name as string),
+      role: session.role as number,
+      name: session.name as string,
     };
   } catch (err) {
     if (isNextControlFlowError(err)) throw err;

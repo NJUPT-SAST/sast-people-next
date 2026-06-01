@@ -4,8 +4,9 @@ import { batchSendEmail } from "@/action/user/sendEmail";
 import { sendEmailBatch } from "@/action/email/send";
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow, user, userFlow } from "@/db/schema";
+import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import {
   getResultEmailTemplateKey,
   renderResultEmail,
@@ -43,22 +44,25 @@ export async function listEmailFlowTargets() {
     .select({
       flowId: userFlow.fkFlowId,
       userFlowId: userFlow.id,
-      userId: user.id,
-      name: user.name,
-      studentId: user.studentId,
+      userId: userFlow.fkUserId,
       status: userFlow.status,
     })
     .from(userFlow)
-    .innerJoin(user, eq(user.id, userFlow.fkUserId))
     .where(
       and(
         inArray(userFlow.fkFlowId, flows.map((item) => item.id)),
         inArray(userFlow.status, ["passed", "failed", "accepted", "rejected"]),
       ),
     );
+  const userMap = await listPeopleUsersByLinkIds(targets.map((item) => item.userId));
+  const hydratedTargets = targets.map((target) => ({
+    ...target,
+    name: userMap.get(target.userId)?.name ?? "同学",
+    studentId: userMap.get(target.userId)?.studentId ?? null,
+  }));
 
   return Promise.all(flows.map(async (item) => {
-    const flowTargets = targets.filter((target) => target.flowId === item.id);
+    const flowTargets = hydratedTargets.filter((target) => target.flowId === item.id);
     const passed = flowTargets.filter((target) => target.status === "passed");
     const failed = flowTargets.filter((target) => target.status === "failed");
     const accepted = flowTargets.filter((target) => target.status === "accepted");

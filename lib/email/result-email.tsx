@@ -1,6 +1,6 @@
 import "server-only";
 
-import { render } from "@react-email/components";
+import { render } from "@react-email/render";
 import OfferEmail from "@/emails/offer";
 import {
   defaultResultEmailTemplateSettings,

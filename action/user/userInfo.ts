@@ -1,35 +1,25 @@
 "use server";
 import { basicInfoSchema } from "@/components/userInfo/basic";
 import { experienceSchema } from "@/components/userInfo/experience";
-import { db } from "@/db/drizzle";
-import { user } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { z as z4 } from "zod/v4";
 
-export async function editBasicInfo(values: z.infer<typeof basicInfoSchema>) {
+const readonlyProfileResult = {
+  success: false,
+  error: {
+    message: "用户资料由 Link 管理，请前往 Link 修改。",
+  },
+};
+
+export async function editBasicInfo(values: z4.infer<typeof basicInfoSchema>) {
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
   try {
+    void values;
     session = await verifySession();
-
-    await db
-      .update(user)
-      .set({
-        name: values.name,
-        phone: values.phone,
-        email: values.email,
-        college: values.college,
-        major: values.major,
-        qq: values.qq || null,
-        updatedAt: new Date(),
-      })
-      .where(eq(user.id, session.uid));
-
-    revalidatePath("/dashboard");
-    return { success: true };
+    return readonlyProfileResult;
   } catch (error) {
     logServerError("user:editBasicInfo", error, {
       path: "/dashboard",
@@ -43,26 +33,19 @@ export async function editBasicInfo(values: z.infer<typeof basicInfoSchema>) {
 
 export async function editBasicInfoByUid(
   uid: number,
-  values: z.infer<typeof basicInfoSchema>
+  values: z4.infer<typeof basicInfoSchema>
 ) {
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
   try {
+    void values;
     session = await verifySession();
 
     if (session.role < 2 && session.uid !== uid) {
       throw new Error("Permission denied");
     }
 
-    await db
-      .update(user)
-      .set({
-        ...values,
-        updatedAt: new Date(),
-      })
-      .where(eq(user.id, uid));
-    revalidatePath("/dashboard/manage");
-    return { success: true };
+    return readonlyProfileResult;
   } catch (error) {
     logServerError("user:editBasicInfoByUid", error, {
       path: "/dashboard/manage",
@@ -79,17 +62,10 @@ export async function editExperience(values: z.infer<typeof experienceSchema>) {
 	let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
 	try {
+		void values;
 		session = await verifySession();
 
-		await db
-			.update(user)
-			.set({
-				...values,
-				updatedAt: new Date(),
-			})
-			.where(eq(user.id, session.uid));
-
-		revalidatePath("/dashboard");
+		return readonlyProfileResult;
 	} catch (error) {
 		logServerError("user:editExperience", error, {
 			path: "/dashboard",

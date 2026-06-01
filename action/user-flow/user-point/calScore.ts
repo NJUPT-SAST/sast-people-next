@@ -1,32 +1,28 @@
 'use server';
 import { db } from '@/db/drizzle';
-import { flowStep, problem, user, userFlow } from '@/db/schema';
+import { flowStep, problem, userFlow } from '@/db/schema';
 import { userPoint } from '@/db/schema';
 import { verifyRole } from '@/lib/dal';
+import { listPeopleUsersByLinkIds } from '@/lib/link/user-lookup';
 import { logServerError } from '@/lib/server-error-log';
-import { aliasedTable, asc, desc, eq, sql } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 
 export const calScore = async (flowId: number) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
     session = await verifyRole(2);
-    const judger = aliasedTable(user, 'judger');
     const totalScore = sql<string>`coalesce(sum(${userPoint.points}), 0)`;
     const examResult = await db.select({
-        uid: user.id,
+        uid: userFlow.fkUserId,
         stepId: userFlow.currentStepOrder,
         status: userFlow.status,
-        name: user.name,
-        studentId: user.studentId,
-        phoneNumber: user.phone,
         totalScore,
       })
       .from(userFlow)
       .leftJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
-      .innerJoin(user, eq(userFlow.fkUserId, user.id))
       .where(eq(userFlow.fkFlowId, flowId))
-      .groupBy(userFlow.currentStepOrder, userFlow.status, user.phone, user.studentId, user.name, user.id)
+      .groupBy(userFlow.fkUserId, userFlow.currentStepOrder, userFlow.status)
       .orderBy(desc(totalScore));
 
     const problems = await db
@@ -45,24 +41,38 @@ export const calScore = async (flowId: number) => {
         uid: userFlow.fkUserId,
         problemId: userPoint.fkProblemId,
         points: userPoint.points,
-        judgerName: judger.name,
+        judgerId: userPoint.fkJudgerId,
       })
       .from(userFlow)
       .innerJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
-      .leftJoin(judger, eq(userPoint.fkJudgerId, judger.id))
       .where(eq(userFlow.fkFlowId, flowId));
+
+    const userMap = await listPeopleUsersByLinkIds(
+      [
+        ...examResult.map((row) => row.uid),
+        ...pointRows
+          .map((row) => row.judgerId)
+          .filter((id): id is number => id !== null),
+      ],
+      { canViewSensitiveInfo: session.role >= 3 },
+    );
 
     const pointMap = new Map(
       pointRows.map((row) => [
         `${row.uid}-${row.problemId}`,
-        { points: row.points, judgerName: row.judgerName },
+        {
+          points: row.points,
+          judgerName: row.judgerId ? userMap.get(row.judgerId)?.name ?? null : null,
+        },
       ]),
     );
     const gradedUidSet = new Set(pointRows.map((row) => row.uid));
 
     return examResult.map((row) => ({
       ...row,
-      phoneNumber: session!.role >= 3 ? row.phoneNumber : null,
+      name: userMap.get(row.uid)?.name ?? '未知用户',
+      studentId: userMap.get(row.uid)?.studentId ?? null,
+      phoneNumber: session!.role >= 3 ? userMap.get(row.uid)?.phone ?? null : null,
       isGraded: gradedUidSet.has(row.uid),
       problemScores: problems.map((item) => ({
         ...pointMap.get(`${row.uid}-${item.id}`),

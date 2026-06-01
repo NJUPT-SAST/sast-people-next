@@ -1,9 +1,11 @@
 "use server";
 
-import { db } from "@/db/drizzle";
-import { user } from "@/db/schema";
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { verifyRole } from "@/lib/dal";
+import {
+  findPeopleUserByStudentId,
+  getPeopleUserByLinkId,
+} from "@/lib/link/user-lookup";
 import {
   getResultEmailTemplateKey,
   renderResultEmail,
@@ -12,7 +14,6 @@ import {
 import { getEducationEmail, normalizeEducationEmailInput } from "@/lib/email/address";
 import { logServerError } from "@/lib/server-error-log";
 import { sendRawEmail } from "@/queue/sendEmail";
-import { eq } from "drizzle-orm";
 
 function getStudentIdFromTestAddress(value: string) {
   const normalized = value.trim().toLowerCase();
@@ -32,14 +33,7 @@ export async function sendEmailTest(
   try {
     session = await verifyRole(3);
 
-    const [currentUser] = await db
-      .select({
-        name: user.name,
-        studentId: user.studentId,
-      })
-      .from(user)
-      .where(eq(user.id, session.uid))
-      .limit(1);
+    const currentUser = await getPeopleUserByLinkId(session.uid);
 
     if (!currentUser?.studentId) {
       throw new Error("当前账号没有学号，无法生成测试收件地址。");
@@ -51,13 +45,9 @@ export async function sendEmailTest(
     const targetStudentId = toAddress
       ? getStudentIdFromTestAddress(toAddress)
       : currentUser.studentId;
-    const [targetUser] = targetStudentId
-      ? await db
-          .select({ name: user.name })
-          .from(user)
-          .where(eq(user.studentId, targetStudentId))
-          .limit(1)
-      : [];
+    const targetUser = targetStudentId
+      ? await findPeopleUserByStudentId(targetStudentId)
+      : null;
     const templateSetting = await getEmailTemplateSetting(
       getResultEmailTemplateKey(accept),
     );
