@@ -182,6 +182,10 @@ export const MarkProblemTable = ({
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     const values = buildValidatedPayload();
 
     if (!values) {
@@ -198,6 +202,7 @@ export const MarkProblemTable = ({
         error: '评分保存失败',
       });
       await request;
+      setEditedScores({});
       router.push('/dashboard/review');
     } catch {
       return;

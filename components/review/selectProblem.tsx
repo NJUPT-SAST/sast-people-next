@@ -19,24 +19,14 @@ import {
   selectProbType,
 } from '@/types/problem';
 import { displayUserFlow } from '@/types/userflow';
+import {
+  clearReviewRangeFromStorage,
+  readReviewRangeFromStorage,
+  writeReviewRangeToStorage,
+} from '@/lib/review/review-range-storage';
 
 import { Badge } from '../ui/badge';
 import ProbCheckBox from './probCheckBox';
-
-const readStoredRange = (): selectProbType | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const selectedProbs = localStorage.getItem('people_selectedProbs');
-
-  if (!selectedProbs) {
-    return null;
-  }
-
-  const result = selectProbSchema.safeParse(JSON.parse(selectedProbs));
-  return result.success ? result.data : null;
-};
 
 const SelectProblem = ({
   flowList,
@@ -55,17 +45,17 @@ const SelectProblem = ({
     [safeFlowList],
   );
   const storedRange = useMemo(() => {
-    const range = readStoredRange();
-    if (!range) {
-      return null;
-    }
-    if (!activeFlowIds.includes(range.flowTypeId)) {
-      localStorage.removeItem('people_selectedProbs');
+    const result = readReviewRangeFromStorage(activeFlowIds);
+    if (result.cleared) {
       window.dispatchEvent(new Event('reviewRangeUpdated'));
-      toast.error('已删除的流程不可继续阅卷，请重新设置阅卷范围');
+      toast.error(
+        result.reason === 'inactive-flow'
+          ? '已删除的流程不可继续阅卷，请重新设置阅卷范围'
+          : '阅卷范围记录异常，请重新设置',
+      );
       return null;
     }
-    return range;
+    return result.range;
   }, [activeFlowIds]);
   const [probList, setProbList] = useState<displayProblemType[] | null>(null);
   const [selectedProbs, setSelectedProbs] = useState<
@@ -149,13 +139,13 @@ const SelectProblem = ({
     });
 
     if (!result.success) {
-      localStorage.removeItem('people_selectedProbs');
+      clearReviewRangeFromStorage();
       window.dispatchEvent(new Event('reviewRangeUpdated'));
       toast.error('保存失败');
       return;
     }
 
-    localStorage.setItem('people_selectedProbs', JSON.stringify(result.data));
+    writeReviewRangeToStorage(result.data);
     window.dispatchEvent(new Event('reviewRangeUpdated'));
     toast.success('保存成功');
   };
