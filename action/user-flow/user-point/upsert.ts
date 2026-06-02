@@ -7,6 +7,13 @@ import { eq, inArray, InferInsertModel, sql } from "drizzle-orm";
 
 type PointInsertValue = InferInsertModel<typeof userPoint>;
 
+export class ReviewPointConflictError extends Error {
+  constructor(message = "评分已被其他批卷人保存，请刷新后查看") {
+    super(message);
+    this.name = "ReviewPointConflictError";
+  }
+}
+
 function normalizePointValues(values: Array<PointInsertValue>) {
   if (!Array.isArray(values) || values.length === 0) {
     throw new Error("评分列表不能为空");
@@ -100,6 +107,14 @@ async function assertPointValuesMatchFlow({
   });
 }
 
+function getScoreOverwriteCondition(session: Awaited<ReturnType<typeof verifyRole>>) {
+  if (session.role >= 3) {
+    return sql`true`;
+  }
+
+  return sql`${userPoint.fkJudgerId} is null or ${userPoint.fkJudgerId} = ${session.uid}`;
+}
+
 export const upsertPoint = async (userFlowId: number, problemId: number, point: number) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
@@ -111,7 +126,7 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
       points: point,
     }]);
     await assertPointValuesMatchFlow(normalized);
-    await db.insert(userPoint).values({
+    const rows = await db.insert(userPoint).values({
       fkUserFlowId: userFlowId,
       fkProblemId: problemId,
       points: point,
@@ -122,7 +137,13 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
         points: point,
         fkJudgerId: session!.uid,
       },
-    });
+      setWhere: getScoreOverwriteCondition(session),
+    }).returning({ id: userPoint.id });
+
+    if (rows.length === 0) {
+      throw new ReviewPointConflictError();
+    }
+
     await writeOperationAudit({
       actorId: session.uid,
       action: "review.score.upsert",
@@ -134,6 +155,10 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
       },
     });
   } catch (error) {
+    if (error instanceof ReviewPointConflictError) {
+      throw error;
+    }
+
     logServerError("review:upsertPoint", error, {
       path: "/dashboard/review/marking",
       action: "upsert-point",
@@ -156,7 +181,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
     session = await verifyRole(2);
     await assertPointValuesMatchFlow(normalized);
     // ignore id here to avoid (conflict but not exist)
-    await db.insert(userPoint).values(normalized.values.map(value => ({
+    const rows = await db.insert(userPoint).values(normalized.values.map(value => ({
       fkUserFlowId: value.fkUserFlowId,
       fkProblemId: value.fkProblemId,
       points: value.points,
@@ -167,7 +192,13 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
         points: sql`excluded.points`,
         fkJudgerId: sql`excluded.fk_judger_id`,
       },
-    });
+      setWhere: getScoreOverwriteCondition(session),
+    }).returning({ id: userPoint.id });
+
+    if (rows.length !== normalized.values.length) {
+      throw new ReviewPointConflictError("部分题目已被其他批卷人保存，请刷新后查看");
+    }
+
     await writeOperationAudit({
       actorId: session.uid,
       action: "review.score.batch_upsert",
@@ -180,6 +211,10 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
       },
     });
   } catch (error) {
+    if (error instanceof ReviewPointConflictError) {
+      throw error;
+    }
+
     logServerError("review:batchUpsertPoint", error, {
       path: "/dashboard/review/marking",
       action: "batch-upsert-point",

@@ -199,7 +199,8 @@ export const MarkProblemTable = ({
       toast.promise(request, {
         loading: '正在提交评分...',
         success: '评分已保存，正在返回扫码页',
-        error: '评分保存失败',
+        error: (error) =>
+          error instanceof Error ? error.message : '评分保存失败',
       });
       await request;
       setEditedScores({});

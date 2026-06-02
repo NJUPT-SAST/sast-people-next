@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { batchUpsertPoint, upsertPoint } from '@/action/user-flow/user-point/upsert';
+import {
+  ReviewPointConflictError,
+  batchUpsertPoint,
+  upsertPoint,
+} from '@/action/user-flow/user-point/upsert';
 import { logServerError } from '@/lib/server-error-log';
 import { z } from 'zod';
 
@@ -78,6 +82,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: '无效的操作类型' }, { status: 400 });
     }
   } catch (error) {
+    if (error instanceof ReviewPointConflictError) {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 409 },
+      );
+    }
+
     const data = body?.data;
     const firstPoint = Array.isArray(data) ? data[0] : data;
     logServerError('api:user-point:post', error, {
