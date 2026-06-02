@@ -73,15 +73,15 @@ export const menuItems: MenuItem[] = [
     path: '/approvals',
   },
   {
+    title: '操作审计',
+    icon: ScrollText,
+    path: '/audit',
+  },
+  {
     title: '错误日志',
     icon: FileWarning,
     path: '/error-log',
     externalHref: SENTRY_ISSUES_URL,
-  },
-  {
-    title: '操作审计',
-    icon: ScrollText,
-    path: '/audit',
   },
 ];
 

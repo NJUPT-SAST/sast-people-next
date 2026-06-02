@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import originalDayjs from "@/lib/dayjs";
 import type { listOperationAudit } from "@/lib/operation-audit-list";
+import { cn } from "@/lib/utils";
 
 type AuditLogResult = Awaited<ReturnType<typeof listOperationAudit>>;
 type AuditLogItem = AuditLogResult["logs"][number];
@@ -32,16 +33,96 @@ const actionLabels: Record<string, string> = {
   "user.ban": "禁用用户",
 };
 
+const actionToneClass: Record<string, string> = {
+  "review.score.upsert": "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  "review.score.batch_upsert": "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  "email.batch.create": "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  "email.batch.send": "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  "flow.delete": "border-destructive/25 bg-destructive/10 text-destructive",
+  "user.ban": "border-destructive/25 bg-destructive/10 text-destructive",
+};
+
 function getActionLabel(action: string) {
   return actionLabels[action] ?? action;
 }
 
-function formatMetadata(metadata: AuditLogItem["metadata"]) {
-  if (!metadata) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getMetadataEntries(metadata: AuditLogItem["metadata"]) {
+  return isRecord(metadata) ? Object.entries(metadata) : [];
+}
+
+function summarizeMetadataValue(value: unknown) {
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "空";
+    const preview = value.slice(0, 3).join(", ");
+    return value.length > 3 ? `${preview} 等 ${value.length} 项` : preview;
+  }
+
+  if (isRecord(value)) {
+    return `${Object.keys(value).length} 个字段`;
+  }
+
+  if (value === null || value === undefined || value === "") {
     return "-";
   }
 
-  return JSON.stringify(metadata, null, 2);
+  return String(value);
+}
+
+function MetadataSummary({ metadata }: { metadata: AuditLogItem["metadata"] }) {
+  const entries = getMetadataEntries(metadata);
+
+  if (entries.length === 0) {
+    return <span className="text-sm text-muted-foreground">无附加数据</span>;
+  }
+
+  const visibleEntries = entries.slice(0, 4);
+  const rawJson = JSON.stringify(metadata, null, 2);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {visibleEntries.map(([key, value]) => (
+          <span
+            key={key}
+            className="inline-flex max-w-full items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs"
+          >
+            <span className="shrink-0 text-muted-foreground">{key}</span>
+            <span className="min-w-0 truncate font-medium">
+              {summarizeMetadataValue(value)}
+            </span>
+          </span>
+        ))}
+        {entries.length > visibleEntries.length ? (
+          <span className="inline-flex items-center rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground">
+            +{entries.length - visibleEntries.length}
+          </span>
+        ) : null}
+      </div>
+      <details className="group">
+        <summary className="w-fit cursor-pointer list-none text-xs text-muted-foreground transition-colors hover:text-foreground">
+          原始数据
+        </summary>
+        <pre className="mt-2 whitespace-pre-wrap break-words rounded-md border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
+          {rawJson}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
+function ActionBadge({ action }: { action: string }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn("rounded-md px-2 py-1", actionToneClass[action])}
+    >
+      {getActionLabel(action)}
+    </Badge>
+  );
 }
 
 function AuditLogCard({ item }: { item: AuditLogItem }) {
@@ -49,7 +130,7 @@ function AuditLogCard({ item }: { item: AuditLogItem }) {
     <div className="space-y-3 border-b p-4 last:border-b-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{getActionLabel(item.action)}</p>
+          <ActionBadge action={item.action} />
           <p className="text-xs text-muted-foreground">
             {originalDayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss")}
           </p>
@@ -71,9 +152,7 @@ function AuditLogCard({ item }: { item: AuditLogItem }) {
           </span>
         </div>
       </div>
-      <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-        {formatMetadata(item.metadata)}
-      </pre>
+      <MetadataSummary metadata={item.metadata} />
     </div>
   );
 }
@@ -86,12 +165,32 @@ export function AuditLogTable({
   const safeLogs = Array.isArray(logs) ? logs : [];
   const start = totalCount === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
   const end = Math.min(filters.page * filters.pageSize, totalCount);
+  const hasFilters = Boolean(
+    filters.actor || filters.action || filters.resourceType || filters.from || filters.to,
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-2 rounded-md border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium">审计记录</p>
+          <p className="text-xs text-muted-foreground">
+            当前显示 {start} - {end}，共 {totalCount} 条
+          </p>
+        </div>
+        {hasFilters ? (
+          <Badge variant="secondary" className="rounded-md">
+            已应用筛选
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="rounded-md">
+            全部记录
+          </Badge>
+        )}
+      </div>
       <form
         action="/dashboard/audit"
-        className="grid gap-3 rounded-md border bg-card p-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_150px_150px_auto]"
+        className="grid gap-3 rounded-md border bg-card/80 p-3 md:grid-cols-2 xl:grid-cols-[minmax(170px,1fr)_minmax(220px,1.1fr)_minmax(170px,1fr)_150px_150px_auto]"
       >
         <Input
           name="actor"
@@ -101,7 +200,7 @@ export function AuditLogTable({
         <Input
           name="action"
           defaultValue={filters.action}
-          placeholder="操作类型，例如 review.score.batch_upsert"
+          placeholder="操作类型，例如 review.score"
         />
         <Input
           name="resourceType"
@@ -123,11 +222,11 @@ export function AuditLogTable({
         </div>
       </form>
 
-      <div className="rounded-md border bg-card">
+      <div className="overflow-hidden rounded-md border bg-card">
         <div className="hidden overflow-x-auto md:block">
-          <Table className="min-w-[980px]">
+          <Table className="min-w-[1080px]">
             <TableHeader>
-              <TableRow>
+              <TableRow className="bg-muted/30">
                 <TableHead className="w-[160px]">时间</TableHead>
                 <TableHead className="w-[150px]">操作者</TableHead>
                 <TableHead className="w-[190px]">操作</TableHead>
@@ -139,10 +238,13 @@ export function AuditLogTable({
               {safeLogs.length > 0 ? (
                 safeLogs.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-                      {originalDayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss")}
+                    <TableCell className="align-top">
+                      <div className="font-mono text-xs text-muted-foreground">
+                        <p>{originalDayjs(item.createdAt).format("YYYY-MM-DD")}</p>
+                        <p>{originalDayjs(item.createdAt).format("HH:mm:ss")}</p>
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">
                           {item.actorName ?? "未知用户"}
@@ -152,19 +254,19 @@ export function AuditLogTable({
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium">
-                          {getActionLabel(item.action)}
-                        </span>
+                        <ActionBadge action={item.action} />
                         <span className="font-mono text-xs text-muted-foreground">
                           {item.action}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
                       <div className="flex flex-col items-start gap-1">
-                        <Badge variant="outline">{item.resourceType}</Badge>
+                        <Badge variant="outline" className="rounded-md">
+                          {item.resourceType}
+                        </Badge>
                         {item.resourceId ? (
                           <span className="font-mono text-xs text-muted-foreground">
                             #{item.resourceId}
@@ -172,10 +274,8 @@ export function AuditLogTable({
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <pre className="max-h-28 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                        {formatMetadata(item.metadata)}
-                      </pre>
+                    <TableCell className="align-top">
+                      <MetadataSummary metadata={item.metadata} />
                     </TableCell>
                   </TableRow>
                 ))
