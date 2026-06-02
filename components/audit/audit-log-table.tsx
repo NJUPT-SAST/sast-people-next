@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Search, RotateCcw } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PaginationComponent } from "@/components/ui/pagination";
@@ -15,7 +14,6 @@ import {
 } from "@/components/ui/table";
 import originalDayjs from "@/lib/dayjs";
 import type { listOperationAudit } from "@/lib/operation-audit-list";
-import { cn } from "@/lib/utils";
 
 type AuditLogResult = Awaited<ReturnType<typeof listOperationAudit>>;
 type AuditLogItem = AuditLogResult["logs"][number];
@@ -31,15 +29,6 @@ const actionLabels: Record<string, string> = {
   "flow.duplicate": "复制流程",
   "user.role.update": "修改角色",
   "user.ban": "禁用用户",
-};
-
-const actionToneClass: Record<string, string> = {
-  "review.score.upsert": "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  "review.score.batch_upsert": "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  "email.batch.create": "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  "email.batch.send": "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  "flow.delete": "border-destructive/25 bg-destructive/10 text-destructive",
-  "user.ban": "border-destructive/25 bg-destructive/10 text-destructive",
 };
 
 function getActionLabel(action: string) {
@@ -84,24 +73,21 @@ function MetadataSummary({ metadata }: { metadata: AuditLogItem["metadata"] }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
+      <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
         {visibleEntries.map(([key, value]) => (
-          <span
-            key={key}
-            className="inline-flex max-w-full items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs"
-          >
-            <span className="shrink-0 text-muted-foreground">{key}</span>
-            <span className="min-w-0 truncate font-medium">
+          <div key={key} className="grid min-w-0 grid-cols-[86px_minmax(0,1fr)] gap-2">
+            <dt className="truncate text-muted-foreground">{key}</dt>
+            <dd className="min-w-0 truncate text-foreground">
               {summarizeMetadataValue(value)}
-            </span>
-          </span>
+            </dd>
+          </div>
         ))}
         {entries.length > visibleEntries.length ? (
-          <span className="inline-flex items-center rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground">
-            +{entries.length - visibleEntries.length}
-          </span>
+          <div className="text-xs text-muted-foreground">
+            另有 {entries.length - visibleEntries.length} 个字段
+          </div>
         ) : null}
-      </div>
+      </dl>
       <details className="group">
         <summary className="w-fit cursor-pointer list-none text-xs text-muted-foreground transition-colors hover:text-foreground">
           原始数据
@@ -114,28 +100,19 @@ function MetadataSummary({ metadata }: { metadata: AuditLogItem["metadata"] }) {
   );
 }
 
-function ActionBadge({ action }: { action: string }) {
-  return (
-    <Badge
-      variant="outline"
-      className={cn("rounded-md px-2 py-1", actionToneClass[action])}
-    >
-      {getActionLabel(action)}
-    </Badge>
-  );
-}
-
 function AuditLogCard({ item }: { item: AuditLogItem }) {
   return (
     <div className="space-y-3 border-b p-4 last:border-b-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <ActionBadge action={item.action} />
+          <p className="truncate text-sm font-medium">{getActionLabel(item.action)}</p>
           <p className="text-xs text-muted-foreground">
             {originalDayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss")}
           </p>
         </div>
-        <Badge variant="outline">{item.resourceType}</Badge>
+        <span className="font-mono text-xs text-muted-foreground">
+          {item.resourceType}
+        </span>
       </div>
       <div className="grid gap-2 text-sm">
         <div className="flex justify-between gap-3">
@@ -178,15 +155,9 @@ export function AuditLogTable({
             当前显示 {start} - {end}，共 {totalCount} 条
           </p>
         </div>
-        {hasFilters ? (
-          <Badge variant="secondary" className="rounded-md">
-            已应用筛选
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="rounded-md">
-            全部记录
-          </Badge>
-        )}
+        <p className="text-xs text-muted-foreground">
+          {hasFilters ? "已应用筛选" : "全部记录"}
+        </p>
       </div>
       <form
         action="/dashboard/audit"
@@ -256,7 +227,9 @@ export function AuditLogTable({
                     </TableCell>
                     <TableCell className="align-top">
                       <div className="flex flex-col gap-1">
-                        <ActionBadge action={item.action} />
+                        <span className="text-sm font-medium">
+                          {getActionLabel(item.action)}
+                        </span>
                         <span className="font-mono text-xs text-muted-foreground">
                           {item.action}
                         </span>
@@ -264,9 +237,9 @@ export function AuditLogTable({
                     </TableCell>
                     <TableCell className="align-top">
                       <div className="flex flex-col items-start gap-1">
-                        <Badge variant="outline" className="rounded-md">
+                        <span className="font-mono text-xs text-foreground">
                           {item.resourceType}
-                        </Badge>
+                        </span>
                         {item.resourceId ? (
                           <span className="font-mono text-xs text-muted-foreground">
                             #{item.resourceId}
