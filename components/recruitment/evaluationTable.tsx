@@ -50,11 +50,46 @@ const evalStatusBadge = (evalStatus: string | null, flowStatus: string) => {
 };
 
 const passButtonClass =
-  "h-8 rounded-lg border-primary/20 bg-primary/8 px-3 text-primary shadow-none hover:bg-primary/12 hover:text-primary";
+  "h-8 rounded-md border-primary/30 bg-primary/10 px-3 text-primary shadow-none hover:bg-primary/15 hover:text-primary";
 const rejectButtonClass =
-  "h-8 rounded-lg border-destructive/20 bg-destructive/8 px-3 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive";
+  "h-8 rounded-md border-destructive/30 bg-destructive/10 px-3 text-destructive shadow-none hover:bg-destructive/15 hover:text-destructive";
 const neutralButtonClass =
-  "h-8 rounded-lg border-border bg-background px-3 shadow-none hover:bg-muted";
+  "h-8 rounded-md border-border bg-background px-3 shadow-none hover:bg-muted";
+const dialogRejectButtonClass =
+  "border-destructive/35 text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive dark:border-destructive/40";
+
+const getCandidateStatusKey = (candidate: Candidate) => {
+  if (candidate.evalStatus === "approved" || candidate.status === "accepted") return "accepted";
+  if (candidate.evalStatus === "rejected") return "evalRejected";
+  if (candidate.status === "rejected") return "rejected";
+  if (candidate.evalStatus === "pending") return "pending";
+  return "waiting";
+};
+
+const summaryItems = [
+  { key: "waiting", label: "待评估" },
+  { key: "pending", label: "待审核" },
+  { key: "accepted", label: "已通过" },
+  { key: "evalRejected", label: "面评驳回" },
+  { key: "rejected", label: "不通过" },
+];
+
+function StatusCountPill({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div
+      className="inline-flex items-center gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1 text-xs text-muted-foreground"
+    >
+      <span>{label}</span>
+      <span className="font-semibold tabular-nums text-foreground">{value}</span>
+    </div>
+  );
+}
 
 const PortfolioLink = ({ value }: { value: string | null }) => {
   if (!value) return <span className="text-xs text-muted-foreground">未填写</span>;
@@ -64,7 +99,7 @@ const PortfolioLink = ({ value }: { value: string | null }) => {
       href={externalHref(value)}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
+      className="inline-flex max-w-full items-center gap-1 text-sm text-primary hover:underline"
     >
       <span className="truncate">作品链接</span>
       <ExternalLink className="h-3.5 w-3.5 shrink-0" />
@@ -81,6 +116,7 @@ export const EvaluationTable = ({
   role: number;
   onRefresh: () => void;
 }) => {
+  const safeCandidates = Array.isArray(candidates) ? candidates : [];
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
@@ -102,7 +138,7 @@ export const EvaluationTable = ({
   };
 
   const editingCandidate =
-    candidates.find((c) => c.userFlowId === evaluatingId) ?? null;
+    safeCandidates.find((c) => c.userFlowId === evaluatingId) ?? null;
 
   const handlePass = async (userFlowId: number) => {
     if (!content.trim()) return;
@@ -152,7 +188,7 @@ export const EvaluationTable = ({
     }
   };
 
-  if (candidates.length === 0) {
+  if (safeCandidates.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-10 text-center">
         <p className="text-sm font-medium">暂无可评估的候选人</p>
@@ -163,18 +199,41 @@ export const EvaluationTable = ({
     );
   }
 
+  const statusCounts = new Map<string, number>();
+  for (const candidate of safeCandidates) {
+    const key = getCandidateStatusKey(candidate);
+    statusCounts.set(key, (statusCounts.get(key) ?? 0) + 1);
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
+      <div className="flex flex-col gap-3 border-b bg-muted/20 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-medium">面评候选人</p>
+          <p className="text-xs text-muted-foreground">
+            讲师提交面评后，管理员在面评审批中确认最终结果。
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {summaryItems.map((item) => (
+            <StatusCountPill
+              key={item.key}
+              label={item.label}
+              value={statusCounts.get(item.key) ?? 0}
+            />
+          ))}
+        </div>
+      </div>
       <div className="hidden md:block overflow-x-auto">
-        <Table className="table-fixed min-w-[760px]">
+        <Table className="table-fixed min-w-[840px]">
           {role >= 3 ? (
             <colgroup>
-              <col className="w-[14%]" />
-              <col className="w-[18%]" />
+              <col className="w-[13%]" />
               <col className="w-[18%]" />
               <col className="w-[16%]" />
+              <col className="w-[16%]" />
               <col className="w-[14%]" />
-              <col className="w-[20%]" />
+              <col className="w-[23%]" />
             </colgroup>
           ) : (
             <colgroup>
@@ -200,21 +259,21 @@ export const EvaluationTable = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {candidates.map((c) => {
+            {safeCandidates.map((c) => {
               const isEditing = evaluatingId === c.userFlowId;
               const isRejected = c.status === "rejected";
               const busy = loadingId === c.userFlowId;
 
               return (
                 <TableRow key={c.userFlowId} className="hover:bg-muted/30">
-                  <TableCell className="whitespace-nowrap px-4 py-4 font-mono text-xs text-muted-foreground">
+                  <TableCell className="whitespace-nowrap px-4 py-4 text-sm">
                     {c.studentId}
                   </TableCell>
                   <TableCell className="whitespace-nowrap px-4 py-4 font-medium">
                     {c.name}
                   </TableCell>
                   {role >= 3 && (
-                    <TableCell className="whitespace-nowrap px-4 py-4 font-mono text-xs text-muted-foreground">
+                    <TableCell className="whitespace-nowrap px-4 py-4 text-sm">
                       {c.phoneNumber || "-"}
                     </TableCell>
                   )}
@@ -242,9 +301,9 @@ export const EvaluationTable = ({
                           </Button>
                         </div>
                       ) : c.evalStatus === "approved" ? (
-                        null
+                        <span className="text-sm text-muted-foreground">已完成</span>
                       ) : c.evalStatus === "rejected" ? (
-                        null
+                        <span className="text-sm text-muted-foreground">已驳回</span>
                       ) : isRejected ? (
                         <Button
                           size="sm"
@@ -286,7 +345,7 @@ export const EvaluationTable = ({
 
       {/* Mobile card view */}
       <div className="md:hidden flex flex-col divide-y divide-border">
-        {candidates.map((c) => {
+        {safeCandidates.map((c) => {
           const isEditing = evaluatingId === c.userFlowId;
           const isRejected = c.status === "rejected";
           const busy = loadingId === c.userFlowId;
@@ -296,14 +355,14 @@ export const EvaluationTable = ({
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
                   <span className="font-semibold">{c.name}</span>
-                  <span className="ml-2 font-mono text-xs text-muted-foreground">
+                  <span className="ml-2 text-sm">
                     {c.studentId}
                   </span>
                 </div>
                 {evalStatusBadge(c.evalStatus, c.status)}
               </div>
               {role >= 3 && (
-                <div className="font-mono text-xs text-muted-foreground">
+                <div className="text-sm">
                   手机: {c.phoneNumber || "-"}
                 </div>
               )}
@@ -328,9 +387,9 @@ export const EvaluationTable = ({
                     </Button>
                   </div>
                 ) : c.evalStatus === "approved" ? (
-                  null
+                  <div className="pt-1 text-sm text-muted-foreground">已完成</div>
                 ) : c.evalStatus === "rejected" ? (
-                  null
+                  <div className="pt-1 text-sm text-muted-foreground">已驳回</div>
                 ) : isRejected ? (
                   <div className="pt-1">
                     <Button
@@ -409,35 +468,41 @@ export const EvaluationTable = ({
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="ghost" onClick={cancelEdit}>
-              取消
-            </Button>
-            {editingCandidate && editingCandidate.status !== "rejected" && (
-              <Button
-                variant="outline"
-                className={rejectButtonClass}
-                onClick={() => handleReject(editingCandidate.userFlowId)}
-                loading={loadingId === editingCandidate.userFlowId}
-              >
-                不通过
+          <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">
+            <div className="min-h-9">
+              {editingCandidate && editingCandidate.status !== "rejected" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogRejectButtonClass}
+                  onClick={() => handleReject(editingCandidate.userFlowId)}
+                  loading={loadingId === editingCandidate.userFlowId}
+                >
+                  不通过
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={cancelEdit}>
+                取消
               </Button>
-            )}
-            <Button
-              onClick={() => {
-                if (!editingCandidate) return;
-                return editMode === "reopen"
-                  ? handleReopen(editingCandidate.userFlowId)
-                  : handlePass(editingCandidate.userFlowId);
-              }}
-              loading={
-                editingCandidate
-                  ? loadingId === editingCandidate.userFlowId
-                  : false
-              }
-            >
-              提交面评
-            </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (!editingCandidate) return;
+                  return editMode === "reopen"
+                    ? handleReopen(editingCandidate.userFlowId)
+                    : handlePass(editingCandidate.userFlowId);
+                }}
+                loading={
+                  editingCandidate
+                    ? loadingId === editingCandidate.userFlowId
+                    : false
+                }
+              >
+                提交面评
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

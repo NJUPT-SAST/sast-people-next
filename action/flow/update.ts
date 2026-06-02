@@ -5,6 +5,7 @@ import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
+import { writeOperationAudit } from "@/lib/operation-audit";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
@@ -28,6 +29,14 @@ export const updateFlow = async (
         updatedAt: new Date(),
       })
       .where(eq(flow.id, id));
+
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "flow.update",
+      resourceType: "flow",
+      resourceId: id,
+      metadata: { title: values.title },
+    });
 
     revalidatePath("/dashboard/flow");
   } catch (error) {

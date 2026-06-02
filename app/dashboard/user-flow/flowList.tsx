@@ -2,18 +2,17 @@ import { FlowCard } from "@/components/userFlow/flowCard";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useMyFlowList as getMyFlowList } from "@/hooks/useMyFlowList";
-import { Suspense } from "react";
 import { Workflow } from "lucide-react";
 
 export const FlowList = async () => {
   const myFlowList = await getMyFlowList();
+  const safeFlowList = (Array.isArray(myFlowList) ? myFlowList : []).filter(
+    (flow) => flow && typeof flow.id === "number",
+  );
 
-  if (myFlowList.length === 0) {
+  if (safeFlowList.length === 0) {
     return (
       <Card className="w-full border-dashed">
         <CardContent className="flex flex-col items-center py-16 text-center">
@@ -31,24 +30,8 @@ export const FlowList = async () => {
 
   return (
     <>
-      {myFlowList.map((flow) => (
-        <Suspense
-          fallback={
-            <Card className="h-[220px]">
-              <CardHeader>
-                <CardTitle hidden>Loading</CardTitle>
-                <Skeleton className="w-[100px] h-[20px]" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="w-full h-[76px]" />
-                <Skeleton className="w-full h-[40px] mt-3" />
-              </CardContent>
-            </Card>
-          }
-          key={flow.id}
-        >
-          <FlowCard key={flow.id} flow={flow} />
-        </Suspense>
+      {safeFlowList.map((flow) => (
+        <FlowCard key={flow.id} flow={flow} />
       ))}
     </>
   );

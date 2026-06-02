@@ -1,6 +1,6 @@
 "use client";
 
-import { sendEmailBatch } from "@/action/email/send";
+import { recoverStaleEmailBatch, sendEmailBatch } from "@/action/email/send";
 import { sendEmailTest } from "@/action/email/test-send";
 import { updateEmailTemplateSetting } from "@/action/email/template";
 import { sendResultEmailFromFlow } from "@/action/email/workspace";
@@ -16,6 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  getEducationEmailLabel,
+  getEmailPreflight,
+  getQueueableEmailRecipients,
+} from "@/components/email/emailDashboardUtils";
 import {
   Table,
   TableBody,
@@ -55,6 +60,32 @@ const deliveryStatusText: Record<string, string> = {
 const hiddenScrollbar = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 const EMAIL_REFRESH_INTERVAL_MS = 3000;
 const EMAIL_REFRESH_MAX_ATTEMPTS = 20;
+
+function getBatchStatusBadgeClass(status: string) {
+  if (status === "completed") {
+    return "border-transparent bg-primary text-primary-foreground";
+  }
+  if (status === "failed") {
+    return "border-transparent bg-destructive text-destructive-foreground";
+  }
+  if (status === "queued") {
+    return "border-transparent bg-chart-3 text-background";
+  }
+  return "border-transparent bg-muted text-muted-foreground";
+}
+
+function getDeliveryStatusBadgeClass(status: string) {
+  if (status === "sent") {
+    return "border-transparent bg-primary text-primary-foreground";
+  }
+  if (status === "failed") {
+    return "border-transparent bg-destructive text-destructive-foreground";
+  }
+  if (status === "sending") {
+    return "border-transparent bg-chart-3 text-background";
+  }
+  return "border-transparent bg-muted text-muted-foreground";
+}
 
 function formatDate(value: Date | string | null) {
   if (!value) return "-";
@@ -106,9 +137,10 @@ function getLaneDeliveries({
   flowId: number;
   accept: boolean;
 }) {
-  return batches
+  const safeBatches = Array.isArray(batches) ? batches : [];
+  return safeBatches
     .filter((batch) => batch.flowId === flowId && batch.accept === accept)
-    .flatMap((batch) => batch.deliveries);
+    .flatMap((batch) => (Array.isArray(batch.deliveries) ? batch.deliveries : []));
 }
 
 function countRemainingRecipients({
@@ -118,12 +150,10 @@ function countRemainingRecipients({
   recipients: Array<FlowTarget["passed"][number]>;
   deliveries: EmailBatch["deliveries"];
 }) {
-  const deliveryUserFlowIds = new Set(
-    deliveries.map((delivery) => delivery.userFlowId),
-  );
-  return recipients.filter(
-    (recipient) => !deliveryUserFlowIds.has(recipient.userFlowId),
-  ).length;
+  return getQueueableEmailRecipients({
+    recipients: Array.isArray(recipients) ? recipients : [],
+    deliveries: Array.isArray(deliveries) ? deliveries : [],
+  }).length;
 }
 
 function FlowSummary({
@@ -135,11 +165,11 @@ function FlowSummary({
 }) {
   const unsent =
     countRemainingRecipients({
-      recipients: flow.passed,
+      recipients: Array.isArray(flow.passed) ? flow.passed : [],
       deliveries: getLaneDeliveries({ batches, flowId: flow.id, accept: true }),
     }) +
     countRemainingRecipients({
-      recipients: flow.failed,
+      recipients: Array.isArray(flow.failed) ? flow.failed : [],
       deliveries: getLaneDeliveries({ batches, flowId: flow.id, accept: false }),
     });
 
@@ -157,9 +187,10 @@ function MobileTemplateActions({
 }: {
   templateSettings: TemplateSetting[];
 }) {
+  const safeTemplateSettings = Array.isArray(templateSettings) ? templateSettings : [];
   return (
     <div className="grid grid-cols-2 gap-2 lg:hidden">
-      {templateSettings.map((setting) => (
+      {safeTemplateSettings.map((setting) => (
         <TemplateDialog key={setting.templateKey} setting={setting} />
       ))}
     </div>
@@ -171,9 +202,10 @@ function DesktopTemplateActions({
 }: {
   templateSettings: TemplateSetting[];
 }) {
+  const safeTemplateSettings = Array.isArray(templateSettings) ? templateSettings : [];
   return (
     <div className="hidden gap-2 lg:flex lg:flex-wrap">
-      {templateSettings.map((setting) => (
+      {safeTemplateSettings.map((setting) => (
         <TemplateDialog key={setting.templateKey} setting={setting} />
       ))}
     </div>
@@ -407,18 +439,21 @@ function RecipientsDialog({
   recipients,
   title,
   triggerLabel = "查看名单",
+  description = "收件地址固定按学号生成，不使用个人资料中的邮箱字段。",
 }: {
   recipients: FlowTarget["passed"];
   title: string;
   triggerLabel?: string;
+  description?: string;
 }) {
+  const safeRecipients = Array.isArray(recipients) ? recipients : [];
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button
           variant="outline"
           size="sm"
-          disabled={recipients.length === 0}
+          disabled={safeRecipients.length === 0}
           className="w-full sm:w-auto"
         >
           <Users data-icon="inline-start" />
@@ -433,9 +468,7 @@ function RecipientsDialog({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            收件地址固定按学号生成，不使用个人资料中的邮箱字段。
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-auto rounded-md border">
           <Table>
@@ -447,12 +480,12 @@ function RecipientsDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recipients.map((item) => (
+              {safeRecipients.map((item) => (
                 <TableRow key={item.userId}>
                   <TableCell>{item.name}</TableCell>
                   <TableCell>{item.studentId}</TableCell>
                   <TableCell className="font-mono text-xs">
-                    {item.studentId}@njupt.edu.cn
+                    {getEducationEmailLabel(item.studentId)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -464,17 +497,140 @@ function RecipientsDialog({
   );
 }
 
+function SendConfirmDialog({
+  flow,
+  accept,
+  subject,
+  recipients,
+  deliveries,
+}: {
+  flow: FlowTarget;
+  accept: boolean;
+  subject: string;
+  recipients: FlowTarget["passed"];
+  deliveries: EmailBatch["deliveries"];
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const resultLabel = accept ? "通过" : "不通过";
+  const preflight = getEmailPreflight({
+    recipients: Array.isArray(recipients) ? recipients : [],
+    deliveries: Array.isArray(deliveries) ? deliveries : [],
+  });
+  const invalidNames = preflight.invalidRecipients
+    .map((recipient) => recipient.name)
+    .join("、");
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          className="w-full"
+          disabled={preflight.remainingRecipients.length === 0}
+        >
+          <Send data-icon="inline-start" />
+          发送
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        className={cn(
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto",
+          hiddenScrollbar,
+        )}
+      >
+        <DialogHeader>
+          <DialogTitle>确认发送{resultLabel}邮件</DialogTitle>
+          <DialogDescription>
+            系统只会为未创建过发送记录的同学创建邮件；已有记录请在发送记录里重试。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3">
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-xs text-muted-foreground">流程</p>
+            <p className="mt-1 font-medium">{flow.title}</p>
+            <p className="mt-2 break-words text-xs text-muted-foreground">
+              {subject}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-sm">
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">待发送</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {preflight.remainingRecipients.length}
+              </p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">已有记录</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {preflight.alreadyCreatedCount}
+              </p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">缺学号</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {preflight.invalidRecipients.length}
+              </p>
+            </div>
+          </div>
+
+          {preflight.invalidRecipients.length > 0 && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+              <p className="font-medium text-destructive">
+                不能发送：待发名单中有人缺少学号
+              </p>
+              <p className="mt-1 break-words text-xs text-muted-foreground">
+                {invalidNames}
+              </p>
+            </div>
+          )}
+
+          <RecipientsDialog
+            recipients={preflight.remainingRecipients}
+            title={`${flow.title} ${resultLabel}邮件待发名单`}
+            triggerLabel="查看待发名单"
+            description="确认无误后再发送；教育邮箱由学号自动生成。"
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              取消
+            </Button>
+            <Button
+              disabled={!preflight.canSend}
+              onClick={() => {
+                toast.promise(
+                  sendResultEmailFromFlow(flow.id, accept).then(() => {
+                    setOpen(false);
+                    router.refresh();
+                  }),
+                  {
+                    loading: "正在处理邮件发送",
+                    success: "邮件发送任务已处理，结果已更新",
+                    error: (error) =>
+                      error instanceof Error ? error.message : "发送失败",
+                  },
+                );
+              }}
+            >
+              <Send data-icon="inline-start" />
+              确认发送
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StatusDialog({ batch }: { batch: EmailBatch }) {
+  const deliveries = Array.isArray(batch.deliveries) ? batch.deliveries : [];
+  const failedCount = deliveries.filter((delivery) => delivery.status === "failed").length;
+  const sentCount = deliveries.filter((delivery) => delivery.status === "sent").length;
   const renderDeliveryStatus = (status: string) => (
-    <Badge
-      variant={
-        status === "failed"
-          ? "destructive"
-          : status === "sent"
-            ? "default"
-            : "outline"
-      }
-    >
+    <Badge variant="outline" className={getDeliveryStatusBadgeClass(status)}>
       {deliveryStatusText[status] ?? status}
     </Badge>
   );
@@ -488,26 +644,46 @@ function StatusDialog({ batch }: { batch: EmailBatch }) {
       </DialogTrigger>
       <DialogContent
         className={cn(
-          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto",
+          "max-h-[88dvh] w-[calc(100vw-1rem)] max-w-none overflow-y-auto p-5 sm:w-[min(960px,calc(100vw-2rem))] sm:max-w-none sm:p-6",
           hiddenScrollbar,
         )}
       >
-        <DialogHeader>
+        <DialogHeader className="pr-8">
           <DialogTitle>{batch.flowTitle} 发送明细</DialogTitle>
           <DialogDescription>
             每位收件人的发送状态和失败原因会保留在这里。
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[62vh] flex-col gap-3 overflow-y-auto pr-1 md:hidden">
-          {batch.deliveries.map((delivery) => (
-            <div key={delivery.id} className="rounded-md border bg-card p-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-md border bg-muted/20 px-3 py-2">
+            <p className="text-xs text-muted-foreground">总数</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{deliveries.length}</p>
+          </div>
+          <div className="rounded-md border bg-muted/20 px-3 py-2">
+            <p className="text-xs text-muted-foreground">已发送</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums text-primary">{sentCount}</p>
+          </div>
+          <div className="rounded-md border bg-muted/20 px-3 py-2">
+            <p className="text-xs text-muted-foreground">失败</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums text-destructive">{failedCount}</p>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "flex max-h-[68dvh] flex-col gap-2 overflow-y-auto pr-1 md:hidden",
+            hiddenScrollbar,
+          )}
+        >
+          {deliveries.map((delivery) => (
+            <div key={delivery.id} className="rounded-md border bg-card px-3 py-3">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold leading-5">
                     {delivery.userName}
                   </p>
-                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                  <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
                     {delivery.toAddress}
                   </p>
                 </div>
@@ -515,49 +691,67 @@ function StatusDialog({ batch }: { batch: EmailBatch }) {
                   {renderDeliveryStatus(delivery.status)}
                 </div>
               </div>
-              <div className="mt-3 grid gap-1.5 text-xs">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">发送时间</span>
-                  <span className="tabular-nums">{formatDate(delivery.sentAt)}</span>
-                </div>
-                <div className="rounded-md bg-muted/30 p-2">
-                  <p className="text-muted-foreground">失败原因</p>
-                  <p className="mt-1 break-words">
+              <div className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
+                <span className="text-muted-foreground">发送时间</span>
+                <span className="text-right tabular-nums">
+                  {formatDate(delivery.sentAt)}
+                </span>
+                <span className="text-muted-foreground">失败原因</span>
+                <div className="min-w-0 text-right">
+                  <span
+                    className={cn(
+                      "break-words",
+                      delivery.errorMessage && "text-destructive",
+                    )}
+                  >
                     {delivery.errorMessage ?? "-"}
-                  </p>
+                  </span>
                 </div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="hidden max-h-[62vh] overflow-y-auto rounded-md border md:block">
-          <Table containerClassName="overflow-visible">
+        <div
+          className={cn(
+            "hidden max-h-[56vh] overflow-y-auto rounded-md border md:block",
+            hiddenScrollbar,
+          )}
+        >
+          <Table className="table-fixed" containerClassName="overflow-visible">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[96px]">姓名</TableHead>
-                <TableHead className="w-[190px]">收件地址</TableHead>
-                <TableHead className="w-[88px]">状态</TableHead>
-                <TableHead className="w-[116px]">发送时间</TableHead>
-                <TableHead>失败原因</TableHead>
+                <TableHead className="w-[18%]">姓名</TableHead>
+                <TableHead className="w-[30%]">收件地址</TableHead>
+                <TableHead className="w-[12%]">状态</TableHead>
+                <TableHead className="w-[18%]">发送时间</TableHead>
+                <TableHead className="w-[22%]">失败原因</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {batch.deliveries.map((delivery) => (
+              {deliveries.map((delivery) => (
                 <TableRow key={delivery.id}>
-                  <TableCell className="max-w-[96px] truncate">
+                  <TableCell className="truncate font-medium" title={delivery.userName}>
                     {delivery.userName}
                   </TableCell>
-                  <TableCell className="break-all font-mono text-xs whitespace-normal">
+                  <TableCell className="truncate font-mono text-sm" title={delivery.toAddress}>
                     {delivery.toAddress}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {renderDeliveryStatus(delivery.status)}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     {formatDate(delivery.sentAt)}
                   </TableCell>
-                  <TableCell className="break-words text-xs text-muted-foreground whitespace-normal">
+                  <TableCell
+                    className={cn(
+                      "truncate text-sm",
+                      delivery.errorMessage
+                        ? "text-destructive"
+                        : "text-muted-foreground",
+                    )}
+                    title={delivery.errorMessage ?? "-"}
+                  >
                     {delivery.errorMessage ?? "-"}
                   </TableCell>
                 </TableRow>
@@ -650,19 +844,19 @@ function SendLane({
   accept: boolean;
   batches: EmailBatch[];
 }) {
-  const router = useRouter();
-  const recipients = accept ? flow.passed : flow.failed;
+  const recipients = Array.isArray(accept ? flow.passed : flow.failed)
+    ? accept
+      ? flow.passed
+      : flow.failed
+    : [];
   const subject = accept ? flow.acceptedSubject : flow.rejectedSubject;
   const previewHtml = accept ? flow.acceptedPreviewHtml : flow.rejectedPreviewHtml;
   const tone = accept ? "border-primary/25 bg-primary/5" : "border-destructive/20 bg-destructive/5";
   const resultLabel = accept ? "通过" : "不通过";
   const laneDeliveries = getLaneDeliveries({ batches, flowId: flow.id, accept });
-  const newRecipientCount = countRemainingRecipients({
-    recipients,
-    deliveries: laneDeliveries,
-  });
+  const preflight = getEmailPreflight({ recipients, deliveries: laneDeliveries });
+  const newRecipientCount = preflight.remainingRecipients.length;
   const sentCount = laneDeliveries.filter((delivery) => delivery.status === "sent").length;
-  const actionableCount = newRecipientCount;
 
   return (
     <div className={cn("flex flex-col gap-4 rounded-lg border p-4 lg:min-h-[148px] lg:p-5", tone)}>
@@ -682,7 +876,7 @@ function SendLane({
       <div className="mt-auto flex flex-col gap-2">
         <div className="grid grid-cols-2 gap-2">
           <RecipientsDialog
-            recipients={recipients}
+            recipients={preflight.remainingRecipients}
             title={`${flow.title} ${resultLabel}邮件未发名单`}
             triggerLabel="名单"
           />
@@ -693,27 +887,46 @@ function SendLane({
             triggerClassName="w-full"
           />
         </div>
-        <Button
-            size="sm"
-            className="w-full"
-            disabled={actionableCount === 0}
-            onClick={() => {
-              toast.promise(
-                sendResultEmailFromFlow(flow.id, accept).then(() => router.refresh()),
-                {
-                  loading: "正在处理邮件发送",
-                  success: "邮件发送任务已处理，结果已更新",
-                  error: (error) =>
-                    error instanceof Error ? error.message : "发送失败",
-                },
-              );
-            }}
-          >
-            <Send data-icon="inline-start" />
-            发送
-          </Button>
+        <SendConfirmDialog
+          flow={flow}
+          accept={accept}
+          subject={subject}
+          recipients={recipients}
+          deliveries={laneDeliveries}
+        />
       </div>
     </div>
+  );
+}
+
+function RecoverStaleBatchButton({ batchId }: { batchId: number }) {
+  const router = useRouter();
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        toast.promise(
+          recoverStaleEmailBatch(batchId).then((result) => {
+            router.refresh();
+            return result;
+          }),
+          {
+            loading: "正在检查中断任务",
+            success: (result) =>
+              result.recoveredCount > 0
+                ? `已恢复 ${result.recoveredCount} 封，可重新重试`
+                : "没有超过 10 分钟的中断任务",
+            error: (error) =>
+              error instanceof Error ? error.message : "恢复失败",
+          },
+        );
+      }}
+    >
+      <RotateCcw data-icon="inline-start" />
+      恢复中断
+    </Button>
   );
 }
 
@@ -727,37 +940,46 @@ export function EmailDashboardClient({
   templateSettings: TemplateSetting[];
 }) {
   const router = useRouter();
-  const [selectedFlowId, setSelectedFlowId] = useState(flowTargets[0]?.id);
+  const safeBatches = useMemo(() => (Array.isArray(batches) ? batches : []), [batches]);
+  const safeFlowTargets = useMemo(
+    () => (Array.isArray(flowTargets) ? flowTargets : []),
+    [flowTargets],
+  );
+  const safeTemplateSettings = useMemo(
+    () => (Array.isArray(templateSettings) ? templateSettings : []),
+    [templateSettings],
+  );
+  const [selectedFlowId, setSelectedFlowId] = useState(safeFlowTargets[0]?.id);
   const [flowQuery, setFlowQuery] = useState("");
   const refreshAttemptsRef = useRef(0);
   const hasActiveEmailWork = useMemo(
     () =>
-      batches.some(
+      safeBatches.some(
         (batch) =>
           batch.status === "draft" ||
           batch.status === "queued" ||
-          batch.deliveries.some(
+          (Array.isArray(batch.deliveries) ? batch.deliveries : []).some(
             (delivery) =>
               delivery.status === "pending" || delivery.status === "sending",
           ),
       ),
-    [batches],
+    [safeBatches],
   );
   const filteredFlows = useMemo(() => {
     const query = flowQuery.trim().toLowerCase();
-    if (!query) return flowTargets;
-    return flowTargets.filter((flow) =>
+    if (!query) return safeFlowTargets;
+    return safeFlowTargets.filter((flow) =>
       flow.title.toLowerCase().includes(query),
     );
-  }, [flowQuery, flowTargets]);
+  }, [flowQuery, safeFlowTargets]);
   const selectedFlow = useMemo(() => {
-    const selected = flowTargets.find((flow) => flow.id === selectedFlowId);
-    if (!flowQuery.trim()) return selected ?? flowTargets[0];
+    const selected = safeFlowTargets.find((flow) => flow.id === selectedFlowId);
+    if (!flowQuery.trim()) return selected ?? safeFlowTargets[0];
     if (selected && filteredFlows.some((flow) => flow.id === selected.id)) {
       return selected;
     }
-    return filteredFlows[0] ?? selected ?? flowTargets[0];
-  }, [filteredFlows, flowQuery, flowTargets, selectedFlowId]);
+    return filteredFlows[0] ?? selected ?? safeFlowTargets[0];
+  }, [filteredFlows, flowQuery, safeFlowTargets, selectedFlowId]);
 
   useEffect(() => {
     if (!hasActiveEmailWork) {
@@ -789,7 +1011,7 @@ export function EmailDashboardClient({
           </div>
           <div className="hidden gap-2 lg:flex lg:flex-wrap">
             <TestEmailButton flowName={selectedFlow?.title} />
-            <DesktopTemplateActions templateSettings={templateSettings} />
+            <DesktopTemplateActions templateSettings={safeTemplateSettings} />
           </div>
         </div>
 
@@ -798,7 +1020,7 @@ export function EmailDashboardClient({
             <div className="mb-2">
               <TestEmailButton flowName={selectedFlow?.title} />
             </div>
-            <MobileTemplateActions templateSettings={templateSettings} />
+            <MobileTemplateActions templateSettings={safeTemplateSettings} />
             <div className="mt-3">
               <Label htmlFor="email-flow-picker" className="mb-2 block text-xs text-muted-foreground">
                 当前流程
@@ -818,7 +1040,7 @@ export function EmailDashboardClient({
               </select>
             </div>
             {selectedFlow && (
-              <FlowSummary flow={selectedFlow} batches={batches} />
+              <FlowSummary flow={selectedFlow} batches={safeBatches} />
             )}
           </div>
           <div className="mt-3">
@@ -866,7 +1088,7 @@ export function EmailDashboardClient({
                     )}
                   >
                     <p className="truncate text-sm font-medium">{flow.title}</p>
-                    <FlowSummary flow={flow} batches={batches} />
+                    <FlowSummary flow={flow} batches={safeBatches} />
                   </button>
                 );
               })}
@@ -890,8 +1112,8 @@ export function EmailDashboardClient({
                   </div>
                 </div>
                 <div className="grid gap-3 xl:grid-cols-2">
-                  <SendLane flow={selectedFlow} accept batches={batches} />
-                  <SendLane flow={selectedFlow} accept={false} batches={batches} />
+                  <SendLane flow={selectedFlow} accept batches={safeBatches} />
+                  <SendLane flow={selectedFlow} accept={false} batches={safeBatches} />
                 </div>
               </div>
             ) : (
@@ -928,16 +1150,18 @@ export function EmailDashboardClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {batches.length === 0 ? (
+              {safeBatches.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="h-20 text-center text-muted-foreground">
                     暂无发送记录。已有“邮件已发”状态的人员会计入上方已发人数。
                   </TableCell>
                 </TableRow>
               ) : (
-                batches.map((batch) => {
-                  const preview = batch.deliveries[0]?.htmlSnapshot ?? null;
+                safeBatches.map((batch) => {
+                  const deliveries = Array.isArray(batch.deliveries) ? batch.deliveries : [];
+                  const preview = deliveries[0]?.htmlSnapshot ?? null;
                   const canRetry = batch.counts.pending > 0 || batch.counts.failed > 0;
+                  const canRecover = batch.counts.sending > 0;
                   return (
                     <TableRow key={batch.id}>
                       <TableCell>
@@ -946,7 +1170,7 @@ export function EmailDashboardClient({
                       </TableCell>
                       <TableCell>{batch.accept ? "通过" : "不通过"}</TableCell>
                       <TableCell>
-                        <Badge variant={batch.status === "failed" ? "destructive" : "outline"}>
+                        <Badge variant="outline" className={getBatchStatusBadgeClass(batch.status)}>
                           {batchStatusText[batch.status]}
                         </Badge>
                       </TableCell>
@@ -964,6 +1188,9 @@ export function EmailDashboardClient({
                             description="每位收件人的邮件正文都会保存；这里展示该批次第一封。"
                           />
                           <StatusDialog batch={batch} />
+                          {canRecover && (
+                            <RecoverStaleBatchButton batchId={batch.id} />
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
@@ -993,14 +1220,16 @@ export function EmailDashboardClient({
           </Table>
         </div>
         <div className="flex flex-col gap-3 p-4 md:hidden">
-          {batches.length === 0 ? (
+          {safeBatches.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
               暂无发送记录。已有“邮件已发”状态的人员会计入上方已发人数。
             </div>
           ) : (
-            batches.map((batch) => {
-              const preview = batch.deliveries[0]?.htmlSnapshot ?? null;
+            safeBatches.map((batch) => {
+              const deliveries = Array.isArray(batch.deliveries) ? batch.deliveries : [];
+              const preview = deliveries[0]?.htmlSnapshot ?? null;
               const canRetry = batch.counts.pending > 0 || batch.counts.failed > 0;
+              const canRecover = batch.counts.sending > 0;
               return (
                 <div key={batch.id} className="rounded-md border p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -1013,9 +1242,7 @@ export function EmailDashboardClient({
                         操作人：{batch.createdByName ?? "-"}
                       </p>
                     </div>
-                    <Badge
-                      variant={batch.status === "failed" ? "destructive" : "outline"}
-                    >
+                    <Badge variant="outline" className={getBatchStatusBadgeClass(batch.status)}>
                       {batchStatusText[batch.status]}
                     </Badge>
                   </div>
@@ -1044,6 +1271,9 @@ export function EmailDashboardClient({
                       description="每位收件人的邮件正文都会保存；这里展示该批次第一封。"
                     />
                     <StatusDialog batch={batch} />
+                    {canRecover && (
+                      <RecoverStaleBatchButton batchId={batch.id} />
+                    )}
                     <Button
                       variant="outline"
                       size="sm"

@@ -43,12 +43,16 @@ const SelectProblem = ({
 }: {
   flowList: Partial<displayUserFlow>[];
 }) => {
+  const safeFlowList = useMemo(
+    () => (Array.isArray(flowList) ? flowList : []),
+    [flowList],
+  );
   const activeFlowIds = useMemo(
     () =>
-      flowList
+      safeFlowList
         .map((flow) => flow.id)
         .filter((id): id is number => typeof id === 'number'),
-    [flowList],
+    [safeFlowList],
   );
   const storedRange = useMemo(() => {
     const range = readStoredRange();
@@ -73,9 +77,10 @@ const SelectProblem = ({
   const [stepId, setStepId] = useState<number | undefined>(storedRange?.stepId);
   const [isLoadingProblems, setIsLoadingProblems] = useState(false);
 
-  const currentFlow = flowList.find(
+  const currentFlow = safeFlowList.find(
     (flow) => flow.id?.toString() === selectedFlow,
   );
+  const hasFlows = safeFlowList.length > 0;
 
   const loadProblemsForFlow = async (
     flowId: string,
@@ -165,15 +170,16 @@ const SelectProblem = ({
           </p>
         </div>
         <Select
+          disabled={!hasFlows}
           value={selectedFlow || undefined}
           onValueChange={(value) => void loadProblemsForFlow(value)}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" disabled={!hasFlows}>
             <SelectValue placeholder="请选择试卷" />
           </SelectTrigger>
-          {flowList.length > 0 && (
+          {hasFlows && (
             <SelectContent>
-              {flowList.map((flow) => (
+              {safeFlowList.map((flow) => (
                 <SelectItem key={flow.id} value={flow?.id?.toString() || ''}>
                   {flow.title}
                 </SelectItem>

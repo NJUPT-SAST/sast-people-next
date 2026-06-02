@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: '南京邮电大学大学生科学技术协会People平台',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function RootLayout({
   children,
 }: Readonly<{

@@ -23,6 +23,12 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { batchSetOutcomeByUid } from '@/action/user-flow/edit';
+import {
+  buildRecruitmentScoreCsv,
+  downloadCsv,
+  recruitmentStatusText,
+  type RecruitmentScoreExportRow,
+} from '@/components/recruitment/exportCsv';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -36,18 +42,9 @@ type RecruitmentRowLike = {
   stepId: number;
   status: string;
   isGraded?: boolean;
-};
+} & RecruitmentScoreExportRow;
 
 const finalStatuses = new Set(['accepted', 'rejected']);
-const statusText: Record<string, string> = {
-  pending: '未开始',
-  ungraded: '未批卷',
-  ongoing: '待确认',
-  passed: '通过',
-  failed: '不通过',
-  accepted: '通过邮件已发',
-  rejected: '不通过邮件已发',
-};
 
 export function DataTable<TData, TValue>({
   columns,
@@ -58,6 +55,8 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
+  const safeColumns = useMemo(() => (Array.isArray(columns) ? columns : []), [columns]);
+  const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const getDisplayStatus = useCallback((row: RecruitmentRowLike) => {
     const status = statusOverrides[row.uid] ?? row.status ?? 'ongoing';
     if ((status === 'pending' || status === 'ongoing') && row.isGraded === false) {
@@ -67,12 +66,12 @@ export function DataTable<TData, TValue>({
   }, [statusOverrides]);
   const tableData = useMemo(
     () =>
-      data.map((item) => {
+      safeData.map((item) => {
         const row = item as RecruitmentRowLike;
         const status = getDisplayStatus(row);
         return status !== row.status ? ({ ...item, status } as TData) : item;
       }),
-    [data, getDisplayStatus],
+    [safeData, getDisplayStatus],
   );
   const toRecruitmentRow = (row: { original: unknown }): RecruitmentRowLike =>
     row.original as RecruitmentRowLike;
@@ -86,8 +85,8 @@ export function DataTable<TData, TValue>({
   const visibleColumns = useMemo(
     () =>
       role >= 3
-        ? columns
-        : columns.filter((c) => {
+        ? safeColumns
+        : safeColumns.filter((c) => {
             const col = c as { id?: string; accessorKey?: string };
             return (
               col.id !== 'select' &&
@@ -95,7 +94,7 @@ export function DataTable<TData, TValue>({
               col.accessorKey !== 'problemScores'
             );
           }),
-    [columns, role],
+    [safeColumns, role],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -112,10 +111,15 @@ export function DataTable<TData, TValue>({
       columnFilters,
     },
   });
-  const allRows = table.getCoreRowModel().flatRows;
-  const selectedMutableRows = table
-    .getSelectedRowModel()
-    .flatRows.filter((row) => !isFinalRow(row));
+  const allRows = table.getCoreRowModel().flatRows ?? [];
+  const filteredRows = table.getFilteredRowModel().flatRows ?? [];
+  const rowModelRows = table.getRowModel().rows ?? [];
+  const filteredSelectedRows = table.getFilteredSelectedRowModel().rows ?? [];
+  const totalScoreColumn =
+    table.getAllLeafColumns().find((column) => column.id === 'totalScore') ?? null;
+  const selectedMutableRows = (table.getSelectedRowModel().flatRows ?? []).filter(
+    (row) => !isFinalRow(row),
+  );
   const canEditOutcomes = selectedMutableRows.length > 0;
   const helperText =
     '成绩管理只负责确定通过/不通过；结果邮件会在邮件管理中按当前流程自动匹配待通知人员';
@@ -136,84 +140,105 @@ export function DataTable<TData, TValue>({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
             <Input
               placeholder="筛选分数线"
-              value={
-                (table.getColumn('totalScore')?.getFilterValue() as string) ?? ''
-              }
+              value={(totalScoreColumn?.getFilterValue() as string) ?? ''}
               onChange={(event) =>
-                table.getColumn('totalScore')?.setFilterValue(event.target.value)
+                totalScoreColumn?.setFilterValue(event.target.value)
               }
               className="h-9 w-full sm:w-[180px]"
             />
             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start lg:justify-end">
-          {role >= 3 && (
-            <>
-            <Button
-              size="sm"
-              disabled={!canEditOutcomes}
-              onClick={async () => {
-              const selectedRows = selectedMutableRows;
-              const firstRow = selectedRows[0];
-              if (!firstRow) return;
-              const stepId = toRecruitmentRow(firstRow).stepId;
-              const passedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
-              toast.promise(
-                batchSetOutcomeByUid(
-                  flowTypeId,
-                  stepId,
-                  'passed',
-                  passedUids,
-                ).then(() => {
-                  setStatusOverrides((prev) => ({
-                    ...prev,
-                      ...Object.fromEntries(passedUids.map((uid) => [uid, 'passed'])),
-                    }));
-                  setRowSelection({});
-                }),
-                {
-                  loading: '正在设置为通过',
-                  success: '已设置为通过',
-                  error: '设置失败',
-                },
-              );
-            }}
-          >
-            设为通过
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canEditOutcomes}
-            onClick={async () => {
-              const selectedRows = selectedMutableRows;
-              const firstRow = selectedRows[0];
-              if (!firstRow) return;
-              const stepId = toRecruitmentRow(firstRow).stepId;
-              const failedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
-              toast.promise(
-                batchSetOutcomeByUid(
-                  flowTypeId,
-                  stepId,
-                  'failed',
-                  failedUids,
-                ).then(() => {
-                  setStatusOverrides((prev) => ({
-                    ...prev,
-                    ...Object.fromEntries(failedUids.map((uid) => [uid, 'failed'])),
-                  }));
-                  setRowSelection({});
-                }),
-                {
-                  loading: '正在设置为不通过',
-                  success: '已设置为不通过',
-                  error: '设置失败',
-                },
-              );
-            }}
-          >
-            设为不通过
-          </Button>
-            </>
-          )}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={filteredRows.length === 0}
+                onClick={() => {
+                  const csv = buildRecruitmentScoreCsv({
+                    rows: filteredRows.map((row) => toRecruitmentRow(row)),
+                    includeSensitiveInfo: role >= 3,
+                  });
+                  downloadCsv(`flow-${flowTypeId}-scores.csv`, csv);
+                  toast.success('已导出当前筛选结果');
+                }}
+              >
+                导出 CSV
+              </Button>
+              {role >= 3 && (
+                <>
+                  <Button
+                    size="sm"
+                    disabled={!canEditOutcomes}
+                    onClick={async () => {
+                      const selectedRows = selectedMutableRows;
+                      const firstRow = selectedRows[0];
+                      if (!firstRow) return;
+                      const confirmed = window.confirm(
+                        `确定将 ${selectedRows.length} 人设为通过吗？结果邮件仍需在邮件管理中发送。`,
+                      );
+                      if (!confirmed) return;
+                      const stepId = toRecruitmentRow(firstRow).stepId;
+                      const passedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
+                      toast.promise(
+                        batchSetOutcomeByUid(
+                          flowTypeId,
+                          stepId,
+                          'passed',
+                          passedUids,
+                        ).then(() => {
+                          setStatusOverrides((prev) => ({
+                            ...prev,
+                            ...Object.fromEntries(passedUids.map((uid) => [uid, 'passed'])),
+                          }));
+                          setRowSelection({});
+                        }),
+                        {
+                          loading: '正在设置为通过',
+                          success: '已设置为通过',
+                          error: '设置失败',
+                        },
+                      );
+                    }}
+                  >
+                    设为通过
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!canEditOutcomes}
+                    onClick={async () => {
+                      const selectedRows = selectedMutableRows;
+                      const firstRow = selectedRows[0];
+                      if (!firstRow) return;
+                      const confirmed = window.confirm(
+                        `确定将 ${selectedRows.length} 人设为不通过吗？结果邮件仍需在邮件管理中发送。`,
+                      );
+                      if (!confirmed) return;
+                      const stepId = toRecruitmentRow(firstRow).stepId;
+                      const failedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
+                      toast.promise(
+                        batchSetOutcomeByUid(
+                          flowTypeId,
+                          stepId,
+                          'failed',
+                          failedUids,
+                        ).then(() => {
+                          setStatusOverrides((prev) => ({
+                            ...prev,
+                            ...Object.fromEntries(failedUids.map((uid) => [uid, 'failed'])),
+                          }));
+                          setRowSelection({});
+                        }),
+                        {
+                          loading: '正在设置为不通过',
+                          success: '已设置为不通过',
+                          error: '设置失败',
+                        },
+                      );
+                    }}
+                  >
+                    设为不通过
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -226,7 +251,7 @@ export function DataTable<TData, TValue>({
                   key={status}
                   className="inline-flex items-center gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1"
                 >
-                  <span>{statusText[status]}</span>
+                  <span>{recruitmentStatusText[status]}</span>
                   <span className="font-semibold tabular-nums text-foreground">
                     {count}
                   </span>
@@ -241,9 +266,9 @@ export function DataTable<TData, TValue>({
         {role >= 3 && (
           <div className="border-b bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">
-              {table.getFilteredSelectedRowModel().rows.length}
+              {filteredSelectedRows.length}
             </span>{' '}
-            / {table.getFilteredRowModel().rows.length} 行选中
+            / {filteredRows.length} 行选中
           </div>
         )}
 
@@ -269,8 +294,8 @@ export function DataTable<TData, TValue>({
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
+              {rowModelRows.length ? (
+                rowModelRows.map((row) => (
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && 'selected'}
@@ -296,7 +321,7 @@ export function DataTable<TData, TValue>({
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={columns.length}
+                    colSpan={visibleColumns.length}
                     className="h-24 text-center"
                   >
                     暂时没有内容。
@@ -309,8 +334,8 @@ export function DataTable<TData, TValue>({
 
         {/* 移动端卡片视图 */}
         <div className="md:hidden flex flex-col divide-y divide-border">
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => {
+          {rowModelRows.length ? (
+            rowModelRows.map((row) => {
               const cells = row.getVisibleCells();
               const cellById = new Map(cells.map((cell) => [cell.column.id, cell]));
               const selectCell = cellById.get('select');

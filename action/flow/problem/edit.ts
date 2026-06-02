@@ -7,6 +7,7 @@ import { problemType } from '@/types/problem';
 import { eq, and, notInArray, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { logServerError } from '@/lib/server-error-log';
+import { writeOperationAudit } from '@/lib/operation-audit';
 
 type ProblemType = typeof problem.$inferInsert;
 
@@ -15,7 +16,7 @@ export const updateProblems = async (
   problems: problemType,
   flowId: number,
 ) => {
-  await verifyRole(3);
+  const session = await verifyRole(3);
 
   try {
     const existingProblems = await db
@@ -91,9 +92,25 @@ export const updateProblems = async (
     }
 
     revalidatePath(`/dashboard/flow/edit-exam?id=${flowId}`);
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'flow.update_problems',
+      resourceType: 'flow',
+      resourceId: flowId,
+      metadata: {
+        stepId,
+        problemGroups: Object.keys(problems),
+        problemCount: Object.values(problems).reduce(
+          (count, group) => count + group.length,
+          0,
+        ),
+      },
+    });
   } catch (err) {
     logServerError('flow:updateProblems', err, {
       path: '/dashboard/flow/edit-exam',
+      userId: session.uid,
+      role: session.role,
       action: 'update-problems',
       flowId,
       metadata: {

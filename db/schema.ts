@@ -1,7 +1,9 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -266,6 +268,23 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
 });
+
+export const operationAudit = pgTable("operation_audit", {
+  id: serial("id").primaryKey(),
+  actorId: integer("actor_id").notNull(),
+  action: varchar("action", { length: 80 }).notNull(),
+  resourceType: varchar("resource_type", { length: 80 }).notNull(),
+  resourceId: integer("resource_id"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  actorIdx: index("operation_audit_actor_id_idx").on(table.actorId),
+  resourceIdx: index("operation_audit_resource_idx").on(
+    table.resourceType,
+    table.resourceId,
+  ),
+  createdAtIdx: index("operation_audit_created_at_idx").on(table.createdAt),
+}));
 
 // TODO: v2 db
 // export const examMap = pgTable(

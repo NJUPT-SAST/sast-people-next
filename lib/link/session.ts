@@ -31,7 +31,7 @@ export class MissingLinkAccessTokenError extends Error {
 
 export const canUseLegacyUserFallback = () =>
   process.env.NODE_ENV !== "production" &&
-  process.env.LINK_ALLOW_LEGACY_FALLBACK !== "false";
+  process.env.LINK_ALLOW_LEGACY_FALLBACK === "true";
 
 export const getLinkAccessTokenFromSession = async () => {
   if (shouldUseMockLink()) {

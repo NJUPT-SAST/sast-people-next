@@ -6,6 +6,7 @@ import { userFlow } from '@/db/schema';
 // import eventManager from '@/event';
 import { verifyRole } from '@/lib/dal';
 import { logServerError } from '@/lib/server-error-log';
+import { writeOperationAudit } from '@/lib/operation-audit';
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { syncUserRoleFromAcceptedFlows } from './roleTransition';
 
@@ -34,6 +35,12 @@ export const forward = async (
     session = await verifyRole(3);
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     await db.update(userFlow).set({currentStepOrder: sql`${userFlow.currentStepOrder} + 1`}).where(eq(userFlow.id, userFlowId));
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.forward',
+      resourceType: 'user_flow',
+      resourceId: userFlowId,
+    });
   } catch (error) {
     logServerError("user-flow:forward", error, {
       path: "/dashboard/manage",
@@ -76,6 +83,13 @@ export const finish = async (
       .where(eq(userFlow.id, userFlowId));
 
     await syncUserRoleFromAcceptedFlows(fkUserId);
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.finish',
+      resourceType: 'user_flow',
+      resourceId: userFlowId,
+      metadata: { userId: fkUserId },
+    });
   } catch (error) {
     logServerError("user-flow:finish", error, {
       path: "/dashboard/manage",
@@ -105,6 +119,13 @@ export const reject = async (
     if (record) {
       await syncUserRoleFromAcceptedFlows(record.fkUserId);
     }
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.reject',
+      resourceType: 'user_flow',
+      resourceId: userFlowId,
+      metadata: { userId: record?.fkUserId ?? null },
+    });
   } catch (error) {
     logServerError("user-flow:reject", error, {
       path: "/dashboard/manage",
@@ -129,6 +150,12 @@ export const reopen = async (
     session = await verifyRole(3);
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     await db.update(userFlow).set({status: 'ongoing'}).where(eq(userFlow.id, userFlowId));
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.reopen',
+      resourceType: 'user_flow',
+      resourceId: userFlowId,
+    });
   } catch (error) {
     logServerError("user-flow:reopen", error, {
       path: "/dashboard/manage",
@@ -151,6 +178,12 @@ export const backward = async (
     session = await verifyRole(3);
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     await db.update(userFlow).set({currentStepOrder: sql`${userFlow.currentStepOrder} - 1`}).where(eq(userFlow.id, userFlowId));
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.backward',
+      resourceType: 'user_flow',
+      resourceId: userFlowId,
+    });
   } catch (error) {
     logServerError("user-flow:backward", error, {
       path: "/dashboard/manage",
@@ -172,6 +205,13 @@ export const batchUpdate = async (
   try {
     session = await verifyRole(3);
     await db.update(userFlow).set({currentStepOrder: currentStepOrder}).where(eq(userFlow.fkFlowId, flowId));
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.batch_update_step',
+      resourceType: 'flow',
+      resourceId: flowId,
+      metadata: { currentStepOrder },
+    });
   } catch (error) {
     logServerError("user-flow:batchUpdate", error, {
       path: "/dashboard/manage",
@@ -197,6 +237,13 @@ export const batchEndByUid = async (
     session = await verifyRole(3);
     await db.update(userFlow).set({status: statusStr, currentStepOrder: currentStepOrder}).where(and(eq(userFlow.fkFlowId, flowId), inArray(userFlow.fkUserId, uids)));
     await Promise.all(uids.map((uid) => syncUserRoleFromAcceptedFlows(uid)));
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.batch_end',
+      resourceType: 'flow',
+      resourceId: flowId,
+      metadata: { currentStepOrder, status: statusStr, targetUserIds: uids },
+    });
   } catch (error) {
     logServerError("user-flow:batchEndByUid", error, {
       path: "/dashboard/review",
@@ -232,6 +279,13 @@ export const batchSetOutcomeByUid = async (
           notInArray(userFlow.status, ['accepted', 'rejected']),
         ),
       );
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.batch_set_outcome',
+      resourceType: 'flow',
+      resourceId: flowId,
+      metadata: { currentStepOrder, status: statusStr, targetUserIds: uids },
+    });
   } catch (error) {
     logServerError("user-flow:batchSetOutcomeByUid", error, {
       path: "/dashboard/review",

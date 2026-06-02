@@ -3,6 +3,7 @@
 import { db } from "@/db/drizzle";
 import { flow, flowStep } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { fullStepType } from "@/types/step";
 import { eq } from "drizzle-orm";
@@ -75,6 +76,16 @@ export const updateFlowStep = async (
     });
 
     revalidatePath("/dashboard/flow");
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "flow.update_steps",
+      resourceType: "flow",
+      resourceId: id,
+      metadata: {
+        stepCount: stepList.length,
+        stepOrders: stepList.map((step) => step.order),
+      },
+    });
   } catch (error) {
     logServerError("flow-step:update", error, {
       path: "/dashboard/flow",

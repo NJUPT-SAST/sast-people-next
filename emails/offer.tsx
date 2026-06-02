@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { resultEmailCopy, resultEmailLinks } from '@/lib/email/result-email-config';
+import { resultEmailCopy, resultEmailLinks } from '../lib/email/result-email-config';
 
 type ElementProps<T extends keyof React.JSX.IntrinsicElements> =
   React.ComponentPropsWithoutRef<T>;

@@ -33,8 +33,11 @@ export const RecruitmentContent = ({
   const [scoreData, setScoreData] = useState(initialData);
   const [evalData, setEvalData] = useState<CandidatesResult>(initialEvalData);
   const [loading, setLoading] = useState(false);
+  const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
+  const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
+  const safeEvalData = Array.isArray(evalData) ? evalData : [];
 
-  const selectedFlow = flowTypes.find((f) => f.id === parseInt(flowId ?? ''));
+  const selectedFlow = safeFlowTypes.find((f) => f.id === parseInt(flowId ?? ''));
   const isEvaluationFlow = selectedFlow
     ? EVALUATION_FLOW_TYPES.includes(selectedFlow.type)
     : false;
@@ -42,7 +45,7 @@ export const RecruitmentContent = ({
   const handleFlowChange = async (value: string) => {
     setFlowId(value);
     setLoading(true);
-    const flow = flowTypes.find((f) => f.id === parseInt(value));
+    const flow = safeFlowTypes.find((f) => f.id === parseInt(value));
     try {
       if (flow && EVALUATION_FLOW_TYPES.includes(flow.type)) {
         const candidates = await getEvaluationCandidates(parseInt(value));
@@ -70,12 +73,12 @@ export const RecruitmentContent = ({
   };
 
   const averageScore =
-    scoreData.length === 0
+    safeScoreData.length === 0
       ? 0
-      : scoreData.reduce(
+      : safeScoreData.reduce(
           (acc, cur) => acc + parseInt(cur.totalScore ?? '0', 10),
           0,
-        ) / scoreData.length;
+        ) / safeScoreData.length;
 
   return (
     <div className="space-y-5">
@@ -88,7 +91,7 @@ export const RecruitmentContent = ({
             </p>
           </div>
           <SelectFlow
-            flowTypes={flowTypes}
+            flowTypes={safeFlowTypes}
             defaultFlowTypeId={flowId}
             onChange={handleFlowChange}
           />
@@ -100,7 +103,7 @@ export const RecruitmentContent = ({
               <Users className="size-4" />
               <span>总人数</span>
               <span className="font-semibold tabular-nums text-foreground">
-                {isEvaluationFlow ? evalData.length : scoreData.length}
+                {isEvaluationFlow ? safeEvalData.length : safeScoreData.length}
               </span>
             </div>
             {!isEvaluationFlow && (
@@ -129,7 +132,7 @@ export const RecruitmentContent = ({
         ) : isEvaluationFlow ? (
           <div className="space-y-4">
             <EvaluationTable
-              candidates={evalData}
+              candidates={safeEvalData}
               role={role}
               onRefresh={refreshEvalData}
             />
@@ -138,7 +141,7 @@ export const RecruitmentContent = ({
           <div className="space-y-4">
             <DataTable
               columns={columns}
-              data={scoreData}
+              data={safeScoreData}
               flowTypeId={parseInt(flowId)}
               role={role}
             />

@@ -52,9 +52,8 @@ export const columns: ColumnDef<
   {
     id: 'select',
     header: ({ table }) => {
-      const selectableRows = table
-        .getFilteredRowModel()
-        .rows.filter((row) => row.getCanSelect());
+      const rows = table.getFilteredRowModel().rows ?? [];
+      const selectableRows = rows.filter((row) => row.getCanSelect());
       const selectedCount = selectableRows.filter((row) =>
         row.getIsSelected(),
       ).length;

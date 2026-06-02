@@ -5,12 +5,14 @@ import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, userFlow } from "@/db/schema";
 import event from "@/event";
 import { verifyRole } from "@/lib/dal";
+import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { sendDelivery } from "@/queue/sendEmail";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 
 const EMAIL_SERVICE_UNAVAILABLE =
   "邮件发送服务未启动或未配置，请检查 Inngest 邮件队列和 EMAIL_PASSWORD。";
+const STALE_SENDING_DELIVERY_MINUTES = 10;
 
 export async function sendEmailBatch(batchId: number) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
@@ -110,6 +112,17 @@ export async function sendEmailBatch(batchId: number) {
       throw error;
     }
 
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "email.batch_send",
+      resourceType: "email_batch",
+      resourceId: batchId,
+      metadata: {
+        queuedCount: queueableDeliveries.length,
+        accept: batch.accept,
+      },
+    });
+
     return { queuedCount: queueableDeliveries.length };
   } catch (error) {
     logServerError("email:sendBatch", error, {
@@ -117,6 +130,70 @@ export async function sendEmailBatch(batchId: number) {
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       action: "send-email-batch",
+      metadata: { batchId },
+    });
+    throw error;
+  }
+}
+
+export async function recoverStaleEmailBatch(batchId: number) {
+  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+
+  try {
+    session = await verifyRole(3);
+
+    const cutoff = new Date(
+      Date.now() - STALE_SENDING_DELIVERY_MINUTES * 60 * 1000,
+    );
+    const staleDeliveries = await db
+      .select({ id: emailDelivery.id })
+      .from(emailDelivery)
+      .where(
+        and(
+          eq(emailDelivery.fkEmailBatchId, batchId),
+          eq(emailDelivery.status, "sending"),
+          lt(emailDelivery.updatedAt, cutoff),
+        ),
+      );
+
+    if (staleDeliveries.length === 0) {
+      return { recoveredCount: 0 };
+    }
+
+    await db
+      .update(emailDelivery)
+      .set({
+        status: "failed",
+        errorMessage: "发送任务可能已中断，请确认后重试。",
+        updatedAt: new Date(),
+      })
+      .where(
+        inArray(
+          emailDelivery.id,
+          staleDeliveries.map((item) => item.id),
+        ),
+      );
+
+    await db
+      .update(emailBatch)
+      .set({ status: "failed", updatedAt: new Date() })
+      .where(eq(emailBatch.id, batchId));
+
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "email.recover_stale",
+      resourceType: "email_batch",
+      resourceId: batchId,
+      metadata: { recoveredCount: staleDeliveries.length },
+    });
+
+    return { recoveredCount: staleDeliveries.length };
+  } catch (error) {
+    logServerError("email:recoverStaleBatch", error, {
+      path: "/dashboard/emails",
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "recover-stale-email-batch",
       metadata: { batchId },
     });
     throw error;

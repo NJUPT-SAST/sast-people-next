@@ -83,8 +83,8 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
   {
     accessorKey: 'operations',
     header: () => (
-      <div className="grid w-full grid-cols-[4.5rem_4.5rem_3.5rem] items-center justify-end gap-1">
-        <span className="col-start-2 text-center">操作</span>
+      <div className="grid w-full grid-cols-[4.5rem_4.5rem_4.5rem_3.5rem] items-center justify-end gap-1">
+        <span className="col-span-4 text-center">操作</span>
       </div>
     ),
     cell({ row }) {
@@ -103,9 +103,10 @@ export function FlowTable<TData extends displayFlow, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
+  const tableData = Array.isArray(data) ? data : [];
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });

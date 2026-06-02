@@ -1,6 +1,6 @@
-import { defineConfig } from "drizzle-kit";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import pg from "pg";
 
 for (const envFile of [".env.local", ".env"]) {
   const envPath = resolve(process.cwd(), envFile);
@@ -18,11 +18,25 @@ for (const envFile of [".env.local", ".env"]) {
   }
 }
 
-export default defineConfig({
-  schema: "./db/schema.ts",
-  out: "./migrations",
-  dialect: "postgresql",
-  dbCredentials: {
-    url: process.env.DATABASE_URL!,
-  },
-});
+const sqlFile = process.argv[2];
+const message = process.argv[3] ?? "SQL file executed.";
+
+if (!sqlFile) {
+  throw new Error("Usage: node scripts/run-sql-file.mjs <sql-file> [message]");
+}
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required to run a SQL file.");
+}
+
+const sqlPath = resolve(process.cwd(), sqlFile);
+const sql = readFileSync(sqlPath, "utf8");
+const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+
+await client.connect();
+try {
+  await client.query(sql);
+  console.log(message);
+} finally {
+  await client.end();
+}

@@ -42,6 +42,7 @@ export const ManageTable = ({
   currentPage: number;
   role: number;
 }) => {
+  const safeUsers = Array.isArray(users) ? users : [];
   const columns: ColumnDef<userType>[] = [
     {
       accessorKey: 'studentId',
@@ -91,7 +92,7 @@ export const ManageTable = ({
   ];
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: users,
+    data: safeUsers,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),

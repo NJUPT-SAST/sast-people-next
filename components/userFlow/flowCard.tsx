@@ -1,4 +1,3 @@
-"use server";
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -48,10 +47,13 @@ interface FlowCardProps {
   flow: displayUserFlow;
 }
 
-export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
-  const steps = [...flow.steps].sort((a, b) => a.order - b.order);
+export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
+  const safeFlow = flow ?? ({} as displayUserFlow);
+  const steps = (Array.isArray(safeFlow.steps) ? [...safeFlow.steps] : []).sort(
+    (a, b) => a.order - b.order,
+  );
   const activeStep =
-    steps.find((step) => step.order === flow.currentStepOrder) ?? steps[0];
+    steps.find((step) => step.order === safeFlow.currentStepOrder) ?? steps[0];
   const activeStepOrder = activeStep?.order ?? 0;
 
   const getStatusColor = (status: string) => {
@@ -71,27 +73,29 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-sm font-medium">{flow.title}</CardTitle>
-          {flow.flowType && (
+          <CardTitle className="text-sm font-medium">
+            {safeFlow.title ?? "未命名流程"}
+          </CardTitle>
+          {safeFlow.flowType && (
             <Badge variant="outline" className="text-xs">
-              {flowTypeLabel[flow.flowType] ?? flow.flowType}
+              {flowTypeLabel[safeFlow.flowType] ?? safeFlow.flowType}
             </Badge>
           )}
         </div>
         <Badge
           variant={
-            flow.status === "ongoing" || flow.status === "pending" || flow.status === "passed" || flow.status === "failed"
+            safeFlow.status === "ongoing" || safeFlow.status === "pending" || safeFlow.status === "passed" || safeFlow.status === "failed"
               ? "secondary"
-              : flow.status === "accepted"
+              : safeFlow.status === "accepted"
               ? "default"
               : "destructive"
           }
         >
-          {flow.status === "ongoing" || flow.status === "pending"
+          {safeFlow.status === "ongoing" || safeFlow.status === "pending"
             ? "流程进行中"
-            : flow.status === "passed" || flow.status === "failed"
+            : safeFlow.status === "passed" || safeFlow.status === "failed"
             ? "结果待通知"
-            : flow.status === "accepted"
+            : safeFlow.status === "accepted"
             ? "已通过考核"
             : "未通过考核"}
         </Badge>
@@ -100,13 +104,13 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
         <div className="flex items-center w-full my-4">
           {steps.map((step, index) => {
             const status =
-              flow.status === "accepted"
+              safeFlow.status === "accepted"
                 ? "accepted"
-                : flow.status === "passed" || flow.status === "failed"
+                : safeFlow.status === "passed" || safeFlow.status === "failed"
                 ? step.order <= activeStepOrder
                   ? "ongoing"
                   : "pending"
-                : flow.status === "rejected"
+                : safeFlow.status === "rejected"
                 ? step.order < activeStepOrder
                   ? "accepted"
                   : step.order === activeStepOrder
@@ -120,14 +124,14 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
             const Icon =
               statusIcons[status as keyof typeof statusIcons] || AlertCircle;
             const nextStatus =
-              flow.status === "accepted" || flow.status === "rejected"
-                ? flow.status
+              safeFlow.status === "accepted" || safeFlow.status === "rejected"
+                ? safeFlow.status
                 : step.order < activeStepOrder
                 ? "accepted"
                 : "pending";
 
             return (
-              <React.Fragment key={`${flow.id}-${index}-step`}>
+              <React.Fragment key={`${safeFlow.id ?? "flow"}-${index}-step`}>
                 <Popover>
                   <PopoverTrigger asChild>
                     <button
@@ -173,15 +177,18 @@ export const FlowCard: React.FC<FlowCardProps> = async ({ flow }) => {
                 "前面的区域以后再来探索吧"}
             </p>
           </div>
-          {(flow.status === "pending" || flow.status === "ongoing") && (
-            <CancelRegistration userFlowId={flow.id} />
+          {typeof safeFlow.id === "number" &&
+            (safeFlow.status === "pending" || safeFlow.status === "ongoing") && (
+            <CancelRegistration userFlowId={safeFlow.id} />
           )}
         </div>
-        {flow.flowType && flow.flowType !== "recruitment" && (
+        {typeof safeFlow.id === "number" &&
+          safeFlow.flowType &&
+          safeFlow.flowType !== "recruitment" && (
           <div className="mt-4">
             <PortfolioLinkEditor
-              userFlowId={flow.id}
-              initialValue={flow.portfolioLink}
+              userFlowId={safeFlow.id}
+              initialValue={safeFlow.portfolioLink}
             />
           </div>
         )}

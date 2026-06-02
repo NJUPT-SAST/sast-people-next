@@ -22,9 +22,11 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
   setSelectedProbs,
   handleSave,
 }) => {
-  const totalScore = selectedProbs.reduce((sum, problem) => sum + problem.maxPoint, 0);
+  const safeProbList = Array.isArray(probList) ? probList : [];
+  const safeSelectedProbs = Array.isArray(selectedProbs) ? selectedProbs : [];
+  const totalScore = safeSelectedProbs.reduce((sum, problem) => sum + problem.maxPoint, 0);
   const allSelected =
-    probList.length > 0 && selectedProbs.length === probList.length;
+    safeProbList.length > 0 && safeSelectedProbs.length === safeProbList.length;
 
   const handleToggleAll = () => {
     if (allSelected) {
@@ -33,7 +35,7 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
     }
 
     setSelectedProbs(
-      probList.map((problem) => ({
+      safeProbList.map((problem) => ({
         id: problem.id,
         name: problem.title,
         maxPoint: problem.score,
@@ -41,7 +43,7 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
     );
   };
 
-  if (!probList.length) {
+  if (!safeProbList.length) {
     return (
       <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
         当前流程下没有可用于阅卷的题目。
@@ -53,7 +55,7 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
     <div className="mt-5 flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">已选 {selectedProbs.length} 题</Badge>
+          <Badge variant="secondary">已选 {safeSelectedProbs.length} 题</Badge>
           <Badge variant="outline">总分 {totalScore} 分</Badge>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -70,15 +72,15 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
             variant="outline"
             size="sm"
             onClick={() => setSelectedProbs([])}
-            disabled={selectedProbs.length === 0}
+            disabled={safeSelectedProbs.length === 0}
           >
             清空
           </Button>
         </div>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        {probList.map((problem) => {
-          const checked = selectedProbs.some((item) => item.id === problem.id);
+        {safeProbList.map((problem) => {
+          const checked = safeSelectedProbs.some((item) => item.id === problem.id);
 
           return (
             <label

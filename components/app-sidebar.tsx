@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type MouseEvent } from 'react';
 import Image from 'next/image';
 import {
   Sidebar,
@@ -29,6 +29,8 @@ function SidebarNav({ role }: { role: number }) {
   const pathname = usePathname();
   const { setOpenMobile, isMobile } = useSidebar();
   const prevPathname = useRef(pathname);
+  const pendingHref = useRef<string | null>(null);
+  const pendingTimer = useRef<number | null>(null);
 
   const authRoutes = useMemo(() => {
     if (role === 0) return [menuItems[0], menuItems[1]];
@@ -40,11 +42,42 @@ function SidebarNav({ role }: { role: number }) {
   useEffect(() => {
     if (prevPathname.current !== pathname) {
       prevPathname.current = pathname;
+      pendingHref.current = null;
       if (isMobile) {
         setOpenMobile(false);
       }
     }
   }, [pathname, isMobile, setOpenMobile]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingTimer.current) {
+        window.clearTimeout(pendingTimer.current);
+      }
+    };
+  }, []);
+
+  const handleNavClick = (
+    event: MouseEvent<HTMLAnchorElement>,
+    href: string,
+    active: boolean,
+  ) => {
+    if (active || pendingHref.current === href) {
+      event.preventDefault();
+      if (isMobile) {
+        setOpenMobile(false);
+      }
+      return;
+    }
+
+    pendingHref.current = href;
+    if (pendingTimer.current) {
+      window.clearTimeout(pendingTimer.current);
+    }
+    pendingTimer.current = window.setTimeout(() => {
+      pendingHref.current = null;
+    }, 800);
+  };
 
   return (
     <SidebarMenu>
@@ -54,14 +87,19 @@ function SidebarNav({ role }: { role: number }) {
         const href = item.externalHref ?? `/dashboard${item.path}`;
         return (
           <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild isActive={active} tooltip={title}>
+            <SidebarMenuButton asChild isActive={active}>
               {item.externalHref ? (
-                <a href={href} target="_blank" rel="noreferrer">
+                <a href={href} target="_blank" rel="noreferrer" title={title}>
                   <item.icon />
                   <span>{title}</span>
                 </a>
               ) : (
-                <Link href={href}>
+                <Link
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  title={title}
+                  onClick={(event) => handleNavClick(event, href, active)}
+                >
                   <item.icon />
                   <span>{title}</span>
                 </Link>

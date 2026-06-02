@@ -59,7 +59,7 @@ export const ApprovalsContent = ({
   initialLoadError?: boolean;
 }) => {
   const [evaluations, setEvaluations] = useState<EvaluationRow[]>(
-    initialEvaluations ?? [],
+    Array.isArray(initialEvaluations) ? initialEvaluations : [],
   );
   const [loading, setLoading] = useState(!initialEvaluations);
   const [loadError, setLoadError] = useState(initialLoadError);
@@ -71,7 +71,7 @@ export const ApprovalsContent = ({
     setLoadError(false);
     try {
       const data = await getAllEvaluations();
-      setEvaluations(data);
+      setEvaluations(Array.isArray(data) ? data : []);
     } catch {
       setLoadError(true);
       toast.error("加载审批列表失败");

@@ -52,10 +52,28 @@ describe("Recruitment DataTable", () => {
     mockBatchEndByUid.mockClear();
     mockBatchSetOutcomeByUid.mockClear();
     mockToastPromise.mockClear();
+    jest.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it("shows the empty state", () => {
     render(<DataTable columns={columns} data={[]} flowTypeId={7} role={3} />);
+
+    expect(screen.getAllByText("暂时没有内容。")[0]).toBeInTheDocument();
+  });
+
+  it("does not crash when table inputs are temporarily undefined", () => {
+    render(
+      <DataTable
+        columns={undefined as never}
+        data={undefined as never}
+        flowTypeId={7}
+        role={3}
+      />,
+    );
 
     expect(screen.getAllByText("暂时没有内容。")[0]).toBeInTheDocument();
   });
@@ -106,6 +124,30 @@ describe("Recruitment DataTable", () => {
     await waitFor(() => {
       expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "failed", [2]);
     });
+  });
+
+  it("does not update outcomes when the confirmation is cancelled", async () => {
+    jest.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          { uid: 1, stepId: 3, name: "张三", totalScore: "90", status: "ongoing" },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getAllByLabelText("select-1")[0]);
+    await user.click(screen.getByRole("button", { name: "设为通过" }));
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      "确定将 1 人设为通过吗？结果邮件仍需在邮件管理中发送。",
+    );
+    expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalled();
   });
 
   it("does not expose email sending controls in score management", () => {

@@ -9,7 +9,8 @@ const EVALUATION_FLOW_TYPES = ["woc", "soc", "recruitment_exemption"];
 
 const Recruitment = async () => {
   const session = await verifySession();
-  const flowTypes = await getFlowList();
+  const flowTypesResult = await getFlowList();
+  const flowTypes = Array.isArray(flowTypesResult) ? flowTypesResult : [];
   const defaultFlow = flowTypes[0];
   const defaultFlowId = defaultFlow?.id?.toString();
   const isDefaultEvaluationFlow = defaultFlow

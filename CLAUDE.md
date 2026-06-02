@@ -8,7 +8,6 @@ Web application built with Next.js 16, React 19, TypeScript, Tailwind CSS v4, sh
 
 ```bash
 pnpm dev
-pnpm dev:mock
 pnpm dev:full
 pnpm build
 pnpm start
@@ -24,7 +23,6 @@ pnpm exec tsc --noEmit
 - `app/`: Next.js App Router
 - `components/`: shared and feature UI
 - `lib/`: utilities and shared services
-- `mock/`: mock implementations used by `NEXT_PUBLIC_MOCK=true`
 
 ## Notes
 

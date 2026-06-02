@@ -7,12 +7,15 @@ import { z } from 'zod/v4';
 import { addFlowSchema } from '@/components/flow/add';
 import { evaluationFlowSteps, isWrittenRecruitmentFlow, writtenRecruitmentSteps } from './defaultSteps';
 import { logServerError } from '@/lib/server-error-log';
+import { writeOperationAudit } from '@/lib/operation-audit';
 
 export async function addFlow(values: z.infer<typeof addFlowSchema>) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
     session = await verifyRole(3);
+
+    let createdFlowId: number | null = null;
 
     await db.transaction(async (tx) => {
       const [newFlow] = await tx
@@ -26,6 +29,7 @@ export async function addFlow(values: z.infer<typeof addFlowSchema>) {
           endedAt: values.endedAt,
         })
         .returning({ id: flow.id, type: flow.type });
+      createdFlowId = newFlow.id;
 
       if (newFlow) {
         await tx
@@ -37,6 +41,19 @@ export async function addFlow(values: z.infer<typeof addFlowSchema>) {
           );
       }
     });
+
+    if (createdFlowId !== null) {
+      await writeOperationAudit({
+        actorId: session.uid,
+        action: 'flow.create',
+        resourceType: 'flow',
+        resourceId: createdFlowId,
+        metadata: {
+          flowType: values.type ?? 'recruitment',
+          title: values.title,
+        },
+      });
+    }
 
     revalidatePath('/dashboard/flow');
   } catch (error) {

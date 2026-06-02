@@ -15,7 +15,7 @@ SAST People Next is a member management and recruitment scoring platform for **N
 - Role synchronization from final accepted flows
 - User search, pagination, profile viewing, role editing, and account banning
 - Feishu OAuth login and session-based authentication
-- Mock mode for local development without PostgreSQL
+- Local PostgreSQL development database
 
 ## Tech Stack
 
@@ -114,14 +114,15 @@ For written recruitment, `passed`/`failed` and `accepted`/`rejected` should not 
 
 - Node.js 20+
 - pnpm 8+
-- PostgreSQL 14+ for full database mode
-
-PostgreSQL is not required when running in mock mode.
+- PostgreSQL 14+
 
 ## Quick Start
 
 ```bash
 pnpm install
+pnpm db:migrate
+pnpm db:seed:local
+pnpm db:seed:demo
 pnpm dev
 ```
 
@@ -131,13 +132,51 @@ The default development server runs at:
 http://localhost:3000
 ```
 
-## Mock Mode
+## Local Database
 
-```bash
-pnpm dev:mock
+Local development uses PostgreSQL directly so migrations, queries, and state transitions are tested against the same database engine as production.
+
+For the local PostgreSQL installed on this machine, use:
+
+```env
+DATABASE_URL=postgres://postgres:123456@localhost:5432/sastpeople_local
+LINK_ALLOW_LEGACY_FALLBACK=false
+PEOPLE_ALLOW_LEGACY_AUTH=false
 ```
 
-Mock mode sets `NEXT_PUBLIC_MOCK=true` and replaces the database, session, and event modules with in-memory implementations. It uses `pg-mem` and seeds a default administrator session with role `3`.
+Then apply migrations, seed the local admin account, and start Next.js:
+
+```bash
+pnpm db:migrate
+pnpm db:seed:local
+pnpm dev
+```
+
+The seeded local administrator is:
+
+```text
+student_id: 001
+```
+
+To test real workflows instead of empty states, seed the demo dataset:
+
+```bash
+pnpm db:seed:demo
+```
+
+The demo dataset adds sample users, written recruitment, interview recruitment, scores, evaluation records, result-email batches, and audit rows. It is idempotent and can be run repeatedly against the local development database.
+
+If you prefer Docker for PostgreSQL, start the compose service and use its port:
+
+```bash
+pnpm db:dev:up
+```
+
+```env
+DATABASE_URL=postgres://sastpeople:sast_dev_password@localhost:55432/sastpeople_local
+```
+
+Link belongs to the Link service side. Configure `LINK_*` variables for the environment you are testing against; `LINK_USE_MOCK=true` is only a temporary local stub when that external service is unavailable.
 
 ## Full Development Mode
 
@@ -159,14 +198,17 @@ Copy `.env.example` to `.env.local` in the project root and fill in local values
 cp .env.example .env.local
 ```
 
-Use `NEXT_PUBLIC_MOCK=true` only for local mock mode. Keep real secrets in `.env.local` or GitHub Actions secrets, never in tracked files.
+Keep real secrets in `.env.local` or GitHub Actions secrets, never in tracked files.
 
 ## Commands
 
 ```bash
 pnpm dev                 # Start the development server
-pnpm dev:mock            # Start with the in-memory mock database
+pnpm dev:db              # Alias for local PostgreSQL development
 pnpm dev:full            # Start Next.js, Inngest, and email preview
+pnpm db:dev:up           # Start local PostgreSQL for development
+pnpm db:dev:down         # Stop local PostgreSQL
+pnpm db:dev:logs         # Tail local PostgreSQL logs
 pnpm build               # Build for production
 pnpm start               # Start the production server
 pnpm lint                # Run ESLint
@@ -176,6 +218,8 @@ pnpm test:coverage       # Run tests with coverage
 pnpm exec tsc --noEmit   # Run TypeScript type checking
 pnpm db:generate         # Generate Drizzle migrations
 pnpm db:migrate          # Apply Drizzle migrations
+pnpm db:seed:local       # Seed the local administrator account
+pnpm db:seed:demo        # Seed local demo workflow data
 pnpm db:push             # Push schema changes directly
 pnpm db:studio           # Open Drizzle Studio
 ```
@@ -190,7 +234,6 @@ action/                 Server Actions for mutations and workflow operations
 db/                     Drizzle schema and database client
 hooks/                  Server and SWR data hooks
 lib/                    DAL, session helpers, and shared utilities
-mock/                   In-memory mock implementations for local development
 migrations/             Drizzle SQL migrations
 types/                  Shared TypeScript types
 public/                 Static assets
@@ -239,7 +282,7 @@ pnpm test -- --runInBand components/recruitment/table.test.tsx
 
 - Do not commit real `.env*` files. `.env.example` is the tracked template.
 - Only expose safe client-side values through `NEXT_PUBLIC_*`.
-- Use mock mode for local UI and workflow testing when PostgreSQL is unavailable.
+- Use a local PostgreSQL database for local UI and workflow testing.
 - Run migrations before using features that depend on new enum values such as `passed` and `failed`.
 
 ## License

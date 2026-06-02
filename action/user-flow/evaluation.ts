@@ -4,6 +4,7 @@ import { db } from "@/db/drizzle";
 import { flow, interviewEvaluation, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
+import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -54,6 +55,13 @@ export const createEvaluation = async (
       });
 
       revalidatePath("/dashboard/recruitment");
+      await writeOperationAudit({
+        actorId: session.uid,
+        action: "evaluation.update_pending",
+        resourceType: "interview_evaluation",
+        resourceId: existing[0].id,
+        metadata: { userFlowId, hasMeetingLink: Boolean(link) },
+      });
       return { success: true, data: { id: existing[0].id } };
     }
 
@@ -76,6 +84,13 @@ export const createEvaluation = async (
     });
 
     revalidatePath("/dashboard/recruitment");
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "evaluation.create",
+      resourceType: "interview_evaluation",
+      resourceId: evaluation.id,
+      metadata: { userFlowId, hasMeetingLink: Boolean(link) },
+    });
     return { success: true, data: evaluation };
   } catch (error) {
     logServerError("evaluation:create", error, {
@@ -113,6 +128,12 @@ export const rejectCandidate = async (userFlowId: number) => {
     });
 
     revalidatePath("/dashboard/recruitment");
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "evaluation.reject_candidate",
+      resourceType: "user_flow",
+      resourceId: userFlowId,
+    });
   } catch (error) {
     logServerError("evaluation:rejectCandidate", error, {
       path: "/dashboard/recruitment",
@@ -157,6 +178,13 @@ export const reopenAndEvaluate = async (
     });
 
     revalidatePath("/dashboard/recruitment");
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "evaluation.reopen_and_create",
+      resourceType: "user_flow",
+      resourceId: userFlowId,
+      metadata: { hasMeetingLink: Boolean(link) },
+    });
     return { success: true };
   } catch (error) {
     logServerError("evaluation:reopenAndEvaluate", error, {
@@ -217,6 +245,13 @@ export const approveEvaluation = async (evaluationId: number) => {
 
     revalidatePath("/dashboard/approvals");
     revalidatePath("/dashboard/recruitment");
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "evaluation.approve",
+      resourceType: "interview_evaluation",
+      resourceId: evaluationId,
+      metadata: { affectedUserId },
+    });
   } catch (error) {
     logServerError("evaluation:approve", error, {
       path: "/dashboard/approvals",
@@ -282,6 +317,13 @@ export const rejectEvaluation = async (evaluationId: number) => {
 
     revalidatePath("/dashboard/approvals");
     revalidatePath("/dashboard/recruitment");
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "evaluation.reject",
+      resourceType: "interview_evaluation",
+      resourceId: evaluationId,
+      metadata: { affectedUserId },
+    });
   } catch (error) {
     logServerError("evaluation:reject", error, {
       path: "/dashboard/approvals",
@@ -330,6 +372,12 @@ export const reopenEvaluation = async (evaluationId: number) => {
 
     revalidatePath("/dashboard/approvals");
     revalidatePath("/dashboard/recruitment");
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "evaluation.reopen",
+      resourceType: "interview_evaluation",
+      resourceId: evaluationId,
+    });
   } catch (error) {
     logServerError("evaluation:reopen", error, {
       path: "/dashboard/approvals",

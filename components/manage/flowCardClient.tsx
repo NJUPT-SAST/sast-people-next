@@ -56,7 +56,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
   }, [initialFlow]);
 
   const steps = useMemo(
-    () => [...flow.steps].sort((a, b) => a.order - b.order),
+    () => (Array.isArray(flow.steps) ? [...flow.steps] : []).sort((a, b) => a.order - b.order),
     [flow.steps],
   );
 

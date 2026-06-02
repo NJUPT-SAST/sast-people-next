@@ -18,17 +18,23 @@ export const SelectFlow = ({
   defaultFlowTypeId?: string;
   onChange?: (value: string) => void;
 }) => {
+  const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
+  const hasFlowTypes = safeFlowTypes.length > 0;
   return (
     <Select
+      disabled={!hasFlowTypes}
       onValueChange={(value) => onChange?.(value)}
       defaultValue={defaultFlowTypeId}
     >
-      <SelectTrigger className="h-10 w-full truncate md:w-[320px]">
+      <SelectTrigger
+        className="h-10 w-full truncate md:w-[320px]"
+        disabled={!hasFlowTypes}
+      >
         <SelectValue placeholder="请选择需要操作的类别" />
       </SelectTrigger>
-      {flowTypes.length > 0 && (
+      {hasFlowTypes && (
         <SelectContent>
-          {flowTypes.map((flowType) => (
+          {safeFlowTypes.map((flowType) => (
             <SelectItem
               key={`flowType_${flowType.id}`}
               value={flowType.id.toString()}

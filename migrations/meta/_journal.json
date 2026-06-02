@@ -85,6 +85,13 @@
       "when": 1770000000003,
       "tag": "0011_link_user_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1770000000004,
+      "tag": "0012_operation_audit",
+      "breakpoints": true
     }
   ]
 }

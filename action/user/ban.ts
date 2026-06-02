@@ -3,6 +3,7 @@
 import { verifyRole } from "@/lib/dal"
 import { banLinkUser } from "@/lib/link/admin"
 import { getLinkAccessTokenFromSession } from "@/lib/link/session"
+import { writeOperationAudit } from "@/lib/operation-audit"
 import { logServerError } from "@/lib/server-error-log"
 
 export const banUser = async (uid: number)=>{
@@ -12,6 +13,12 @@ export const banUser = async (uid: number)=>{
         session = await verifyRole(3)
         const accessToken = await getLinkAccessTokenFromSession()
         await banLinkUser(accessToken, uid)
+        await writeOperationAudit({
+            actorId: session.uid,
+            action: "user.ban",
+            resourceType: "link_user",
+            resourceId: uid,
+        })
         return true
     } catch (error) {
         logServerError("user:ban", error, {

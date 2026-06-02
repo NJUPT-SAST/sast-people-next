@@ -34,12 +34,14 @@ jest.mock("../ui/select", () => {
     Select: ({
       children,
       onValueChange,
+      disabled,
     }: {
       children: React.ReactNode;
       onValueChange?: (value: string) => void;
+      disabled?: boolean;
     }) => (
       <SelectContext.Provider value={{ onValueChange }}>
-        <div>{children}</div>
+        <div data-disabled={disabled ? "true" : "false"}>{children}</div>
       </SelectContext.Provider>
     ),
     SelectTrigger: ({ children }: { children: React.ReactNode }) => (
@@ -123,6 +125,12 @@ describe("SubmitRegister", () => {
       expect(mockRegister).toHaveBeenCalledWith(2, 7, undefined);
       expect(mockToastPromise).toHaveBeenCalled();
     });
+  });
+
+  it("disables registration when there are no flows", () => {
+    render(<SubmitRegister uid={7} flowList={[]} />);
+
+    expect(screen.getByRole("button", { name: "提交报名" })).toBeDisabled();
   });
 
   it("shows optional portfolio link for non-written flows", async () => {

@@ -1,0 +1,21 @@
+services:
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: sast-people-postgres-dev
+    ports:
+      - "55432:5432"
+    environment:
+      POSTGRES_USER: sastpeople
+      POSTGRES_PASSWORD: sast_dev_password
+      POSTGRES_DB: sastpeople_local
+    volumes:
+      - sast_people_postgres_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sastpeople -d sastpeople_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  sast_people_postgres_dev:

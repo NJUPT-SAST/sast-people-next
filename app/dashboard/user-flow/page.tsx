@@ -8,7 +8,8 @@ import { FlowList } from "./flowList";
 
 const Flows = async () => {
   const { uid } = await verifySession();
-  const allFlowList = await getFlowList();
+  const allFlowListResult = await getFlowList();
+  const allFlowList = Array.isArray(allFlowListResult) ? allFlowListResult : [];
   return (
     <>
       <div className="flex items-center justify-between">

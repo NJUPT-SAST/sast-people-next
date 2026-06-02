@@ -4,6 +4,7 @@ import { verifyRole } from "@/lib/dal";
 import { updateLinkUserRole } from "@/lib/link/admin";
 import { peopleRoleToLinkRole } from "@/lib/link/role";
 import { getLinkAccessTokenFromSession } from "@/lib/link/session";
+import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { revalidatePath } from "next/cache";
 
@@ -19,6 +20,13 @@ export const updateUserRole = async (uid: number, role: number) => {
 
     const accessToken = await getLinkAccessTokenFromSession();
     await updateLinkUserRole(accessToken, uid, peopleRoleToLinkRole(role));
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "user.update_role",
+      resourceType: "link_user",
+      resourceId: uid,
+      metadata: { targetRole: role },
+    });
 
     revalidatePath("/dashboard/manage");
   } catch (error) {

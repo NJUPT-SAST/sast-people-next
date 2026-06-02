@@ -28,11 +28,13 @@ const SubmitRegister = ({
   flowList,
   uid,
 }: { flowList: displayFlow[]; uid: number }) => {
+  const safeFlowList = Array.isArray(flowList) ? flowList : [];
+  const hasFlows = safeFlowList.length > 0;
   const [open, setOpen] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<number | null>(null);
   const [portfolioLink, setPortfolioLink] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const currentFlow = flowList.find((flow) => flow.id === selectedFlow);
+  const currentFlow = safeFlowList.find((flow) => flow.id === selectedFlow);
   const needsPortfolioLink = currentFlow?.type !== "recruitment" && !!currentFlow;
 
   const handleRegister = async () => {
@@ -77,7 +79,9 @@ const SubmitRegister = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">提交报名</Button>
+        <Button size="sm" disabled={!hasFlows}>
+          提交报名
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -85,6 +89,7 @@ const SubmitRegister = ({
           <DialogDescription>请选择您要报名的流程</DialogDescription>
         </DialogHeader>
         <Select
+          disabled={!hasFlows}
           onValueChange={(value) => {
             setSelectedFlow(Number(value));
             setPortfolioLink("");
@@ -93,9 +98,9 @@ const SubmitRegister = ({
           <SelectTrigger className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left">
             <SelectValue placeholder="选择流程" />
           </SelectTrigger>
-          {flowList.length > 0 && (
+          {hasFlows && (
             <SelectContent>
-              {flowList.map((flow) => {
+              {safeFlowList.map((flow) => {
                 const now = new Date();
                 const isBeforeStart = now < flow.startedAt;
                 const isAfterEnd = now > flow.endedAt;

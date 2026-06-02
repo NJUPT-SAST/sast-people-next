@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { flow } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { logServerError } from "@/lib/server-error-log";
+import { writeOperationAudit } from "@/lib/operation-audit";
 
 export async function deleteFlow(id: number) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
@@ -17,6 +18,13 @@ export async function deleteFlow(id: number) {
       .update(flow)
       .set({ isDeleted: true, updatedAt: new Date() })
       .where(eq(flow.id, id));
+
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "flow.delete",
+      resourceType: "flow",
+      resourceId: id,
+    });
 
     revalidatePath("/dashboard/flow");
     revalidatePath("/dashboard/user-flow");
