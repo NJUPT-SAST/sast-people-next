@@ -148,14 +148,14 @@ export function AuditLogTable({
       </form>
 
       <div className="overflow-hidden rounded-md border bg-card">
-        <div className="hidden overflow-x-auto md:block">
-          <Table className="min-w-[1120px]">
+        <div className="hidden md:block">
+          <Table className="w-full table-fixed">
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead className="w-[150px] px-4">时间</TableHead>
-                <TableHead className="w-[170px] px-4">操作者</TableHead>
-                <TableHead className="w-[230px] px-4">操作</TableHead>
-                <TableHead className="w-[150px] px-4">资源</TableHead>
+                <TableHead className="w-[13%] px-4">时间</TableHead>
+                <TableHead className="w-[15%] px-4">操作者</TableHead>
+                <TableHead className="w-[19%] px-4">操作</TableHead>
+                <TableHead className="w-[12%] px-4">资源</TableHead>
                 <TableHead className="px-4">附加数据</TableHead>
               </TableRow>
             </TableHeader>
@@ -228,8 +228,8 @@ export function AuditLogTable({
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
-          显示 {start} - {end} 共 {totalCount} 条记录
+        <p className="whitespace-nowrap text-sm text-muted-foreground">
+          显示 {start} - {end}，共 {totalCount} 条记录
         </p>
         <PaginationComponent
           totalItems={totalCount}
