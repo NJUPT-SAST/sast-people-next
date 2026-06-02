@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { userType } from '@/types/user';
 import originalDayjs from '@/lib/dayjs';
 import { updateUserRole } from '@/action/user/updateRole';
+import { useUserInfoById as getUserInfoById } from '@/hooks/useUserInfoById';
 
 const roleName: Record<number, string> = {
   0: '新同学',
@@ -39,6 +40,9 @@ export const ViewUserInfoSheet = ({
 }) => {
   const [role, setRole] = useState<number>(userInfo.role ?? 0);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [detailUserInfo, setDetailUserInfo] = useState<userType | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const displayUserInfo = detailUserInfo ?? userInfo;
 
   const handleRoleChange = async (newRole: string) => {
     const roleNum = Number(newRole);
@@ -55,8 +59,25 @@ export const ViewUserInfoSheet = ({
     }
   };
 
+  const handleOpenChange = async (open: boolean) => {
+    if (!open || detailUserInfo || isLoadingDetail) {
+      return;
+    }
+
+    setIsLoadingDetail(true);
+    try {
+      const detail = await getUserInfoById(userInfo.id);
+      setDetailUserInfo(detail);
+      setRole(detail.role ?? 0);
+    } catch {
+      toast.error('加载用户详细信息失败');
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
   return (
-    <Sheet>
+    <Sheet onOpenChange={(open) => void handleOpenChange(open)}>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon">
           <User className="h-4 w-4" />
@@ -65,34 +86,34 @@ export const ViewUserInfoSheet = ({
       <SheetContent className="w-full sm:max-w-md overflow-y-auto p-4 sm:p-6 flex flex-col">
         <SheetHeader className="px-1 pt-2 pb-4">
           <SheetTitle>
-            <span className="text-primary">{userInfo.name}</span> 的详细信息
+            <span className="text-primary">{displayUserInfo.name}</span> 的详细信息
           </SheetTitle>
         </SheetHeader>
         <div className="flex flex-col gap-3 px-1 pb-8">
           <div className="rounded-lg border bg-muted/20 p-3">
             <p className="text-xs text-muted-foreground">学号</p>
-            <p className="font-medium">{userInfo.studentId || '-'}</p>
+            <p className="font-medium">{displayUserInfo.studentId || '-'}</p>
           </div>
           <div className="rounded-lg border bg-muted/20 p-3">
             <p className="text-xs text-muted-foreground">邮箱</p>
-            <p className="font-medium">{userInfo.email || '-'}</p>
+            <p className="font-medium">{displayUserInfo.email || '-'}</p>
           </div>
           {currentUserRole >= 3 && (
             <div className="rounded-lg border bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground">手机号码</p>
-              <p className="font-medium">{userInfo.phone || '-'}</p>
+              <p className="font-medium">{displayUserInfo.phone || '-'}</p>
             </div>
           )}
           {currentUserRole >= 3 && (
             <div className="rounded-lg border bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground">QQ</p>
-              <p className="font-medium">{userInfo.qq || '-'}</p>
+              <p className="font-medium">{displayUserInfo.qq || '-'}</p>
             </div>
           )}
           <div className="rounded-lg border bg-muted/20 p-3">
             <p className="text-xs text-muted-foreground">学院 / 专业</p>
             <p className="font-medium">
-              {userInfo.college || '-'} · {userInfo.major || '-'}
+              {displayUserInfo.college || '-'} · {displayUserInfo.major || '-'}
             </p>
           </div>
           <div className="rounded-lg border bg-muted/20 p-3">
@@ -123,33 +144,37 @@ export const ViewUserInfoSheet = ({
           <div className="rounded-lg border bg-muted/20 p-3">
             <p className="text-xs text-muted-foreground">注册时间</p>
             <p className="font-medium">
-              {userInfo.createdAt
-                ? originalDayjs(userInfo.createdAt).format('YYYY-MM-DD HH:mm')
+              {displayUserInfo.createdAt
+                ? originalDayjs(displayUserInfo.createdAt).format('YYYY-MM-DD HH:mm')
                 : '-'}
             </p>
           </div>
-          {(userInfo.github || userInfo.blog || userInfo.personalStatement) && (
-            <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
-              {userInfo.github && (
-                <div>
-                  <p className="text-xs text-muted-foreground">GitHub</p>
-                  <p className="font-medium text-sm truncate">{userInfo.github}</p>
-                </div>
-              )}
-              {userInfo.blog && (
-                <div>
-                  <p className="text-xs text-muted-foreground">博客</p>
-                  <p className="font-medium text-sm truncate">{userInfo.blog}</p>
-                </div>
-              )}
-              {userInfo.personalStatement && (
-                <div>
-                  <p className="text-xs text-muted-foreground">个人陈述</p>
-                  <p className="font-medium text-sm">{userInfo.personalStatement}</p>
-                </div>
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">能力信息</p>
+              {isLoadingDetail && (
+                <p className="text-xs text-muted-foreground">加载中...</p>
               )}
             </div>
-          )}
+            <div>
+              <p className="text-xs text-muted-foreground">GitHub</p>
+              <p className="font-medium text-sm break-all">
+                {displayUserInfo.github || '-'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">博客</p>
+              <p className="font-medium text-sm break-all">
+                {displayUserInfo.blog || '-'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">个人陈述</p>
+              <p className="font-medium text-sm whitespace-pre-wrap">
+                {displayUserInfo.personalStatement || '-'}
+              </p>
+            </div>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
