@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   FileWarning,
   Mail,
+  ScrollText,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -76,6 +77,11 @@ export const menuItems: MenuItem[] = [
     icon: FileWarning,
     path: '/error-log',
     externalHref: SENTRY_ISSUES_URL,
+  },
+  {
+    title: '操作审计',
+    icon: ScrollText,
+    path: '/audit',
   },
 ];
 
