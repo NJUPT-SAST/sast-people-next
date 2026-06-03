@@ -17,6 +17,11 @@ export const toPeopleUserFromLinkProfile = (
   github: item.profile?.github_url ?? null,
   blog: item.profile?.blog_url ?? null,
   personalStatement: item.profile?.intro ?? null,
+  nickname: item.profile?.nickname ?? null,
+  avatar: item.profile?.avatar ?? null,
+  emailType: item.email_type ?? null,
+  linkState: item.state,
+  identities: item.identities ?? [],
   qq: canViewSensitiveInfo ? item.qq_number ?? null : null,
   linkOpenid: null,
   feishuOpenid: null,
@@ -41,6 +46,11 @@ export const toPeopleUserFromLinkAdminItem = (
   github: null,
   blog: null,
   personalStatement: null,
+  nickname: null,
+  avatar: null,
+  emailType: null,
+  linkState: item.state,
+  identities: [],
   qq: canViewSensitiveInfo ? item.qq_number ?? null : null,
   linkOpenid: null,
   feishuOpenid: null,
@@ -49,4 +59,3 @@ export const toPeopleUserFromLinkAdminItem = (
   updatedAt: new Date(),
   isDeleted: item.state === "is_deleted",
 });
-

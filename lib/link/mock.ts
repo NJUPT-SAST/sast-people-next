@@ -23,9 +23,24 @@ const mockUsers: LinkUserProfile[] = [
       department: "software",
       intro: "本地管理员账号",
       email: "admin@sast.fun",
+      avatar: "/images/link.svg",
       blog_url: "https://sast.fun",
       github_url: "https://github.com/NJUPT-SAST",
     },
+    identities: [
+      {
+        id: 1001,
+        provider: "lark",
+        provider_id: "mock-admin-lark",
+        created_at: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+      },
+      {
+        id: 1002,
+        provider: "github",
+        provider_id: "NJUPT-SAST",
+        created_at: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+      },
+    ],
     created_at: new Date("2026-01-01T00:00:00.000Z").toISOString(),
   },
   {
@@ -43,9 +58,18 @@ const mockUsers: LinkUserProfile[] = [
       department: "software",
       intro: "负责阅卷和面评的讲师账号",
       email: "lecturer@njupt.edu.cn",
+      avatar: "/images/link.svg",
       blog_url: "https://lecturer.example.com",
       github_url: "https://github.com/demo-lecturer",
     },
+    identities: [
+      {
+        id: 2001,
+        provider: "lark",
+        provider_id: "mock-lecturer-lark",
+        created_at: new Date("2026-01-02T00:00:00.000Z").toISOString(),
+      },
+    ],
     created_at: new Date("2026-01-02T00:00:00.000Z").toISOString(),
   },
   {

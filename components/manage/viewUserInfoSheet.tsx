@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ExternalLink, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { userType } from '@/types/user';
@@ -29,6 +30,24 @@ const roleName: Record<number, string> = {
   1: '部员',
   2: '讲师',
   3: '管理员',
+};
+
+const linkStateLabel: Record<string, string> = {
+  njupter: '在校未加入',
+  'on-sast': '现任成员',
+  'retired-sast': '已离开',
+  is_deleted: '已注销',
+};
+
+const emailTypeLabel: Record<string, string> = {
+  njupt_email: '南邮邮箱',
+  sast_email: 'SAST 邮箱',
+};
+
+const identityProviderLabel: Record<string, string> = {
+  github: 'GitHub',
+  lark: '飞书',
+  other_mail: '其他邮箱',
 };
 
 function InfoSection({
@@ -95,6 +114,27 @@ function LinkValue({ value }: { value: string | null | undefined }) {
   );
 }
 
+function IdentityList({ identities }: { identities: userType['identities'] }) {
+  const safeIdentities = Array.isArray(identities) ? identities : [];
+
+  if (safeIdentities.length === 0) {
+    return <span>-</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {safeIdentities.map((identity) => (
+        <span
+          key={identity.id}
+          className="rounded-md border bg-muted/20 px-2 py-1 text-xs font-medium"
+        >
+          {identityProviderLabel[identity.provider] ?? identity.provider}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export const ViewUserInfoSheet = ({
   userInfo,
   currentUserRole,
@@ -149,23 +189,46 @@ export const ViewUserInfoSheet = ({
       </SheetTrigger>
       <SheetContent className="flex w-full flex-col overflow-y-auto p-0 sm:max-w-xl">
         <SheetHeader className="border-b px-5 py-5 sm:px-6">
-          <SheetTitle className="flex items-center gap-3">
-            <span className="min-w-0 truncate text-xl">{displayUserInfo.name || '未知用户'}</span>
-            <Badge variant="secondary" className="shrink-0">
-              {roleName[role] ?? '未知'}
-            </Badge>
-          </SheetTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {displayUserInfo.studentId || '无学号'} · {displayUserInfo.college || '未知学院'}
-          </p>
+          <div className="flex items-start gap-4">
+            <Avatar className="h-14 w-14">
+              <AvatarImage src={displayUserInfo.avatar ?? undefined} alt={displayUserInfo.name} />
+              <AvatarFallback className="text-base font-medium">
+                {(displayUserInfo.name || '?').charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <SheetTitle className="flex items-center gap-3">
+                <span className="min-w-0 truncate text-xl">{displayUserInfo.name || '未知用户'}</span>
+                <Badge variant="secondary" className="shrink-0">
+                  {roleName[role] ?? '未知'}
+                </Badge>
+              </SheetTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {displayUserInfo.nickname ? `${displayUserInfo.nickname} · ` : ''}
+                {displayUserInfo.studentId || '无学号'} · {displayUserInfo.college || '未知学院'}
+              </p>
+            </div>
+          </div>
         </SheetHeader>
         <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
           <InfoSection title="基础信息">
             <InfoRow label="学号">
               <TextValue value={displayUserInfo.studentId} />
             </InfoRow>
+            <InfoRow label="昵称">
+              <TextValue value={displayUserInfo.nickname} />
+            </InfoRow>
             <InfoRow label="邮箱">
               <TextValue value={displayUserInfo.email} />
+            </InfoRow>
+            <InfoRow label="邮箱类型">
+              <TextValue
+                value={
+                  displayUserInfo.emailType
+                    ? emailTypeLabel[displayUserInfo.emailType] ?? displayUserInfo.emailType
+                    : '-'
+                }
+              />
             </InfoRow>
             <InfoRow label="学院 / 专业">
               <TextValue
@@ -187,6 +250,17 @@ export const ViewUserInfoSheet = ({
                   displayUserInfo.createdAt
                     ? originalDayjs(displayUserInfo.createdAt).format('YYYY-MM-DD HH:mm')
                     : '-'
+                }
+              />
+            </InfoRow>
+            <InfoRow label="账号状态">
+              <TextValue
+                value={
+                  displayUserInfo.linkState
+                    ? linkStateLabel[displayUserInfo.linkState] ?? displayUserInfo.linkState
+                    : displayUserInfo.isDeleted
+                      ? '已注销'
+                      : '-'
                 }
               />
             </InfoRow>
@@ -238,6 +312,12 @@ export const ViewUserInfoSheet = ({
             </InfoRow>
             <InfoRow label="个人陈述">
               <TextValue value={displayUserInfo.personalStatement} multiline />
+            </InfoRow>
+          </InfoSection>
+
+          <InfoSection title="Link 账号">
+            <InfoRow label="绑定账号">
+              <IdentityList identities={displayUserInfo.identities} />
             </InfoRow>
           </InfoSection>
         </div>

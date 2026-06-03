@@ -6,6 +6,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { Button } from "../ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import {
   Card,
   CardContent,
@@ -31,6 +32,18 @@ import {
   SelectTrigger,
   SelectContent,
 } from "../ui/select";
+
+const linkStateLabel: Record<string, string> = {
+  njupter: "在校未加入",
+  "on-sast": "现任成员",
+  "retired-sast": "已离开",
+  is_deleted: "已注销",
+};
+
+const emailTypeLabel: Record<string, string> = {
+  njupt_email: "南邮邮箱",
+  sast_email: "SAST 邮箱",
+};
 
 export const fullUserSchema = createInsertSchema(user, {
   name: z
@@ -80,12 +93,45 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>基本信息</CardTitle>
-        <CardDescription>个人基本信息来自 SAST Link</CardDescription>
+        <div className="flex items-start gap-4">
+          <Avatar className="h-14 w-14">
+            <AvatarImage src={initialInfo.avatar ?? undefined} alt={initialInfo.name} />
+            <AvatarFallback className="text-base font-medium">
+              {(initialInfo.name || "?").charAt(0)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <CardTitle>基本信息</CardTitle>
+            <CardDescription>
+              个人基本信息来自 SAST Link
+              {initialInfo.nickname ? ` · ${initialInfo.nickname}` : ""}
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="flex-1">
         <Form {...basicInfoForm}>
           <div className="flex flex-col gap-4">
+            <div className="grid gap-3 rounded-md border bg-muted/15 p-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-muted-foreground">账号状态</p>
+                <p className="mt-1 text-sm font-medium">
+                  {initialInfo.linkState
+                    ? linkStateLabel[initialInfo.linkState] ?? initialInfo.linkState
+                    : initialInfo.isDeleted
+                      ? "已注销"
+                      : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">邮箱类型</p>
+                <p className="mt-1 text-sm font-medium">
+                  {initialInfo.emailType
+                    ? emailTypeLabel[initialInfo.emailType] ?? initialInfo.emailType
+                    : "-"}
+                </p>
+              </div>
+            </div>
             <FormField
               control={basicInfoForm.control}
               name="name"

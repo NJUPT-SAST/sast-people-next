@@ -7,6 +7,8 @@ export type LinkUserState =
   | "is_deleted";
 
 export type LinkDepartment = "software" | "media";
+export type LinkEmailType = "sast_email" | "njupt_email";
+export type LinkLoginMethod = "github" | "lark" | "other_mail";
 
 export type LinkResponse<T> = {
   code: number;
@@ -24,19 +26,29 @@ export type LinkProfile = {
   github_url?: string | null;
 };
 
+export type LinkIdentity = {
+  id: number;
+  provider: LinkLoginMethod;
+  provider_id?: string | null;
+  identity_data?: Record<string, unknown> | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type LinkUserProfile = {
   id: number;
   name: string;
   login_email?: string | null;
   role: LinkRole;
   state: LinkUserState;
-  email_type?: "sast_email" | "njupt_email";
+  email_type?: LinkEmailType;
   phone_number?: string | null;
   qq_number?: string | null;
   student_id?: string | null;
   college?: string | null;
   major?: string | null;
   profile?: LinkProfile | null;
+  identities?: LinkIdentity[];
   created_at?: string;
   updated_at?: string;
 };
