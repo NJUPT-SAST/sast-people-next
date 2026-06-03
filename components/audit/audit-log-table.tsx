@@ -18,17 +18,43 @@ import type { listOperationAudit } from "@/lib/operation-audit-list";
 type AuditLogResult = Awaited<ReturnType<typeof listOperationAudit>>;
 type AuditLogItem = AuditLogResult["logs"][number];
 
+const actionGroups = [
+  { value: "review", label: "批卷" },
+  { value: "email", label: "邮件" },
+  { value: "evaluation", label: "面评" },
+  { value: "flow", label: "流程" },
+  { value: "user", label: "用户" },
+];
+
 const actionLabels: Record<string, string> = {
   "review.score.upsert": "保存评分",
   "review.score.batch_upsert": "批量保存评分",
   "email.batch.create": "创建邮件批次",
-  "email.batch.send": "发送邮件批次",
+  "email.batch_send": "发送邮件批次",
+  "email.recover_stale": "恢复中断邮件",
   "flow.create": "创建流程",
   "flow.update": "更新流程",
   "flow.delete": "删除流程",
   "flow.duplicate": "复制流程",
-  "user.role.update": "修改角色",
+  "flow.update_problems": "更新题目",
+  "flow.update_steps": "更新流程步骤",
+  "user.update_role": "修改角色",
   "user.ban": "禁用用户",
+  "user_flow.forward": "推进流程",
+  "user_flow.finish": "完成流程",
+  "user_flow.reject": "拒绝流程",
+  "user_flow.reopen": "重开流程",
+  "user_flow.backward": "回退流程",
+  "user_flow.batch_update_step": "批量更新步骤",
+  "user_flow.batch_end": "批量结束流程",
+  "user_flow.batch_set_outcome": "批量设置结果",
+  "evaluation.create": "创建面评",
+  "evaluation.update_pending": "更新待审面评",
+  "evaluation.reject_candidate": "拒绝候选人",
+  "evaluation.reopen_and_create": "重开并创建面评",
+  "evaluation.approve": "通过面评",
+  "evaluation.reject": "驳回面评",
+  "evaluation.reopen": "重开面评",
 };
 
 function getActionLabel(action: string) {
@@ -97,8 +123,14 @@ export function AuditLogTable({
   const start = totalCount === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
   const end = Math.min(filters.page * filters.pageSize, totalCount);
   const hasFilters = Boolean(
-    filters.actor || filters.action || filters.resourceType || filters.from || filters.to,
+    filters.actor ||
+      filters.action ||
+      filters.actionGroup ||
+      filters.resourceType ||
+      filters.from ||
+      filters.to,
   );
+  const groupHref = (value: string) => `/dashboard/audit?actionGroup=${value}`;
 
   return (
     <div className="space-y-4">
@@ -116,6 +148,7 @@ export function AuditLogTable({
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(170px,1fr)_minmax(220px,1.1fr)_minmax(170px,1fr)_150px_150px_auto]">
+          <input type="hidden" name="actionGroup" value={filters.actionGroup} />
           <Input
             name="actor"
             defaultValue={filters.actor}
@@ -143,6 +176,22 @@ export function AuditLogTable({
                 <RotateCcw />
               </Link>
             </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center">
+          <p className="shrink-0 text-sm text-muted-foreground">快捷筛选</p>
+          <div className="flex flex-wrap gap-2">
+            {actionGroups.map((group) => (
+              <Button
+                key={group.value}
+                asChild
+                variant={filters.actionGroup === group.value ? "default" : "outline"}
+                size="sm"
+              >
+                <Link href={groupHref(group.value)}>{group.label}</Link>
+              </Button>
+            ))}
           </div>
         </div>
       </form>

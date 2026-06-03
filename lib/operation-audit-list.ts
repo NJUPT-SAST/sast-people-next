@@ -10,6 +10,7 @@ import {
   eq,
   gte,
   ilike,
+  inArray,
   lte,
   or,
   type SQL,
@@ -23,6 +24,7 @@ export type OperationAuditListParams = {
   pageSize?: string | number;
   actor?: string;
   action?: string;
+  actionGroup?: string;
   resourceType?: string;
   from?: string;
   to?: string;
@@ -33,10 +35,52 @@ export type NormalizedOperationAuditListParams = {
   pageSize: number;
   actor: string;
   action: string;
+  actionGroup: string;
   resourceType: string;
   from: string;
   to: string;
 };
+
+export const operationAuditActionGroups = {
+  review: [
+    "review.score.upsert",
+    "review.score.batch_upsert",
+  ],
+  email: [
+    "email.batch.create",
+    "email.batch_send",
+    "email.recover_stale",
+  ],
+  evaluation: [
+    "evaluation.create",
+    "evaluation.update_pending",
+    "evaluation.reject_candidate",
+    "evaluation.reopen_and_create",
+    "evaluation.approve",
+    "evaluation.reject",
+    "evaluation.reopen",
+  ],
+  flow: [
+    "flow.create",
+    "flow.update",
+    "flow.delete",
+    "flow.duplicate",
+    "flow.update_problems",
+    "flow.update_steps",
+  ],
+  user: [
+    "user.update_role",
+    "user.ban",
+    "user_flow.forward",
+    "user_flow.finish",
+    "user_flow.reject",
+    "user_flow.reopen",
+    "user_flow.backward",
+    "user_flow.batch_update_step",
+    "user_flow.batch_end",
+    "user_flow.batch_set_outcome",
+  ],
+} as const;
 
 function parsePositiveInt(value: string | number | undefined, fallback: number) {
   const parsed = Number(value);
@@ -54,6 +98,7 @@ export function normalizeOperationAuditListParams(
     ),
     actor: params.actor?.trim() ?? "",
     action: params.action?.trim() ?? "",
+    actionGroup: params.actionGroup?.trim() ?? "",
     resourceType: params.resourceType?.trim() ?? "",
     from: params.from?.trim() ?? "",
     to: params.to?.trim() ?? "",
@@ -77,6 +122,7 @@ function getDateEnd(value: string) {
 function buildWhereConditions({
   actor,
   action,
+  actionGroup,
   resourceType,
   from,
   to,
@@ -85,6 +131,15 @@ function buildWhereConditions({
 
   if (action) {
     conditions.push(eq(operationAudit.action, action));
+  } else if (actionGroup in operationAuditActionGroups) {
+    conditions.push(
+      inArray(
+        operationAudit.action,
+        operationAuditActionGroups[
+          actionGroup as keyof typeof operationAuditActionGroups
+        ],
+      ),
+    );
   }
 
   if (resourceType) {

@@ -30,7 +30,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Eye, RotateCcw, Save, Search, Send, Settings2, Users } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Eye,
+  RotateCcw,
+  Save,
+  Search,
+  Send,
+  Settings2,
+  Users,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -497,16 +507,49 @@ function RecipientsDialog({
   );
 }
 
+function SendCheckItem({
+  status,
+  label,
+  detail,
+}: {
+  status: "ok" | "warning" | "error";
+  label: string;
+  detail: string;
+}) {
+  const Icon = status === "ok" ? CheckCircle2 : AlertCircle;
+
+  return (
+    <div className="flex items-start gap-3 rounded-md border bg-background px-3 py-2.5">
+      <Icon
+        className={cn(
+          "mt-0.5 h-4 w-4 shrink-0",
+          status === "ok" && "text-primary",
+          status === "warning" && "text-muted-foreground",
+          status === "error" && "text-destructive",
+        )}
+      />
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="mt-0.5 break-words text-xs text-muted-foreground">
+          {detail}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function SendConfirmDialog({
   flow,
   accept,
   subject,
+  previewHtml,
   recipients,
   deliveries,
 }: {
   flow: FlowTarget;
   accept: boolean;
   subject: string;
+  previewHtml: string | null;
   recipients: FlowTarget["passed"];
   deliveries: EmailBatch["deliveries"];
 }) {
@@ -520,6 +563,8 @@ function SendConfirmDialog({
   const invalidNames = preflight.invalidRecipients
     .map((recipient) => recipient.name)
     .join("、");
+  const totalRecipientCount = Array.isArray(recipients) ? recipients.length : 0;
+  const hasPreview = Boolean(previewHtml);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -576,6 +621,41 @@ function SendConfirmDialog({
             </div>
           </div>
 
+          <div className="grid gap-2">
+            <SendCheckItem
+              status={preflight.remainingRecipients.length > 0 ? "ok" : "error"}
+              label="目标名单"
+              detail={`当前${resultLabel}名单 ${totalRecipientCount} 人，本次会处理 ${preflight.remainingRecipients.length} 人。`}
+            />
+            <SendCheckItem
+              status={preflight.invalidRecipients.length === 0 ? "ok" : "error"}
+              label="教育邮箱"
+              detail={
+                preflight.invalidRecipients.length === 0
+                  ? "待发名单都有学号，可以自动生成教育邮箱。"
+                  : `${preflight.invalidRecipients.length} 人缺少学号，不能自动生成教育邮箱。`
+              }
+            />
+            <SendCheckItem
+              status={hasPreview ? "ok" : "error"}
+              label="邮件样张"
+              detail={
+                hasPreview
+                  ? "模板样张已生成，发送前可以打开核对正文。"
+                  : "当前没有模板样张，请先检查模板配置。"
+              }
+            />
+            <SendCheckItem
+              status={preflight.alreadyCreatedCount === 0 ? "ok" : "warning"}
+              label="重复发送"
+              detail={
+                preflight.alreadyCreatedCount === 0
+                  ? "没有已有发送记录。"
+                  : `${preflight.alreadyCreatedCount} 人已有发送记录，本次不会重复创建。`
+              }
+            />
+          </div>
+
           {preflight.invalidRecipients.length > 0 && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
               <p className="font-medium text-destructive">
@@ -587,19 +667,27 @@ function SendConfirmDialog({
             </div>
           )}
 
-          <RecipientsDialog
-            recipients={preflight.remainingRecipients}
-            title={`${flow.title} ${resultLabel}邮件待发名单`}
-            triggerLabel="查看待发名单"
-            description="确认无误后再发送；教育邮箱由学号自动生成。"
-          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <RecipientsDialog
+              recipients={preflight.remainingRecipients}
+              title={`${flow.title} ${resultLabel}邮件待发名单`}
+              triggerLabel="查看待发名单"
+              description="确认无误后再发送；教育邮箱由学号自动生成。"
+            />
+            <PreviewDialog
+              title={`${flow.title} ${resultLabel}邮件样张`}
+              html={previewHtml}
+              triggerLabel="查看样张"
+              triggerClassName="w-full"
+            />
+          </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
               取消
             </Button>
             <Button
-              disabled={!preflight.canSend}
+              disabled={!preflight.canSend || !hasPreview}
               onClick={() => {
                 toast.promise(
                   sendResultEmailFromFlow(flow.id, accept).then(() => {
@@ -891,6 +979,7 @@ function SendLane({
           flow={flow}
           accept={accept}
           subject={subject}
+          previewHtml={previewHtml}
           recipients={recipients}
           deliveries={laneDeliveries}
         />

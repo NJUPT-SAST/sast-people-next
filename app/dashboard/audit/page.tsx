@@ -13,6 +13,7 @@ const AuditPage = async ({
     pageSize?: string;
     actor?: string;
     action?: string;
+    actionGroup?: string;
     resourceType?: string;
     from?: string;
     to?: string;

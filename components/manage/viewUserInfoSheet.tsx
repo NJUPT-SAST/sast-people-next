@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { User } from 'lucide-react';
+import { ExternalLink, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { userType } from '@/types/user';
 import originalDayjs from '@/lib/dayjs';
@@ -30,6 +30,70 @@ const roleName: Record<number, string> = {
   2: '讲师',
   3: '管理员',
 };
+
+function InfoSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-md border bg-background">
+      <div className="border-b bg-muted/20 px-4 py-2.5">
+        <h3 className="text-sm font-medium">{title}</h3>
+      </div>
+      <div className="divide-y">{children}</div>
+    </section>
+  );
+}
+
+function InfoRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-1 px-4 py-3 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-3">
+      <p className="text-xs text-muted-foreground sm:pt-0.5">{label}</p>
+      <div className="min-w-0 text-sm font-medium">{children}</div>
+    </div>
+  );
+}
+
+function TextValue({
+  value,
+  multiline,
+}: {
+  value: string | null | undefined;
+  multiline?: boolean;
+}) {
+  return (
+    <p className={multiline ? "whitespace-pre-wrap leading-6" : "break-words"}>
+      {value?.trim() || "-"}
+    </p>
+  );
+}
+
+function LinkValue({ value }: { value: string | null | undefined }) {
+  const href = value?.trim();
+
+  if (!href) return <span>-</span>;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex max-w-full items-center gap-1 text-primary underline-offset-4 hover:underline"
+    >
+      <span className="truncate">{href}</span>
+      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+    </a>
+  );
+}
 
 export const ViewUserInfoSheet = ({
   userInfo,
@@ -83,49 +147,71 @@ export const ViewUserInfoSheet = ({
           <User className="h-4 w-4" />
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto p-4 sm:p-6 flex flex-col">
-        <SheetHeader className="px-1 pt-2 pb-4">
-          <SheetTitle>
-            <span className="text-primary">{displayUserInfo.name}</span> 的详细信息
+      <SheetContent className="flex w-full flex-col overflow-y-auto p-0 sm:max-w-xl">
+        <SheetHeader className="border-b px-5 py-5 sm:px-6">
+          <SheetTitle className="flex items-center gap-3">
+            <span className="min-w-0 truncate text-xl">{displayUserInfo.name || '未知用户'}</span>
+            <Badge variant="secondary" className="shrink-0">
+              {roleName[role] ?? '未知'}
+            </Badge>
           </SheetTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {displayUserInfo.studentId || '无学号'} · {displayUserInfo.college || '未知学院'}
+          </p>
         </SheetHeader>
-        <div className="flex flex-col gap-3 px-1 pb-8">
-          <div className="rounded-lg border bg-muted/20 p-3">
-            <p className="text-xs text-muted-foreground">学号</p>
-            <p className="font-medium">{displayUserInfo.studentId || '-'}</p>
-          </div>
-          <div className="rounded-lg border bg-muted/20 p-3">
-            <p className="text-xs text-muted-foreground">邮箱</p>
-            <p className="font-medium">{displayUserInfo.email || '-'}</p>
-          </div>
+        <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+          <InfoSection title="基础信息">
+            <InfoRow label="学号">
+              <TextValue value={displayUserInfo.studentId} />
+            </InfoRow>
+            <InfoRow label="邮箱">
+              <TextValue value={displayUserInfo.email} />
+            </InfoRow>
+            <InfoRow label="学院 / 专业">
+              <TextValue
+                value={`${displayUserInfo.college || '-'} / ${displayUserInfo.major || '-'}`}
+              />
+            </InfoRow>
+            <InfoRow label="方向">
+              <TextValue
+                value={
+                  displayUserInfo.departments.length > 0
+                    ? displayUserInfo.departments.join('、')
+                    : '-'
+                }
+              />
+            </InfoRow>
+            <InfoRow label="注册时间">
+              <TextValue
+                value={
+                  displayUserInfo.createdAt
+                    ? originalDayjs(displayUserInfo.createdAt).format('YYYY-MM-DD HH:mm')
+                    : '-'
+                }
+              />
+            </InfoRow>
+          </InfoSection>
+
           {currentUserRole >= 3 && (
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">手机号码</p>
-              <p className="font-medium">{displayUserInfo.phone || '-'}</p>
-            </div>
+            <InfoSection title="联系方式">
+              <InfoRow label="手机号码">
+                <TextValue value={displayUserInfo.phone} />
+              </InfoRow>
+              <InfoRow label="QQ">
+                <TextValue value={displayUserInfo.qq} />
+              </InfoRow>
+            </InfoSection>
           )}
-          {currentUserRole >= 3 && (
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">QQ</p>
-              <p className="font-medium">{displayUserInfo.qq || '-'}</p>
-            </div>
-          )}
-          <div className="rounded-lg border bg-muted/20 p-3">
-            <p className="text-xs text-muted-foreground">学院 / 专业</p>
-            <p className="font-medium">
-              {displayUserInfo.college || '-'} · {displayUserInfo.major || '-'}
-            </p>
-          </div>
-          <div className="rounded-lg border bg-muted/20 p-3">
-            <p className="text-xs text-muted-foreground">角色</p>
-            {currentUserRole >= 3 ? (
-              <div className="mt-1">
+
+          <InfoSection title="权限">
+            <InfoRow label="角色">
+              {currentUserRole >= 3 ? (
                 <Select
                   value={role.toString()}
                   onValueChange={handleRoleChange}
                   disabled={isUpdatingRole}
                 >
-                  <SelectTrigger className="w-full h-8 text-xs">
+                  <SelectTrigger className="h-9 w-full sm:w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -134,47 +220,26 @@ export const ViewUserInfoSheet = ({
                     <SelectItem value="2">讲师</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            ) : (
-              <Badge variant="secondary" className="mt-1">
-                {roleName[role] ?? '未知'}
-              </Badge>
-            )}
-          </div>
-          <div className="rounded-lg border bg-muted/20 p-3">
-            <p className="text-xs text-muted-foreground">注册时间</p>
-            <p className="font-medium">
-              {displayUserInfo.createdAt
-                ? originalDayjs(displayUserInfo.createdAt).format('YYYY-MM-DD HH:mm')
-                : '-'}
-            </p>
-          </div>
-          <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-muted-foreground">能力信息</p>
-              {isLoadingDetail && (
-                <p className="text-xs text-muted-foreground">加载中...</p>
+              ) : (
+                <TextValue value={roleName[role] ?? '未知'} />
               )}
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">GitHub</p>
-              <p className="font-medium text-sm break-all">
-                {displayUserInfo.github || '-'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">博客</p>
-              <p className="font-medium text-sm break-all">
-                {displayUserInfo.blog || '-'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">个人陈述</p>
-              <p className="font-medium text-sm whitespace-pre-wrap">
-                {displayUserInfo.personalStatement || '-'}
-              </p>
-            </div>
-          </div>
+            </InfoRow>
+          </InfoSection>
+
+          <InfoSection title="能力信息">
+            <InfoRow label="加载状态">
+              <TextValue value={isLoadingDetail ? '正在读取完整资料...' : '已读取'} />
+            </InfoRow>
+            <InfoRow label="GitHub">
+              <LinkValue value={displayUserInfo.github} />
+            </InfoRow>
+            <InfoRow label="博客">
+              <LinkValue value={displayUserInfo.blog} />
+            </InfoRow>
+            <InfoRow label="个人陈述">
+              <TextValue value={displayUserInfo.personalStatement} multiline />
+            </InfoRow>
+          </InfoSection>
         </div>
       </SheetContent>
     </Sheet>
