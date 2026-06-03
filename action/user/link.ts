@@ -4,8 +4,8 @@ import { IS_BINDING, LINK_OAUTH_STATE } from "@/const/cookie";
 import { verifyRole } from "@/lib/dal";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import {
+  createLinkOAuthUrl,
   exchangeLinkOAuthCode,
-  getLinkOAuthBaseUrl,
   getLinkOAuthScopes,
 } from "@/lib/link/oauth";
 import { logServerError } from "@/lib/server-error-log";
@@ -16,7 +16,7 @@ import crypto from "node:crypto";
 export async function redirectSASTLink(isBinding: boolean) {
   const { codeChallenge, state } = await createCodeChallenge(isBinding);
   const redirect_uri = await getCurrentRedirectUri();
-  const url = new URL("/oauth/authorize", getLinkOAuthBaseUrl());
+  const url = createLinkOAuthUrl("/oauth/authorize");
   url.searchParams.set("client_id", process.env.LINK_CLIENT_ID!);
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");

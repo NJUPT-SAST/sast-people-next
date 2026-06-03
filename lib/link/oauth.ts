@@ -19,8 +19,13 @@ export const getLinkOAuthBaseUrl = () => {
 export const getLinkOAuthScopes = () =>
   process.env.LINK_OAUTH_SCOPES || "openid profile";
 
+export const createLinkOAuthUrl = (path: string) => {
+  const baseUrl = getLinkOAuthBaseUrl();
+  return new URL(`${baseUrl}${path.startsWith("/") ? path : `/${path}`}`);
+};
+
 const requestLinkOAuthToken = async (body: Record<string, string>) => {
-  const response = await fetch(new URL("/oauth/token", getLinkOAuthBaseUrl()), {
+  const response = await fetch(createLinkOAuthUrl("/oauth/token"), {
     method: "POST",
     headers: {
       Accept: "application/json",
