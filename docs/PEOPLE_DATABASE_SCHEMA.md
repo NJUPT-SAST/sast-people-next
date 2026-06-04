@@ -26,7 +26,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `email_batch_status_enum` | `draft`、`queued`、`completed`、`failed` | 邮件批次状态 |
 | `email_delivery_status_enum` | `pending`、`sending`、`sent`、`failed` | 单封邮件发送状态 |
 
-> `progress_status` 来自旧 `user_flow_status_enum`（`pending`/`accepted`/`rejected`/`ongoing`/`passed`/`failed`）的简化，去掉报名审核维度。
+> `progress_status` 来自旧 `user_flow_status_enum`（`pending`/`accepted`/`rejected`/`ongoing`/`passed`/`failed`）的简化，去掉报名审核维度。迁移时 `pending` → `not_started`，`accepted` → `passed`，`rejected` → `failed`，`ongoing`/`passed`/`failed` 保持原语义。
 
 ## 3. 表总览
 
