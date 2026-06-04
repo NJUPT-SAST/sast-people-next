@@ -1,6 +1,6 @@
 # SAST People Next
 
-SAST People Next is a member management and recruitment scoring platform for **NJUPT SAST**. It is built with **Next.js 16**, **React 19**, **TypeScript**, **Tailwind CSS v4**, **shadcn/ui**, and **Drizzle ORM**.
+SAST People Next is a recruitment workflow, grading, interview review, and result notification platform for **NJUPT SAST**. User identity, profile data, role, and account state are provided by SAST Link. It is built with **Next.js 16**, **React 19**, **TypeScript**, **Tailwind CSS v4**, **shadcn/ui**, and **Drizzle ORM**.
 
 ## Features
 
@@ -12,9 +12,9 @@ SAST People Next is a member management and recruitment scoring platform for **N
 - One-click result email sending that locks final written recruitment results
 - Lecturer interview evaluation for exemption recruitment, WOC/WOD, and SOC/SOD
 - Administrator approval for final evaluation flow decisions
-- Role synchronization from final accepted flows
-- User search, pagination, profile viewing, role editing, and account banning
-- Feishu OAuth login and session-based authentication
+- Link role synchronization from final accepted flows
+- Link user lookup, read-only profile viewing, role editing, and account banning for workflow administration
+- SAST Link OAuth login and session-based authentication
 - Local PostgreSQL development database
 
 ## Tech Stack
@@ -40,7 +40,7 @@ The application uses four numeric roles:
 | `2` | Lecturer | A lecturer who can review interviews and grade |
 | `3` | Administrator | An administrator who can manage flows, approvals, and final decisions |
 
-Role upgrades are derived from final accepted flows. Session role data is read from the database so permission display stays aligned with stored user data.
+Role upgrades are derived from final accepted flows and synchronized through SAST Link. Session role data is refreshed from Link-backed user data so permission display stays aligned with the current account state.
 
 ## Recruitment Workflows
 
@@ -63,7 +63,7 @@ Pass/fail selection and email delivery are separate operations. After all candid
 - The list can no longer be edited from score management
 - Passed candidates are upgraded to members after result email sending succeeds
 
-Administrators can still manually adjust user roles from user management when needed.
+Administrators can still manually adjust user roles through Link-backed administration tools when needed.
 
 ### Exemption Recruitment
 
@@ -176,7 +176,7 @@ pnpm db:dev:up
 DATABASE_URL=postgres://sastpeople:sast_dev_password@localhost:55432/sastpeople_local
 ```
 
-Link belongs to the Link service side. Configure `LINK_*` variables for the environment you are testing against; `LINK_USE_MOCK=true` is only a temporary local stub when that external service is unavailable.
+SAST Link owns user identity and profile data. Configure `LINK_*` variables for the environment you are testing against; `LINK_USE_MOCK=true` is only a temporary local stub when that external service is unavailable.
 
 ## Full Development Mode
 
@@ -258,14 +258,17 @@ pnpm db:migrate
 
 Current core tables include:
 
-- `user`
+- `user` (legacy fallback and migration only)
 - `flow`
 - `flow_step`
 - `user_flow`
 - `problem`
 - `user_point`
-- `email`
 - `interview_evaluation`
+- `email_template_setting`
+- `email_batch`
+- `email_delivery`
+- `operation_audit`
 
 ## Testing And Verification
 
@@ -293,4 +296,4 @@ pnpm test -- --runInBand components/recruitment/table.test.tsx
 
 ## License
 
-This project is developed and maintained by NJUPT SAST.
+This project is developed and maintained by NJUPT SAST and released under the MIT License.

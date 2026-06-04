@@ -1,7 +1,9 @@
 {
   "name": "sast-people",
   "version": "0.1.0",
+  "description": "Recruitment workflows, grading, interview review, and result notifications for NJUPT SAST.",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "dev:db": "next dev",
