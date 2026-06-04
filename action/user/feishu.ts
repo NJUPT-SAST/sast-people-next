@@ -84,10 +84,10 @@ export async function getSignature(url: string) {
   const nonceStr = process.env.NONCESTR;
   const verify_str = `jsapi_ticket=${ticket}&noncestr=${nonceStr}&timestamp=${timestamp}&url=${url}`;
   const signature = SHA1(verify_str).toString();
-  console.log(verify_str, {
+  console.log('js api signature refreshed', {
     appid: process.env.APP_ID,
     timestamp,
-    nonceStr: nonceStr,
+    nonceStr,
     signature,
   });
   return {
