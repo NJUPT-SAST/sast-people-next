@@ -13,7 +13,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
-import { fullFlowSchema } from '@/components/flow/add';
+import { editFlowSchema } from '@/components/flow/add';
 import { fullStepType } from '@/types/step';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
@@ -101,13 +101,13 @@ const evaluationSteps = (flowId: number): fullStepType[] => [
 ];
 
 export const EditSteps = ({ data }: { data: displayFlow }) => {
-  const editFlowForm = useForm<z.infer<typeof fullFlowSchema>>({
-    resolver: zodResolver(fullFlowSchema),
+  const editFlowForm = useForm<z.infer<typeof editFlowSchema>>({
+    resolver: zodResolver(editFlowSchema),
     defaultValues: {
       title: data.title || '',
       description: data.description || '',
       startedAt: data.startedAt,
-      endedAt: data.endedAt,
+      endedAt: data.endedAt ?? null,
       id: data.id,
     },
   });
@@ -210,7 +210,11 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                 <FormItem>
                   <FormLabel>结束时间</FormLabel>
                   <FormControl>
-                    <DateTimeInput {...field} />
+                    <DateTimeInput
+                      {...field}
+                      value={field.value ?? undefined}
+                      onChange={(date) => field.onChange(date ?? null)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -104,12 +104,12 @@ jest.mock("@/components/ui/datetime-input", () => ({
 
 jest.mock("@/components/flow/add", () => {
   return {
-    fullFlowSchema: z.object({
+    editFlowSchema: z.object({
       id: z.number().optional(),
       title: z.string(),
       description: z.string(),
       startedAt: z.date(),
-      endedAt: z.date(),
+      endedAt: z.date().nullable().optional(),
     }),
   };
 });

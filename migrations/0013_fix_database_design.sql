@@ -102,11 +102,11 @@ ALTER TABLE "user_flow" ADD COLUMN "progress_status" "progress_status_enum";
 ALTER TABLE "user_flow" ADD COLUMN "fk_current_step_id" integer;
 
 -- 数据迁移: status → progress_status
--- 报名无需审核，旧 pending/accepted/rejected 统一按流程进度映射
+-- 报名无需审核；旧 accepted 表示已通过并已授予角色，必须保留为 passed
 UPDATE "user_flow" SET
   "progress_status" = CASE
     WHEN "status" = 'pending'  THEN 'not_started'::"progress_status_enum"
-    WHEN "status" = 'accepted' THEN 'not_started'::"progress_status_enum"
+    WHEN "status" = 'accepted' THEN 'passed'::"progress_status_enum"
     WHEN "status" = 'rejected' THEN 'failed'::"progress_status_enum"
     WHEN "status" = 'ongoing'  THEN 'ongoing'::"progress_status_enum"
     WHEN "status" = 'passed'   THEN 'passed'::"progress_status_enum"

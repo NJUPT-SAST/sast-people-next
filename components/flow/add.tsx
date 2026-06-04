@@ -67,6 +67,29 @@ export const addFlowSchema = fullFlowSchema.pick({
   }
 });
 
+export const editFlowSchema = fullFlowSchema.pick({
+  id: true,
+  title: true,
+  description: true,
+  type: true,
+  startedAt: true,
+  endedAt: true,
+})
+.extend({
+  endedAt: z.date().nullable().optional(),
+})
+.superRefine((data, ctx) => {
+  if (!data.startedAt) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请选择开始时间', path: ['startedAt'] });
+  }
+
+  if (data.startedAt && data.endedAt) {
+    if (data.endedAt.getTime() < data.startedAt.getTime()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束时间不能早于开始时间', path: ['endedAt'] });
+    }
+  }
+});
+
 export const AddFlow = () => {
   const addFlowForm = useForm<z.infer<typeof addFlowSchema>>({
     resolver: zodResolver(addFlowSchema),
