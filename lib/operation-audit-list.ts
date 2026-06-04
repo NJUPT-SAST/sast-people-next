@@ -59,6 +59,7 @@ export const operationAuditActionGroups = {
     "evaluation.approve",
     "evaluation.reject",
     "evaluation.reopen",
+    "interview_schedule.create",
   ],
   flow: [
     "flow.create",

@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   varchar
 } from "drizzle-orm/pg-core";
 
@@ -52,6 +53,12 @@ export const emailDeliveryStatusEnum = pgEnum("email_delivery_status_enum", [
   "pending",
   "sending",
   "sent",
+  "failed",
+]);
+
+export const interviewScheduleStatusEnum = pgEnum("interview_schedule_status_enum", [
+  "created",
+  "cancelled",
   "failed",
 ]);
 
@@ -240,6 +247,60 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
 });
+
+export const userOAuthAccount = pgTable("user_oauth_account", {
+  id: serial("id").primaryKey(),
+  /* Link 用户 ID */
+  fkUserId: integer("fk_user_id").notNull(),
+  provider: varchar("provider", { length: 32 }).notNull(),
+  providerUserId: varchar("provider_user_id", { length: 255 }).notNull(),
+  providerUnionId: varchar("provider_union_id", { length: 255 }),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  userProviderUnique: unique().on(table.fkUserId, table.provider),
+  providerUserUnique: unique().on(table.provider, table.providerUserId),
+}));
+
+export const interviewSchedule = pgTable("interview_schedule", {
+  id: serial("id").primaryKey(),
+  fkUserFlowId: integer("fk_user_flow_id")
+    .references(() => userFlow.id, { onDelete: "cascade" })
+    .notNull(),
+  fkEvaluationId: integer("fk_evaluation_id")
+    .references(() => interviewEvaluation.id, { onDelete: "set null" }),
+  /* Link 用户 ID — 日程发起讲师 */
+  fkOrganizerId: integer("fk_organizer_id").notNull(),
+  provider: varchar("provider", { length: 32 }).notNull().default("feishu"),
+  providerEventId: varchar("provider_event_id", { length: 255 }),
+  providerReserveId: varchar("provider_reserve_id", { length: 255 }),
+  providerMeetingNo: varchar("provider_meeting_no", { length: 255 }),
+  meetingLink: text("meeting_link").notNull(),
+  summary: varchar("summary", { length: 255 }).notNull(),
+  description: text("description"),
+  attendeeEmail: varchar("attendee_email", { length: 254 }),
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at").notNull(),
+  timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
+  status: interviewScheduleStatusEnum("status").notNull().default("created"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  userFlowIdx: index("interview_schedule_user_flow_idx").on(table.fkUserFlowId),
+  organizerIdx: index("interview_schedule_organizer_idx").on(table.fkOrganizerId),
+  providerEventUnique: uniqueIndex("interview_schedule_provider_event_uidx")
+    .on(table.provider, table.providerEventId),
+}));
 
 export const operationAudit = pgTable("operation_audit", {
   id: serial("id").primaryKey(),
