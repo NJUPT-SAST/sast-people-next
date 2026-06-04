@@ -28,7 +28,9 @@ junit.xml
 # misc
 .DS_Store
 *.pem
-docs/
+docs/*
+!docs/SAST_PEOPLE_V3_LINK_DEV.md
+!docs/PEOPLE_DATABASE_SCHEMA.md
 
 # debug
 npm-debug.log*

@@ -30,6 +30,8 @@ export const listLinkUsers = async (
       role: params.role,
       state: params.state,
       department: params.department,
+      college: params.college,
+      major: params.major,
       keyword: params.keyword,
     },
   });
@@ -71,4 +73,3 @@ export const banLinkUser = async (accessToken: string, id: number) => {
     method: "DELETE",
   });
 };
-

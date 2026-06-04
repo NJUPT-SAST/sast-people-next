@@ -48,7 +48,7 @@ export const toPeopleUserFromLinkAdminItem = (
   personalStatement: null,
   nickname: null,
   avatar: null,
-  emailType: null,
+  emailType: item.email_type ?? null,
   linkState: item.state,
   identities: [],
   qq: canViewSensitiveInfo ? item.qq_number ?? null : null,

@@ -200,6 +200,11 @@ cp .env.example .env.local
 
 Keep real secrets in `.env.local` or GitHub Actions secrets, never in tracked files.
 
+## Documentation
+
+- [SAST People v3 Link integration plan](docs/SAST_PEOPLE_V3_LINK_DEV.md)
+- [People database schema](docs/PEOPLE_DATABASE_SCHEMA.md)
+
 ## Commands
 
 ```bash
@@ -232,6 +237,7 @@ components/             Shared UI and feature components
 components/ui/          shadcn/ui primitives
 action/                 Server Actions for mutations and workflow operations
 db/                     Drizzle schema and database client
+docs/                   Project documentation and integration plans
 hooks/                  Server and SWR data hooks
 lib/                    DAL, session helpers, and shared utilities
 migrations/             Drizzle SQL migrations

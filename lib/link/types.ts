@@ -62,6 +62,7 @@ export type LinkAdminUserItem = {
   qq_number?: string | null;
   role: LinkRole;
   state: LinkUserState;
+  email_type?: LinkEmailType;
   department?: LinkDepartment | null;
   college?: string | null;
   major?: string | null;
@@ -81,5 +82,7 @@ export type LinkListUsersParams = {
   role?: LinkRole;
   state?: LinkUserState;
   department?: LinkDepartment;
+  college?: string;
+  major?: string;
   keyword?: string;
 };

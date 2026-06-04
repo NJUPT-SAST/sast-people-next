@@ -3,9 +3,10 @@
 | 项目 | 内容 |
 | --- | --- |
 | 文档状态 | Draft |
-| 适用分支 | `sast-people-v3` |
+| 适用分支 | `v3.1` |
 | 适用范围 | SAST People 用户体系改造、Link 接口对接、v3 数据迁移与联调 |
-| 最后更新 | 2026-05-30 |
+| 最后更新 | 2026-06-04 |
+| Link OpenAPI | SAST-Link-Backend OpenAPI，`x-download-time=2026-06-04T03:51:35.694Z` |
 
 ## 1. 背景
 
@@ -23,7 +24,7 @@ SAST People 原有用户体系由 People 本地 `public.user` 表维护。SAST L
 4. People 管理端的角色变更和封禁操作切换为 Link API。
 5. People 新库仅保留流程、报名、评分、面评、邮件等业务数据。
 6. People 业务表中的用户关联字段统一迁移为 Link 用户 ID。
-7. 保留本地 mock 和 legacy fallback，用于 Link 接口未完成前的本地开发和排障。
+7. 保留本地 mock 和 legacy fallback，用于真实 Link 环境不可用、脱离外部服务本地开发和排障。
 
 ## 3. 非目标
 
@@ -63,6 +64,7 @@ Link 作为用户基础资料和账号状态的数据源，负责维护：
 | `role` | 用户角色 |
 | `state` | 用户状态 |
 | `profile.intro` | 个人简介，对应旧 People `personalStatement` |
+| `profile.nickname` | 昵称 |
 | `profile.email` | 对外展示邮箱 |
 | `profile.github_url` | GitHub 地址 |
 | `profile.blog_url` | 博客地址 |
@@ -171,12 +173,14 @@ type LinkUserProfile = {
   login_email?: string | null;
   role: "freshman" | "member" | "lecturer" | "admin";
   state: "njupter" | "on-sast" | "retired-sast" | "is_deleted";
+  email_type?: "njupt_email" | "sast_email";
   phone_number?: string | null;
   qq_number?: string | null;
   student_id?: string | null;
   college?: string | null;
   major?: string | null;
   profile?: {
+    nickname?: string | null;
     department?: "software" | "media" | null;
     intro?: string | null;
     email?: string | null;
@@ -184,6 +188,14 @@ type LinkUserProfile = {
     blog_url?: string | null;
     github_url?: string | null;
   } | null;
+  identities?: Array<{
+    id: number;
+    provider: "github" | "lark" | "other_mail";
+    provider_id?: string | null;
+    identity_data?: Record<string, unknown> | null;
+    created_at?: string;
+    updated_at?: string;
+  }>;
   created_at?: string;
   updated_at?: string;
 };
@@ -191,7 +203,7 @@ type LinkUserProfile = {
 
 ### 7.2 当前 Link OpenAPI 状态
 
-根据 MCP 读取到的 Link OpenAPI：
+根据 MCP 读取到的 Link OpenAPI v3.1（`x-download-time=2026-06-04T03:51:35.694Z`）：
 
 已存在：
 
@@ -203,14 +215,15 @@ type LinkUserProfile = {
 - `/admin/users/{id}` 的 `PUT`
 - `/admin/users/{id}` 的 `DELETE`
 
-仍需 Link 补齐或确认：
+v3.1 已确认补齐 People 依赖字段：
 
-| 位置 | 缺失字段 |
+| 位置 | 已具备字段 |
 | --- | --- |
-| `UserProfileResponse.data` | `college`、`major` |
-| `AdminUserItem` | `phone_number`、`qq_number`、`college`、`major` |
+| `UserProfileResponse.data` | `email_type`、`phone_number`、`qq_number`、`student_id`、`college`、`major`、`profile`、`identities` |
+| `AdminUserItem` | `email_type`、`phone_number`、`qq_number`、`college`、`major`、`department` |
+| `GET /admin/users` 查询参数 | `page`、`page_size`、`role`、`state`、`department`、`college`、`major`、`keyword` |
 
-因此，当前 Link 接口契约路径已具备，但字段 schema 尚未完全满足 People v3 联调要求。
+因此，当前 Link 接口契约路径和 People v3 依赖字段已具备，后续重点是切换真实接口并完成联调验证。
 
 ## 8. 环境变量
 
@@ -230,7 +243,7 @@ NEXT_PUBLIC_LINK_PROFILE_URL=
 
 ### 8.1 本地 mock 模式
 
-Link 接口未完成前，本地建议使用：
+真实 Link 环境不可用或需要脱离外部服务做本地开发时，建议使用：
 
 ```env
 LINK_USE_MOCK=true
@@ -240,7 +253,7 @@ PEOPLE_ALLOW_LEGACY_AUTH=false
 
 ### 8.2 真实联调模式
 
-Link 接口完成后，联调环境建议使用：
+真实联调环境建议使用：
 
 ```env
 LINK_USE_MOCK=false
@@ -368,7 +381,7 @@ lib/link/
 原因：
 
 1. 本地 legacy fallback 仍依赖该表。
-2. Link 真实接口未完成前，该表可用于排查迁移问题。
+2. 真实 Link 环境不可用或联调失败时，该表可用于排查迁移问题。
 3. 删除旧表前需要确认所有环境均已关闭 legacy 入口。
 
 后续清理建议：
@@ -381,7 +394,7 @@ lib/link/
 
 ## 12. 联调计划
 
-Link 接口补齐后，按以下顺序联调：
+Link 契约确认后，按以下顺序联调：
 
 | 阶段 | 验收项 |
 | --- | --- |
@@ -397,7 +410,7 @@ Link 接口补齐后，按以下顺序联调：
 
 | 风险 | 影响 | 处理方式 |
 | --- | --- | --- |
-| Link 字段未补齐 | People 页面显示空字段或报名校验失败 | 保持 mock；等待 Link 补齐字段后联调 |
+| Link 真实返回与 OpenAPI 不一致 | People 页面显示空字段或报名校验失败 | 保持 mock；按 v3.1 OpenAPI 对照真实响应并同步修正 |
 | Link 权限不足 | lecturer/admin 页面调用失败 | 确认 `/admin/users` 权限策略 |
 | 业务表用户 ID 映射错误 | 报名、阅卷、邮件关联错误 | 使用 `people_legacy_user_map` 抽样校验 |
 | 旧登录入口误用 | 继续写旧 People 用户表 | 生产默认关闭 `PEOPLE_ALLOW_LEGACY_AUTH` |
@@ -407,7 +420,7 @@ Link 接口补齐后，按以下顺序联调：
 
 当前状态：
 
-- v3 代码已提交并推送到 `sast-people-v3`。
+- v3.1 代码正在基于 Link OpenAPI v3.1 更新和联调。
 - v3 本地数据库迁移已完成。
 - Dependabot 旧 PR 已关闭。
 - 线上仍运行原版 People。
@@ -415,10 +428,10 @@ Link 接口补齐后，按以下顺序联调：
 
 阻塞项：
 
-- Link 真实接口实现和字段 schema 仍需补齐。
+- 暂无已知接口契约阻塞；需要使用 Link v3.1 真实环境做端到端联调验证。
 
 下一步：
 
-1. 等 Link 补齐接口字段。
-2. 切换 `LINK_USE_MOCK=false` 做真实联调。
+1. 切换 `LINK_USE_MOCK=false` 做真实联调。
+2. 验证 OAuth 登录、用户资料读取、管理端列表/详情、角色变更和封禁。
 3. 联调通过后再评估是否合并 v3。
