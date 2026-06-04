@@ -44,7 +44,7 @@ type RecruitmentRowLike = {
   isGraded?: boolean;
 } & RecruitmentScoreExportRow;
 
-const finalStatuses = new Set(['accepted', 'rejected']);
+const finalStatuses = new Set(['passed', 'failed']);
 
 export function DataTable<TData, TValue>({
   columns,
@@ -59,7 +59,7 @@ export function DataTable<TData, TValue>({
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const getDisplayStatus = useCallback((row: RecruitmentRowLike) => {
     const status = statusOverrides[row.uid] ?? row.status ?? 'ongoing';
-    if ((status === 'pending' || status === 'ongoing') && row.isGraded === false) {
+    if ((status === 'not_started' || status === 'ongoing') && row.isGraded === false) {
       return 'ungraded';
     }
     return status;
@@ -123,7 +123,7 @@ export function DataTable<TData, TValue>({
   const canEditOutcomes = selectedMutableRows.length > 0;
   const helperText =
     '成绩管理只负责确定通过/不通过；结果邮件会在邮件管理中按当前流程自动匹配待通知人员';
-  const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'accepted', 'rejected'];
+  const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'not_started'];
 
   return (
     <div className="space-y-4">

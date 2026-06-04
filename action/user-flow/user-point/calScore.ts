@@ -15,14 +15,15 @@ export const calScore = async (flowId: number) => {
     const totalScore = sql<string>`coalesce(sum(${userPoint.points}), 0)`;
     const examResult = await db.select({
         uid: userFlow.fkUserId,
-        stepId: userFlow.currentStepOrder,
-        status: userFlow.status,
+        stepId: flowStep.order,
+        status: userFlow.progressStatus,
         totalScore,
       })
       .from(userFlow)
+      .leftJoin(flowStep, eq(userFlow.fkCurrentStepId, flowStep.id))
       .leftJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
       .where(eq(userFlow.fkFlowId, flowId))
-      .groupBy(userFlow.fkUserId, userFlow.currentStepOrder, userFlow.status)
+      .groupBy(userFlow.fkUserId, flowStep.order, userFlow.progressStatus)
       .orderBy(desc(totalScore));
 
     const problems = await db

@@ -1,6 +1,6 @@
 "use server";
 
-import { addFlowSchema } from "@/components/flow/add";
+import { editFlowSchema } from "@/components/flow/add";
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
@@ -12,7 +12,7 @@ import { z } from "zod/v4";
 
 export const updateFlow = async (
   id: number,
-  values: z.infer<typeof addFlowSchema>
+  values: z.infer<typeof editFlowSchema>
 ) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 

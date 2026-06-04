@@ -35,7 +35,7 @@ export const syncUserRoleFromAcceptedFlows = async (uid: number) => {
     .where(
       and(
         eq(userFlow.fkUserId, uid),
-        eq(userFlow.status, "accepted"),
+        eq(userFlow.progressStatus, "passed"),
         eq(flow.isDeleted, false),
       ),
     );

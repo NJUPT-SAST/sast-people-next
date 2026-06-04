@@ -2,8 +2,8 @@ import { db } from "@/db/drizzle";
 import { flow, flowStep, userFlow } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
 import { fullStepType } from "@/types/step";
-import { displayUserFlow } from "@/types/userflow";
-import { and, eq } from "drizzle-orm";
+import { displayUserFlow, computeStatus } from "@/types/userflow";
+import { and, eq, inArray } from "drizzle-orm";
 
 export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
   const session = await verifySession();
@@ -15,6 +15,21 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
     .where(and(eq(userFlow.fkUserId, session.uid), eq(flow.isDeleted, false)))
     .orderBy(flowStep.order);
 
+  // Collect current step IDs to look up order
+  const currentStepIds = [
+    ...new Set(
+      raw.map((item) => item.user_flow.fkCurrentStepId).filter(Boolean),
+    ),
+  ] as number[];
+  const currentStepRows =
+    currentStepIds.length > 0
+      ? await db
+          .select({ id: flowStep.id, order: flowStep.order })
+          .from(flowStep)
+          .where(inArray(flowStep.id, currentStepIds))
+      : [];
+  const stepOrderMap = new Map(currentStepRows.map((s) => [s.id, s.order]));
+
   // Use a Map to group by user flow ID
   const flowMap = new Map<number, displayUserFlow>();
 
@@ -24,6 +39,10 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
     if (!flowMap.has(userFlowId)) {
       flowMap.set(userFlowId, {
         ...item.user_flow,
+        status: computeStatus(item.user_flow.progressStatus),
+        currentStepOrder: item.user_flow.fkCurrentStepId
+          ? (stepOrderMap.get(item.user_flow.fkCurrentStepId) ?? null)
+          : null,
         title: item.flow.title,
         flowType: item.flow.type,
         steps: [] as fullStepType[],

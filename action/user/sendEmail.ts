@@ -37,7 +37,7 @@ export const batchSendEmail = async (
           and(
             eq(userFlow.fkFlowId, flowId),
             inArray(userFlow.fkUserId, uid),
-            eq(userFlow.status, sourceStatus),
+            eq(userFlow.progressStatus, sourceStatus),
           )
         )
     );

@@ -84,18 +84,16 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
         </div>
         <Badge
           variant={
-            safeFlow.status === "ongoing" || safeFlow.status === "pending" || safeFlow.status === "passed" || safeFlow.status === "failed"
+            safeFlow.status === "ongoing" || safeFlow.status === "not_started"
               ? "secondary"
-              : safeFlow.status === "accepted"
+              : safeFlow.status === "passed"
               ? "default"
               : "destructive"
           }
         >
-          {safeFlow.status === "ongoing" || safeFlow.status === "pending"
+          {safeFlow.status === "ongoing" || safeFlow.status === "not_started"
             ? "流程进行中"
-            : safeFlow.status === "passed" || safeFlow.status === "failed"
-            ? "结果待通知"
-            : safeFlow.status === "accepted"
+            : safeFlow.status === "passed"
             ? "已通过考核"
             : "未通过考核"}
         </Badge>
@@ -104,13 +102,9 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
         <div className="flex items-center w-full my-4">
           {steps.map((step, index) => {
             const status =
-              safeFlow.status === "accepted"
+              safeFlow.status === "passed"
                 ? "accepted"
-                : safeFlow.status === "passed" || safeFlow.status === "failed"
-                ? step.order <= activeStepOrder
-                  ? "ongoing"
-                  : "pending"
-                : safeFlow.status === "rejected"
+                : safeFlow.status === "failed"
                 ? step.order < activeStepOrder
                   ? "accepted"
                   : step.order === activeStepOrder
@@ -124,8 +118,10 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
             const Icon =
               statusIcons[status as keyof typeof statusIcons] || AlertCircle;
             const nextStatus =
-              safeFlow.status === "accepted" || safeFlow.status === "rejected"
-                ? safeFlow.status
+              safeFlow.status === "passed"
+                ? "accepted"
+                : safeFlow.status === "failed"
+                ? "rejected"
                 : step.order < activeStepOrder
                 ? "accepted"
                 : "pending";
@@ -178,7 +174,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
             </p>
           </div>
           {typeof safeFlow.id === "number" &&
-            (safeFlow.status === "pending" || safeFlow.status === "ongoing") && (
+            (safeFlow.status === "not_started" || safeFlow.status === "ongoing") && (
             <CancelRegistration userFlowId={safeFlow.id} />
           )}
         </div>

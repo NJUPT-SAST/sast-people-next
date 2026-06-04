@@ -6,7 +6,7 @@ export type EmailRecipient = {
 };
 
 export type EmailDeliveryLike = {
-  userFlowId: number;
+  userFlowId: number | null;
   status?: string;
 };
 
@@ -36,6 +36,7 @@ export function getQueueableEmailRecipients<TRecipient extends EmailRecipient>({
   const deliveryStatuses = new Map<number, string[]>();
 
   for (const delivery of deliveries) {
+    if (delivery.userFlowId === null) continue;
     const statuses = deliveryStatuses.get(delivery.userFlowId) ?? [];
     statuses.push(delivery.status ?? "sent");
     deliveryStatuses.set(delivery.userFlowId, statuses);

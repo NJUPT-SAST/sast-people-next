@@ -78,6 +78,7 @@ export const MarkProblemTable = ({
         fkProblemId: problem.id,
         points: Number.isFinite(currentScore) ? currentScore : 0,
         fkJudgerId: existed?.fkJudgerId ?? null,
+        createdAt: existed?.createdAt ?? new Date(),
       };
     },
   );

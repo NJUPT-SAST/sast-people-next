@@ -10,7 +10,8 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { evaluationFlowSteps, isWrittenRecruitmentFlow, writtenRecruitmentSteps } from "../defaultSteps";
 
-type FlowStepTypeValue = typeof flowStep.$inferInsert.type;
+type FlowStepInsert = typeof flowStep.$inferInsert;
+type FlowStepTypeValue = FlowStepInsert["type"];
 
 export const updateFlowStep = async (
   id: number,
@@ -46,23 +47,13 @@ export const updateFlowStep = async (
     };
 
     await db.transaction(async (tx) => {
-      await tx.delete(flowStep).where(eq(flowStep.fkFlowId, id));
-
+      let nextSteps: Array<Omit<FlowStepInsert, "id">>;
       if (flowRecord) {
-        if (isWrittenRecruitmentFlow(flowRecord.type)) {
-          await tx
-            .insert(flowStep)
-            .values(stepsWithAdminText(writtenRecruitmentSteps(id)));
-          return;
-        }
-        await tx
-          .insert(flowStep)
-          .values(stepsWithAdminText(evaluationFlowSteps(id)));
-        return;
-      }
-
-      await tx.insert(flowStep).values(
-        stepList.map((step) => ({
+        nextSteps = isWrittenRecruitmentFlow(flowRecord.type)
+          ? stepsWithAdminText(writtenRecruitmentSteps(id))
+          : stepsWithAdminText(evaluationFlowSteps(id));
+      } else {
+        nextSteps = stepList.map((step) => ({
           title: step.title,
           description: step.description,
           type: step.type as FlowStepTypeValue,
@@ -71,8 +62,24 @@ export const updateFlowStep = async (
           createdAt: new Date(),
           updatedAt: new Date(),
           isDeleted: false,
-        }))
-      );
+        }));
+      }
+
+      for (const step of nextSteps) {
+        await tx
+          .insert(flowStep)
+          .values(step)
+          .onConflictDoUpdate({
+            target: [flowStep.fkFlowId, flowStep.order],
+            set: {
+              title: step.title,
+              description: step.description,
+              type: step.type,
+              updatedAt: new Date(),
+              isDeleted: false,
+            },
+          });
+      }
     });
 
     revalidatePath("/dashboard/flow");

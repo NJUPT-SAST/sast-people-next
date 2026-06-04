@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { flow, interviewEvaluation, userFlow } from "@/db/schema";
+import { flow, flowStep, interviewEvaluation, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
@@ -9,6 +9,20 @@ import { logServerError } from "@/lib/server-error-log";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
+
+/** 查找指定 flow 下某个 order 的步骤 ID */
+async function findStepIdByOrderInTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  flowId: number,
+  order: number,
+): Promise<number | null> {
+  const [step] = await tx
+    .select({ id: flowStep.id })
+    .from(flowStep)
+    .where(and(eq(flowStep.fkFlowId, flowId), eq(flowStep.order, order)))
+    .limit(1);
+  return step?.id ?? null;
+}
 
 export const createEvaluation = async (
   userFlowId: number,
@@ -32,7 +46,7 @@ export const createEvaluation = async (
       .where(
         and(
           eq(interviewEvaluation.fkUserFlowId, userFlowId),
-          eq(interviewEvaluation.status, "pending"),
+          eq(interviewEvaluation.status, "submitted"),
         ),
       )
       .limit(1);
@@ -48,9 +62,18 @@ export const createEvaluation = async (
           })
           .where(eq(interviewEvaluation.id, existing[0].id));
 
+        const [uf] = await tx
+          .select({ flowId: userFlow.fkFlowId })
+          .from(userFlow)
+          .where(eq(userFlow.id, userFlowId))
+          .limit(1);
+        const interviewStepId = uf
+          ? await findStepIdByOrderInTx(tx, uf.flowId, 3)
+          : null;
+
         await tx
           .update(userFlow)
-          .set({ status: "ongoing", currentStepOrder: 3 })
+          .set({ progressStatus: "ongoing", fkCurrentStepId: interviewStepId, updatedAt: new Date() })
           .where(eq(userFlow.id, userFlowId));
       });
 
@@ -66,9 +89,18 @@ export const createEvaluation = async (
     }
 
     const [evaluation] = await db.transaction(async (tx) => {
+      const [uf] = await tx
+        .select({ flowId: userFlow.fkFlowId })
+        .from(userFlow)
+        .where(eq(userFlow.id, userFlowId))
+        .limit(1);
+      const interviewStepId = uf
+        ? await findStepIdByOrderInTx(tx, uf.flowId, 3)
+        : null;
+
       await tx
         .update(userFlow)
-        .set({ status: "ongoing", currentStepOrder: 3 })
+        .set({ progressStatus: "ongoing", fkCurrentStepId: interviewStepId, updatedAt: new Date() })
         .where(eq(userFlow.id, userFlowId));
 
       return tx
@@ -78,7 +110,7 @@ export const createEvaluation = async (
           fkUserId: session!.uid,
           content: content.trim(),
           meetingLink: link,
-          status: "pending",
+          status: "submitted",
         })
         .returning();
     });
@@ -112,9 +144,18 @@ export const rejectCandidate = async (userFlowId: number) => {
     session = await verifyRole(2);
 
     await db.transaction(async (tx) => {
+      const [uf] = await tx
+        .select({ flowId: userFlow.fkFlowId })
+        .from(userFlow)
+        .where(eq(userFlow.id, userFlowId))
+        .limit(1);
+      const step2Id = uf
+        ? await findStepIdByOrderInTx(tx, uf.flowId, 2)
+        : null;
+
       await tx
         .update(userFlow)
-        .set({ status: "rejected", currentStepOrder: 2 })
+        .set({ progressStatus: "failed", fkCurrentStepId: step2Id, updatedAt: new Date() })
         .where(eq(userFlow.id, userFlowId));
 
       await tx
@@ -122,7 +163,7 @@ export const rejectCandidate = async (userFlowId: number) => {
         .where(
           and(
             eq(interviewEvaluation.fkUserFlowId, userFlowId),
-            eq(interviewEvaluation.status, "pending"),
+            eq(interviewEvaluation.status, "submitted"),
           ),
         );
     });
@@ -163,9 +204,18 @@ export const reopenAndEvaluate = async (
     const link = meetingLink?.trim() || null;
 
     await db.transaction(async (tx) => {
+      const [uf] = await tx
+        .select({ flowId: userFlow.fkFlowId })
+        .from(userFlow)
+        .where(eq(userFlow.id, userFlowId))
+        .limit(1);
+      const interviewStepId = uf
+        ? await findStepIdByOrderInTx(tx, uf.flowId, 3)
+        : null;
+
       await tx
         .update(userFlow)
-        .set({ status: "ongoing", currentStepOrder: 3 })
+        .set({ progressStatus: "ongoing", fkCurrentStepId: interviewStepId, updatedAt: new Date() })
         .where(eq(userFlow.id, userFlowId));
 
       await tx.insert(interviewEvaluation).values({
@@ -173,7 +223,7 @@ export const reopenAndEvaluate = async (
         fkUserId: session!.uid,
         content: content.trim(),
         meetingLink: link,
-        status: "pending",
+        status: "submitted",
       });
     });
 
@@ -224,17 +274,18 @@ export const approveEvaluation = async (evaluationId: number) => {
         })
         .where(eq(interviewEvaluation.id, evaluationId));
 
-      const [record] = await tx
-        .select({ fkUserId: userFlow.fkUserId })
+      const [uf] = await tx
+        .select({ fkUserId: userFlow.fkUserId, flowId: userFlow.fkFlowId })
         .from(userFlow)
         .where(eq(userFlow.id, evalRecord.fkUserFlowId))
         .limit(1);
 
-      if (record) {
-        affectedUserId = record.fkUserId;
+      if (uf) {
+        affectedUserId = uf.fkUserId;
+        const step3Id = await findStepIdByOrderInTx(tx, uf.flowId, 3);
         await tx
           .update(userFlow)
-          .set({ status: "accepted", currentStepOrder: 3 })
+          .set({ progressStatus: "passed", fkCurrentStepId: step3Id, updatedAt: new Date() })
           .where(eq(userFlow.id, evalRecord.fkUserFlowId));
       }
     });
@@ -292,17 +343,18 @@ export const rejectEvaluation = async (evaluationId: number) => {
         })
         .where(eq(interviewEvaluation.id, evaluationId));
 
-      const [record] = await tx
-        .select({ fkUserId: userFlow.fkUserId })
+      const [uf] = await tx
+        .select({ fkUserId: userFlow.fkUserId, flowId: userFlow.fkFlowId })
         .from(userFlow)
         .where(eq(userFlow.id, evalRecord.fkUserFlowId))
         .limit(1);
 
-      if (record) {
-        affectedUserId = record.fkUserId;
+      if (uf) {
+        affectedUserId = uf.fkUserId;
+        const step3Id = await findStepIdByOrderInTx(tx, uf.flowId, 3);
         await tx
           .update(userFlow)
-          .set({ status: "rejected", currentStepOrder: 3 })
+          .set({ progressStatus: "failed", fkCurrentStepId: step3Id, updatedAt: new Date() })
           .where(eq(userFlow.id, evalRecord.fkUserFlowId));
       }
 
@@ -358,15 +410,24 @@ export const reopenEvaluation = async (evaluationId: number) => {
       await tx
         .update(interviewEvaluation)
         .set({
-          status: "pending",
+          status: "submitted",
           fkReviewedBy: null,
           updatedAt: new Date(),
         })
         .where(eq(interviewEvaluation.id, evaluationId));
 
+      const [uf] = await tx
+        .select({ flowId: userFlow.fkFlowId })
+        .from(userFlow)
+        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
+        .limit(1);
+      const step3Id = uf
+        ? await findStepIdByOrderInTx(tx, uf.flowId, 3)
+        : null;
+
       await tx
         .update(userFlow)
-        .set({ status: "ongoing", currentStepOrder: 3 })
+        .set({ progressStatus: "ongoing", fkCurrentStepId: step3Id, updatedAt: new Date() })
         .where(eq(userFlow.id, evalRecord.fkUserFlowId));
     });
 
@@ -485,7 +546,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
       .select({
         userFlowId: userFlow.id,
         uid: userFlow.fkUserId,
-        status: userFlow.status,
+        status: userFlow.progressStatus,
         portfolioLink: userFlow.portfolioLink,
         evalId: interviewEvaluation.id,
         evalContent: interviewEvaluation.content,
