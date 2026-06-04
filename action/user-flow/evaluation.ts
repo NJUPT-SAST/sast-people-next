@@ -46,7 +46,7 @@ export const createEvaluation = async (
       .where(
         and(
           eq(interviewEvaluation.fkUserFlowId, userFlowId),
-          eq(interviewEvaluation.status, "pending"),
+          eq(interviewEvaluation.status, "submitted"),
         ),
       )
       .limit(1);
@@ -110,7 +110,7 @@ export const createEvaluation = async (
           fkUserId: session!.uid,
           content: content.trim(),
           meetingLink: link,
-          status: "pending",
+          status: "submitted",
         })
         .returning();
     });
@@ -163,7 +163,7 @@ export const rejectCandidate = async (userFlowId: number) => {
         .where(
           and(
             eq(interviewEvaluation.fkUserFlowId, userFlowId),
-            eq(interviewEvaluation.status, "pending"),
+            eq(interviewEvaluation.status, "submitted"),
           ),
         );
     });
@@ -223,7 +223,7 @@ export const reopenAndEvaluate = async (
         fkUserId: session!.uid,
         content: content.trim(),
         meetingLink: link,
-        status: "pending",
+        status: "submitted",
       });
     });
 
@@ -410,7 +410,7 @@ export const reopenEvaluation = async (evaluationId: number) => {
       await tx
         .update(interviewEvaluation)
         .set({
-          status: "pending",
+          status: "submitted",
           fkReviewedBy: null,
           updatedAt: new Date(),
         })

@@ -28,7 +28,7 @@ export type EvaluationRow = {
 };
 
 const statusLabel: Record<string, string> = {
-  pending: "待审核",
+  submitted: "待终审",
   approved: "已通过",
   rejected: "已驳回",
 };
@@ -132,7 +132,7 @@ export const ApprovalsContent = ({
       setEvaluations((prev) =>
         prev.map((e) =>
           e.evaluation.id === id
-            ? { ...e, evaluation: { ...e.evaluation, status: "pending" } }
+            ? { ...e, evaluation: { ...e.evaluation, status: "submitted" } }
             : e,
         ),
       );
@@ -173,8 +173,8 @@ export const ApprovalsContent = ({
     );
   }
 
-  const pending = evaluations.filter((e) => e.evaluation.status === "pending");
-  const archived = evaluations.filter((e) => e.evaluation.status !== "pending");
+  const pending = evaluations.filter((e) => e.evaluation.status === "submitted");
+  const archived = evaluations.filter((e) => e.evaluation.status !== "submitted");
   const displayed = showArchived ? archived : pending;
 
   if (loading) {
@@ -263,7 +263,7 @@ export const ApprovalsContent = ({
                       )}
                     </span>
                   </div>
-                  {row.evaluation.status === "pending" && (
+                  {row.evaluation.status === "submitted" && (
                     <div className="grid grid-cols-2 gap-2 sm:flex">
                       <Button
                         size="sm"

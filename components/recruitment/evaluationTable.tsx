@@ -43,7 +43,7 @@ type Candidate = {
 const evalStatusBadge = (evalStatus: string | null, flowStatus: string | null) => {
   if (evalStatus === "approved") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
   if (evalStatus === "rejected") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">面评已驳回</Badge>;
-  if (evalStatus === "pending") return <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-chart-3">待审核</Badge>;
+  if (evalStatus === "submitted") return <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-chart-3">待终审</Badge>;
   if (flowStatus === "failed") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">不通过</Badge>;
   if (flowStatus === "passed") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
   return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待评估</Badge>;
@@ -62,13 +62,13 @@ const getCandidateStatusKey = (candidate: Candidate) => {
   if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
   if (candidate.evalStatus === "rejected") return "evalRejected";
   if (candidate.status === "failed") return "rejected";
-  if (candidate.evalStatus === "pending") return "pending";
+  if (candidate.evalStatus === "submitted") return "submitted";
   return "waiting";
 };
 
 const summaryItems = [
   { key: "waiting", label: "待评估" },
-  { key: "pending", label: "待审核" },
+  { key: "submitted", label: "待终审" },
   { key: "accepted", label: "已通过" },
   { key: "evalRejected", label: "面评驳回" },
   { key: "rejected", label: "不通过" },
@@ -289,7 +289,7 @@ export const EvaluationTable = ({
                         <div className="text-sm text-muted-foreground">
                           正在编辑面评
                         </div>
-                      ) : c.evalStatus === "pending" ? (
+                      ) : c.evalStatus === "submitted" ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             size="sm"
@@ -375,7 +375,7 @@ export const EvaluationTable = ({
                   <div className="pt-1 text-sm text-muted-foreground">
                     正在编辑面评
                   </div>
-                ) : c.evalStatus === "pending" ? (
+                ) : c.evalStatus === "submitted" ? (
                   <div className="flex items-center gap-2 pt-1">
                     <Button
                       size="sm"

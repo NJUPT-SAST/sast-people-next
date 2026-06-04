@@ -36,7 +36,7 @@ export const progressStatusEnum = pgEnum("progress_status_enum", [
 ]);
 
 export const evaluationStatusEnum = pgEnum("evaluation_status_enum", [
-  "pending",
+  "submitted",
   "approved",
   "rejected",
 ]);
@@ -229,7 +229,7 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .notNull(),
   content: text("content").notNull(),
   meetingLink: text("meeting_link"),
-  status: evaluationStatusEnum("status").notNull().default("pending"),
+  status: evaluationStatusEnum("status").notNull().default("submitted"),
   /* Link 用户 ID — 审批人 */
   fkReviewedBy: integer("fk_reviewed_by"),
   /* Link 用户 ID — 面评撰写人 */

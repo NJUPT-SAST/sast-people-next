@@ -17,7 +17,7 @@ import { interviewEvaluation } from "@/db/schema";
 type Evaluation = InferSelectModel<typeof interviewEvaluation>;
 
 const statusLabel: Record<string, string> = {
-  pending: "待审核",
+  submitted: "待终审",
   approved: "已通过",
   rejected: "已驳回",
 };
@@ -105,7 +105,7 @@ export const InterviewEvaluation = ({
         </CardHeader>
         <CardContent>
           <p className="text-sm whitespace-pre-wrap">{evaluation.content}</p>
-          {evaluation.status === "pending" && role >= 3 && (
+          {evaluation.status === "submitted" && role >= 3 && (
             <div className="flex gap-2 mt-3">
               <Button size="sm" onClick={handleApprove} loading={loading}>
                 通过

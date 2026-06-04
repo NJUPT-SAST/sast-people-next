@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | Draft |
 | 适用分支 | `v3.1` |
-| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql`、`migrations/0012_operation_audit.sql`、`migrations/0013_fix_database_design.sql`、`migrations/0014_fix_email_fk.sql` |
+| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql`、`migrations/0012_operation_audit.sql`、`migrations/0013_fix_database_design.sql`、`migrations/0014_fix_email_fk.sql`、`migrations/0015_rename_evaluation_status.sql` |
 | 最后更新 | 2026-06-04 |
 
 ## 1. 边界
@@ -22,7 +22,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `flow_step_type_enum` | `registering`、`checking`、`judging`、`email`、`finished` | 流程步骤类型 |
 | `flow_type_enum` | `recruitment`、`recruitment_exemption`、`woc`、`soc` | 流程类型 |
 | `progress_status_enum` | `not_started`、`ongoing`、`passed`、`failed` | 流程进行状态（报名即进流程，无需审核） |
-| `evaluation_status_enum` | `pending`、`approved`、`rejected` | 面评审批状态 |
+| `evaluation_status_enum` | `submitted`、`approved`、`rejected` | 面评终审状态（讲师提交面评 → 管理员终审） |
 | `email_batch_status_enum` | `draft`、`queued`、`completed`、`failed` | 邮件批次状态 |
 | `email_delivery_status_enum` | `pending`、`sending`、`sent`、`failed` | 单封邮件发送状态 |
 
@@ -162,7 +162,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 
 ### `interview_evaluation`
 
-面评记录和管理员审批表。候选人通过 `fk_user_flow_id` → `user_flow.fk_user_id` 获取，`fk_user_id` 为面评撰写人。
+面评记录和管理员终审表。讲师初审通过后提交面评（status=`submitted`），管理员统一终审（→ `approved` / `rejected`）。候选人通过 `fk_user_flow_id` → `user_flow.fk_user_id` 获取，`fk_user_id` 为面评撰写人。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -171,7 +171,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `fk_user_id` | `integer` | 面评撰写人 Link 用户 ID |
 | `content` | `text` | 面评内容 |
 | `meeting_link` | `text` | 会议链接 |
-| `status` | `evaluation_status_enum` | 审批状态，默认 `pending` |
+| `status` | `evaluation_status_enum` | 终审状态，默认 `submitted` |
 | `fk_reviewed_by` | `integer` | 审批人 Link 用户 ID |
 | `created_at` | `timestamp` | 创建时间 |
 | `updated_at` | `timestamp` | 更新时间 |
