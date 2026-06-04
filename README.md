@@ -1,103 +1,41 @@
 # SAST People Next
 
-SAST People Next is a recruitment workflow, grading, interview review, and result notification platform for **NJUPT SAST**. User identity, profile data, role, and account state are provided by SAST Link. It is built with **Next.js 16**, **React 19**, **TypeScript**, **Tailwind CSS v4**, **shadcn/ui**, and **Drizzle ORM**.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Features
+Recruitment workflows, grading, interview review, and result notifications for **NJUPT SAST**.
 
-- Recruitment flow management for written recruitment, exemption recruitment, WOC/WOD, and SOC/SOD
-- Fixed workflow steps based on flow type, with editable step titles and descriptions
-- Written exam grading with QR code scanning and manual student ID lookup
-- Score aggregation for all registered candidates, including ungraded candidates with score `0`
-- Pass/fail list management for written recruitment
-- One-click result email sending that locks final written recruitment results
-- Lecturer interview evaluation for exemption recruitment, WOC/WOD, and SOC/SOD
-- Administrator approval for final evaluation flow decisions
-- Link role synchronization from final accepted flows
-- Link user lookup, read-only profile viewing, role editing, and account banning for workflow administration
-- SAST Link OAuth login and session-based authentication
-- Local PostgreSQL development database
+SAST People focuses on the recruitment and review process. User identity, profile data, role, and account state are provided by **SAST Link**.
 
-## Tech Stack
+## Overview
 
-| Layer | Technology |
-| --- | --- |
-| Framework | Next.js 16 App Router |
-| UI | React 19, Tailwind CSS v4, shadcn/ui |
-| Database | PostgreSQL, Drizzle ORM |
-| Auth | Encrypted cookie sessions |
-| Data fetching | Server Components, Server Actions, SWR |
-| Email | Inngest, react-email, nodemailer |
-| Testing | Jest, Testing Library |
-
-## Roles
-
-The application uses four numeric roles:
-
-| Role | Name | Meaning |
+| Area | Owner | Notes |
 | --- | --- | --- |
-| `0` | New student | A newly registered student |
-| `1` | Member | A SAST member |
-| `2` | Lecturer | A lecturer who can review interviews and grade |
-| `3` | Administrator | An administrator who can manage flows, approvals, and final decisions |
+| User identity and profile | SAST Link | OAuth login, profile fields, role, account state, third-party identities |
+| Recruitment workflows | SAST People | Written recruitment, exemption recruitment, WOC/WOD, SOC/SOD |
+| Review and grading | SAST People | QR-code grading, score aggregation, interview review, final approval |
+| Result notifications | SAST People | Email templates, delivery batches, result locking |
+| Business data | SAST People | Flows, registrations, scores, evaluations, email records, operation audits |
 
-Role upgrades are derived from final accepted flows and synchronized through SAST Link. Session role data is refreshed from Link-backed user data so permission display stays aligned with the current account state.
+## Core Features
 
-## Recruitment Workflows
+- Fixed workflow models for written recruitment, exemption recruitment, WOC/WOD, and SOC/SOD.
+- Written exam grading with QR-code scanning, manual student ID lookup, and score aggregation.
+- Pass/fail confirmation for written recruitment with result-email locking.
+- Lecturer interview evaluation and administrator final approval.
+- Link role synchronization from accepted workflow results.
+- Link user lookup, read-only profile viewing, role editing, and account banning for workflow administration.
+- Local PostgreSQL development database with seed data for repeatable demos.
 
-### Written Recruitment
+## Workflow Model
 
-Flow type: `recruitment`
+| Flow type | Steps | Final role effect |
+| --- | --- | --- |
+| `recruitment` | Registration, grading, admission confirmation | Accepted candidates become members |
+| `recruitment_exemption` | Registration, lecturer review, administrator review | Approved candidates become members |
+| `woc` | Registration, lecturer review, administrator review | New students become members |
+| `soc` | Registration, lecturer review, administrator review | Approved users become lecturers |
 
-Fixed steps:
-
-1. Registration
-2. Grading
-3. Admission confirmation
-
-Students register directly into the grading stage. Lecturers grade written exam submissions. Administrators then mark every candidate as passed or failed.
-
-Pass/fail selection and email delivery are separate operations. After all candidates have been marked as passed or failed, administrators send result emails with a single button. Sending result emails locks the list:
-
-- `passed` becomes `accepted`
-- `failed` becomes `rejected`
-- The list can no longer be edited from score management
-- Passed candidates are upgraded to members after result email sending succeeds
-
-Administrators can still manually adjust user roles through Link-backed administration tools when needed.
-
-### Exemption Recruitment
-
-Flow type: `recruitment_exemption`
-
-Fixed steps:
-
-1. Registration
-2. Lecturer review
-3. Administrator review
-
-Lecturers submit an interview evaluation and meeting link. Administrators approve or reject the evaluation. Final approval upgrades the user to member.
-
-### WOC/WOD
-
-Flow type: `woc`
-
-WOC/WOD uses the same evaluation workflow as exemption recruitment. A new student who passes WOC/WOD is upgraded to member. An existing member remains a member.
-
-### SOC/SOD
-
-Flow type: `soc`
-
-SOC/SOD uses the same evaluation workflow as exemption recruitment. Final approval upgrades the user to lecturer.
-
-## Flow Step Rules
-
-Step count, step order, and step types are fixed by flow type. Administrators may edit only step titles and descriptions.
-
-Only written recruitment flows expose written exam editing. Exemption recruitment, WOC/WOD, and SOC/SOD use registration, lecturer review, and administrator review only.
-
-## Status Model
-
-`user_flow.status` uses the following values:
+`user_flow.status` supports:
 
 | Status | Meaning |
 | --- | --- |
@@ -108,15 +46,27 @@ Only written recruitment flows expose written exam editing. Exemption recruitmen
 | `accepted` | Final accepted status |
 | `rejected` | Final rejected status |
 
-For written recruitment, `passed`/`failed` and `accepted`/`rejected` should not be mixed in normal operation. Once result emails are sent, the written recruitment list is locked.
+For written recruitment, `passed` / `failed` are temporary review states. After result emails are sent, they are locked into `accepted` / `rejected`.
 
-## Prerequisites
+## Tech Stack
+
+| Layer | Technology |
+| --- | --- |
+| Framework | Next.js 16 App Router |
+| UI | React 19, Tailwind CSS v4, shadcn/ui |
+| Database | PostgreSQL, Drizzle ORM |
+| Auth | Encrypted cookie sessions, SAST Link OAuth |
+| Data fetching | Server Components, Server Actions, SWR |
+| Email | Inngest, react-email, nodemailer |
+| Testing | Jest, Testing Library |
+
+## Quick Start
+
+Prerequisites:
 
 - Node.js 20+
 - pnpm 8+
 - PostgreSQL 14+
-
-## Quick Start
 
 ```bash
 pnpm install
@@ -134,9 +84,7 @@ http://localhost:3000
 
 ## Local Database
 
-Local development uses PostgreSQL directly so migrations, queries, and state transitions are tested against the same database engine as production.
-
-For the local PostgreSQL installed on this machine, use:
+For the local PostgreSQL installed on this machine:
 
 ```env
 DATABASE_URL=postgres://postgres:123456@localhost:5432/sastpeople_local
@@ -144,12 +92,12 @@ LINK_ALLOW_LEGACY_FALLBACK=false
 PEOPLE_ALLOW_LEGACY_AUTH=false
 ```
 
-Then apply migrations, seed the local admin account, and start Next.js:
+Then apply migrations and seed local data:
 
 ```bash
 pnpm db:migrate
 pnpm db:seed:local
-pnpm dev
+pnpm db:seed:demo
 ```
 
 The seeded local administrator is:
@@ -158,15 +106,7 @@ The seeded local administrator is:
 student_id: 001
 ```
 
-To test real workflows instead of empty states, seed the demo dataset:
-
-```bash
-pnpm db:seed:demo
-```
-
-The demo dataset adds sample users, written recruitment, interview recruitment, scores, evaluation records, result-email batches, and audit rows. It is idempotent and can be run repeatedly against the local development database.
-
-If you prefer Docker for PostgreSQL, start the compose service and use its port:
+Docker PostgreSQL is also available:
 
 ```bash
 pnpm db:dev:up
@@ -176,7 +116,7 @@ pnpm db:dev:up
 DATABASE_URL=postgres://sastpeople:sast_dev_password@localhost:55432/sastpeople_local
 ```
 
-SAST Link owns user identity and profile data. Configure `LINK_*` variables for the environment you are testing against; `LINK_USE_MOCK=true` is only a temporary local stub when that external service is unavailable.
+SAST Link owns user identity and profile data. Configure `LINK_*` variables for the target Link environment. Use `LINK_USE_MOCK=true` only as a temporary local stub when Link is unavailable.
 
 ## Full Development Mode
 
@@ -192,42 +132,40 @@ This starts:
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` in the project root and fill in local values:
+Copy `.env.example` to `.env.local` and fill in local values:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Keep real secrets in `.env.local` or GitHub Actions secrets, never in tracked files.
+Keep real secrets in `.env.local` or GitHub Actions secrets. Do not commit `.env*` files.
 
 ## Documentation
 
 - [SAST People v3 Link integration plan](docs/SAST_PEOPLE_V3_LINK_DEV.md)
 - [People database schema](docs/PEOPLE_DATABASE_SCHEMA.md)
+- [Testing guide](TESTING.md)
+- [CI/CD guide](CI_CD.md)
 
 ## Commands
 
-```bash
-pnpm dev                 # Start the development server
-pnpm dev:db              # Alias for local PostgreSQL development
-pnpm dev:full            # Start Next.js, Inngest, and email preview
-pnpm db:dev:up           # Start local PostgreSQL for development
-pnpm db:dev:down         # Stop local PostgreSQL
-pnpm db:dev:logs         # Tail local PostgreSQL logs
-pnpm build               # Build for production
-pnpm start               # Start the production server
-pnpm lint                # Run ESLint
-pnpm test                # Run all Jest tests
-pnpm test:watch          # Run Jest in watch mode
-pnpm test:coverage       # Run tests with coverage
-pnpm exec tsc --noEmit   # Run TypeScript type checking
-pnpm db:generate         # Generate Drizzle migrations
-pnpm db:migrate          # Apply Drizzle migrations
-pnpm db:seed:local       # Seed the local administrator account
-pnpm db:seed:demo        # Seed local demo workflow data
-pnpm db:push             # Push schema changes directly
-pnpm db:studio           # Open Drizzle Studio
-```
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev` | Start the development server |
+| `pnpm dev:db` | Alias for local PostgreSQL development |
+| `pnpm dev:full` | Start Next.js, Inngest, and email preview |
+| `pnpm db:dev:up` | Start local PostgreSQL for development |
+| `pnpm db:dev:down` | Stop local PostgreSQL |
+| `pnpm db:dev:logs` | Tail local PostgreSQL logs |
+| `pnpm db:migrate` | Apply Drizzle migrations |
+| `pnpm db:seed:local` | Seed the local administrator account |
+| `pnpm db:seed:demo` | Seed local demo workflow data |
+| `pnpm db:generate` | Generate Drizzle migrations |
+| `pnpm db:push` | Push schema changes directly |
+| `pnpm db:studio` | Open Drizzle Studio |
+| `pnpm lint` | Run ESLint |
+| `pnpm test` | Run all Jest tests |
+| `pnpm build` | Build for production |
 
 ## Project Structure
 
@@ -249,28 +187,25 @@ public/                 Static assets
 
 The database schema is defined in `db/schema.ts`. Migrations live in `migrations/` and should remain ordered by numeric prefix.
 
-After schema changes:
-
-```bash
-pnpm db:generate
-pnpm db:migrate
-```
-
 Current core tables include:
 
-- `user` (legacy fallback and migration only)
-- `flow`
-- `flow_step`
-- `user_flow`
-- `problem`
-- `user_point`
-- `interview_evaluation`
-- `email_template_setting`
-- `email_batch`
-- `email_delivery`
-- `operation_audit`
+| Table | Purpose |
+| --- | --- |
+| `user` | Legacy fallback and migration only |
+| `flow` | Workflow definition |
+| `flow_step` | Workflow steps |
+| `user_flow` | User registration and workflow status |
+| `problem` | Written exam problems |
+| `user_point` | Grading records |
+| `interview_evaluation` | Interview review and final approval |
+| `email_template_setting` | Result email template settings |
+| `email_batch` | Result email sending batches |
+| `email_delivery` | Per-user email delivery records |
+| `operation_audit` | Administrative operation audit logs |
 
-## Testing And Verification
+People business tables store Link user IDs after the v3.1 migration. See [People database schema](docs/PEOPLE_DATABASE_SCHEMA.md) for details.
+
+## Verification
 
 Before opening a pull request or deploying, run:
 
@@ -296,4 +231,4 @@ pnpm test -- --runInBand components/recruitment/table.test.tsx
 
 ## License
 
-This project is developed and maintained by NJUPT SAST and released under the MIT License.
+SAST People Next is developed and maintained by NJUPT SAST and released under the [MIT License](LICENSE).
