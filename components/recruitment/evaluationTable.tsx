@@ -43,7 +43,7 @@ type Candidate = {
 const evalStatusBadge = (evalStatus: string | null, flowStatus: string | null) => {
   if (evalStatus === "approved") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
   if (evalStatus === "rejected") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">面评已驳回</Badge>;
-  if (evalStatus === "submitted") return <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-chart-3">待终审</Badge>;
+  if (evalStatus === "submitted") return <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-chart-3">待审核</Badge>;
   if (flowStatus === "failed") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">不通过</Badge>;
   if (flowStatus === "passed") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
   return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待评估</Badge>;
@@ -62,13 +62,13 @@ const getCandidateStatusKey = (candidate: Candidate) => {
   if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
   if (candidate.evalStatus === "rejected") return "evalRejected";
   if (candidate.status === "failed") return "rejected";
-  if (candidate.evalStatus === "submitted") return "submitted";
+  if (candidate.evalStatus === "submitted") return "pending";
   return "waiting";
 };
 
 const summaryItems = [
   { key: "waiting", label: "待评估" },
-  { key: "submitted", label: "待终审" },
+  { key: "pending", label: "待审核" },
   { key: "accepted", label: "已通过" },
   { key: "evalRejected", label: "面评驳回" },
   { key: "rejected", label: "不通过" },
@@ -439,7 +439,7 @@ export const EvaluationTable = ({
             <DialogDescription>
               {editingCandidate
                 ? `${editingCandidate.name}（${editingCandidate.studentId ?? "无学号"}）`
-                : "填写评价内容，会议链接可选。"}
+                : "填写评价内容，妙记链接可选。"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
@@ -459,7 +459,7 @@ export const EvaluationTable = ({
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">会议链接</label>
+              <label className="text-sm font-medium">妙记链接</label>
               <Input
                 placeholder="https://..."
                 value={meetingLink}

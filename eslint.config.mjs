@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "coverage/**",
     "tmp/**",
+    ".worktrees/**",
     "next-env.d.ts",
   ]),
   {
