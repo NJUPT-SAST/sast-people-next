@@ -51,7 +51,7 @@ export async function sendEmailBatch(batchId: number) {
       return { queuedCount: 0 };
     }
 
-    const finalStatus = batch.accept ? "accepted" : "rejected";
+    const finalStatus = batch.accept ? "passed" : "failed";
 
     await db
       .update(emailDelivery)
@@ -68,15 +68,16 @@ export async function sendEmailBatch(batchId: number) {
       .set({ status: "queued", updatedAt: new Date() })
       .where(eq(emailBatch.id, batchId));
 
-    await db
-      .update(userFlow)
-      .set({ status: finalStatus })
-      .where(
-        inArray(
-          userFlow.id,
-          queueableDeliveries.map((item) => item.userFlowId),
-        ),
-      );
+    const userFlowIds = queueableDeliveries
+      .map((item) => item.userFlowId)
+      .filter((id): id is number => id !== null);
+
+    if (userFlowIds.length > 0) {
+      await db
+        .update(userFlow)
+        .set({ progressStatus: finalStatus, updatedAt: new Date() })
+        .where(inArray(userFlow.id, userFlowIds));
+    }
 
     await Promise.all(
       queueableDeliveries.map((item) => syncUserRoleFromAcceptedFlows(item.userId)),

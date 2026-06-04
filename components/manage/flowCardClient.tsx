@@ -71,7 +71,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
   const isLastStep = useMemo(() => {
     return currentStepIndex === steps.length - 1;
   }, [currentStepIndex, steps.length]);
-  const isFinalLocked = flow.status === 'accepted' || flow.status === 'rejected';
+  const isFinalLocked = flow.status === 'passed' || flow.status === 'failed';
 
   const [loading, setLoading] = React.useState(false);
 
@@ -109,11 +109,11 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
 
   const handleForward = () => doAction(
     () => forward(flow.id),
-    (f) => ({ ...f, currentStepOrder: f.currentStepOrder + 1 }),
+    (f) => ({ ...f, currentStepOrder: (f.currentStepOrder ?? 0) + 1 }),
   );
   const handleBackward = () => doAction(
     () => backward(flow.id),
-    (f) => ({ ...f, currentStepOrder: f.currentStepOrder - 1 }),
+    (f) => ({ ...f, currentStepOrder: (f.currentStepOrder ?? 0) - 1 }),
   );
   const handleLastStep = () => doAction(
     () => finish(flow.id),
@@ -131,18 +131,16 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
         </CardTitle>
         <Badge
           variant={
-            flow.status === 'ongoing' || flow.status === 'pending' || flow.status === 'passed' || flow.status === 'failed'
+            flow.status === 'ongoing' || flow.status === 'not_started'
               ? 'secondary'
-              : flow.status === 'accepted'
+              : flow.status === 'passed'
                 ? 'default'
                 : 'destructive'
           }
         >
-          {flow.status === 'ongoing' || flow.status === 'pending'
+          {flow.status === 'ongoing' || flow.status === 'not_started'
             ? '流程进行中'
-            : flow.status === 'passed' || flow.status === 'failed'
-              ? statusName[flow.status]
-            : flow.status === 'accepted'
+            : flow.status === 'passed'
               ? '已通过考核'
               : '未通过考核'}
         </Badge>
@@ -153,13 +151,9 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
           <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted z-10"></div>
           {steps.map((step, index) => {
             const stepStatus =
-              flow.status === 'accepted'
+              flow.status === 'passed'
                 ? 'accepted'
-                : flow.status === 'passed' || flow.status === 'failed'
-                ? step.order <= activeStepOrder
-                  ? 'ongoing'
-                  : 'pending'
-                : flow.status === 'rejected'
+                : flow.status === 'failed'
                 ? step.order < activeStepOrder
                   ? 'accepted'
                   : step.order === activeStepOrder

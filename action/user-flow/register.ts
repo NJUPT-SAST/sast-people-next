@@ -1,12 +1,24 @@
 "use server";
 import { db } from "@/db/drizzle";
-import { flow, userFlow } from "@/db/schema";
+import { flow, flowStep, userFlow } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logServerError } from "@/lib/server-error-log";
 import { verifySession } from "@/lib/dal";
 import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
-// import eventManager from "@/event";
+
+/** 查找 flow 下指定 order 的步骤 ID */
+async function findStepIdByOrder(
+  flowId: number,
+  order: number,
+): Promise<number | null> {
+  const [step] = await db
+    .select({ id: flowStep.id })
+    .from(flowStep)
+    .where(and(eq(flowStep.fkFlowId, flowId), eq(flowStep.order, order)))
+    .limit(1);
+  return step?.id ?? null;
+}
 
 export const register = async (
   flowId: number,
@@ -108,7 +120,7 @@ export const register = async (
         };
       }
 
-      if (now > endedAt) {
+      if (endedAt && now > endedAt) {
         return {
           success: false,
           error: {
@@ -117,20 +129,20 @@ export const register = async (
         };
       }
 
+      const stepId = await findStepIdByOrder(flowId, 2);
+
       const [_newFlow] = await tx
         .insert(userFlow)
         .values({
           fkUserId: uid,
           fkFlowId: flowId,
-          currentStepOrder: type === "recruitment" ? 2 : 2,
-          status: "ongoing",
+          fkCurrentStepId: stepId,
+          progressStatus: "ongoing",
           portfolioLink: normalizedPortfolioLink,
         })
         .returning();
 
       revalidatePath("/dashboard/user-flow");
-      // TODO: eventManager.register() was called with wrong args and its body was empty - needs reimplementation
-      // eventManager.register(uid, flowId, newFlow.id);
 
       return {
         success: true,

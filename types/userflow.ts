@@ -1,9 +1,20 @@
+import type { InferSelectModel } from 'drizzle-orm';
 import { userFlow } from '@/db/schema';
 import { fullStepType } from '@/types/step';
-import { InferSelectModel } from 'drizzle-orm';
 
-//用户关联的流程
-export type displayUserFlow = InferSelectModel<typeof userFlow> & {
+export type UserFlowRow = InferSelectModel<typeof userFlow>;
+
+/** progress_status → 兼容旧 status 字段 */
+export function computeStatus(prog: string | null | undefined): string {
+  return prog ?? "not_started";
+}
+
+// 用户关联的流程，用于展示层
+export type displayUserFlow = UserFlowRow & {
+  /** 兼容旧 status 字段，由 progressStatus 映射 */
+  status: string;
+  /** 兼容旧 currentStepOrder，由 fkCurrentStepId → flow_step.order 计算 */
+  currentStepOrder: number | null;
   title: string;
   flowType?: string;
   steps: fullStepType[];

@@ -92,6 +92,20 @@
       "when": 1770000000004,
       "tag": "0012_operation_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1770000000005,
+      "tag": "0013_fix_database_design",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1770000000006,
+      "tag": "0014_fix_email_fk",
+      "breakpoints": true
     }
   ]
 }

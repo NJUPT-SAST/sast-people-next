@@ -29,144 +29,89 @@ export async function listEmailFlowTargets() {
     .where(and(eq(flow.isDeleted, false), eq(flow.type, "recruitment")))
     .orderBy(desc(flow.createdAt));
 
-  if (flows.length === 0) {
-    return [];
-  }
+  if (flows.length === 0) return [];
 
-  const acceptedSetting = await getEmailTemplateSetting(
-    getResultEmailTemplateKey(true),
-  );
-  const rejectedSetting = await getEmailTemplateSetting(
-    getResultEmailTemplateKey(false),
-  );
+  const acceptedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(true));
+  const rejectedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(false));
 
   const targets = await db
     .select({
       flowId: userFlow.fkFlowId,
       userFlowId: userFlow.id,
       userId: userFlow.fkUserId,
-      status: userFlow.status,
+      progressStatus: userFlow.progressStatus,
     })
     .from(userFlow)
     .where(
       and(
         inArray(userFlow.fkFlowId, flows.map((item) => item.id)),
-        inArray(userFlow.status, ["passed", "failed", "accepted", "rejected"]),
+        inArray(userFlow.progressStatus, ["passed", "failed"]),
       ),
     );
+
   const userMap = await listPeopleUsersByLinkIds(targets.map((item) => item.userId));
   const hydratedTargets = targets.map((target) => ({
     ...target,
+    status: target.progressStatus ?? "not_started",
     name: userMap.get(target.userId)?.name ?? "同学",
     studentId: userMap.get(target.userId)?.studentId ?? null,
   }));
 
   return Promise.all(flows.map(async (item) => {
     const flowTargets = hydratedTargets.filter((target) => target.flowId === item.id);
-    const passed = flowTargets.filter((target) => target.status === "passed");
-    const failed = flowTargets.filter((target) => target.status === "failed");
-    const accepted = flowTargets.filter((target) => target.status === "accepted");
-    const rejected = flowTargets.filter((target) => target.status === "rejected");
-    const acceptedSample = passed[0] ?? accepted[0];
-    const rejectedSample = failed[0] ?? rejected[0];
+    const passed = flowTargets.filter((t) => t.status === "passed");
+    const failed = flowTargets.filter((t) => t.status === "failed");
     return {
       ...item,
       passed,
       failed,
-      accepted,
-      rejected,
+      accepted: passed,
+      rejected: failed,
       acceptedSubject: renderResultEmailSubject(item.title, acceptedSetting),
       rejectedSubject: renderResultEmailSubject(item.title, rejectedSetting),
-      acceptedPreviewHtml: acceptedSample
-        ? await renderResultEmail({
-            name: acceptedSample.name,
-            flowName: item.title,
-            accept: true,
-            setting: acceptedSetting,
-            genericGreeting: true,
-          })
+      acceptedPreviewHtml: passed[0]
+        ? await renderResultEmail({ name: passed[0].name, flowName: item.title, accept: true, setting: acceptedSetting, genericGreeting: true })
         : null,
-      rejectedPreviewHtml: rejectedSample
-        ? await renderResultEmail({
-            name: rejectedSample.name,
-            flowName: item.title,
-            accept: false,
-            setting: rejectedSetting,
-            genericGreeting: true,
-          })
+      rejectedPreviewHtml: failed[0]
+        ? await renderResultEmail({ name: failed[0].name, flowName: item.title, accept: false, setting: rejectedSetting, genericGreeting: true })
         : null,
     };
   }));
 }
 
-export async function createResultEmailBatchFromFlow(
-  flowId: number,
-  accept: boolean,
-) {
+export async function createResultEmailBatchFromFlow(flowId: number, accept: boolean) {
   await verifyRole(3);
-
   const sourceStatus = accept ? "passed" : "failed";
   const rows = await db
     .select({ userFlowId: userFlow.id, userId: userFlow.fkUserId })
     .from(userFlow)
-    .where(and(eq(userFlow.fkFlowId, flowId), eq(userFlow.status, sourceStatus)));
+    .where(and(eq(userFlow.fkFlowId, flowId), eq(userFlow.progressStatus, sourceStatus)));
 
-  if (rows.length === 0) {
-    return { batchId: null, deliveryCount: 0 };
-  }
+  if (rows.length === 0) return { batchId: null, deliveryCount: 0 };
 
   const existingDeliveries = await db
-    .select({
-      batchId: emailDelivery.fkEmailBatchId,
-      userFlowId: emailDelivery.fkUserFlowId,
-      status: emailDelivery.status,
-    })
+    .select({ batchId: emailDelivery.fkEmailBatchId, userFlowId: emailDelivery.fkUserFlowId, status: emailDelivery.status })
     .from(emailDelivery)
     .innerJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
-    .where(
-      and(
-        eq(emailBatch.fkFlowId, flowId),
-        eq(emailBatch.accept, accept),
-        inArray(emailDelivery.fkUserFlowId, rows.map((item) => item.userFlowId)),
-      ),
-    )
+    .where(and(eq(emailBatch.fkFlowId, flowId), eq(emailBatch.accept, accept), inArray(emailDelivery.fkUserFlowId, rows.map((item) => item.userFlowId))))
     .orderBy(asc(emailDelivery.createdAt));
 
-  const reusableDelivery = existingDeliveries.find(
-    (item) => item.status === "pending" || item.status === "failed",
-  );
-  if (reusableDelivery) {
-    return { batchId: reusableDelivery.batchId, deliveryCount: 0 };
-  }
+  const reusableDelivery = existingDeliveries.find((item) => item.status === "pending" || item.status === "failed");
+  if (reusableDelivery) return { batchId: reusableDelivery.batchId, deliveryCount: 0 };
 
-  const existingUserFlowIds = new Set(
-    existingDeliveries.map((item) => item.userFlowId),
-  );
-  const rowsWithoutDelivery = rows.filter(
-    (item) => !existingUserFlowIds.has(item.userFlowId),
-  );
+  const existingUserFlowIds = new Set(existingDeliveries.map((item) => item.userFlowId));
+  const rowsWithoutDelivery = rows.filter((item) => !existingUserFlowIds.has(item.userFlowId));
+  if (rowsWithoutDelivery.length === 0) return { batchId: null, deliveryCount: 0 };
 
-  if (rowsWithoutDelivery.length === 0) {
-    return { batchId: null, deliveryCount: 0 };
-  }
-
-  const result = await batchSendEmail(
-    rowsWithoutDelivery.map((item) => item.userId),
-    flowId,
-    accept,
-  );
+  const result = await batchSendEmail(rowsWithoutDelivery.map((item) => item.userId), flowId, accept);
   revalidatePath("/dashboard/emails");
   return result;
 }
 
 export async function sendResultEmailFromFlow(flowId: number, accept: boolean) {
   await verifyRole(3);
-
   const batch = await createResultEmailBatchFromFlow(flowId, accept);
-  if (!batch.batchId) {
-    return { batchId: null, queuedCount: 0 };
-  }
-
+  if (!batch.batchId) return { batchId: null, queuedCount: 0 };
   const sent = await sendEmailBatch(batch.batchId);
   revalidatePath("/dashboard/emails");
   return { batchId: batch.batchId, queuedCount: sent.queuedCount };

@@ -68,7 +68,7 @@ describe("manage FlowCard", () => {
           id: 11,
           fkUserId: 9,
           title: "已结束流程",
-          status: "accepted",
+          status: "passed",
           currentStepOrder: 1,
           steps: [{ id: 1, order: 1, title: "终试", description: "已结束" }],
         } as never}

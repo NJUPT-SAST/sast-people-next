@@ -103,7 +103,7 @@ const SubmitRegister = ({
               {safeFlowList.map((flow) => {
                 const now = new Date();
                 const isBeforeStart = now < flow.startedAt;
-                const isAfterEnd = now > flow.endedAt;
+                const isAfterEnd = flow.endedAt ? now > flow.endedAt : false;
                 const isActive = !isBeforeStart && !isAfterEnd;
 
                 return (

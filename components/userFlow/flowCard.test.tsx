@@ -39,7 +39,7 @@ describe("FlowCard", () => {
       flow: {
         id: 2,
         title: "未开始流程",
-        status: "pending",
+        status: "not_started",
         currentStepOrder: 0,
         steps: [{ id: 1, order: 1, title: "报名", description: "待开启" }],
       } as never,

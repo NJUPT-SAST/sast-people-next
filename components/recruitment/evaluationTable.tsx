@@ -32,7 +32,7 @@ type Candidate = {
   name: string;
   studentId: string | null;
   phoneNumber: string | null;
-  status: string;
+  status: string | null;
   portfolioLink: string | null;
   evalId: number | null;
   evalContent: string | null;
@@ -40,12 +40,12 @@ type Candidate = {
   evalStatus: string | null;
 };
 
-const evalStatusBadge = (evalStatus: string | null, flowStatus: string) => {
+const evalStatusBadge = (evalStatus: string | null, flowStatus: string | null) => {
   if (evalStatus === "approved") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
   if (evalStatus === "rejected") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">面评已驳回</Badge>;
   if (evalStatus === "pending") return <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-chart-3">待审核</Badge>;
-  if (flowStatus === "rejected") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">不通过</Badge>;
-  if (flowStatus === "accepted") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
+  if (flowStatus === "failed") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">不通过</Badge>;
+  if (flowStatus === "passed") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
   return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待评估</Badge>;
 };
 
@@ -59,9 +59,9 @@ const dialogRejectButtonClass =
   "border-destructive/35 text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive dark:border-destructive/40";
 
 const getCandidateStatusKey = (candidate: Candidate) => {
-  if (candidate.evalStatus === "approved" || candidate.status === "accepted") return "accepted";
+  if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
   if (candidate.evalStatus === "rejected") return "evalRejected";
-  if (candidate.status === "rejected") return "rejected";
+  if (candidate.status === "failed") return "rejected";
   if (candidate.evalStatus === "pending") return "pending";
   return "waiting";
 };
@@ -261,7 +261,7 @@ export const EvaluationTable = ({
           <TableBody>
             {safeCandidates.map((c) => {
               const isEditing = evaluatingId === c.userFlowId;
-              const isRejected = c.status === "rejected";
+              const isRejected = c.status === "failed";
               const busy = loadingId === c.userFlowId;
 
               return (
@@ -347,7 +347,7 @@ export const EvaluationTable = ({
       <div className="md:hidden flex flex-col divide-y divide-border">
         {safeCandidates.map((c) => {
           const isEditing = evaluatingId === c.userFlowId;
-          const isRejected = c.status === "rejected";
+          const isRejected = c.status === "failed";
           const busy = loadingId === c.userFlowId;
 
           return (
@@ -470,7 +470,7 @@ export const EvaluationTable = ({
           </div>
           <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">
             <div className="min-h-9">
-              {editingCandidate && editingCandidate.status !== "rejected" && (
+              {editingCandidate && editingCandidate.status !== "failed" && (
                 <Button
                   type="button"
                   variant="outline"
