@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -91,7 +93,9 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
               : "destructive"
           }
         >
-          {safeFlow.status === "ongoing" || safeFlow.status === "not_started"
+          {safeFlow.status === "not_started"
+            ? "流程未开始"
+            : safeFlow.status === "ongoing"
             ? "流程进行中"
             : safeFlow.status === "passed"
             ? "已通过考核"
@@ -121,7 +125,9 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
               safeFlow.status === "passed"
                 ? "accepted"
                 : safeFlow.status === "failed"
-                ? "rejected"
+                ? step.order < activeStepOrder
+                  ? "accepted"
+                  : "pending"
                 : step.order < activeStepOrder
                 ? "accepted"
                 : "pending";
@@ -131,6 +137,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                 <Popover>
                   <PopoverTrigger asChild>
                     <button
+                      type="button"
                       className={cn(
                         "w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm shrink-0 transition-colors",
                         step.order <= activeStepOrder

@@ -249,7 +249,7 @@ export const ApprovalsContent = ({
                       <InlineLink label="作品链接" value={row.portfolioLink} />
                     )}
                     {row.meetingLink && (
-                      <InlineLink label="会议链接" value={row.meetingLink} />
+                      <InlineLink label="妙记链接" value={row.meetingLink} />
                     )}
                   </div>
                 )}
