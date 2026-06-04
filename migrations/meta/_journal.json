@@ -113,6 +113,13 @@
       "when": 1770000000007,
       "tag": "0015_rename_evaluation_status",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1770000000008,
+      "tag": "0016_feishu_interview_scheduling",
+      "breakpoints": true
     }
   ]
 }

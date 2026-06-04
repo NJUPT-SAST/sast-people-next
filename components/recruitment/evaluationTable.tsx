@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { CalendarClock, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/user-flow/evaluation";
+import { createInterviewSchedule } from "@/action/user-flow/interviewSchedule";
+import { redirectFeishuOAuth } from "@/action/user/feishuOAuth";
 import {
   Dialog,
   DialogContent,
@@ -74,6 +76,33 @@ const summaryItems = [
   { key: "rejected", label: "不通过" },
 ];
 
+const formatDateTimeLocal = (date: Date) => {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    "-",
+    pad(date.getMonth() + 1),
+    "-",
+    pad(date.getDate()),
+    "T",
+    pad(date.getHours()),
+    ":",
+    pad(date.getMinutes()),
+  ].join("");
+};
+
+const getDefaultScheduleRange = () => {
+  const start = new Date();
+  start.setMinutes(0, 0, 0);
+  start.setHours(start.getHours() + 1);
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + 30);
+  return {
+    startsAt: formatDateTimeLocal(start),
+    endsAt: formatDateTimeLocal(end),
+  };
+};
+
 function StatusCountPill({
   label,
   value,
@@ -120,6 +149,10 @@ export const EvaluationTable = ({
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
+  const [scheduleStartsAt, setScheduleStartsAt] = useState("");
+  const [scheduleEndsAt, setScheduleEndsAt] = useState("");
+  const [scheduleNote, setScheduleNote] = useState("");
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<"pass" | "reopen" | null>(null);
 
@@ -128,12 +161,20 @@ export const EvaluationTable = ({
     setEditMode(mode);
     setContent(c.evalContent ?? "");
     setMeetingLink(c.evalMeetingLink ?? "");
+    const range = getDefaultScheduleRange();
+    setScheduleStartsAt(range.startsAt);
+    setScheduleEndsAt(range.endsAt);
+    setScheduleNote("");
   };
 
   const cancelEdit = () => {
     setEvaluatingId(null);
     setContent("");
     setMeetingLink("");
+    setScheduleStartsAt("");
+    setScheduleEndsAt("");
+    setScheduleNote("");
+    setScheduleLoading(false);
     setEditMode(null);
   };
 
@@ -185,6 +226,34 @@ export const EvaluationTable = ({
       toast.error("操作失败");
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const handleCreateSchedule = async (userFlowId: number) => {
+    if (!scheduleStartsAt || !scheduleEndsAt) {
+      toast.error("请填写面试开始和结束时间");
+      return;
+    }
+
+    setScheduleLoading(true);
+    try {
+      const result = await createInterviewSchedule({
+        userFlowId,
+        startsAt: scheduleStartsAt,
+        endsAt: scheduleEndsAt,
+        note: scheduleNote,
+      });
+      if (!result.success) {
+        toast.error(result.error?.message ?? "飞书日程创建失败");
+        return;
+      }
+      setMeetingLink(result.data.meetingLink);
+      toast.success("飞书日程已创建，预约邮件已发送");
+      onRefresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "飞书日程创建失败");
+    } finally {
+      setScheduleLoading(false);
     }
   };
 
@@ -466,6 +535,66 @@ export const EvaluationTable = ({
                 onChange={(e) => setMeetingLink(e.target.value)}
                 className="h-10"
               />
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">飞书日程</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    创建飞书会议和日程后会自动填入会议链接，并给候选人发送预约邮件。
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => redirectFeishuOAuth()}
+                >
+                  绑定飞书
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">开始时间</label>
+                  <Input
+                    type="datetime-local"
+                    value={scheduleStartsAt}
+                    onChange={(e) => setScheduleStartsAt(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">结束时间</label>
+                  <Input
+                    type="datetime-local"
+                    value={scheduleEndsAt}
+                    onChange={(e) => setScheduleEndsAt(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                <label className="text-sm font-medium">预约备注</label>
+                <Input
+                  placeholder="例如：请提前准备作品介绍"
+                  value={scheduleNote}
+                  onChange={(e) => setScheduleNote(e.target.value)}
+                  className="h-10"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3"
+                onClick={() => {
+                  if (!editingCandidate) return;
+                  return handleCreateSchedule(editingCandidate.userFlowId);
+                }}
+                loading={scheduleLoading}
+              >
+                <CalendarClock className="h-4 w-4" />
+                发起飞书日程
+              </Button>
             </div>
           </div>
           <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">

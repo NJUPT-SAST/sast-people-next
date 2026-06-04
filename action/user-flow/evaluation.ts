@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { flow, flowStep, interviewEvaluation, userFlow } from "@/db/schema";
+import { flow, flowStep, interviewEvaluation, interviewSchedule, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
@@ -75,6 +75,21 @@ export const createEvaluation = async (
           .update(userFlow)
           .set({ progressStatus: "ongoing", fkCurrentStepId: interviewStepId, updatedAt: new Date() })
           .where(eq(userFlow.id, userFlowId));
+
+        if (link) {
+          await tx
+            .update(interviewSchedule)
+            .set({
+              fkEvaluationId: existing[0].id,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(interviewSchedule.fkUserFlowId, userFlowId),
+                eq(interviewSchedule.meetingLink, link),
+              ),
+            );
+        }
       });
 
       revalidatePath("/dashboard/recruitment");
@@ -103,7 +118,7 @@ export const createEvaluation = async (
         .set({ progressStatus: "ongoing", fkCurrentStepId: interviewStepId, updatedAt: new Date() })
         .where(eq(userFlow.id, userFlowId));
 
-      return tx
+      const inserted = await tx
         .insert(interviewEvaluation)
         .values({
           fkUserFlowId: userFlowId,
@@ -113,6 +128,23 @@ export const createEvaluation = async (
           status: "submitted",
         })
         .returning();
+
+      if (link && inserted[0]) {
+        await tx
+          .update(interviewSchedule)
+          .set({
+            fkEvaluationId: inserted[0].id,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(interviewSchedule.fkUserFlowId, userFlowId),
+              eq(interviewSchedule.meetingLink, link),
+            ),
+          );
+      }
+
+      return inserted;
     });
 
     revalidatePath("/dashboard/recruitment");
@@ -218,13 +250,28 @@ export const reopenAndEvaluate = async (
         .set({ progressStatus: "ongoing", fkCurrentStepId: interviewStepId, updatedAt: new Date() })
         .where(eq(userFlow.id, userFlowId));
 
-      await tx.insert(interviewEvaluation).values({
+      const [evaluation] = await tx.insert(interviewEvaluation).values({
         fkUserFlowId: userFlowId,
         fkUserId: session!.uid,
         content: content.trim(),
         meetingLink: link,
         status: "submitted",
-      });
+      }).returning({ id: interviewEvaluation.id });
+
+      if (link && evaluation) {
+        await tx
+          .update(interviewSchedule)
+          .set({
+            fkEvaluationId: evaluation.id,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(interviewSchedule.fkUserFlowId, userFlowId),
+              eq(interviewSchedule.meetingLink, link),
+            ),
+          );
+      }
     });
 
     revalidatePath("/dashboard/recruitment");
