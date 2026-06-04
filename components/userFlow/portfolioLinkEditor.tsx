@@ -20,6 +20,7 @@ export const PortfolioLinkEditor = ({
   const [editing, setEditing] = useState(!initialValue);
   const [saving, setSaving] = useState(false);
   const hasLink = value.trim().length > 0;
+  const href = externalHref(value);
 
   const handleSave = async () => {
     setSaving(true);
@@ -44,9 +45,9 @@ export const PortfolioLinkEditor = ({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-1">
           <p className="text-sm font-medium">作品链接</p>
-          {!editing && hasLink ? (
+          {!editing && hasLink && href ? (
             <a
-              href={externalHref(value)}
+              href={href}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"

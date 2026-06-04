@@ -1,67 +1,58 @@
-## Description
+## Summary
 
-<!-- Provide a brief description of your changes -->
+<!-- Briefly describe what changed and why. -->
 
-## Related Issue
+## Related Issues
 
-<!-- Link to the issue this PR addresses (e.g., Closes #123) -->
+<!-- Link issues when applicable, for example: Closes #123. Delete this section if not applicable. -->
 
-Closes #
+## Change Type
 
-## Type of Change
+<!-- Mark all that apply. -->
 
-<!-- Mark the relevant option with an "x" -->
-
-- [ ] 🐛 Bug fix (non-breaking change that fixes an issue)
-- [ ] ✨ New feature (non-breaking change that adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📝 Documentation update
-- [ ] 🎨 Style/UI update
-- [ ] ♻️ Code refactor (no functional changes)
-- [ ] ⚡ Performance improvement
-- [ ] ✅ Test update
-- [ ] 🔧 Build/CI configuration
-- [ ] 🧹 Chore (dependency updates, etc.)
-
-## Changes Made
-
-<!-- List the main changes in this PR -->
-
--
--
--
+- [ ] Bug fix
+- [ ] Feature
+- [ ] UI / style
+- [ ] Refactor
+- [ ] Documentation
+- [ ] Tests
+- [ ] Build / CI / tooling
+- [ ] Dependency update
+- [ ] Chore
 
 ## Screenshots / Recordings
 
-<!-- If applicable, add screenshots or recordings to demonstrate the changes -->
+<!-- Required for visible UI changes. Add before/after screenshots when helpful. -->
 
-## Testing
+## Validation
 
-<!-- Describe how you tested your changes -->
+<!-- Mark what you ran, or explain why a check was not needed. -->
 
-- [ ] I have tested this locally
-- [ ] I have added/updated tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
+- [ ] `pnpm lint`
+- [ ] `pnpm test`
+- [ ] `pnpm exec tsc --noEmit`
+- [ ] `pnpm build`
+- [ ] Manual verification
 
-### Test Instructions
+Manual verification notes:
 
-<!-- Provide steps for reviewers to test your changes -->
+-
 
-1.
-2.
-3.
+## Database / Config
 
-## Checklist
+- [ ] No database schema changes
+- [ ] Database schema or migration updated
+- [ ] No environment variable changes
+- [ ] `.env.example` or docs updated for environment variable changes
+- [ ] No deployment, Sentry, Inngest, Docker, or CI configuration changes
+- [ ] Deployment/configuration impact noted below
 
-<!-- Mark completed items with an "x" -->
+Deployment/configuration notes:
 
-- [ ] My code follows the project's style guidelines
-- [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] Any dependent changes have been merged and published
+-
 
-## Additional Notes
+## Reviewer Notes
 
-<!-- Add any additional context or notes for reviewers -->
+<!-- Mention migration steps, risk areas, follow-up work, or anything reviewers should focus on. -->
+
+-
