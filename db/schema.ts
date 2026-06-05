@@ -213,6 +213,19 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
     .$onUpdate(() => sql`now()`),
 });
 
+export const emailTemplateContent = pgTable("email_template_content", {
+  id: serial("id").primaryKey(),
+  templateKey: varchar("template_key", { length: 80 }).notNull().unique(),
+  subjectTemplate: varchar("subject_template", { length: 255 }).notNull(),
+  titleTemplate: varchar("title_template", { length: 255 }).notNull(),
+  bodyTemplate: text("body_template").notNull(),
+  footerText: varchar("footer_text", { length: 255 }).notNull(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+});
+
 export const userPoint = pgTable("user_point", {
   id: serial("id").primaryKey(),
   fkUserFlowId: integer("fk_user_flow_id")

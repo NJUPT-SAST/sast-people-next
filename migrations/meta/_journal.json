@@ -120,6 +120,13 @@
       "when": 1770000000008,
       "tag": "0016_feishu_interview_scheduling",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1770000000009,
+      "tag": "0017_email_template_content",
+      "breakpoints": true
     }
   ]
 }

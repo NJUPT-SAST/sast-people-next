@@ -1,4 +1,8 @@
 import { listEmailBatches } from "@/action/email/list";
+import {
+  getInterviewScheduleEmailPreview,
+  getInterviewScheduleEmailTemplate,
+} from "@/action/email/interview-template";
 import { listEmailTemplateSettings } from "@/action/email/template";
 import { listEmailFlowTargets } from "@/action/email/workspace";
 import { EmailDashboardClient } from "@/components/email/emailDashboardClient";
@@ -18,7 +22,13 @@ export default async function EmailDashboardPage() {
     throw error;
   }
 
-  const [batches, flowTargets, templateSettings] = data;
+  const [
+    batches,
+    flowTargets,
+    templateSettings,
+    interviewScheduleTemplate,
+    interviewSchedulePreviewHtml,
+  ] = data;
 
   return (
     <>
@@ -34,6 +44,8 @@ export default async function EmailDashboardPage() {
           batches={batches}
           flowTargets={flowTargets}
           templateSettings={templateSettings}
+          interviewScheduleTemplate={interviewScheduleTemplate}
+          interviewSchedulePreviewHtml={interviewSchedulePreviewHtml}
         />
       </div>
     </>
@@ -45,5 +57,7 @@ async function loadEmailDashboardData() {
     listEmailBatches(),
     listEmailFlowTargets(),
     listEmailTemplateSettings(),
+    getInterviewScheduleEmailTemplate(),
+    getInterviewScheduleEmailPreview(),
   ]);
 }

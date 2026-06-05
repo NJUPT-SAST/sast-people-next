@@ -33,6 +33,7 @@ test-results*.zip
 docs/*
 !docs/SAST_PEOPLE_V3_LINK_DEV.md
 !docs/PEOPLE_DATABASE_SCHEMA.md
+!docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md
 
 # debug
 npm-debug.log*

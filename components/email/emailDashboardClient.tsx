@@ -1,6 +1,10 @@
 "use client";
 
 import { recoverStaleEmailBatch, sendEmailBatch } from "@/action/email/send";
+import {
+  resetInterviewScheduleEmailTemplate,
+  updateInterviewScheduleEmailTemplate,
+} from "@/action/email/interview-template";
 import { sendEmailTest } from "@/action/email/test-send";
 import { updateEmailTemplateSetting } from "@/action/email/template";
 import { sendResultEmailFromFlow } from "@/action/email/workspace";
@@ -16,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   getEducationEmailLabel,
   getEmailPreflight,
@@ -54,6 +59,9 @@ type FlowTarget = Awaited<
 type TemplateSetting = Awaited<
   ReturnType<typeof import("@/action/email/template").listEmailTemplateSettings>
 >[number];
+type InterviewScheduleTemplate = Awaited<
+  ReturnType<typeof import("@/action/email/interview-template").getInterviewScheduleEmailTemplate>
+>;
 
 const batchStatusText: Record<string, string> = {
   draft: "待发送",
@@ -194,8 +202,12 @@ function FlowSummary({
 
 function MobileTemplateActions({
   templateSettings,
+  interviewScheduleTemplate,
+  interviewSchedulePreviewHtml,
 }: {
   templateSettings: TemplateSetting[];
+  interviewScheduleTemplate: InterviewScheduleTemplate;
+  interviewSchedulePreviewHtml: string | null;
 }) {
   const safeTemplateSettings = Array.isArray(templateSettings) ? templateSettings : [];
   return (
@@ -203,14 +215,22 @@ function MobileTemplateActions({
       {safeTemplateSettings.map((setting) => (
         <TemplateDialog key={setting.templateKey} setting={setting} />
       ))}
+      <InterviewTemplateDialog
+        setting={interviewScheduleTemplate}
+        previewHtml={interviewSchedulePreviewHtml}
+      />
     </div>
   );
 }
 
 function DesktopTemplateActions({
   templateSettings,
+  interviewScheduleTemplate,
+  interviewSchedulePreviewHtml,
 }: {
   templateSettings: TemplateSetting[];
+  interviewScheduleTemplate: InterviewScheduleTemplate;
+  interviewSchedulePreviewHtml: string | null;
 }) {
   const safeTemplateSettings = Array.isArray(templateSettings) ? templateSettings : [];
   return (
@@ -218,6 +238,10 @@ function DesktopTemplateActions({
       {safeTemplateSettings.map((setting) => (
         <TemplateDialog key={setting.templateKey} setting={setting} />
       ))}
+      <InterviewTemplateDialog
+        setting={interviewScheduleTemplate}
+        previewHtml={interviewSchedulePreviewHtml}
+      />
     </div>
   );
 }
@@ -395,6 +419,144 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
               <Save data-icon="inline-start" />
               保存模板
             </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function createInterviewTemplateValues(form: HTMLFormElement) {
+  const data = new FormData(form);
+  return {
+    subjectTemplate: String(data.get("subjectTemplate") ?? ""),
+    titleTemplate: String(data.get("titleTemplate") ?? ""),
+    bodyTemplate: String(data.get("bodyTemplate") ?? ""),
+    footerText: String(data.get("footerText") ?? ""),
+  };
+}
+
+function InterviewTemplateDialog({
+  setting,
+  previewHtml,
+}: {
+  setting: InterviewScheduleTemplate;
+  previewHtml: string | null;
+}) {
+  const router = useRouter();
+  const variableText =
+    "{candidateName}、{flowName}、{organizerName}、{startsAt}、{endsAt}、{meetingLink}";
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full sm:w-auto">
+          <Settings2 data-icon="inline-start" />
+          面试通知模板
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        className={cn(
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto",
+          hiddenScrollbar,
+        )}
+      >
+        <DialogHeader>
+          <DialogTitle>面试通知模板</DialogTitle>
+          <DialogDescription>
+            用于预约飞书会议后发送给面试者；正文必须保留时间和会议链接变量。
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const values = createInterviewTemplateValues(event.currentTarget);
+            toast.promise(
+              updateInterviewScheduleEmailTemplate(values).then((result) => {
+                if (!result.ok) throw new Error(result.message);
+                router.refresh();
+              }),
+              {
+                loading: "正在保存模板",
+                success: "模板已保存",
+                error: (error) =>
+                  error instanceof Error ? error.message : "保存失败",
+              },
+            );
+          }}
+        >
+          <div className="rounded-lg border bg-muted/10 p-3">
+            <p className="text-xs font-medium text-muted-foreground">可用变量</p>
+            <p className="mt-1 break-words text-xs text-muted-foreground">
+              {variableText}
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <TemplateField
+              id="interview-subject-template"
+              name="subjectTemplate"
+              label="邮件标题"
+              defaultValue={setting.subjectTemplate}
+            />
+            <TemplateField
+              id="interview-title-template"
+              name="titleTemplate"
+              label="邮件主标题"
+              defaultValue={setting.titleTemplate}
+            />
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="interview-body-template" className="text-xs text-muted-foreground">
+              正文说明
+            </Label>
+            <Textarea
+              id="interview-body-template"
+              name="bodyTemplate"
+              defaultValue={setting.bodyTemplate}
+              className="min-h-[120px] resize-y"
+            />
+          </div>
+
+          <TemplateField
+            id="interview-footer-text"
+            name="footerText"
+            label="落款"
+            defaultValue={setting.footerText}
+          />
+
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                toast.promise(
+                  resetInterviewScheduleEmailTemplate().then(() => router.refresh()),
+                  {
+                    loading: "正在重置模板",
+                    success: "模板已重置",
+                    error: (error) =>
+                      error instanceof Error ? error.message : "重置失败",
+                  },
+                );
+              }}
+            >
+              恢复默认
+            </Button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <PreviewDialog
+                title="面试通知模板样张"
+                html={previewHtml}
+                triggerLabel="预览"
+                description="样张使用固定示例数据；真实发送时会替换为预约信息。"
+              />
+              <Button type="submit">
+                <Save data-icon="inline-start" />
+                保存模板
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>
@@ -1023,10 +1185,14 @@ export function EmailDashboardClient({
   batches,
   flowTargets,
   templateSettings,
+  interviewScheduleTemplate,
+  interviewSchedulePreviewHtml,
 }: {
   batches: EmailBatch[];
   flowTargets: FlowTarget[];
   templateSettings: TemplateSetting[];
+  interviewScheduleTemplate: InterviewScheduleTemplate;
+  interviewSchedulePreviewHtml: string | null;
 }) {
   const router = useRouter();
   const safeBatches = useMemo(() => (Array.isArray(batches) ? batches : []), [batches]);
@@ -1100,7 +1266,11 @@ export function EmailDashboardClient({
           </div>
           <div className="hidden gap-2 lg:flex lg:flex-wrap">
             <TestEmailButton flowName={selectedFlow?.title} />
-            <DesktopTemplateActions templateSettings={safeTemplateSettings} />
+            <DesktopTemplateActions
+              templateSettings={safeTemplateSettings}
+              interviewScheduleTemplate={interviewScheduleTemplate}
+              interviewSchedulePreviewHtml={interviewSchedulePreviewHtml}
+            />
           </div>
         </div>
 
@@ -1109,7 +1279,11 @@ export function EmailDashboardClient({
             <div className="mb-2">
               <TestEmailButton flowName={selectedFlow?.title} />
             </div>
-            <MobileTemplateActions templateSettings={safeTemplateSettings} />
+            <MobileTemplateActions
+              templateSettings={safeTemplateSettings}
+              interviewScheduleTemplate={interviewScheduleTemplate}
+              interviewSchedulePreviewHtml={interviewSchedulePreviewHtml}
+            />
             <div className="mt-3">
               <Label htmlFor="email-flow-picker" className="mb-2 block text-xs text-muted-foreground">
                 当前流程

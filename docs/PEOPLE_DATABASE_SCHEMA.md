@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | Draft |
 | 适用分支 | `v3.1` |
-| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql`、`migrations/0012_operation_audit.sql`、`migrations/0013_fix_database_design.sql`、`migrations/0014_fix_email_fk.sql`、`migrations/0015_rename_evaluation_status.sql`、`migrations/0016_feishu_interview_scheduling.sql` |
+| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql`、`migrations/0012_operation_audit.sql`、`migrations/0013_fix_database_design.sql`、`migrations/0014_fix_email_fk.sql`、`migrations/0015_rename_evaluation_status.sql`、`migrations/0016_feishu_interview_scheduling.sql`、`migrations/0017_email_template_content.sql` |
 | 最后更新 | 2026-06-05 |
 
 ## 1. 边界
@@ -41,6 +41,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `user_point` | 题目评分记录 | `fk_judger_id` 保存 Link 用户 ID |
 | `interview_evaluation` | 面评记录和审批状态 | `fk_user_id` 保存 Link 用户 ID（面评撰写人）；`fk_reviewed_by` 保存 Link 用户 ID（审批人） |
 | `email_template_setting` | 结果邮件模板配置 | 无用户字段 |
+| `email_template_content` | 通用邮件文案模板配置 | 无用户字段 |
 | `email_batch` | 邮件发送批次 | `fk_created_by` 保存 Link 用户 ID |
 | `email_delivery` | 单个用户邮件发送记录 | `fk_user_id` 保存 Link 用户 ID |
 | `user_oauth_account` | People 私有第三方 OAuth token 绑定 | `fk_user_id` 保存 Link 用户 ID |
@@ -173,7 +174,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `fk_user_flow_id` | `integer` | 关联 `user_flow.id`（CASCADE） |
 | `fk_user_id` | `integer` | 面评撰写人 Link 用户 ID |
 | `content` | `text` | 面评内容 |
-| `meeting_link` | `text` | 会议链接 |
+| `meeting_link` | `text` | 面试结束后的妙记链接或复盘记录链接 |
 | `status` | `evaluation_status_enum` | 终审状态，默认 `submitted` |
 | `fk_reviewed_by` | `integer` | 审批人 Link 用户 ID |
 | `created_at` | `timestamp` | 创建时间 |
@@ -183,7 +184,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 
 ### `interview_schedule`
 
-非笔试流程面试预约表。飞书日程由讲师个人 OAuth token 发起，`meeting_link` 会同步写入对应面评记录。
+非笔试流程面试预约表。飞书日程由讲师个人 OAuth token 发起，`meeting_link` 保存飞书会议链接，不自动写入面评记录。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -230,6 +231,20 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `contact_email` | `varchar(254)` | 联系邮箱 |
 | `member_form_label` | `varchar(100)` | 登记表展示名称 |
 | `feishu_group_name` | `varchar(100)` | 飞书群展示名称 |
+| `updated_at` | `timestamp` | 更新时间 |
+
+### `email_template_content`
+
+通用邮件文案模板配置表。当前用于面试预约通知，不承载通过/不通过结果邮件语义。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 模板配置 ID |
+| `template_key` | `varchar(80)` | 模板 key，当前支持 `interview.schedule` |
+| `subject_template` | `varchar(255)` | 邮件标题模板 |
+| `title_template` | `varchar(255)` | 邮件正文主标题模板 |
+| `body_template` | `text` | 邮件正文说明模板 |
+| `footer_text` | `varchar(255)` | 邮件落款 |
 | `updated_at` | `timestamp` | 更新时间 |
 
 ### `email_batch`

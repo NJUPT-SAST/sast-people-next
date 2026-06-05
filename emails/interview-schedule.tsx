@@ -42,30 +42,36 @@ const Preview = ({ children }: { children: React.ReactNode }) => (
 type InterviewScheduleEmailProps = {
   candidateName: string;
   flowName: string;
+  titleText?: string;
+  bodyText?: string;
   organizerName: string;
   startsAtText: string;
   endsAtText: string;
   meetingLink: string;
   note?: string;
+  footerText?: string;
 };
 
 export const InterviewScheduleEmail = ({
   candidateName,
   flowName,
+  titleText = "面试预约通知",
+  bodyText,
   organizerName,
   startsAtText,
   endsAtText,
   meetingLink,
   note,
+  footerText = "南京邮电大学大学生科学技术协会",
 }: InterviewScheduleEmailProps) => (
   <Html>
     <Preview>{flowName} 面试预约通知</Preview>
     <Body style={body}>
       <Container style={container}>
-        <Heading style={heading}>面试预约通知</Heading>
+        <Heading style={heading}>{titleText}</Heading>
         <Text style={paragraph}>{candidateName} 同学：</Text>
         <Text style={paragraph}>
-          你已预约 {flowName} 的面试，请按时通过下方会议链接参加。
+          {bodyText ?? `你已预约 ${flowName} 的面试，请按时通过下方会议链接参加。`}
         </Text>
         <Section style={card}>
           <Text style={label}>时间</Text>
@@ -85,7 +91,7 @@ export const InterviewScheduleEmail = ({
           会议链接：<Link href={meetingLink} style={anchor}>{meetingLink}</Link>
         </Text>
         <Hr style={hr} />
-        <Text style={footer}>南京邮电大学大学生科学技术协会</Text>
+        <Text style={footer}>{footerText}</Text>
       </Container>
     </Body>
   </Html>
@@ -94,11 +100,13 @@ export const InterviewScheduleEmail = ({
 InterviewScheduleEmail.PreviewProps = {
   candidateName: "张三",
   flowName: "2026 免试招新",
+  titleText: "面试预约通知",
   organizerName: "讲师",
   startsAtText: "2026-06-04 19:00",
   endsAtText: "2026-06-04 19:30",
   meetingLink: "https://vc.feishu.cn/j/123456789",
   note: "请提前准备作品介绍。",
+  footerText: "南京邮电大学大学生科学技术协会",
 } as InterviewScheduleEmailProps;
 
 export default InterviewScheduleEmail;

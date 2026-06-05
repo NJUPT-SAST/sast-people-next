@@ -2,6 +2,7 @@
 
 import { FEISHU_OAUTH_STATE } from "@/const/cookie";
 import { verifySession } from "@/lib/dal";
+import { getFeishuOAuthAccountStatus } from "@/lib/feishu/oauth-account";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -27,7 +28,7 @@ export async function redirectFeishuOAuth() {
   cookieStore.set(FEISHU_OAUTH_STATE, state, {
     path: "/",
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 600,
   });
@@ -43,11 +44,16 @@ export async function redirectFeishuOAuth() {
   redirect(authorizeUrl.toString());
 }
 
+export async function getCurrentFeishuOAuthStatus() {
+  const session = await verifySession();
+  return getFeishuOAuthAccountStatus(session.uid);
+}
+
 function getFeishuRedirectUri() {
   return (
     process.env.FEISHU_OAUTH_REDIRECT_URI ??
     ((process.env.NODE_ENV === "development"
-      ? "http://localhost:3001"
+      ? "http://localhost:3000"
       : "https://nextpeople.sast.fun") + "/api/auth/feishu")
   );
 }

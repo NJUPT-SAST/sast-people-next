@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getFeishuClient } from "@/lib/feishu/client";
+import { logServerError } from "@/lib/server-error-log";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
 
@@ -26,6 +27,94 @@ export type CreatedFeishuInterviewSchedule = {
 const toFeishuTimestamp = (date: Date) =>
   Math.floor(date.getTime() / 1000).toString();
 
+type FeishuFreebusyResponse = {
+  code?: number;
+  msg?: string;
+  data?: {
+    freebusy_list?: Array<{
+      start_time?: string;
+      end_time?: string;
+    }>;
+  };
+};
+
+function hasOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
+  return startA < endB && startB < endA;
+}
+
+async function assertOrganizerIsAvailable({
+  accessToken,
+  organizerOpenId,
+  startsAt,
+  endsAt,
+}: {
+  accessToken: string;
+  organizerOpenId: string;
+  startsAt: Date;
+  endsAt: Date;
+}) {
+  const client = getFeishuClient();
+  let res: FeishuFreebusyResponse;
+
+  try {
+    res = await client.calendar.v4.freebusy.list(
+      {
+        data: {
+          time_min: startsAt.toISOString(),
+          time_max: endsAt.toISOString(),
+          user_id: organizerOpenId,
+          include_external_calendar: true,
+          only_busy: true,
+        },
+        params: {
+          user_id_type: "open_id",
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+  } catch (error) {
+    logServerError("feishu:freebusy", error, {
+      action: "query-feishu-freebusy",
+      metadata: {
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+      },
+    });
+    return;
+  }
+
+  if (res.code && res.code !== 0) {
+    logServerError("feishu:freebusy", new Error(res.msg ?? String(res.code)), {
+      action: "query-feishu-freebusy",
+      metadata: {
+        code: res.code,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+      },
+    });
+    return;
+  }
+
+  const busyPeriods = res.data?.freebusy_list ?? [];
+  const conflict = busyPeriods.some((item) => {
+    const start = item.start_time ? new Date(item.start_time) : null;
+    const end = item.end_time ? new Date(item.end_time) : null;
+    if (!start || !end) return false;
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return false;
+    }
+    return hasOverlap(startsAt, endsAt, start, end);
+  });
+
+  if (conflict) {
+    throw new Error("讲师该时间段已有飞书日程，请改约后再发起面试。");
+  }
+}
+
 export async function createFeishuInterviewSchedule({
   accessToken,
   organizerOpenId,
@@ -43,6 +132,13 @@ export async function createFeishuInterviewSchedule({
       Authorization: `Bearer ${accessToken}`,
     },
   };
+
+  await assertOrganizerIsAvailable({
+    accessToken,
+    organizerOpenId,
+    startsAt,
+    endsAt,
+  });
 
   const reserveRes = await client.vc.v1.reserve.apply(
     {

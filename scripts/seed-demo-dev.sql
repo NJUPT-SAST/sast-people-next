@@ -109,24 +109,26 @@ on conflict (id) do update set
 
 insert into user_flow (
   id,
-  status,
-  current_step_order,
+  progress_status,
+  fk_current_step_id,
   portfolio_link,
   fk_flow_id,
   fk_user_id
 ) values
-  (201, 'ongoing', 2, null, 101, 4),
-  (202, 'passed', 3, null, 101, 5),
-  (203, 'failed', 3, null, 101, 6),
-  (204, 'accepted', 3, null, 101, 7),
-  (205, 'rejected', 3, null, 101, 8),
-  (206, 'ongoing', 2, 'https://portfolio-a.example.com/project', 102, 4),
-  (207, 'ongoing', 3, 'https://portfolio-b.example.com/project', 102, 5),
-  (208, 'rejected', 3, 'https://portfolio-c.example.com/project', 102, 6),
-  (209, 'accepted', 3, 'https://portfolio-d.example.com/project', 102, 7)
+  (201, 'ongoing', 1012, null, 101, 4),
+  (202, 'passed', 1013, null, 101, 5),
+  (203, 'failed', 1013, null, 101, 6),
+  (204, 'passed', 1013, null, 101, 7),
+  (205, 'failed', 1013, null, 101, 8),
+  (206, 'ongoing', 1022, 'https://portfolio-a.example.com/project', 102, 4),
+  (207, 'ongoing', 1022, 'https://portfolio-b.example.com/project', 102, 5),
+  (208, 'ongoing', 1022, 'https://portfolio-c.example.com/project', 102, 6),
+  (209, 'ongoing', 1023, 'https://portfolio-d.example.com/project', 102, 7),
+  (210, 'failed', 1023, 'https://portfolio-e.example.com/project', 102, 8),
+  (211, 'passed', 1023, 'https://member.example.com/interview-project', 102, 3)
 on conflict (id) do update set
-  status = excluded.status,
-  current_step_order = excluded.current_step_order,
+  progress_status = excluded.progress_status,
+  fk_current_step_id = excluded.fk_current_step_id,
   portfolio_link = excluded.portfolio_link,
   fk_flow_id = excluded.fk_flow_id,
   fk_user_id = excluded.fk_user_id;
@@ -159,6 +161,9 @@ on conflict (fk_user_flow_id, fk_problem_id) do update set
   points = excluded.points,
   fk_judger_id = excluded.fk_judger_id;
 
+delete from interview_evaluation where id in (301, 302, 303);
+delete from interview_schedule where id in (701, 702, 703, 704, 705);
+
 insert into interview_evaluation (
   id,
   fk_user_flow_id,
@@ -170,9 +175,8 @@ insert into interview_evaluation (
   created_at,
   updated_at
 ) values
-  (301, 207, 2, '作品结构清晰，沟通顺畅，建议通过后进入管理员复核。', 'https://meeting.example.com/demo-207', 'pending', null, now() - interval '2 days', now() - interval '2 days'),
-  (302, 208, 2, '作品完成度不足，建议本轮不通过，可引导后续继续参与。', 'https://meeting.example.com/demo-208', 'rejected', 1, now() - interval '3 days', now() - interval '1 day'),
-  (303, 209, 2, '能力和表达均达到预期，已通过复核。', 'https://meeting.example.com/demo-209', 'approved', 1, now() - interval '4 days', now() - interval '1 day')
+  (301, 209, 2, '作品结构清晰，沟通顺畅，建议通过后进入管理员复核。', 'https://memo.example.com/demo-209', 'submitted', null, now() - interval '2 days', now() - interval '2 days'),
+  (302, 211, 2, '能力和表达均达到预期，已通过复核。', 'https://memo.example.com/demo-211', 'approved', 1, now() - interval '4 days', now() - interval '1 day')
 on conflict (id) do update set
   fk_user_flow_id = excluded.fk_user_flow_id,
   fk_user_id = excluded.fk_user_id,
@@ -180,6 +184,49 @@ on conflict (id) do update set
   meeting_link = excluded.meeting_link,
   status = excluded.status,
   fk_reviewed_by = excluded.fk_reviewed_by,
+  updated_at = now();
+
+insert into interview_schedule (
+  id,
+  fk_user_flow_id,
+  fk_evaluation_id,
+  fk_organizer_id,
+  provider,
+  provider_event_id,
+  provider_reserve_id,
+  provider_meeting_no,
+  meeting_link,
+  summary,
+  description,
+  attendee_email,
+  starts_at,
+  ends_at,
+  timezone,
+  status,
+  created_at,
+  updated_at
+) values
+  (701, 207, null, 2, 'feishu', 'demo-event-207', 'demo-reserve-207', 'demo-meeting-207', 'https://vc.feishu.cn/j/demo207', '2026 免试招新 Demo 面试 - Demo Freshman B', '本地 demo：已预约，日程尚未结束。', 'B260002@njupt.edu.cn', now() + interval '1 hour', now() + interval '90 minutes', 'Asia/Shanghai', 'created', now() - interval '10 minutes', now() - interval '10 minutes'),
+  (702, 208, null, 2, 'feishu', 'demo-event-208', 'demo-reserve-208', 'demo-meeting-208', 'https://vc.feishu.cn/j/demo208', '2026 免试招新 Demo 面试 - Demo Freshman C', '本地 demo：日程已结束，等待讲师写面评。', 'B260003@njupt.edu.cn', now() - interval '2 hours', now() - interval '90 minutes', 'Asia/Shanghai', 'created', now() - interval '3 hours', now() - interval '3 hours'),
+  (703, 209, 301, 2, 'feishu', 'demo-event-209', 'demo-reserve-209', 'demo-meeting-209', 'https://vc.feishu.cn/j/demo209', '2026 免试招新 Demo 面试 - Demo Freshman D', '本地 demo：日程已结束，面评待管理员审核。', 'B260004@njupt.edu.cn', now() - interval '2 days', now() - interval '47 hours', 'Asia/Shanghai', 'created', now() - interval '3 days', now() - interval '3 days'),
+  (704, 210, null, 2, 'feishu', 'demo-event-210', 'demo-reserve-210', 'demo-meeting-210', 'https://vc.feishu.cn/j/demo210', '2026 免试招新 Demo 面试 - Demo Freshman E', '本地 demo：日程已结束，讲师选择不通过。', 'B260005@njupt.edu.cn', now() - interval '1 day', now() - interval '23 hours', 'Asia/Shanghai', 'created', now() - interval '2 days', now() - interval '2 days'),
+  (705, 211, 302, 2, 'feishu', 'demo-event-211', 'demo-reserve-211', 'demo-meeting-211', 'https://vc.feishu.cn/j/demo211', '2026 免试招新 Demo 面试 - Demo Member', '本地 demo：日程已结束，管理员已通过。', '003@njupt.edu.cn', now() - interval '4 days', now() - interval '95 hours', 'Asia/Shanghai', 'created', now() - interval '5 days', now() - interval '5 days')
+on conflict (id) do update set
+  fk_user_flow_id = excluded.fk_user_flow_id,
+  fk_evaluation_id = excluded.fk_evaluation_id,
+  fk_organizer_id = excluded.fk_organizer_id,
+  provider = excluded.provider,
+  provider_event_id = excluded.provider_event_id,
+  provider_reserve_id = excluded.provider_reserve_id,
+  provider_meeting_no = excluded.provider_meeting_no,
+  meeting_link = excluded.meeting_link,
+  summary = excluded.summary,
+  description = excluded.description,
+  attendee_email = excluded.attendee_email,
+  starts_at = excluded.starts_at,
+  ends_at = excluded.ends_at,
+  timezone = excluded.timezone,
+  status = excluded.status,
   updated_at = now();
 
 insert into email_template_setting (
@@ -205,6 +252,27 @@ on conflict (template_key) do update set
   contact_email = excluded.contact_email,
   member_form_label = excluded.member_form_label,
   feishu_group_name = excluded.feishu_group_name,
+  updated_at = now();
+
+insert into email_template_content (
+  template_key,
+  subject_template,
+  title_template,
+  body_template,
+  footer_text,
+  updated_at
+) values (
+  'interview.schedule',
+  '{flowName} 面试预约通知',
+  '面试预约通知',
+  '{candidateName} 同学，你已预约 {flowName} 的面试，讲师为 {organizerName}。时间为 {startsAt} - {endsAt}，请通过会议链接参加：{meetingLink}',
+  '南京邮电大学大学生科学技术协会',
+  now()
+) on conflict (template_key) do update set
+  subject_template = excluded.subject_template,
+  title_template = excluded.title_template,
+  body_template = excluded.body_template,
+  footer_text = excluded.footer_text,
   updated_at = now();
 
 insert into email_batch (
@@ -288,9 +356,11 @@ select setval(pg_get_serial_sequence('problem', 'id'), greatest((select coalesce
 select setval(pg_get_serial_sequence('user_flow', 'id'), greatest((select coalesce(max(id), 1) from user_flow), 1));
 select setval(pg_get_serial_sequence('user_point', 'id'), greatest((select coalesce(max(id), 1) from user_point), 1));
 select setval(pg_get_serial_sequence('interview_evaluation', 'id'), greatest((select coalesce(max(id), 1) from interview_evaluation), 1));
+select setval(pg_get_serial_sequence('interview_schedule', 'id'), greatest((select coalesce(max(id), 1) from interview_schedule), 1));
 select setval(pg_get_serial_sequence('email_batch', 'id'), greatest((select coalesce(max(id), 1) from email_batch), 1));
 select setval(pg_get_serial_sequence('email_delivery', 'id'), greatest((select coalesce(max(id), 1) from email_delivery), 1));
 select setval(pg_get_serial_sequence('email_template_setting', 'id'), greatest((select coalesce(max(id), 1) from email_template_setting), 1));
+select setval(pg_get_serial_sequence('email_template_content', 'id'), greatest((select coalesce(max(id), 1) from email_template_content), 1));
 select setval(pg_get_serial_sequence('operation_audit', 'id'), greatest((select coalesce(max(id), 1) from operation_audit), 1));
 
 commit;

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { CalendarClock, ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ExternalLink,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -17,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/user-flow/evaluation";
 import { createInterviewSchedule } from "@/action/user-flow/interviewSchedule";
-import { redirectFeishuOAuth } from "@/action/user/feishuOAuth";
+import { getCurrentFeishuOAuthStatus, redirectFeishuOAuth } from "@/action/user/feishuOAuth";
 import {
   Dialog,
   DialogContent,
@@ -40,25 +42,31 @@ type Candidate = {
   evalContent: string | null;
   evalMeetingLink: string | null;
   evalStatus: string | null;
+  scheduleId: number | null;
+  scheduleMeetingLink: string | null;
+  scheduleStartsAt: Date | string | null;
+  scheduleEndsAt: Date | string | null;
+  scheduleStatus: string | null;
 };
 
-const evalStatusBadge = (evalStatus: string | null, flowStatus: string | null) => {
+const evalStatusBadge = (
+  evalStatus: string | null,
+  flowStatus: string | null,
+  scheduleMeetingLink: string | null,
+  scheduleEnded: boolean,
+) => {
   if (evalStatus === "approved") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
   if (evalStatus === "rejected") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">面评已驳回</Badge>;
   if (evalStatus === "submitted") return <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-chart-3">待审核</Badge>;
   if (flowStatus === "failed") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">不通过</Badge>;
   if (flowStatus === "passed") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
+  if (!scheduleMeetingLink) return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待预约</Badge>;
+  if (!scheduleEnded) return <Badge variant="outline" className="border-chart-2/30 bg-chart-2/10 text-chart-2">待面试</Badge>;
   return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待评估</Badge>;
 };
 
-const passButtonClass =
-  "h-8 rounded-md border-primary/30 bg-primary/10 px-3 text-primary shadow-none hover:bg-primary/15 hover:text-primary";
-const rejectButtonClass =
-  "h-8 rounded-md border-destructive/30 bg-destructive/10 px-3 text-destructive shadow-none hover:bg-destructive/15 hover:text-destructive";
-const neutralButtonClass =
-  "h-8 rounded-md border-border bg-background px-3 shadow-none hover:bg-muted";
-const dialogRejectButtonClass =
-  "border-destructive/35 text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive dark:border-destructive/40";
+const actionTextClass =
+  "whitespace-nowrap text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50";
 
 const getCandidateStatusKey = (candidate: Candidate) => {
   if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
@@ -103,6 +111,29 @@ const getDefaultScheduleRange = () => {
   };
 };
 
+const scheduleFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+const formatScheduleTime = (value: Date | string | null) => {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return scheduleFormatter.format(date).replace(/\//g, "-");
+};
+
+const getTime = (value: Date | string | null) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  return Number.isNaN(time) ? null : time;
+};
+
 function StatusCountPill({
   label,
   value,
@@ -128,13 +159,66 @@ const PortfolioLink = ({ value }: { value: string | null }) => {
       href={externalHref(value)}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex max-w-full items-center gap-1 text-sm text-primary hover:underline"
+      className="inline-flex max-w-full items-center gap-1 text-sm text-muted-foreground hover:text-primary hover:underline"
     >
-      <span className="truncate">作品链接</span>
+      <span className="truncate">查看作品</span>
       <ExternalLink className="h-3.5 w-3.5 shrink-0" />
     </a>
   );
 };
+
+const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
+  if (!candidate.scheduleMeetingLink) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        未预约
+      </span>
+    );
+  }
+
+  const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
+  const endsAt = formatScheduleTime(candidate.scheduleEndsAt);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <a
+        href={externalHref(candidate.scheduleMeetingLink)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex max-w-full items-center gap-1.5 text-sm text-foreground hover:text-primary hover:underline"
+      >
+        <span className="truncate">进入会议</span>
+        <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+      </a>
+      {(startsAt || endsAt) && (
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {startsAt}{endsAt ? ` - ${endsAt}` : ""}
+        </span>
+      )}
+    </div>
+  );
+};
+
+function ActionTextButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={actionTextClass}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
 
 export const EvaluationTable = ({
   candidates,
@@ -147,6 +231,7 @@ export const EvaluationTable = ({
 }) => {
   const safeCandidates = Array.isArray(candidates) ? candidates : [];
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
+  const [schedulingId, setSchedulingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
   const [scheduleStartsAt, setScheduleStartsAt] = useState("");
@@ -155,12 +240,40 @@ export const EvaluationTable = ({
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<"pass" | "reopen" | null>(null);
+  const [now, setNow] = useState<number | null>(null);
+  const [feishuStatus, setFeishuStatus] = useState<{
+    bound: boolean;
+    accessTokenExpiresAt?: Date | string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
+
+  useEffect(() => {
+    if (!schedulingId) return;
+    let cancelled = false;
+    getCurrentFeishuOAuthStatus()
+      .then((status) => {
+        if (!cancelled) setFeishuStatus(status);
+      })
+      .catch(() => {
+        if (!cancelled) setFeishuStatus({ bound: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [schedulingId]);
 
   const startEdit = (c: Candidate, mode: "pass" | "reopen") => {
     setEvaluatingId(c.userFlowId);
     setEditMode(mode);
     setContent(c.evalContent ?? "");
     setMeetingLink(c.evalMeetingLink ?? "");
+  };
+
+  const startSchedule = (c: Candidate) => {
+    setSchedulingId(c.userFlowId);
     const range = getDefaultScheduleRange();
     setScheduleStartsAt(range.startsAt);
     setScheduleEndsAt(range.endsAt);
@@ -171,15 +284,22 @@ export const EvaluationTable = ({
     setEvaluatingId(null);
     setContent("");
     setMeetingLink("");
+    setEditMode(null);
+  };
+
+  const cancelSchedule = () => {
+    setSchedulingId(null);
+    setFeishuStatus(null);
     setScheduleStartsAt("");
     setScheduleEndsAt("");
     setScheduleNote("");
     setScheduleLoading(false);
-    setEditMode(null);
   };
 
   const editingCandidate =
     safeCandidates.find((c) => c.userFlowId === evaluatingId) ?? null;
+  const schedulingCandidate =
+    safeCandidates.find((c) => c.userFlowId === schedulingId) ?? null;
 
   const handlePass = async (userFlowId: number) => {
     if (!content.trim()) return;
@@ -247,8 +367,8 @@ export const EvaluationTable = ({
         toast.error(result.error?.message ?? "飞书日程创建失败");
         return;
       }
-      setMeetingLink(result.data.meetingLink);
-      toast.success("飞书日程已创建，预约邮件已发送");
+      toast.success("飞书会议和日程已创建，预约邮件已发送");
+      cancelSchedule();
       onRefresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "飞书日程创建失败");
@@ -280,7 +400,7 @@ export const EvaluationTable = ({
         <div className="space-y-1">
           <p className="text-sm font-medium">面评候选人</p>
           <p className="text-xs text-muted-foreground">
-            讲师提交面评后，管理员在面评审批中确认最终结果。
+            先为报名同学预约面试会议，面试结束后再提交面评结果。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -297,33 +417,36 @@ export const EvaluationTable = ({
         <Table className="table-fixed min-w-[840px]">
           {role >= 3 ? (
             <colgroup>
-              <col className="w-[13%]" />
-              <col className="w-[18%]" />
-              <col className="w-[16%]" />
-              <col className="w-[16%]" />
-              <col className="w-[14%]" />
-              <col className="w-[23%]" />
+              <col className="w-[12%]" />
+              <col className="w-[15%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[20%]" />
+              <col className="w-[12%]" />
+              <col className="w-[19%]" />
             </colgroup>
           ) : (
             <colgroup>
-              <col className="w-[18%]" />
-              <col className="w-[24%]" />
+              <col className="w-[15%]" />
               <col className="w-[20%]" />
-              <col className="w-[18%]" />
-              <col className="w-[20%]" />
+              <col className="w-[16%]" />
+              <col className="w-[22%]" />
+              <col className="w-[12%]" />
+              <col className="w-[15%]" />
             </colgroup>
           )}
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
-              <TableHead className="whitespace-nowrap px-4 py-3">学号</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-3">姓名</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">学号</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">姓名</TableHead>
               {role >= 3 && (
-                <TableHead className="whitespace-nowrap px-4 py-3">手机号</TableHead>
+                <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">手机号</TableHead>
               )}
-              <TableHead className="whitespace-nowrap px-4 py-3">作品</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-3">状态</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">作品</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">会议</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">状态</TableHead>
               {role >= 2 && (
-                <TableHead className="whitespace-nowrap px-4 py-3">操作</TableHead>
+                <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">操作</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -332,75 +455,74 @@ export const EvaluationTable = ({
               const isEditing = evaluatingId === c.userFlowId;
               const isRejected = c.status === "failed";
               const busy = loadingId === c.userFlowId;
+              const scheduleEnded =
+                now !== null &&
+                Boolean(c.scheduleMeetingLink) &&
+                (getTime(c.scheduleEndsAt) ?? Number.POSITIVE_INFINITY) <= now;
+              const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
 
               return (
                 <TableRow key={c.userFlowId} className="hover:bg-muted/30">
-                  <TableCell className="whitespace-nowrap px-4 py-4 text-sm">
+                  <TableCell className="whitespace-nowrap px-4 py-3 text-sm tabular-nums">
                     {c.studentId}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-4 py-4 font-medium">
+                  <TableCell className="whitespace-nowrap px-4 py-3 text-sm font-medium">
                     {c.name}
                   </TableCell>
                   {role >= 3 && (
-                    <TableCell className="whitespace-nowrap px-4 py-4 text-sm">
+                    <TableCell className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-muted-foreground">
                       {c.phoneNumber || "-"}
                     </TableCell>
                   )}
-                  <TableCell className="whitespace-nowrap px-4 py-4">
+                  <TableCell className="whitespace-nowrap px-4 py-3">
                     <PortfolioLink value={c.portfolioLink} />
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-4 py-4">
-                    {evalStatusBadge(c.evalStatus, c.status)}
+                  <TableCell className="px-4 py-3">
+                    <ScheduleInfo candidate={c} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap px-4 py-3">
+                    {evalStatusBadge(c.evalStatus, c.status, c.scheduleMeetingLink, scheduleEnded)}
                   </TableCell>
                   {role >= 2 && (
-                    <TableCell className="whitespace-normal px-4 py-4">
-                      {isEditing ? (
+                    <TableCell className="whitespace-nowrap px-4 py-3">
+                      {!canEvaluate ? (
+                        <div className="flex flex-nowrap items-center gap-3">
+                          <ActionTextButton onClick={() => startSchedule(c)}>
+                            {c.scheduleMeetingLink ? "改约" : "预约"}
+                          </ActionTextButton>
+                        </div>
+                      ) : isEditing ? (
                         <div className="text-sm text-muted-foreground">
                           正在编辑面评
                         </div>
                       ) : c.evalStatus === "submitted" ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className={neutralButtonClass}
-                            onClick={() => startEdit(c, "pass")}
-                          >
+                        <div className="flex flex-nowrap items-center gap-3">
+                          <ActionTextButton onClick={() => startEdit(c, "pass")}>
                             修改
-                          </Button>
+                          </ActionTextButton>
                         </div>
                       ) : c.evalStatus === "approved" ? (
-                        <span className="text-sm text-muted-foreground">已完成</span>
+                        <span className="text-sm text-muted-foreground">-</span>
                       ) : c.evalStatus === "rejected" ? (
-                        <span className="text-sm text-muted-foreground">已驳回</span>
+                        <span className="text-sm text-muted-foreground">-</span>
                       ) : isRejected ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className={passButtonClass}
-                          onClick={() => startEdit(c, "reopen")}
-                        >
+                        <ActionTextButton onClick={() => startEdit(c, "reopen")}>
                           改为通过
-                        </Button>
+                        </ActionTextButton>
                       ) : (
-                        <div className="flex w-fit flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className={passButtonClass}
-                            onClick={() => startEdit(c, "pass")}
-                          >
+                        <div className="flex flex-nowrap items-center gap-3">
+                          <ActionTextButton onClick={() => startSchedule(c)}>
+                            改约
+                          </ActionTextButton>
+                          <ActionTextButton onClick={() => startEdit(c, "pass")}>
                             通过
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className={rejectButtonClass}
+                          </ActionTextButton>
+                          <ActionTextButton
+                            disabled={busy}
                             onClick={() => handleReject(c.userFlowId)}
-                            loading={busy}
                           >
-                            不通过
-                          </Button>
+                            {busy ? "处理中" : "不通过"}
+                          </ActionTextButton>
                         </div>
                       )}
                     </TableCell>
@@ -418,6 +540,11 @@ export const EvaluationTable = ({
           const isEditing = evaluatingId === c.userFlowId;
           const isRejected = c.status === "failed";
           const busy = loadingId === c.userFlowId;
+          const scheduleEnded =
+            now !== null &&
+            Boolean(c.scheduleMeetingLink) &&
+            (getTime(c.scheduleEndsAt) ?? Number.POSITIVE_INFINITY) <= now;
+          const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
 
           return (
             <div key={c.userFlowId} className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40">
@@ -428,7 +555,7 @@ export const EvaluationTable = ({
                     {c.studentId}
                   </span>
                 </div>
-                {evalStatusBadge(c.evalStatus, c.status)}
+                {evalStatusBadge(c.evalStatus, c.status, c.scheduleMeetingLink, scheduleEnded)}
               </div>
               {role >= 3 && (
                 <div className="text-sm">
@@ -439,21 +566,26 @@ export const EvaluationTable = ({
                 <span>作品</span>
                 <PortfolioLink value={c.portfolioLink} />
               </div>
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <span className="pt-0.5">会议</span>
+                <ScheduleInfo candidate={c} />
+              </div>
               {role >= 2 && (
-                isEditing ? (
+                !canEvaluate ? (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <ActionTextButton onClick={() => startSchedule(c)}>
+                      {c.scheduleMeetingLink ? "改约" : "预约"}
+                    </ActionTextButton>
+                  </div>
+                ) : isEditing ? (
                   <div className="pt-1 text-sm text-muted-foreground">
                     正在编辑面评
                   </div>
                 ) : c.evalStatus === "submitted" ? (
                   <div className="flex items-center gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={neutralButtonClass}
-                      onClick={() => startEdit(c, "pass")}
-                    >
+                    <ActionTextButton onClick={() => startEdit(c, "pass")}>
                       修改
-                    </Button>
+                    </ActionTextButton>
                   </div>
                 ) : c.evalStatus === "approved" ? (
                   <div className="pt-1 text-sm text-muted-foreground">已完成</div>
@@ -461,34 +593,24 @@ export const EvaluationTable = ({
                   <div className="pt-1 text-sm text-muted-foreground">已驳回</div>
                 ) : isRejected ? (
                   <div className="pt-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={passButtonClass}
-                      onClick={() => startEdit(c, "reopen")}
-                    >
+                    <ActionTextButton onClick={() => startEdit(c, "reopen")}>
                       改为通过
-                    </Button>
+                    </ActionTextButton>
                   </div>
                 ) : (
-                  <div className="flex w-fit gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={passButtonClass}
-                      onClick={() => startEdit(c, "pass")}
-                    >
+                  <div className="flex w-fit gap-3">
+                    <ActionTextButton onClick={() => startSchedule(c)}>
+                      改约
+                    </ActionTextButton>
+                    <ActionTextButton onClick={() => startEdit(c, "pass")}>
                       通过
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={rejectButtonClass}
+                    </ActionTextButton>
+                    <ActionTextButton
+                      disabled={busy}
                       onClick={() => handleReject(c.userFlowId)}
-                      loading={busy}
                     >
-                      不通过
-                    </Button>
+                      {busy ? "处理中" : "不通过"}
+                    </ActionTextButton>
                   </div>
                 )
               )}
@@ -508,7 +630,7 @@ export const EvaluationTable = ({
             <DialogDescription>
               {editingCandidate
                 ? `${editingCandidate.name}（${editingCandidate.studentId ?? "无学号"}）`
-                : "填写评价内容，妙记链接可选。"}
+                : "面试结束后填写评价内容和妙记链接。"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
@@ -536,66 +658,6 @@ export const EvaluationTable = ({
                 className="h-10"
               />
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">飞书日程</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    创建飞书会议和日程后会自动填入会议链接，并给候选人发送预约邮件。
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => redirectFeishuOAuth()}
-                >
-                  绑定飞书
-                </Button>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">开始时间</label>
-                  <Input
-                    type="datetime-local"
-                    value={scheduleStartsAt}
-                    onChange={(e) => setScheduleStartsAt(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">结束时间</label>
-                  <Input
-                    type="datetime-local"
-                    value={scheduleEndsAt}
-                    onChange={(e) => setScheduleEndsAt(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
-              </div>
-              <div className="mt-3 space-y-2">
-                <label className="text-sm font-medium">预约备注</label>
-                <Input
-                  placeholder="例如：请提前准备作品介绍"
-                  value={scheduleNote}
-                  onChange={(e) => setScheduleNote(e.target.value)}
-                  className="h-10"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-3"
-                onClick={() => {
-                  if (!editingCandidate) return;
-                  return handleCreateSchedule(editingCandidate.userFlowId);
-                }}
-                loading={scheduleLoading}
-              >
-                <CalendarClock className="h-4 w-4" />
-                发起飞书日程
-              </Button>
-            </div>
           </div>
           <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">
             <div className="min-h-9">
@@ -603,7 +665,6 @@ export const EvaluationTable = ({
                 <Button
                   type="button"
                   variant="outline"
-                  className={dialogRejectButtonClass}
                   onClick={() => handleReject(editingCandidate.userFlowId)}
                   loading={loadingId === editingCandidate.userFlowId}
                 >
@@ -632,6 +693,100 @@ export const EvaluationTable = ({
                 提交面评
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!schedulingCandidate}
+        onOpenChange={(open) => {
+          if (!open) cancelSchedule();
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>预约面试会议</DialogTitle>
+            <DialogDescription>
+              {schedulingCandidate
+                ? `${schedulingCandidate.name}（${schedulingCandidate.studentId ?? "无学号"}）`
+                : "创建飞书会议和日程，并发送预约邮件。"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            {schedulingCandidate?.scheduleMeetingLink && (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="mb-1 text-xs text-muted-foreground">当前会议</p>
+                <ScheduleInfo candidate={schedulingCandidate} />
+              </div>
+            )}
+            <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+              <div>
+                <p className="text-sm font-medium">飞书授权</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {feishuStatus === null
+                    ? "正在检查当前讲师的飞书绑定状态。"
+                    : feishuStatus.bound
+                      ? "已绑定飞书，日程会以当前讲师的飞书身份发起。"
+                      : "未绑定飞书，发起日程前需要先完成授权。"}
+                </p>
+                {feishuStatus?.accessTokenExpiresAt && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    授权有效期至 {formatScheduleTime(feishuStatus.accessTokenExpiresAt)}
+                  </p>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => redirectFeishuOAuth()}
+              >
+                {feishuStatus?.bound ? "重新绑定" : "绑定飞书"}
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">开始时间</label>
+                <Input
+                  type="datetime-local"
+                  value={scheduleStartsAt}
+                  onChange={(e) => setScheduleStartsAt(e.target.value)}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">结束时间</label>
+                <Input
+                  type="datetime-local"
+                  value={scheduleEndsAt}
+                  onChange={(e) => setScheduleEndsAt(e.target.value)}
+                  className="h-10"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">预约备注</label>
+              <Input
+                placeholder="例如：请提前准备作品介绍"
+                value={scheduleNote}
+                onChange={(e) => setScheduleNote(e.target.value)}
+                className="h-10"
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-2 border-t pt-4">
+            <Button type="button" variant="outline" onClick={cancelSchedule}>
+              取消
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!schedulingCandidate) return;
+                return handleCreateSchedule(schedulingCandidate.userFlowId);
+              }}
+              loading={scheduleLoading}
+            >
+              发起飞书日程
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

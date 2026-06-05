@@ -3,7 +3,6 @@
 import { db } from "@/db/drizzle";
 import {
   flow,
-  interviewEvaluation,
   interviewSchedule,
   userFlow,
 } from "@/db/schema";
@@ -13,13 +12,14 @@ import {
 } from "@/lib/email/interview-schedule";
 import { getEducationEmail } from "@/lib/email/address";
 import { createFeishuInterviewSchedule } from "@/lib/feishu/interview-schedule";
+import { sendFeishuTextMessage } from "@/lib/feishu/message";
 import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { verifyRole } from "@/lib/dal";
 import { sendRawEmail } from "@/queue/sendEmail";
-import { and, desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
@@ -52,6 +52,61 @@ function parseDate(value: string, fieldName: string) {
     throw new Error(`${fieldName} 时间格式不正确`);
   }
   return date;
+}
+
+const formatDateTime = (date: Date) =>
+  new Intl.DateTimeFormat("zh-CN", {
+    timeZone: DEFAULT_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+
+async function notifyOrganizerByFeishu({
+  organizerOpenId,
+  candidateName,
+  flowName,
+  startsAt,
+  endsAt,
+  meetingLink,
+  userFlowId,
+  scheduleId,
+}: {
+  organizerOpenId: string;
+  candidateName: string;
+  flowName: string;
+  startsAt: Date;
+  endsAt: Date;
+  meetingLink: string;
+  userFlowId: number;
+  scheduleId: number;
+}) {
+  const text = [
+    "面试日程已创建",
+    `流程：${flowName}`,
+    `候选人：${candidateName}`,
+    `时间：${formatDateTime(startsAt)} - ${formatDateTime(endsAt)}`,
+    `会议：${meetingLink}`,
+  ].join("\n");
+
+  try {
+    await sendFeishuTextMessage({
+      openId: organizerOpenId,
+      text,
+      uuid: `people-interview-schedule-${scheduleId}`,
+    });
+  } catch (error) {
+    logServerError("interviewSchedule:feishuMessage", error, {
+      action: "send-interview-schedule-feishu-message",
+      userFlowId,
+      metadata: {
+        scheduleId,
+      },
+    });
+  }
 }
 
 export async function createInterviewSchedule(
@@ -118,51 +173,26 @@ export async function createInterviewSchedule(
       idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}`,
     });
 
-    const [existingEvaluation] = await db
-      .select({ id: interviewEvaluation.id })
-      .from(interviewEvaluation)
-      .where(
-        and(
-          eq(interviewEvaluation.fkUserFlowId, input.userFlowId),
-          eq(interviewEvaluation.status, "submitted"),
-        ),
-      )
-      .orderBy(desc(interviewEvaluation.createdAt))
-      .limit(1);
+    const [schedule] = await db
+      .insert(interviewSchedule)
+      .values({
+        fkUserFlowId: input.userFlowId,
+        fkOrganizerId: session.uid,
+        providerEventId: feishuSchedule.eventId,
+        providerReserveId: feishuSchedule.reserveId,
+        providerMeetingNo: feishuSchedule.meetingNo,
+        meetingLink: feishuSchedule.meetingLink,
+        summary,
+        description,
+        attendeeEmail,
+        startsAt,
+        endsAt,
+        timezone: DEFAULT_TIMEZONE,
+        status: "created",
+      })
+      .returning({ id: interviewSchedule.id });
 
-    const [schedule] = await db.transaction(async (tx) => {
-      if (existingEvaluation) {
-        await tx
-          .update(interviewEvaluation)
-          .set({
-            meetingLink: feishuSchedule.meetingLink,
-            updatedAt: new Date(),
-          })
-          .where(eq(interviewEvaluation.id, existingEvaluation.id));
-      }
-
-      return tx
-        .insert(interviewSchedule)
-        .values({
-          fkUserFlowId: input.userFlowId,
-          fkEvaluationId: existingEvaluation?.id ?? null,
-          fkOrganizerId: session!.uid,
-          providerEventId: feishuSchedule.eventId,
-          providerReserveId: feishuSchedule.reserveId,
-          providerMeetingNo: feishuSchedule.meetingNo,
-          meetingLink: feishuSchedule.meetingLink,
-          summary,
-          description,
-          attendeeEmail,
-          startsAt,
-          endsAt,
-          timezone: DEFAULT_TIMEZONE,
-          status: "created",
-        })
-        .returning({ id: interviewSchedule.id });
-    });
-
-    const subject = renderInterviewScheduleEmailSubject(target.flowTitle);
+    const subject = await renderInterviewScheduleEmailSubject(target.flowTitle);
     const html = await renderInterviewScheduleEmail({
       candidateName,
       flowName: target.flowTitle,
@@ -176,6 +206,17 @@ export async function createInterviewSchedule(
       to: attendeeEmail,
       subject,
       html,
+    });
+
+    await notifyOrganizerByFeishu({
+      organizerOpenId: credential.openId,
+      candidateName,
+      flowName: target.flowTitle,
+      startsAt,
+      endsAt,
+      meetingLink: feishuSchedule.meetingLink,
+      userFlowId: input.userFlowId,
+      scheduleId: schedule.id,
     });
 
     revalidatePath("/dashboard/recruitment");

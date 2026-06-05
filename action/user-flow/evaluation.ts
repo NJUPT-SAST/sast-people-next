@@ -6,7 +6,7 @@ import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 
@@ -76,20 +76,6 @@ export const createEvaluation = async (
           .set({ progressStatus: "ongoing", fkCurrentStepId: interviewStepId, updatedAt: new Date() })
           .where(eq(userFlow.id, userFlowId));
 
-        if (link) {
-          await tx
-            .update(interviewSchedule)
-            .set({
-              fkEvaluationId: existing[0].id,
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(interviewSchedule.fkUserFlowId, userFlowId),
-                eq(interviewSchedule.meetingLink, link),
-              ),
-            );
-        }
       });
 
       revalidatePath("/dashboard/recruitment");
@@ -128,21 +114,6 @@ export const createEvaluation = async (
           status: "submitted",
         })
         .returning();
-
-      if (link && inserted[0]) {
-        await tx
-          .update(interviewSchedule)
-          .set({
-            fkEvaluationId: inserted[0].id,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(interviewSchedule.fkUserFlowId, userFlowId),
-              eq(interviewSchedule.meetingLink, link),
-            ),
-          );
-      }
 
       return inserted;
     });
@@ -250,28 +221,14 @@ export const reopenAndEvaluate = async (
         .set({ progressStatus: "ongoing", fkCurrentStepId: interviewStepId, updatedAt: new Date() })
         .where(eq(userFlow.id, userFlowId));
 
-      const [evaluation] = await tx.insert(interviewEvaluation).values({
+      await tx.insert(interviewEvaluation).values({
         fkUserFlowId: userFlowId,
         fkUserId: session!.uid,
         content: content.trim(),
         meetingLink: link,
         status: "submitted",
-      }).returning({ id: interviewEvaluation.id });
+      });
 
-      if (link && evaluation) {
-        await tx
-          .update(interviewSchedule)
-          .set({
-            fkEvaluationId: evaluation.id,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(interviewSchedule.fkUserFlowId, userFlowId),
-              eq(interviewSchedule.meetingLink, link),
-            ),
-          );
-      }
     });
 
     revalidatePath("/dashboard/recruitment");
@@ -607,6 +564,28 @@ export const getEvaluationCandidates = async (flowId: number) => {
       )
       .where(eq(userFlow.fkFlowId, flowId));
 
+    const userFlowIds = candidates.map((candidate) => candidate.userFlowId);
+    const scheduleRows = userFlowIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: interviewSchedule.id,
+            fkUserFlowId: interviewSchedule.fkUserFlowId,
+            meetingLink: interviewSchedule.meetingLink,
+            startsAt: interviewSchedule.startsAt,
+            endsAt: interviewSchedule.endsAt,
+            status: interviewSchedule.status,
+          })
+          .from(interviewSchedule)
+          .where(inArray(interviewSchedule.fkUserFlowId, userFlowIds))
+          .orderBy(desc(interviewSchedule.startsAt));
+    const latestScheduleMap = new Map<number, typeof scheduleRows[number]>();
+    for (const schedule of scheduleRows) {
+      if (!latestScheduleMap.has(schedule.fkUserFlowId)) {
+        latestScheduleMap.set(schedule.fkUserFlowId, schedule);
+      }
+    }
+
     const userMap = await listPeopleUsersByLinkIds(
       candidates.map((candidate) => candidate.uid),
       { canViewSensitiveInfo: session.role >= 3 },
@@ -617,6 +596,11 @@ export const getEvaluationCandidates = async (flowId: number) => {
       name: userMap.get(candidate.uid)?.name ?? "未知用户",
       studentId: userMap.get(candidate.uid)?.studentId ?? null,
       phoneNumber: session!.role >= 3 ? userMap.get(candidate.uid)?.phone ?? null : null,
+      scheduleId: latestScheduleMap.get(candidate.userFlowId)?.id ?? null,
+      scheduleMeetingLink: latestScheduleMap.get(candidate.userFlowId)?.meetingLink ?? null,
+      scheduleStartsAt: latestScheduleMap.get(candidate.userFlowId)?.startsAt ?? null,
+      scheduleEndsAt: latestScheduleMap.get(candidate.userFlowId)?.endsAt ?? null,
+      scheduleStatus: latestScheduleMap.get(candidate.userFlowId)?.status ?? null,
     })).sort((a, b) => (a.studentId ?? "").localeCompare(b.studentId ?? ""));
   } catch (error) {
     logServerError("evaluation:getCandidates", error, {
