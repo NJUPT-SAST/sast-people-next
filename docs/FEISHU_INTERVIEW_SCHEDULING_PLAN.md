@@ -43,12 +43,12 @@ People 的业务身份必须统一使用 SAST Link 用户 ID。
 - People 内改约会同步更新飞书会议预约和飞书日程，并重发候选人邮件；
 - People 内取消预约会同步删除飞书日程和飞书会议预约，并把本地日程标记为 `cancelled`；
 - 面试结束后讲师可以在面评弹窗中调用飞书 `calendar.event.meeting_minute.create` 生成妙记链接，并自动填入面评链接字段；
+- 飞书事件回调 `/api/feishu/events` 已接入会议结束事件，收到 `vc.meeting.meeting_ended_v1` 或 `vc.meeting.all_meeting_ended_v1` 后会按 `calendar_event_id` 自动生成妙记并写入日程；
 - 面评 UI 按“先预约、日程结束后再写面评”的流程展示。
 
 仍未落地：
 
 - 飞书应用入口自动解析 Link 用户并创建 People session；
-- 会议结束事件驱动的妙记链接自动回填。
 
 以上未落地项需要继续对接飞书开放平台能力和业务交互。
 
@@ -83,6 +83,9 @@ People 的业务身份必须统一使用 SAST Link 用户 ID。
 - 开通日历权限，用于创建日程、添加参与人、查询忙闲；
 - 开通视频会议预约权限，用于创建飞书会议；
 - 开启机器人能力，并开通发送消息权限，用于向讲师发送预约提醒；
+- 配置事件订阅回调地址，例如 `https://<people-host>/api/feishu/events`；
+- 订阅 `vc.meeting.meeting_ended_v1` 或 `vc.meeting.all_meeting_ended_v1`；
+- 配置 `FEISHU_EVENT_VERIFICATION_TOKEN` 和可选的 `FEISHU_EVENT_ENCRYPT_KEY`；
 - 发布或安装应用到目标组织，使讲师对该机器人具备可用性。
 
 如果日历忙闲查询权限未配置，People 会记录错误但不阻断预约；如果查询结果确认讲师该时间段已有忙碌日程，则阻断预约。
@@ -157,6 +160,7 @@ People 的业务身份必须统一使用 SAST Link 用户 ID。
 | `feishu_calendar_id` | varchar | 飞书 calendar ID |
 | `feishu_event_id` | varchar | 飞书 event ID |
 | `feishu_meeting_url` | text | 飞书会议链接 |
+| `meeting_minute_link` | text nullable | 飞书妙记/日程妙记链接 |
 | `status` | varchar | `scheduled`、`cancelled`、`failed` |
 | `email_sent_at` | timestamp nullable | 面试通知邮件发送时间 |
 | `created_at` | timestamp | 默认当前时间 |
@@ -450,12 +454,14 @@ export async function renderInterviewInviteEmail(params: {
 - 用飞书 event ID 映射到 `interview_schedule`；
 - 根据需要更新日程状态或保存会议产物。
 
+当前已落地：`POST /api/feishu/events` 使用飞书 SDK `EventDispatcher` 处理 URL verification、verification token 和加密事件；会议结束事件会按 `calendar_event_id` 自动生成妙记并写入 `interview_schedule.meeting_minute_link`，若已有空妙记的面评记录则同步补到 `interview_evaluation.meeting_link`。
+
 ### Phase 4：飞书体验优化
 
 - 飞书工作台入口：从飞书应用进入 People，并解析到 Link 用户；
 - 飞书消息提醒：预约成功提醒已接入；改约、面试前提醒、面评待提交提醒待接入；
 - 飞书日程修改和取消：People 内改约或取消时同步飞书日程，已接入；
-- 妙记链接回填：面评弹窗内手动生成妙记链接已接入；会议结束事件驱动的自动回填待接入；
+- 妙记链接回填：面评弹窗内手动生成妙记链接已接入；会议结束事件驱动的自动回填已接入；
 - 讲师飞书绑定状态展示：预约弹窗已展示是否绑定和 token 过期时间；
 - 日程冲突提示：已在创建前检查讲师个人日历忙闲状态；
 - 操作失败补偿：飞书创建成功但邮件失败时保留日程记录并提示补发。

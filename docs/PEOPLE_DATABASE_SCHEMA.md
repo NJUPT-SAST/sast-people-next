@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | Draft |
 | 适用分支 | `v3.1` |
-| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql`、`migrations/0012_operation_audit.sql`、`migrations/0013_fix_database_design.sql`、`migrations/0014_fix_email_fk.sql`、`migrations/0015_rename_evaluation_status.sql`、`migrations/0016_feishu_interview_scheduling.sql`、`migrations/0017_email_template_content.sql` |
+| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql`、`migrations/0012_operation_audit.sql`、`migrations/0013_fix_database_design.sql`、`migrations/0014_fix_email_fk.sql`、`migrations/0015_rename_evaluation_status.sql`、`migrations/0016_feishu_interview_scheduling.sql`、`migrations/0017_email_template_content.sql`、`migrations/0018_interview_schedule_meeting_minute.sql` |
 | 最后更新 | 2026-06-05 |
 
 ## 1. 边界
@@ -197,6 +197,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `provider_reserve_id` | `varchar(255)` | 飞书 VC reserve ID |
 | `provider_meeting_no` | `varchar(255)` | 飞书会议号 |
 | `meeting_link` | `text` | 会议链接 |
+| `meeting_minute_link` | `text` | 飞书妙记/日程妙记链接，面试结束后可手动生成或由事件回调自动生成 |
 | `summary` | `varchar(255)` | 日程标题 |
 | `description` | `text` | 日程描述 |
 | `attendee_email` | `varchar(254)` | 候选人邮箱 |

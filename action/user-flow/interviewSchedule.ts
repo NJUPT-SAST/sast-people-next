@@ -458,6 +458,14 @@ export async function generateInterviewMeetingMinute(
       eventId: schedule.providerEventId,
     });
 
+    await db
+      .update(interviewSchedule)
+      .set({
+        meetingMinuteLink: result.docUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(interviewSchedule.id, schedule.id));
+
     await writeOperationAudit({
       actorId: session.uid,
       action: "interview_schedule.meeting_minute.create",

@@ -48,6 +48,7 @@ type Candidate = {
   evalStatus: string | null;
   scheduleId: number | null;
   scheduleMeetingLink: string | null;
+  scheduleMeetingMinuteLink: string | null;
   scheduleStartsAt: Date | string | null;
   scheduleEndsAt: Date | string | null;
   scheduleStatus: string | null;
@@ -274,7 +275,7 @@ export const EvaluationTable = ({
     setEvaluatingId(c.userFlowId);
     setEditMode(mode);
     setContent(c.evalContent ?? "");
-    setMeetingLink(c.evalMeetingLink ?? "");
+    setMeetingLink(c.evalMeetingLink ?? c.scheduleMeetingMinuteLink ?? "");
   };
 
   const startSchedule = (c: Candidate) => {
