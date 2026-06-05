@@ -577,7 +577,12 @@ export const getEvaluationCandidates = async (flowId: number) => {
             status: interviewSchedule.status,
           })
           .from(interviewSchedule)
-          .where(inArray(interviewSchedule.fkUserFlowId, userFlowIds))
+          .where(
+            and(
+              inArray(interviewSchedule.fkUserFlowId, userFlowIds),
+              eq(interviewSchedule.status, "created"),
+            ),
+          )
           .orderBy(desc(interviewSchedule.startsAt));
     const latestScheduleMap = new Map<number, typeof scheduleRows[number]>();
     for (const schedule of scheduleRows) {

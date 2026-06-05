@@ -24,6 +24,25 @@ export type CreatedFeishuInterviewSchedule = {
   meetingLink: string;
 };
 
+export type UpdateFeishuInterviewScheduleInput = {
+  accessToken: string;
+  organizerOpenId: string;
+  eventId: string;
+  reserveId?: string | null;
+  currentMeetingLink: string;
+  summary: string;
+  description?: string;
+  startsAt: Date;
+  endsAt: Date;
+  timezone?: string;
+};
+
+export type CancelFeishuInterviewScheduleInput = {
+  accessToken: string;
+  eventId?: string | null;
+  reserveId?: string | null;
+};
+
 const toFeishuTimestamp = (date: Date) =>
   Math.floor(date.getTime() / 1000).toString();
 
@@ -240,4 +259,153 @@ export async function createFeishuInterviewSchedule({
     meetingNo: reserve?.meeting_no,
     meetingLink,
   };
+}
+
+export async function updateFeishuInterviewSchedule({
+  accessToken,
+  organizerOpenId,
+  eventId,
+  reserveId,
+  currentMeetingLink,
+  summary,
+  description,
+  startsAt,
+  endsAt,
+  timezone = DEFAULT_TIMEZONE,
+}: UpdateFeishuInterviewScheduleInput): Promise<CreatedFeishuInterviewSchedule> {
+  const client = getFeishuClient();
+  const authOptions = {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  };
+
+  let meetingLink = currentMeetingLink;
+  let meetingNo: string | undefined;
+
+  if (reserveId) {
+    const reserveRes = await client.vc.v1.reserve.update(
+      {
+        path: {
+          reserve_id: reserveId,
+        },
+        params: {
+          user_id_type: "open_id",
+        },
+        data: {
+          end_time: toFeishuTimestamp(endsAt),
+          meeting_settings: {
+            topic: summary,
+            meeting_initial_type: 1,
+            meeting_connect: true,
+            assign_host_list: [
+              {
+                user_type: 1,
+                id: organizerOpenId,
+              },
+            ],
+          },
+        },
+      },
+      authOptions,
+    );
+
+    if (reserveRes.code && reserveRes.code !== 0) {
+      throw new Error(`update feishu meeting failed: ${reserveRes.msg ?? reserveRes.code}`);
+    }
+
+    const reserve = reserveRes.data?.reserve;
+    meetingLink = reserve?.url ?? meetingLink;
+    meetingNo = reserve?.meeting_no;
+  }
+
+  const eventRes = await client.calendar.v4.calendarEvent.patch(
+    {
+      path: {
+        calendar_id: "primary",
+        event_id: eventId,
+      },
+      params: {
+        user_id_type: "open_id",
+      },
+      data: {
+        summary,
+        description,
+        need_notification: true,
+        start_time: {
+          timestamp: toFeishuTimestamp(startsAt),
+          timezone,
+        },
+        end_time: {
+          timestamp: toFeishuTimestamp(endsAt),
+          timezone,
+        },
+        vchat: {
+          vc_type: "third_party_meeting",
+          icon_type: "vc",
+          meeting_url: meetingLink,
+          description: "飞书会议",
+        },
+      },
+    },
+    authOptions,
+  );
+
+  if (eventRes.code && eventRes.code !== 0) {
+    throw new Error(`update feishu calendar event failed: ${eventRes.msg ?? eventRes.code}`);
+  }
+
+  return {
+    eventId,
+    reserveId: reserveId ?? undefined,
+    meetingNo,
+    meetingLink,
+  };
+}
+
+export async function cancelFeishuInterviewSchedule({
+  accessToken,
+  eventId,
+  reserveId,
+}: CancelFeishuInterviewScheduleInput) {
+  const client = getFeishuClient();
+  const authOptions = {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  };
+
+  if (eventId) {
+    const eventRes = await client.calendar.v4.calendarEvent.delete(
+      {
+        path: {
+          calendar_id: "primary",
+          event_id: eventId,
+        },
+        params: {
+          need_notification: "true",
+        },
+      },
+      authOptions,
+    );
+
+    if (eventRes.code && eventRes.code !== 0) {
+      throw new Error(`delete feishu calendar event failed: ${eventRes.msg ?? eventRes.code}`);
+    }
+  }
+
+  if (reserveId) {
+    const reserveRes = await client.vc.v1.reserve.delete(
+      {
+        path: {
+          reserve_id: reserveId,
+        },
+      },
+      authOptions,
+    );
+
+    if (reserveRes.code && reserveRes.code !== 0) {
+      throw new Error(`delete feishu meeting failed: ${reserveRes.msg ?? reserveRes.code}`);
+    }
+  }
 }

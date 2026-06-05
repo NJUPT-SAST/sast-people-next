@@ -40,12 +40,12 @@ People 的业务身份必须统一使用 SAST Link 用户 ID。
 - 创建日程后写入 `interview_schedule`，会议链接只保存在日程表；
 - 面试通知邮件使用独立 `interview.schedule` 模板，支持在邮件管理页编辑和预览；
 - 预约成功后通过飞书 IM v1 给讲师发送机器人单聊提醒，提醒失败不影响预约结果；
+- People 内改约会同步更新飞书会议预约和飞书日程，并重发候选人邮件；
+- People 内取消预约会同步删除飞书日程和飞书会议预约，并把本地日程标记为 `cancelled`；
 - 面评 UI 按“先预约、日程结束后再写面评”的流程展示。
 
 仍未落地：
 
-- People 内取消日程时同步删除飞书日程和会议预约；
-- People 内改约时调用飞书日程、会议预约 update，而不是创建新日程；
 - 飞书应用入口自动解析 Link 用户并创建 People session；
 - 会议结束后自动回填妙记链接。
 
@@ -263,10 +263,14 @@ export async function createFeishuInterviewEvent(params: {
 官方参考：
 
 - 创建日程：https://open.feishu.cn/document/server-docs/calendar-v4/calendar-event/create?lang=zh-CN
+- 更新日程：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar-event/patch
+- 删除日程：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar-event/delete
 - 日程资源：https://open.feishu.cn/document/server-docs/calendar-v4/calendar-event/introduction
 - 添加日程参与人：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar-event-attendee/create
 - 查询主日历忙闲信息：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/freebusy/list
 - 预约会议：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/vc-v1/reserve/apply
+- 更新预约：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/vc-v1/reserve/update
+- 删除预约：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/vc-v1/reserve/delete
 - 发送消息：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
 
 ## 7. People Server Actions
@@ -435,6 +439,8 @@ export async function renderInterviewInviteEmail(params: {
 - 重发通知邮件；
 - 支持取消日程和审计记录。
 
+当前已落地：改约会同步 `vc.reserve.update` 和 `calendarEvent.patch`，取消会同步 `calendarEvent.delete` 和 `vc.reserve.delete`。
+
 ### Phase 3：飞书应用事件
 
 - 新增飞书事件回调 endpoint；
@@ -446,7 +452,7 @@ export async function renderInterviewInviteEmail(params: {
 
 - 飞书工作台入口：从飞书应用进入 People，并解析到 Link 用户；
 - 飞书消息提醒：预约成功提醒已接入；改约、面试前提醒、面评待提交提醒待接入；
-- 飞书日程修改和取消：People 内改约或取消时同步飞书日程；
+- 飞书日程修改和取消：People 内改约或取消时同步飞书日程，已接入；
 - 妙记链接回填：会议结束后通过可用 API 或事件把妙记链接写入面评；
 - 讲师飞书绑定状态展示：预约弹窗已展示是否绑定和 token 过期时间；
 - 日程冲突提示：已在创建前检查讲师个人日历忙闲状态；

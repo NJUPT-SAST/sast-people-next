@@ -18,7 +18,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/user-flow/evaluation";
-import { createInterviewSchedule } from "@/action/user-flow/interviewSchedule";
+import {
+  cancelInterviewSchedule,
+  createInterviewSchedule,
+} from "@/action/user-flow/interviewSchedule";
 import { getCurrentFeishuOAuthStatus, redirectFeishuOAuth } from "@/action/user/feishuOAuth";
 import {
   Dialog,
@@ -274,7 +277,13 @@ export const EvaluationTable = ({
 
   const startSchedule = (c: Candidate) => {
     setSchedulingId(c.userFlowId);
-    const range = getDefaultScheduleRange();
+    const range =
+      c.scheduleStartsAt && c.scheduleEndsAt
+        ? {
+            startsAt: formatDateTimeLocal(new Date(c.scheduleStartsAt)),
+            endsAt: formatDateTimeLocal(new Date(c.scheduleEndsAt)),
+          }
+        : getDefaultScheduleRange();
     setScheduleStartsAt(range.startsAt);
     setScheduleEndsAt(range.endsAt);
     setScheduleNote("");
@@ -374,6 +383,29 @@ export const EvaluationTable = ({
       toast.error(error instanceof Error ? error.message : "飞书日程创建失败");
     } finally {
       setScheduleLoading(false);
+    }
+  };
+
+  const handleCancelSchedule = async (candidate: Candidate) => {
+    if (!candidate.scheduleId) {
+      toast.error("找不到可取消的面试预约");
+      return;
+    }
+
+    setLoadingId(candidate.userFlowId);
+    try {
+      const result = await cancelInterviewSchedule(candidate.scheduleId);
+      if (!result.success) {
+        toast.error(result.error?.message ?? "取消预约失败");
+        return;
+      }
+      toast.success("面试预约已取消");
+      cancelSchedule();
+      onRefresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "取消预约失败");
+    } finally {
+      setLoadingId(null);
     }
   };
 
@@ -490,6 +522,14 @@ export const EvaluationTable = ({
                           <ActionTextButton onClick={() => startSchedule(c)}>
                             {c.scheduleMeetingLink ? "改约" : "预约"}
                           </ActionTextButton>
+                          {c.scheduleMeetingLink && (
+                            <ActionTextButton
+                              disabled={busy}
+                              onClick={() => handleCancelSchedule(c)}
+                            >
+                              {busy ? "处理中" : "取消"}
+                            </ActionTextButton>
+                          )}
                         </div>
                       ) : isEditing ? (
                         <div className="text-sm text-muted-foreground">
@@ -576,6 +616,14 @@ export const EvaluationTable = ({
                     <ActionTextButton onClick={() => startSchedule(c)}>
                       {c.scheduleMeetingLink ? "改约" : "预约"}
                     </ActionTextButton>
+                    {c.scheduleMeetingLink && (
+                      <ActionTextButton
+                        disabled={busy}
+                        onClick={() => handleCancelSchedule(c)}
+                      >
+                        {busy ? "处理中" : "取消"}
+                      </ActionTextButton>
+                    )}
                   </div>
                 ) : isEditing ? (
                   <div className="pt-1 text-sm text-muted-foreground">
@@ -774,8 +822,20 @@ export const EvaluationTable = ({
             </div>
           </div>
           <DialogFooter className="mt-2 border-t pt-4">
+            <div className="flex flex-1 justify-start">
+              {schedulingCandidate?.scheduleMeetingLink && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleCancelSchedule(schedulingCandidate)}
+                  loading={loadingId === schedulingCandidate.userFlowId}
+                >
+                  取消预约
+                </Button>
+              )}
+            </div>
             <Button type="button" variant="outline" onClick={cancelSchedule}>
-              取消
+              关闭
             </Button>
             <Button
               type="button"
@@ -785,7 +845,7 @@ export const EvaluationTable = ({
               }}
               loading={scheduleLoading}
             >
-              发起飞书日程
+              {schedulingCandidate?.scheduleMeetingLink ? "保存改约" : "发起飞书日程"}
             </Button>
           </DialogFooter>
         </DialogContent>

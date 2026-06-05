@@ -11,7 +11,11 @@ import {
   renderInterviewScheduleEmailSubject,
 } from "@/lib/email/interview-schedule";
 import { getEducationEmail } from "@/lib/email/address";
-import { createFeishuInterviewSchedule } from "@/lib/feishu/interview-schedule";
+import {
+  cancelFeishuInterviewSchedule,
+  createFeishuInterviewSchedule,
+  updateFeishuInterviewSchedule,
+} from "@/lib/feishu/interview-schedule";
 import { sendFeishuTextMessage } from "@/lib/feishu/message";
 import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
@@ -19,7 +23,7 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { verifyRole } from "@/lib/dal";
 import { sendRawEmail } from "@/queue/sendEmail";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
@@ -38,6 +42,17 @@ type CreateInterviewScheduleResult =
         id: number;
         meetingLink: string;
       };
+    }
+  | {
+      success: false;
+      error: {
+        message: string;
+      };
+    };
+
+type CancelInterviewScheduleResult =
+  | {
+      success: true;
     }
   | {
       success: false;
@@ -66,6 +81,7 @@ const formatDateTime = (date: Date) =>
   }).format(date);
 
 async function notifyOrganizerByFeishu({
+  title = "面试日程已创建",
   organizerOpenId,
   candidateName,
   flowName,
@@ -75,6 +91,7 @@ async function notifyOrganizerByFeishu({
   userFlowId,
   scheduleId,
 }: {
+  title?: string;
   organizerOpenId: string;
   candidateName: string;
   flowName: string;
@@ -85,7 +102,7 @@ async function notifyOrganizerByFeishu({
   scheduleId: number;
 }) {
   const text = [
-    "面试日程已创建",
+    title,
     `流程：${flowName}`,
     `候选人：${candidateName}`,
     `时间：${formatDateTime(startsAt)} - ${formatDateTime(endsAt)}`,
@@ -161,36 +178,92 @@ export async function createInterviewSchedule(
     ].filter(Boolean).join("\n");
 
     const credential = await getValidFeishuUserCredential(session.uid);
-    const feishuSchedule = await createFeishuInterviewSchedule({
-      accessToken: credential.accessToken,
-      organizerOpenId: credential.openId,
-      summary,
-      description,
-      startsAt,
-      endsAt,
-      attendeeEmail,
-      timezone: DEFAULT_TIMEZONE,
-      idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}`,
-    });
+    const [existingSchedule] = await db
+      .select()
+      .from(interviewSchedule)
+      .where(
+        and(
+          eq(interviewSchedule.fkUserFlowId, input.userFlowId),
+          eq(interviewSchedule.status, "created"),
+        ),
+      )
+      .orderBy(desc(interviewSchedule.startsAt))
+      .limit(1);
 
-    const [schedule] = await db
-      .insert(interviewSchedule)
-      .values({
-        fkUserFlowId: input.userFlowId,
-        fkOrganizerId: session.uid,
-        providerEventId: feishuSchedule.eventId,
-        providerReserveId: feishuSchedule.reserveId,
-        providerMeetingNo: feishuSchedule.meetingNo,
-        meetingLink: feishuSchedule.meetingLink,
-        summary,
-        description,
-        attendeeEmail,
-        startsAt,
-        endsAt,
-        timezone: DEFAULT_TIMEZONE,
-        status: "created",
-      })
-      .returning({ id: interviewSchedule.id });
+    if (existingSchedule && existingSchedule.fkOrganizerId !== session.uid) {
+      return {
+        success: false,
+        error: { message: "只能由原预约讲师改约该面试。" },
+      };
+    }
+
+    if (existingSchedule && !existingSchedule.providerEventId) {
+      return {
+        success: false,
+        error: { message: "该预约缺少飞书日程 ID，无法改约，请先取消后重新预约。" },
+      };
+    }
+
+    const feishuSchedule = existingSchedule
+      ? await updateFeishuInterviewSchedule({
+          accessToken: credential.accessToken,
+          organizerOpenId: credential.openId,
+          eventId: existingSchedule.providerEventId as string,
+          reserveId: existingSchedule.providerReserveId,
+          currentMeetingLink: existingSchedule.meetingLink,
+          summary,
+          description,
+          startsAt,
+          endsAt,
+          timezone: DEFAULT_TIMEZONE,
+        })
+      : await createFeishuInterviewSchedule({
+          accessToken: credential.accessToken,
+          organizerOpenId: credential.openId,
+          summary,
+          description,
+          startsAt,
+          endsAt,
+          attendeeEmail,
+          timezone: DEFAULT_TIMEZONE,
+          idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}`,
+        });
+
+    const [schedule] = existingSchedule
+      ? await db
+          .update(interviewSchedule)
+          .set({
+            providerReserveId: feishuSchedule.reserveId,
+            providerMeetingNo: feishuSchedule.meetingNo ?? existingSchedule.providerMeetingNo,
+            meetingLink: feishuSchedule.meetingLink,
+            summary,
+            description,
+            attendeeEmail,
+            startsAt,
+            endsAt,
+            timezone: DEFAULT_TIMEZONE,
+            updatedAt: new Date(),
+          })
+          .where(eq(interviewSchedule.id, existingSchedule.id))
+          .returning({ id: interviewSchedule.id })
+      : await db
+          .insert(interviewSchedule)
+          .values({
+            fkUserFlowId: input.userFlowId,
+            fkOrganizerId: session.uid,
+            providerEventId: feishuSchedule.eventId,
+            providerReserveId: feishuSchedule.reserveId,
+            providerMeetingNo: feishuSchedule.meetingNo,
+            meetingLink: feishuSchedule.meetingLink,
+            summary,
+            description,
+            attendeeEmail,
+            startsAt,
+            endsAt,
+            timezone: DEFAULT_TIMEZONE,
+            status: "created",
+          })
+          .returning({ id: interviewSchedule.id });
 
     const subject = await renderInterviewScheduleEmailSubject(target.flowTitle);
     const html = await renderInterviewScheduleEmail({
@@ -209,6 +282,7 @@ export async function createInterviewSchedule(
     });
 
     await notifyOrganizerByFeishu({
+      title: existingSchedule ? "面试日程已改约" : "面试日程已创建",
       organizerOpenId: credential.openId,
       candidateName,
       flowName: target.flowTitle,
@@ -222,7 +296,7 @@ export async function createInterviewSchedule(
     revalidatePath("/dashboard/recruitment");
     await writeOperationAudit({
       actorId: session.uid,
-      action: "interview_schedule.create",
+      action: existingSchedule ? "interview_schedule.update" : "interview_schedule.create",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
       metadata: {
@@ -247,6 +321,80 @@ export async function createInterviewSchedule(
       role: session?.role ?? null,
       action: "create-interview-schedule",
       userFlowId: input.userFlowId,
+    });
+    throw error;
+  }
+}
+
+export async function cancelInterviewSchedule(
+  scheduleId: number,
+): Promise<CancelInterviewScheduleResult> {
+  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+
+  try {
+    session = await verifyRole(2);
+
+    const [schedule] = await db
+      .select({
+        id: interviewSchedule.id,
+        userFlowId: interviewSchedule.fkUserFlowId,
+        organizerId: interviewSchedule.fkOrganizerId,
+        providerEventId: interviewSchedule.providerEventId,
+        providerReserveId: interviewSchedule.providerReserveId,
+        status: interviewSchedule.status,
+      })
+      .from(interviewSchedule)
+      .where(eq(interviewSchedule.id, scheduleId))
+      .limit(1);
+
+    if (!schedule) {
+      return { success: false, error: { message: "面试预约不存在。" } };
+    }
+    if (schedule.status !== "created") {
+      return { success: false, error: { message: "该预约已经不是可取消状态。" } };
+    }
+    if (schedule.organizerId !== session.uid) {
+      return { success: false, error: { message: "只能由原预约讲师取消该面试。" } };
+    }
+
+    const credential = await getValidFeishuUserCredential(session.uid);
+    await cancelFeishuInterviewSchedule({
+      accessToken: credential.accessToken,
+      eventId: schedule.providerEventId,
+      reserveId: schedule.providerReserveId,
+    });
+
+    await db
+      .update(interviewSchedule)
+      .set({
+        status: "cancelled",
+        updatedAt: new Date(),
+      })
+      .where(eq(interviewSchedule.id, schedule.id));
+
+    revalidatePath("/dashboard/recruitment");
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "interview_schedule.cancel",
+      resourceType: "interview_schedule",
+      resourceId: schedule.id,
+      metadata: {
+        userFlowId: schedule.userFlowId,
+        provider: "feishu",
+        providerEventId: schedule.providerEventId,
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    logServerError("interviewSchedule:cancel", error, {
+      path: "/dashboard/recruitment",
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "cancel-interview-schedule",
+      metadata: {
+        scheduleId,
+      },
     });
     throw error;
   }
