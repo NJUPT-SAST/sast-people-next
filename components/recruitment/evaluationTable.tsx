@@ -21,6 +21,7 @@ import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/u
 import {
   cancelInterviewSchedule,
   createInterviewSchedule,
+  generateInterviewMeetingMinute,
 } from "@/action/user-flow/interviewSchedule";
 import { getCurrentFeishuOAuthStatus, redirectFeishuOAuth } from "@/action/user/feishuOAuth";
 import {
@@ -241,6 +242,7 @@ export const EvaluationTable = ({
   const [scheduleEndsAt, setScheduleEndsAt] = useState("");
   const [scheduleNote, setScheduleNote] = useState("");
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [minuteLoading, setMinuteLoading] = useState(false);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<"pass" | "reopen" | null>(null);
   const [now, setNow] = useState<number | null>(null);
@@ -406,6 +408,28 @@ export const EvaluationTable = ({
       toast.error(error instanceof Error ? error.message : "取消预约失败");
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const handleGenerateMeetingMinute = async (candidate: Candidate) => {
+    if (!candidate.scheduleId) {
+      toast.error("找不到可生成妙记的面试预约");
+      return;
+    }
+
+    setMinuteLoading(true);
+    try {
+      const result = await generateInterviewMeetingMinute(candidate.scheduleId);
+      if (!result.success) {
+        toast.error(result.error?.message ?? "生成妙记失败");
+        return;
+      }
+      setMeetingLink(result.data.docUrl);
+      toast.success("妙记链接已生成");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "生成妙记失败");
+    } finally {
+      setMinuteLoading(false);
     }
   };
 
@@ -699,12 +723,28 @@ export const EvaluationTable = ({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">妙记链接</label>
-              <Input
-                placeholder="https://..."
-                value={meetingLink}
-                onChange={(e) => setMeetingLink(e.target.value)}
-                className="h-10"
-              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://..."
+                  value={meetingLink}
+                  onChange={(e) => setMeetingLink(e.target.value)}
+                  className="h-10"
+                />
+                {editingCandidate?.scheduleId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleGenerateMeetingMinute(editingCandidate)}
+                    loading={minuteLoading}
+                    disabled={
+                      minuteLoading ||
+                      (getTime(editingCandidate.scheduleEndsAt) ?? Number.POSITIVE_INFINITY) > Date.now()
+                    }
+                  >
+                    生成妙记
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">

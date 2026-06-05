@@ -14,6 +14,7 @@ import { getEducationEmail } from "@/lib/email/address";
 import {
   cancelFeishuInterviewSchedule,
   createFeishuInterviewSchedule,
+  createFeishuMeetingMinute,
   updateFeishuInterviewSchedule,
 } from "@/lib/feishu/interview-schedule";
 import { sendFeishuTextMessage } from "@/lib/feishu/message";
@@ -53,6 +54,20 @@ type CreateInterviewScheduleResult =
 type CancelInterviewScheduleResult =
   | {
       success: true;
+    }
+  | {
+      success: false;
+      error: {
+        message: string;
+      };
+    };
+
+type GenerateMeetingMinuteResult =
+  | {
+      success: true;
+      data: {
+        docUrl: string;
+      };
     }
   | {
       success: false;
@@ -392,6 +407,81 @@ export async function cancelInterviewSchedule(
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       action: "cancel-interview-schedule",
+      metadata: {
+        scheduleId,
+      },
+    });
+    throw error;
+  }
+}
+
+export async function generateInterviewMeetingMinute(
+  scheduleId: number,
+): Promise<GenerateMeetingMinuteResult> {
+  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+
+  try {
+    session = await verifyRole(2);
+
+    const [schedule] = await db
+      .select({
+        id: interviewSchedule.id,
+        userFlowId: interviewSchedule.fkUserFlowId,
+        organizerId: interviewSchedule.fkOrganizerId,
+        providerEventId: interviewSchedule.providerEventId,
+        endsAt: interviewSchedule.endsAt,
+        status: interviewSchedule.status,
+      })
+      .from(interviewSchedule)
+      .where(eq(interviewSchedule.id, scheduleId))
+      .limit(1);
+
+    if (!schedule) {
+      return { success: false, error: { message: "面试预约不存在。" } };
+    }
+    if (schedule.status !== "created") {
+      return { success: false, error: { message: "该预约已经不是可生成妙记的状态。" } };
+    }
+    if (schedule.organizerId !== session.uid) {
+      return { success: false, error: { message: "只能由原预约讲师生成该面试的妙记链接。" } };
+    }
+    if (!schedule.providerEventId) {
+      return { success: false, error: { message: "该预约缺少飞书日程 ID，无法生成妙记。" } };
+    }
+    if (schedule.endsAt > new Date()) {
+      return { success: false, error: { message: "日程结束后才能生成妙记链接。" } };
+    }
+
+    const credential = await getValidFeishuUserCredential(session.uid);
+    const result = await createFeishuMeetingMinute({
+      accessToken: credential.accessToken,
+      eventId: schedule.providerEventId,
+    });
+
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: "interview_schedule.meeting_minute.create",
+      resourceType: "interview_schedule",
+      resourceId: schedule.id,
+      metadata: {
+        userFlowId: schedule.userFlowId,
+        provider: "feishu",
+        providerEventId: schedule.providerEventId,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        docUrl: result.docUrl,
+      },
+    };
+  } catch (error) {
+    logServerError("interviewSchedule:meetingMinute", error, {
+      path: "/dashboard/recruitment",
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "generate-interview-meeting-minute",
       metadata: {
         scheduleId,
       },

@@ -43,6 +43,11 @@ export type CancelFeishuInterviewScheduleInput = {
   reserveId?: string | null;
 };
 
+export type CreateFeishuMeetingMinuteInput = {
+  accessToken: string;
+  eventId: string;
+};
+
 const toFeishuTimestamp = (date: Date) =>
   Math.floor(date.getTime() / 1000).toString();
 
@@ -408,4 +413,34 @@ export async function cancelFeishuInterviewSchedule({
       throw new Error(`delete feishu meeting failed: ${reserveRes.msg ?? reserveRes.code}`);
     }
   }
+}
+
+export async function createFeishuMeetingMinute({
+  accessToken,
+  eventId,
+}: CreateFeishuMeetingMinuteInput) {
+  const res = await getFeishuClient().calendar.v4.calendarEventMeetingMinute.create(
+    {
+      path: {
+        calendar_id: "primary",
+        event_id: eventId,
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (res.code && res.code !== 0) {
+    throw new Error(`create feishu meeting minute failed: ${res.msg ?? res.code}`);
+  }
+
+  const docUrl = res.data?.doc_url;
+  if (!docUrl) {
+    throw new Error("create feishu meeting minute failed: doc_url is empty");
+  }
+
+  return { docUrl };
 }

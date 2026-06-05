@@ -42,12 +42,13 @@ People 的业务身份必须统一使用 SAST Link 用户 ID。
 - 预约成功后通过飞书 IM v1 给讲师发送机器人单聊提醒，提醒失败不影响预约结果；
 - People 内改约会同步更新飞书会议预约和飞书日程，并重发候选人邮件；
 - People 内取消预约会同步删除飞书日程和飞书会议预约，并把本地日程标记为 `cancelled`；
+- 面试结束后讲师可以在面评弹窗中调用飞书 `calendar.event.meeting_minute.create` 生成妙记链接，并自动填入面评链接字段；
 - 面评 UI 按“先预约、日程结束后再写面评”的流程展示。
 
 仍未落地：
 
 - 飞书应用入口自动解析 Link 用户并创建 People session；
-- 会议结束后自动回填妙记链接。
+- 会议结束事件驱动的妙记链接自动回填。
 
 以上未落地项需要继续对接飞书开放平台能力和业务交互。
 
@@ -272,6 +273,7 @@ export async function createFeishuInterviewEvent(params: {
 - 更新预约：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/vc-v1/reserve/update
 - 删除预约：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/vc-v1/reserve/delete
 - 发送消息：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
+- 创建日程妙记：https://open.feishu.cn/api-explorer?from=op_doc_tab&apiName=create&project=calendar&resource=calendar.event.meeting_minute&version=v4
 
 ## 7. People Server Actions
 
@@ -453,7 +455,7 @@ export async function renderInterviewInviteEmail(params: {
 - 飞书工作台入口：从飞书应用进入 People，并解析到 Link 用户；
 - 飞书消息提醒：预约成功提醒已接入；改约、面试前提醒、面评待提交提醒待接入；
 - 飞书日程修改和取消：People 内改约或取消时同步飞书日程，已接入；
-- 妙记链接回填：会议结束后通过可用 API 或事件把妙记链接写入面评；
+- 妙记链接回填：面评弹窗内手动生成妙记链接已接入；会议结束事件驱动的自动回填待接入；
 - 讲师飞书绑定状态展示：预约弹窗已展示是否绑定和 token 过期时间；
 - 日程冲突提示：已在创建前检查讲师个人日历忙闲状态；
 - 操作失败补偿：飞书创建成功但邮件失败时保留日程记录并提示补发。
