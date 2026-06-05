@@ -18,12 +18,16 @@ import {
   isFeishuInternalServiceError,
   updateFeishuInterviewSchedule,
 } from "@/lib/feishu/interview-schedule";
-import { sendFeishuTextMessage } from "@/lib/feishu/message";
+import {
+  sendInterviewCancelledCard,
+  sendInterviewScheduleCard,
+} from "@/lib/feishu/interview-message";
 import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { verifyRole } from "@/lib/dal";
+import { mqClient } from "@/queue/client";
 import { sendRawEmail } from "@/queue/sendEmail";
 import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -88,17 +92,6 @@ function parseDate(value: string, fieldName: string) {
   return date;
 }
 
-const formatDateTime = (date: Date) =>
-  new Intl.DateTimeFormat("zh-CN", {
-    timeZone: DEFAULT_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-
 async function notifyOrganizerByFeishu({
   title = "面试日程已创建",
   organizerOpenId,
@@ -126,24 +119,20 @@ async function notifyOrganizerByFeishu({
   userFlowId: number;
   scheduleId: number;
 }) {
-  const hasDistinctMeetingLink = !scheduleLink || meetingLink !== scheduleLink;
-  const text = [
-    title,
-    `流程：${flowName}`,
-    `面试同学：${candidateName}`,
-    candidateStudentId ? `学号：${candidateStudentId}` : null,
-    candidatePhone ? `手机号：${candidatePhone}` : null,
-    `时间：${formatDateTime(startsAt)} - ${formatDateTime(endsAt)}`,
-    hasDistinctMeetingLink ? `会议：${meetingLink}` : null,
-    scheduleLink ? `日程：${scheduleLink}` : null,
-    "面试结束后请回到 People 提交面评；飞书妙记生成后会自动同步。",
-  ].filter(Boolean).join("\n");
-
   try {
-    await sendFeishuTextMessage({
+    await sendInterviewScheduleCard({
       openId: organizerOpenId,
-      text,
-      uuid: `people-interview-schedule-${scheduleId}-${Date.now()}`,
+      title,
+      candidateName,
+      candidatePhone,
+      candidateStudentId,
+      flowName,
+      startsAt,
+      endsAt,
+      meetingLink,
+      scheduleLink,
+      userFlowId,
+      scheduleId,
     });
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
@@ -155,6 +144,57 @@ async function notifyOrganizerByFeishu({
       metadata: {
         scheduleId,
       },
+    });
+  }
+}
+
+async function notifyInterviewGroupByFeishu({
+  title,
+  candidateName,
+  candidateStudentId,
+  flowName,
+  startsAt,
+  endsAt,
+  meetingLink,
+  scheduleLink,
+  userFlowId,
+  scheduleId,
+}: {
+  title: string;
+  candidateName: string;
+  candidateStudentId?: string | null;
+  flowName: string;
+  startsAt: Date;
+  endsAt: Date;
+  meetingLink?: string | null;
+  scheduleLink?: string | null;
+  userFlowId: number;
+  scheduleId: number;
+}) {
+  const chatId = process.env.FEISHU_INTERVIEW_CHAT_ID?.trim();
+  if (!chatId) return;
+
+  try {
+    await sendInterviewScheduleCard({
+      openId: chatId,
+      receiveIdType: "chat_id",
+      title,
+      candidateName,
+      candidateStudentId,
+      flowName,
+      startsAt,
+      endsAt,
+      meetingLink,
+      scheduleLink,
+      userFlowId,
+      scheduleId,
+      uuidSuffix: `group-${Date.now()}`,
+    });
+  } catch (error) {
+    logServerError("interviewSchedule:feishuGroupMessage", error, {
+      action: "send-interview-schedule-feishu-group-message",
+      userFlowId,
+      metadata: { scheduleId },
     });
   }
 }
@@ -431,6 +471,23 @@ export async function createInterviewSchedule(
       userFlowId: input.userFlowId,
       scheduleId: schedule.id,
     });
+    await notifyInterviewGroupByFeishu({
+      title: existingSchedule ? "面试日程已改约" : "面试日程已创建",
+      candidateName,
+      candidateStudentId: candidate?.studentId ?? null,
+      flowName: target.flowTitle,
+      startsAt,
+      endsAt,
+      meetingLink: feishuSchedule.meetingLink,
+      scheduleLink: feishuSchedule.scheduleLink,
+      userFlowId: input.userFlowId,
+      scheduleId: schedule.id,
+    });
+    await enqueueInterviewScheduleReminder({
+      scheduleId: schedule.id,
+      startsAt,
+      endsAt,
+    });
 
     revalidatePath("/dashboard/recruitment");
     await writeOperationAudit({
@@ -554,15 +611,34 @@ export async function cancelInterviewSchedule(
       });
     }
 
-    await sendFeishuTextMessage({
+    await sendInterviewCancelledCard({
       openId: credential.openId,
-      text: [
-        "面试预约已取消",
-        `日程：${schedule.summary}`,
-        `时间：${formatDateTime(schedule.startsAt)} - ${formatDateTime(schedule.endsAt)}`,
-      ].join("\n"),
-      uuid: `people-interview-schedule-cancel-${schedule.id}-${Date.now()}`,
+      flowName,
+      candidateName,
+      startsAt: schedule.startsAt,
+      endsAt: schedule.endsAt,
+      scheduleId: schedule.id,
     });
+    const chatId = process.env.FEISHU_INTERVIEW_CHAT_ID?.trim();
+    if (chatId) {
+      try {
+        await sendInterviewCancelledCard({
+          openId: chatId,
+          receiveIdType: "chat_id",
+          flowName,
+          candidateName,
+          startsAt: schedule.startsAt,
+          endsAt: schedule.endsAt,
+          scheduleId: schedule.id,
+        });
+      } catch (error) {
+        logServerError("interviewSchedule:feishuGroupMessage", error, {
+          action: "send-interview-cancel-feishu-group-message",
+          userFlowId: schedule.userFlowId,
+          metadata: { scheduleId: schedule.id },
+        });
+      }
+    }
 
     revalidatePath("/dashboard/recruitment");
     await writeOperationAudit({
@@ -589,5 +665,32 @@ export async function cancelInterviewSchedule(
       },
     });
     throw error;
+  }
+}
+
+async function enqueueInterviewScheduleReminder({
+  scheduleId,
+  startsAt,
+  endsAt,
+}: {
+  scheduleId: number;
+  startsAt: Date;
+  endsAt: Date;
+}) {
+  try {
+    await mqClient.send({
+      name: "interview/schedule.reminder",
+      data: {
+        scheduleId,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+      },
+      id: `people-interview-reminder-${scheduleId}-${startsAt.getTime()}-${endsAt.getTime()}`,
+    });
+  } catch (error) {
+    logServerError("interviewSchedule:enqueueReminder", error, {
+      action: "enqueue-interview-schedule-reminder",
+      metadata: { scheduleId },
+    });
   }
 }

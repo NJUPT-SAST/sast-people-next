@@ -1,7 +1,7 @@
 import { db } from "@/db/drizzle";
 import { interviewSchedule } from "@/db/schema";
 import { getFeishuMinuteInfo } from "@/lib/feishu/interview-schedule";
-import { sendFeishuTextMessage } from "@/lib/feishu/message";
+import { sendInterviewMinuteCard } from "@/lib/feishu/interview-message";
 import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
@@ -204,15 +204,11 @@ async function handleMinuteGenerated(event: FeishuMinuteGeneratedEvent) {
 
   try {
     const credential = await getValidFeishuUserCredential(schedule.organizerId);
-    await sendFeishuTextMessage({
+    await sendInterviewMinuteCard({
       openId: credential.openId,
-      text: [
-        "飞书妙记已同步",
-        minuteTitle ? `标题：${minuteTitle}` : null,
-        `妙记：${minuteUrl}`,
-        "请回到 People 补充面评内容并提交审核。",
-      ].filter(Boolean).join("\n"),
-      uuid: `people-interview-minute-${schedule.id}-${minuteToken ?? Date.now()}`,
+      scheduleId: schedule.id,
+      minuteUrl,
+      minuteTitle,
     });
   } catch (error) {
     logServerError("api:feishu:events", error, {

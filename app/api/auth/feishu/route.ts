@@ -2,8 +2,8 @@ import "server-only";
 
 import { FEISHU_OAUTH_STATE } from "@/const/cookie";
 import { verifySession } from "@/lib/dal";
+import { sendFeishuOAuthBoundCard } from "@/lib/feishu/interview-message";
 import { upsertFeishuOAuthAccount } from "@/lib/feishu/oauth-account";
-import { sendFeishuTextMessage } from "@/lib/feishu/message";
 import { exchangeFeishuOAuthCode } from "@/lib/feishu/user-auth";
 import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
 import { getLinkAccessTokenFromSession } from "@/lib/link/session";
@@ -76,15 +76,7 @@ const assertFeishuUnionMatchesLinkIdentity = async (unionId: string) => {
 
 const notifyFeishuOAuthBound = async (openId: string, request: NextRequest) => {
   try {
-    await sendFeishuTextMessage({
-      openId,
-      text: [
-        "People 飞书授权已完成",
-        "",
-        "现在可以由 People 发起面试会议和日程。",
-        "创建、改约、取消和妙记同步都会通过机器人提醒你。",
-      ].join("\n"),
-    });
+    await sendFeishuOAuthBoundCard(openId);
   } catch (error) {
     logServerError("api:auth:feishu", error, {
       path: request.nextUrl.pathname,

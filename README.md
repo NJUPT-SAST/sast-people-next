@@ -157,6 +157,8 @@ docker compose up -d --force-recreate
 
 This does not require rebuilding or copying a new image. Build-time public variables such as `NEXT_PUBLIC_SENTRY_DSN` are still passed through GitHub Actions because Next.js inlines `NEXT_PUBLIC_*` values during `pnpm build`.
 
+`PEOPLE_PUBLIC_BASE_URL` must be set in production so Feishu bot cards can link back to People. `FEISHU_INTERVIEW_CHAT_ID` is optional and enables privacy-safe group cards for interview schedule changes.
+
 ## Documentation
 
 - [SAST People v3 Link integration plan](docs/SAST_PEOPLE_V3_LINK_DEV.md)

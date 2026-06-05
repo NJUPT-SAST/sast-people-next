@@ -41,7 +41,8 @@ People 的业务身份必须统一使用 SAST Link 用户 ID。
 - 创建日程后写入 `interview_schedule`，飞书会议链接和飞书日程链接分别保存；
 - 面试通知邮件使用独立 `interview.schedule` 模板，支持邮件管理页编辑、预约前预览、改约/取消状态展示；
 - 非生产环境邮件会重定向到 `EMAIL_TEST_RECIPIENT`，默认 `b24150524@njupt.edu.cn`；
-- 飞书授权成功、预约成功、改约、取消和妙记同步后会通过飞书 IM v1 给讲师发送机器人单聊提醒，提醒失败不影响主流程；
+- 飞书授权成功、预约成功、改约、取消、面试前提醒、面评待提交和妙记同步后会通过飞书 IM v1 给讲师发送机器人卡片提醒，提醒失败不影响主流程；
+- 如果配置 `FEISHU_INTERVIEW_CHAT_ID`，预约、改约和取消会同步发送隐私收敛后的群卡片，不包含手机号和备注；
 - People 内改约会同步更新飞书会议预约和飞书日程，并重发候选人邮件；
 - People 内取消预约会同步删除飞书日程和飞书会议预约，并把本地日程标记为 `cancelled`；
 - 妙记由飞书自动生成，People 通过飞书 `minutes.minute.generated_v1` 事件回调写入日程，不要求讲师手动填写；
@@ -83,6 +84,8 @@ People 的业务身份必须统一使用 SAST Link 用户 ID。
 - 配置事件订阅回调地址，例如 `https://<people-host>/api/feishu/events`；
 - 订阅 `vc.meeting.meeting_ended_v1` 或 `vc.meeting.all_meeting_ended_v1`；
 - 配置 `FEISHU_EVENT_VERIFICATION_TOKEN` 和可选的 `FEISHU_EVENT_ENCRYPT_KEY`；
+- 配置 `PEOPLE_PUBLIC_BASE_URL`，用于飞书卡片中的 People 直达按钮；
+- 可选配置 `FEISHU_INTERVIEW_CHAT_ID`，用于向指定群发送面试日程概览；
 - 发布或安装应用到目标组织，使讲师对该机器人具备可用性。
 
 如果日历忙闲查询权限未配置，People 会记录错误但不阻断预约；如果查询结果确认讲师该时间段已有忙碌日程，则阻断预约。
@@ -460,7 +463,10 @@ export async function renderInterviewInviteEmail(params: {
 ### Phase 4：飞书体验优化
 
 - 飞书工作台入口：从飞书应用进入 People，并解析到 Link 用户；
-- 飞书消息提醒：授权成功、预约成功、改约、取消和妙记同步提醒已接入；面试前提醒、面评待提交提醒需要额外定时任务支撑，暂未接入；
+- 飞书消息提醒：授权成功、预约成功、改约、取消、面试前提醒、面评待提交和妙记同步提醒已接入；
+- 飞书群通知：配置 `FEISHU_INTERVIEW_CHAT_ID` 后会发送隐私收敛后的群卡片；默认关闭；
+- 飞书任务：适合承载“面评待提交”待办，但需要额外开通 Task v2 权限和确定任务清单归属，当前保留为后续可选增强；
+- 飞书工作台入口：仍需要飞书应用入口参数、Link 身份解析和回跳策略，当前不接入主登录链路；
 - 飞书日程修改和取消：People 内改约或取消时同步飞书日程，已接入；
 - 妙记链接回填：飞书 `minutes.minute.generated_v1` 事件驱动的自动回填已接入，面评弹窗不再支持手填；
 - 讲师飞书绑定状态展示：dashboard 顶部已展示是否绑定和 token 过期时间；
