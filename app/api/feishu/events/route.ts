@@ -16,6 +16,12 @@ type FeishuMeetingEndedEvent = {
   };
 };
 
+type FeishuUrlVerificationPayload = {
+  type?: string;
+  token?: string;
+  challenge?: string;
+};
+
 let dispatcher: lark.EventDispatcher | null = null;
 
 function getEventDispatcher() {
@@ -101,7 +107,18 @@ async function handleMeetingEnded(event: FeishuMeetingEndedEvent) {
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = await request.json();
+    const payload = (await request.json()) as FeishuUrlVerificationPayload;
+    if (payload.type === "url_verification") {
+      if (
+        process.env.FEISHU_EVENT_VERIFICATION_TOKEN &&
+        payload.token !== process.env.FEISHU_EVENT_VERIFICATION_TOKEN
+      ) {
+        return NextResponse.json({ message: "invalid token" }, { status: 401 });
+      }
+
+      return NextResponse.json({ challenge: payload.challenge });
+    }
+
     const result = await getEventDispatcher().invoke(payload);
     return NextResponse.json(result ?? { ok: true });
   } catch (error) {

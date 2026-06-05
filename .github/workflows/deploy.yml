@@ -172,6 +172,9 @@ jobs:
             LINK_CLIENT_SECRET=${{ secrets.LINK_CLIENT_SECRET }}
             APP_ID=${{ secrets.APP_ID }}
             APP_SECRET=${{ secrets.APP_SECRET }}
+            FEISHU_OAUTH_REDIRECT_URI=${{ secrets.FEISHU_OAUTH_REDIRECT_URI }}
+            FEISHU_EVENT_VERIFICATION_TOKEN=${{ secrets.FEISHU_EVENT_VERIFICATION_TOKEN }}
+            FEISHU_EVENT_ENCRYPT_KEY=${{ secrets.FEISHU_EVENT_ENCRYPT_KEY }}
             NONCESTR=${{ secrets.NONCESTR }}
             EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}
             SENTRY_DSN=${{ secrets.SENTRY_DSN }}
