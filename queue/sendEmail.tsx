@@ -16,6 +16,24 @@ const transporter = createTransport({
 });
 
 const emailFrom = '"SAST R&D Center" <recruitment@sast.fun>';
+const DEFAULT_TEST_EMAIL_RECIPIENT = "b24150524@njupt.edu.cn";
+
+function getTestEmailRecipient() {
+  const value = process.env.EMAIL_TEST_RECIPIENT?.trim();
+  return value || DEFAULT_TEST_EMAIL_RECIPIENT;
+}
+
+function resolveEmailEnvelope(to: string, subject: string) {
+  if (process.env.NODE_ENV === "production") {
+    return { to, subject };
+  }
+
+  const testRecipient = getTestEmailRecipient();
+  return {
+    to: testRecipient,
+    subject: `[TEST to ${to}] ${subject}`,
+  };
+}
 
 export const assertEmailConfigured = () => {
   if (!process.env.EMAIL_PASSWORD) {
@@ -33,10 +51,11 @@ export const sendRawEmail = async ({
   html: string;
 }) => {
   assertEmailConfigured();
+  const envelope = resolveEmailEnvelope(to, subject);
   return transporter.sendMail({
     from: emailFrom,
-    to,
-    subject,
+    to: envelope.to,
+    subject: envelope.subject,
     html,
   });
 };

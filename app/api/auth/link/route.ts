@@ -3,6 +3,7 @@ import { IS_BINDING, LINK_OAUTH_STATE } from "@/const/cookie";
 import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import { exchangeLinkOAuthCode } from "@/lib/link/oauth";
+import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
 import { createSession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { getURLFromRedirectError } from "next/dist/client/components/redirect";
@@ -57,10 +58,14 @@ export async function GET(request: NextRequest) {
       cookieStore.delete(IS_BINDING);
     }
 
+    const peopleRole = shouldUseLinkFeishuTestMock()
+      ? 2
+      : linkRoleToPeopleRole(profile.role);
+
     await createSession(
       profile.id,
       profile.name,
-      linkRoleToPeopleRole(profile.role),
+      peopleRole,
       {
         accessToken: token.access_token,
         refreshToken: token.refresh_token,

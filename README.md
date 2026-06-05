@@ -138,7 +138,24 @@ Copy `.env.example` to `.env.local` and fill in local values:
 cp .env.example .env.local
 ```
 
-Keep real secrets in `.env.local` or GitHub Actions secrets. Do not commit `.env*` files.
+Keep local secrets in `.env.local`. Do not commit `.env*` files.
+
+For production Docker deployment, runtime secrets are stored on the server at:
+
+```text
+/data/sast-people-next/.env
+```
+
+`docker-compose.yml` loads this file with `env_file`. GitHub Actions does not rewrite production runtime secrets during deployment. If a runtime secret changes, update the server file and recreate the container:
+
+```bash
+cd /data/sast-people-next
+vim .env
+chmod 600 .env
+docker compose up -d --force-recreate
+```
+
+This does not require rebuilding or copying a new image. Build-time public variables such as `NEXT_PUBLIC_SENTRY_DSN` are still passed through GitHub Actions because Next.js inlines `NEXT_PUBLIC_*` values during `pnpm build`.
 
 ## Documentation
 

@@ -8,6 +8,10 @@ name: Deploy
 #   - SERVER_HOST:     Target server IP/hostname
 #   - SERVER_USER:     SSH user
 #   - SSH_PRIVATE_KEY: SSH private key for authentication
+#   - NEXT_PUBLIC_SENTRY_DSN: Build-time public Sentry DSN
+#
+# Runtime secrets are read from /data/sast-people-next/.env on the server.
+# They are not written from GitHub Secrets during deployment.
 # ============================================================================
 
 on:
@@ -164,22 +168,12 @@ jobs:
             docker tag "${IMAGE_NAME}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:current"
 
             echo ""
-            echo "[4/7] Writing .env from GitHub Secrets..."
-            cat > .env << 'DOTENV'
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-            LINK_CLIENT_ID=${{ secrets.LINK_CLIENT_ID }}
-            LINK_CLIENT_SECRET=${{ secrets.LINK_CLIENT_SECRET }}
-            APP_ID=${{ secrets.APP_ID }}
-            APP_SECRET=${{ secrets.APP_SECRET }}
-            FEISHU_OAUTH_REDIRECT_URI=${{ secrets.FEISHU_OAUTH_REDIRECT_URI }}
-            FEISHU_EVENT_VERIFICATION_TOKEN=${{ secrets.FEISHU_EVENT_VERIFICATION_TOKEN }}
-            FEISHU_EVENT_ENCRYPT_KEY=${{ secrets.FEISHU_EVENT_ENCRYPT_KEY }}
-            NONCESTR=${{ secrets.NONCESTR }}
-            EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}
-            SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-            DOTENV
+            echo "[4/7] Checking runtime .env..."
+            if [ ! -f .env ]; then
+              echo "Missing ${SERVICE_DIR}/.env"
+              echo "Create it on the server before deploying. docker-compose.yml reads it through env_file."
+              exit 1
+            fi
             chmod 600 .env
 
             echo ""

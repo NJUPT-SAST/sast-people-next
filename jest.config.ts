@@ -26,6 +26,7 @@ const config: Config = {
     "!**/*.d.ts",
     "!**/node_modules/**",
     "!**/.next/**",
+    "!**/.worktrees/**",
     "!**/coverage/**",
     "!**/out/**",
   ],
@@ -37,6 +38,7 @@ const config: Config = {
   coveragePathIgnorePatterns: [
     "/node_modules/",
     "/.next/",
+    "/.worktrees/",
     "/out/",
     "/coverage/",
   ],
@@ -124,6 +126,7 @@ const config: Config = {
   modulePathIgnorePatterns: [
     "<rootDir>/out/",
     "<rootDir>/.next/",
+    "<rootDir>/.worktrees/",
     "<rootDir>/tmp/",
   ],
 
@@ -209,6 +212,7 @@ const config: Config = {
   testPathIgnorePatterns: [
     "/node_modules/",
     "/.next/",
+    "/.worktrees/",
     "/out/",
     "/tmp/",
   ],

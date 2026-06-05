@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import * as React from "react";
 
 type ElementProps<T extends keyof React.JSX.IntrinsicElements> =
@@ -38,8 +39,10 @@ const Preview = ({ children }: { children: React.ReactNode }) => (
     {children}
   </div>
 );
+const Img = ({ alt = "", ...props }: ElementProps<"img">) => <img alt={alt} {...props} />;
 
 type InterviewScheduleEmailProps = {
+  kind?: "created" | "rescheduled" | "cancelled";
   candidateName: string;
   flowName: string;
   titleText?: string;
@@ -48,12 +51,20 @@ type InterviewScheduleEmailProps = {
   startsAtText: string;
   endsAtText: string;
   meetingLink: string;
+  scheduleLink?: string;
   note?: string;
   footerText?: string;
+  logoUrl?: string;
 };
 
+const statusCopy = {
+  created: { label: "预约确认", color: "#0f766e", background: "#ecfdf5" },
+  rescheduled: { label: "时间调整", color: "#b45309", background: "#fffbeb" },
+  cancelled: { label: "已取消", color: "#b91c1c", background: "#fef2f2" },
+} as const;
+
 export const InterviewScheduleEmail = ({
-  candidateName,
+  kind = "created",
   flowName,
   titleText = "面试预约通知",
   bodyText,
@@ -61,35 +72,57 @@ export const InterviewScheduleEmail = ({
   startsAtText,
   endsAtText,
   meetingLink,
+  scheduleLink,
   note,
   footerText = "南京邮电大学大学生科学技术协会",
+  logoUrl = "https://nextpeople.sast.fun/images/logo.png",
 }: InterviewScheduleEmailProps) => (
   <Html>
-    <Preview>{flowName} 面试预约通知</Preview>
+    <Preview>{flowName} {statusCopy[kind].label}</Preview>
     <Body style={body}>
       <Container style={container}>
+        <Section style={brand}>
+          <Img src={logoUrl} alt="SAST" width="34" height="34" style={logo} />
+          <div>
+            <Text style={brandName}>SAST People</Text>
+            <Text style={brandMeta}>南京邮电大学大学生科学技术协会</Text>
+          </div>
+        </Section>
+        <Section style={statusBar(statusCopy[kind].background, statusCopy[kind].color)}>
+          {statusCopy[kind].label}
+        </Section>
         <Heading style={heading}>{titleText}</Heading>
-        <Text style={paragraph}>{candidateName} 同学：</Text>
         <Text style={paragraph}>
           {bodyText ?? `你已预约 ${flowName} 的面试，请按时通过下方会议链接参加。`}
         </Text>
-        <Section style={card}>
-          <Text style={label}>时间</Text>
-          <Text style={value}>
-            {startsAtText} - {endsAtText}
-          </Text>
-          <Text style={label}>发起人</Text>
-          <Text style={value}>{organizerName}</Text>
+        <Section style={details}>
+          <div style={detailRow}>
+            <Text style={label}>流程</Text>
+            <Text style={value}>{flowName}</Text>
+          </div>
+          <div style={detailRow}>
+            <Text style={label}>时间</Text>
+            <Text style={value}>{startsAtText} - {endsAtText}</Text>
+          </div>
+          <div style={detailRow}>
+            <Text style={label}>讲师</Text>
+            <Text style={value}>{organizerName}</Text>
+          </div>
           {note && (
-            <>
+            <div style={detailRowLast}>
               <Text style={label}>备注</Text>
               <Text style={value}>{note}</Text>
-            </>
+            </div>
           )}
         </Section>
-        <Text style={paragraph}>
-          会议链接：<Link href={meetingLink} style={anchor}>{meetingLink}</Link>
-        </Text>
+        {kind !== "cancelled" && (
+          <Section style={actionBlock}>
+            <Link href={meetingLink} style={linkButton}>飞书会议</Link>
+            {scheduleLink && (
+              <Link href={scheduleLink} style={linkButton}>飞书日程</Link>
+            )}
+          </Section>
+        )}
         <Hr style={hr} />
         <Text style={footer}>{footerText}</Text>
       </Container>
@@ -98,6 +131,7 @@ export const InterviewScheduleEmail = ({
 );
 
 InterviewScheduleEmail.PreviewProps = {
+  kind: "created",
   candidateName: "张三",
   flowName: "2026 免试招新",
   titleText: "面试预约通知",
@@ -105,8 +139,10 @@ InterviewScheduleEmail.PreviewProps = {
   startsAtText: "2026-06-04 19:00",
   endsAtText: "2026-06-04 19:30",
   meetingLink: "https://vc.feishu.cn/j/123456789",
+  scheduleLink: "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
   note: "请提前准备作品介绍。",
   footerText: "南京邮电大学大学生科学技术协会",
+  logoUrl: "https://nextpeople.sast.fun/images/logo.png",
 } as InterviewScheduleEmailProps;
 
 export default InterviewScheduleEmail;
@@ -120,16 +156,57 @@ const body = {
 
 const container = {
   width: "100%",
-  maxWidth: "560px",
-  margin: "0 auto",
-  padding: "32px 24px",
+  maxWidth: "620px",
+  margin: "32px auto",
+  padding: "32px",
   backgroundColor: "#ffffff",
+  border: "1px solid #e5e7eb",
+  borderRadius: "12px",
+};
+
+const statusBar = (backgroundColor: string, color: string) => ({
+  display: "inline-block",
+  margin: "0 0 18px",
+  padding: "5px 10px",
+  borderRadius: "999px",
+  backgroundColor,
+  color,
+  fontSize: "12px",
+  lineHeight: "18px",
+  fontWeight: 700,
+});
+
+const brand = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  margin: "0 0 22px",
+};
+
+const logo = {
+  display: "block",
+  borderRadius: "8px",
+};
+
+const brandName = {
+  margin: 0,
+  fontSize: "14px",
+  lineHeight: "18px",
+  fontWeight: 700,
+  color: "#111827",
+};
+
+const brandMeta = {
+  margin: "2px 0 0",
+  fontSize: "12px",
+  lineHeight: "16px",
+  color: "#6b7280",
 };
 
 const heading = {
-  margin: "0 0 24px",
-  fontSize: "24px",
-  lineHeight: "32px",
+  margin: "0 0 18px",
+  fontSize: "26px",
+  lineHeight: "34px",
   color: "#111827",
 };
 
@@ -140,12 +217,20 @@ const paragraph = {
   color: "#374151",
 };
 
-const card = {
-  margin: "20px 0",
-  padding: "18px 20px",
+const details = {
+  margin: "22px 0",
   border: "1px solid #e5e7eb",
   borderRadius: "8px",
   backgroundColor: "#f9fafb",
+};
+
+const detailRow = {
+  padding: "14px 18px",
+  borderBottom: "1px solid #e5e7eb",
+};
+
+const detailRowLast = {
+  padding: "14px 18px",
 };
 
 const label = {
@@ -156,14 +241,32 @@ const label = {
 };
 
 const value = {
-  margin: "0 0 14px",
+  margin: 0,
   fontSize: "15px",
   lineHeight: "24px",
   color: "#111827",
 };
 
-const anchor = {
-  color: "#2563eb",
+const actionBlock = {
+  margin: "24px 0",
+  padding: 0,
+};
+
+const linkButton = {
+  display: "inline-block",
+  minWidth: "132px",
+  marginRight: "10px",
+  marginBottom: "10px",
+  padding: "12px 18px",
+  borderRadius: "6px",
+  border: "1px solid #0f766e",
+  backgroundColor: "#f0fdfa",
+  color: "#0f766e",
+  fontSize: "15px",
+  lineHeight: "20px",
+  fontWeight: 700,
+  textAlign: "center" as const,
+  textDecoration: "none",
 };
 
 const hr = {

@@ -5,6 +5,7 @@ import { Loading } from '@/components/loading';
 import { UserCard } from '@/components/userCard';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { PageBreadcrumb } from '@/components/route';
+import { FeishuOAuthStatus } from '@/components/feishu-oauth-status';
 
 export const metadata: Metadata = {
   title: 'SAST People',
@@ -25,6 +26,7 @@ export default async function RootLayout({
       userCard={<UserCard />}
       breadcrumb={<PageBreadcrumb role={session.role} />}
     >
+      <FeishuOAuthStatus role={session.role} />
       <Suspense fallback={<Loading />}>{children}</Suspense>
     </DashboardLayout>
   );

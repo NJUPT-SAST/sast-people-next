@@ -16,7 +16,10 @@ function base64URLEncode(value: Buffer) {
 }
 
 export async function redirectFeishuOAuth() {
-  await verifySession();
+  const session = await verifySession();
+  if (session.role < 2) {
+    throw new Error("只有讲师及以上身份需要绑定飞书授权。");
+  }
 
   const appId = process.env.APP_ID;
   if (!appId) {

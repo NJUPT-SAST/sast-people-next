@@ -296,6 +296,7 @@ export const interviewSchedule = pgTable("interview_schedule", {
   providerReserveId: varchar("provider_reserve_id", { length: 255 }),
   providerMeetingNo: varchar("provider_meeting_no", { length: 255 }),
   meetingLink: text("meeting_link").notNull(),
+  scheduleLink: text("schedule_link"),
   meetingMinuteLink: text("meeting_minute_link"),
   summary: varchar("summary", { length: 255 }).notNull(),
   description: text("description"),

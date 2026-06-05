@@ -21,9 +21,8 @@ import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/u
 import {
   cancelInterviewSchedule,
   createInterviewSchedule,
-  generateInterviewMeetingMinute,
+  previewInterviewScheduleEmail,
 } from "@/action/user-flow/interviewSchedule";
-import { getCurrentFeishuOAuthStatus, redirectFeishuOAuth } from "@/action/user/feishuOAuth";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +47,7 @@ type Candidate = {
   evalStatus: string | null;
   scheduleId: number | null;
   scheduleMeetingLink: string | null;
+  scheduleLink: string | null;
   scheduleMeetingMinuteLink: string | null;
   scheduleStartsAt: Date | string | null;
   scheduleEndsAt: Date | string | null;
@@ -183,6 +183,10 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
 
   const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
   const endsAt = formatScheduleTime(candidate.scheduleEndsAt);
+  const hasDistinctScheduleLink =
+    Boolean(candidate.scheduleLink) &&
+    candidate.scheduleLink !== candidate.scheduleMeetingLink;
+  const primaryLinkLabel = hasDistinctScheduleLink ? "进入会议" : "查看日程";
 
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -192,9 +196,20 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
         rel="noopener noreferrer"
         className="inline-flex max-w-full items-center gap-1.5 text-sm text-foreground hover:text-primary hover:underline"
       >
-        <span className="truncate">进入会议</span>
+        <span className="truncate">{primaryLinkLabel}</span>
         <ExternalLink className="h-3.5 w-3.5 shrink-0" />
       </a>
+      {hasDistinctScheduleLink && candidate.scheduleLink && (
+        <a
+          href={externalHref(candidate.scheduleLink)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex max-w-full items-center gap-1.5 text-sm text-muted-foreground hover:text-primary hover:underline"
+        >
+          <span className="truncate">查看日程</span>
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+        </a>
+      )}
       {(startsAt || endsAt) && (
         <span className="text-xs tabular-nums text-muted-foreground">
           {startsAt}{endsAt ? ` - ${endsAt}` : ""}
@@ -243,39 +258,25 @@ export const EvaluationTable = ({
   const [scheduleEndsAt, setScheduleEndsAt] = useState("");
   const [scheduleNote, setScheduleNote] = useState("");
   const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [minuteLoading, setMinuteLoading] = useState(false);
+  const [emailPreviewLoading, setEmailPreviewLoading] = useState(false);
+  const [emailPreview, setEmailPreview] = useState<{
+    subject: string;
+    to: string;
+    html: string;
+  } | null>(null);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<"pass" | "reopen" | null>(null);
   const [now, setNow] = useState<number | null>(null);
-  const [feishuStatus, setFeishuStatus] = useState<{
-    bound: boolean;
-    accessTokenExpiresAt?: Date | string | null;
-  } | null>(null);
 
   useEffect(() => {
     setNow(Date.now());
   }, []);
 
-  useEffect(() => {
-    if (!schedulingId) return;
-    let cancelled = false;
-    getCurrentFeishuOAuthStatus()
-      .then((status) => {
-        if (!cancelled) setFeishuStatus(status);
-      })
-      .catch(() => {
-        if (!cancelled) setFeishuStatus({ bound: false });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [schedulingId]);
-
   const startEdit = (c: Candidate, mode: "pass" | "reopen") => {
     setEvaluatingId(c.userFlowId);
     setEditMode(mode);
     setContent(c.evalContent ?? "");
-    setMeetingLink(c.evalMeetingLink ?? c.scheduleMeetingMinuteLink ?? "");
+    setMeetingLink(c.scheduleMeetingMinuteLink ?? c.evalMeetingLink ?? "");
   };
 
   const startSchedule = (c: Candidate) => {
@@ -301,7 +302,6 @@ export const EvaluationTable = ({
 
   const cancelSchedule = () => {
     setSchedulingId(null);
-    setFeishuStatus(null);
     setScheduleStartsAt("");
     setScheduleEndsAt("");
     setScheduleNote("");
@@ -389,6 +389,32 @@ export const EvaluationTable = ({
     }
   };
 
+  const handlePreviewScheduleEmail = async (userFlowId: number) => {
+    if (!scheduleStartsAt || !scheduleEndsAt) {
+      toast.error("请先填写面试开始和结束时间");
+      return;
+    }
+
+    setEmailPreviewLoading(true);
+    try {
+      const result = await previewInterviewScheduleEmail({
+        userFlowId,
+        startsAt: scheduleStartsAt,
+        endsAt: scheduleEndsAt,
+        note: scheduleNote,
+      });
+      if (!result.success) {
+        toast.error(result.error?.message ?? "邮件预览生成失败");
+        return;
+      }
+      setEmailPreview(result.data);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "邮件预览生成失败");
+    } finally {
+      setEmailPreviewLoading(false);
+    }
+  };
+
   const handleCancelSchedule = async (candidate: Candidate) => {
     if (!candidate.scheduleId) {
       toast.error("找不到可取消的面试预约");
@@ -409,28 +435,6 @@ export const EvaluationTable = ({
       toast.error(error instanceof Error ? error.message : "取消预约失败");
     } finally {
       setLoadingId(null);
-    }
-  };
-
-  const handleGenerateMeetingMinute = async (candidate: Candidate) => {
-    if (!candidate.scheduleId) {
-      toast.error("找不到可生成妙记的面试预约");
-      return;
-    }
-
-    setMinuteLoading(true);
-    try {
-      const result = await generateInterviewMeetingMinute(candidate.scheduleId);
-      if (!result.success) {
-        toast.error(result.error?.message ?? "生成妙记失败");
-        return;
-      }
-      setMeetingLink(result.data.docUrl);
-      toast.success("妙记链接已生成");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "生成妙记失败");
-    } finally {
-      setMinuteLoading(false);
     }
   };
 
@@ -724,28 +728,21 @@ export const EvaluationTable = ({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">妙记链接</label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="https://..."
-                  value={meetingLink}
-                  onChange={(e) => setMeetingLink(e.target.value)}
-                  className="h-10"
-                />
-                {editingCandidate?.scheduleId && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleGenerateMeetingMinute(editingCandidate)}
-                    loading={minuteLoading}
-                    disabled={
-                      minuteLoading ||
-                      (getTime(editingCandidate.scheduleEndsAt) ?? Number.POSITIVE_INFINITY) > Date.now()
-                    }
-                  >
-                    生成妙记
-                  </Button>
-                )}
-              </div>
+              {meetingLink ? (
+                <a
+                  href={externalHref(meetingLink)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-full items-center gap-1.5 text-sm text-foreground hover:text-primary hover:underline"
+                >
+                  <span className="truncate">查看妙记</span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                </a>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  飞书生成妙记后会自动同步到这里。
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">
@@ -807,31 +804,6 @@ export const EvaluationTable = ({
                 <ScheduleInfo candidate={schedulingCandidate} />
               </div>
             )}
-            <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/20 p-3">
-              <div>
-                <p className="text-sm font-medium">飞书授权</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {feishuStatus === null
-                    ? "正在检查当前讲师的飞书绑定状态。"
-                    : feishuStatus.bound
-                      ? "已绑定飞书，日程会以当前讲师的飞书身份发起。"
-                      : "未绑定飞书，发起日程前需要先完成授权。"}
-                </p>
-                {feishuStatus?.accessTokenExpiresAt && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    授权有效期至 {formatScheduleTime(feishuStatus.accessTokenExpiresAt)}
-                  </p>
-                )}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => redirectFeishuOAuth()}
-              >
-                {feishuStatus?.bound ? "重新绑定" : "绑定飞书"}
-              </Button>
-            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium">开始时间</label>
@@ -880,6 +852,17 @@ export const EvaluationTable = ({
             </Button>
             <Button
               type="button"
+              variant="outline"
+              onClick={() => {
+                if (!schedulingCandidate) return;
+                return handlePreviewScheduleEmail(schedulingCandidate.userFlowId);
+              }}
+              loading={emailPreviewLoading}
+            >
+              预览邮件
+            </Button>
+            <Button
+              type="button"
               onClick={() => {
                 if (!schedulingCandidate) return;
                 return handleCreateSchedule(schedulingCandidate.userFlowId);
@@ -887,6 +870,36 @@ export const EvaluationTable = ({
               loading={scheduleLoading}
             >
               {schedulingCandidate?.scheduleMeetingLink ? "保存改约" : "发起飞书日程"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(emailPreview)}
+        onOpenChange={(open) => {
+          if (!open) setEmailPreview(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>预约邮件预览</DialogTitle>
+            <DialogDescription>
+              {emailPreview
+                ? `收件人：${emailPreview.to}；主题：${emailPreview.subject}`
+                : "预览将使用当前填写的时间和备注。"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-hidden rounded-lg border bg-muted/20">
+            <iframe
+              title="预约邮件预览"
+              srcDoc={emailPreview?.html ?? ""}
+              sandbox=""
+              className="h-[620px] w-full bg-white"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEmailPreview(null)}>
+              关闭
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -30,6 +30,7 @@ export const interviewScheduleTemplateVariables = [
   "startsAt",
   "endsAt",
   "meetingLink",
+  "scheduleLink",
 ] as const;
 
 export async function getInterviewScheduleTemplateSetting() {

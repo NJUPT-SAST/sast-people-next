@@ -1,7 +1,6 @@
 import "server-only";
 
-import axios from "axios";
-import { getFeishuAppAccessToken } from "@/lib/feishu/client";
+import { getFeishuClient } from "@/lib/feishu/client";
 
 type FeishuTokenResponse = {
   code?: number;
@@ -50,33 +49,21 @@ function normalizeTokenResponse(res: FeishuTokenResponse): FeishuUserToken {
 }
 
 export async function exchangeFeishuOAuthCode(code: string) {
-  const res = await axios.post<FeishuTokenResponse>(
-    "https://open.feishu.cn/open-apis/authen/v1/access_token",
-    {
+  const res = await getFeishuClient().authen.accessToken.create({
+    data: {
       grant_type: "authorization_code",
       code,
     },
-    {
-      headers: {
-        Authorization: `Bearer ${await getFeishuAppAccessToken()}`,
-      },
-    },
-  );
-  return normalizeTokenResponse(res.data);
+  });
+  return normalizeTokenResponse(res as FeishuTokenResponse);
 }
 
 export async function refreshFeishuUserAccessToken(refreshToken: string) {
-  const res = await axios.post<FeishuTokenResponse>(
-    "https://open.feishu.cn/open-apis/authen/v1/refresh_access_token",
-    {
+  const res = await getFeishuClient().authen.refreshAccessToken.create({
+    data: {
       grant_type: "refresh_token",
       refresh_token: refreshToken,
     },
-    {
-      headers: {
-        Authorization: `Bearer ${await getFeishuAppAccessToken()}`,
-      },
-    },
-  );
-  return normalizeTokenResponse(res.data);
+  });
+  return normalizeTokenResponse(res as FeishuTokenResponse);
 }

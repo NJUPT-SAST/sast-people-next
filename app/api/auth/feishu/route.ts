@@ -3,7 +3,11 @@ import "server-only";
 import { FEISHU_OAUTH_STATE } from "@/const/cookie";
 import { verifySession } from "@/lib/dal";
 import { upsertFeishuOAuthAccount } from "@/lib/feishu/oauth-account";
+import { sendFeishuTextMessage } from "@/lib/feishu/message";
 import { exchangeFeishuOAuthCode } from "@/lib/feishu/user-auth";
+import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
+import { getLinkAccessTokenFromSession } from "@/lib/link/session";
+import { getCurrentUserProfile } from "@/lib/link/user";
 import { logServerError } from "@/lib/server-error-log";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -28,7 +32,9 @@ export async function GET(request: NextRequest) {
   try {
     session = await verifySession();
     const token = await exchangeFeishuOAuthCode(code);
+    await assertFeishuUnionMatchesLinkIdentity(token.unionId);
     await upsertFeishuOAuthAccount(session.uid, token);
+    await notifyFeishuOAuthBound(token.openId, request);
     cookieStore.delete(FEISHU_OAUTH_STATE);
   } catch (error) {
     logServerError("api:auth:feishu", error, {
@@ -45,5 +51,46 @@ export async function GET(request: NextRequest) {
     throw error;
   }
 
-  redirect("/dashboard/recruitment");
+  redirect("/dashboard");
 }
+
+const assertFeishuUnionMatchesLinkIdentity = async (unionId: string) => {
+  if (shouldUseLinkFeishuTestMock()) {
+    return;
+  }
+
+  const accessToken = await getLinkAccessTokenFromSession();
+  const profile = await getCurrentUserProfile(accessToken);
+  const linkLarkIdentity = profile.identities?.find(
+    (identity) => identity.provider === "lark",
+  );
+
+  if (!linkLarkIdentity?.provider_id) {
+    throw new Error("当前 Link 账号未绑定飞书身份，无法绑定飞书 OAuth。");
+  }
+
+  if (linkLarkIdentity.provider_id !== unionId) {
+    throw new Error("飞书账号与当前 Link 账号不匹配，请使用同一个飞书身份。");
+  }
+};
+
+const notifyFeishuOAuthBound = async (openId: string, request: NextRequest) => {
+  try {
+    await sendFeishuTextMessage({
+      openId,
+      text: [
+        "People 飞书授权已完成",
+        "",
+        "现在可以由 People 发起面试会议和日程。",
+        "创建、改约、取消和妙记同步都会通过机器人提醒你。",
+      ].join("\n"),
+    });
+  } catch (error) {
+    logServerError("api:auth:feishu", error, {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      action: "notify-feishu-oauth-bound",
+      metadata: { openId },
+    });
+  }
+};

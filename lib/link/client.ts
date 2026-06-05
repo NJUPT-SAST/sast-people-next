@@ -22,6 +22,10 @@ export class LinkApiError extends Error {
 
 export const shouldUseMockLink = () => process.env.LINK_USE_MOCK === "true";
 
+export const shouldUseLinkFeishuTestMock = () =>
+  process.env.NODE_ENV !== "production" &&
+  process.env.LINK_LOGIN_FEISHU_TEST_MOCK === "true";
+
 export const getLinkBaseUrl = () => {
   const baseUrl = process.env.LINK_API_BASE_URL;
   if (!baseUrl) {
@@ -72,4 +76,3 @@ export const linkFetch = async <T>(
 
   return payload as T;
 };
-
