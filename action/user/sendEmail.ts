@@ -1,7 +1,8 @@
 "use server";
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
+import { emailBatch, flow, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { createEmailDelivery } from "@/lib/email-center/delivery";
 import { getEducationEmail } from "@/lib/email/address";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import {
@@ -22,6 +23,7 @@ export const batchSendEmail = async (
 
   try {
     session = await verifyRole(3)
+    const actorId = session.uid;
     const sourceStatus = accept ? "passed" : "failed";
 
     const targets = (
@@ -55,12 +57,15 @@ export const batchSendEmail = async (
       .insert(emailBatch)
       .values({
         templateKey,
+        category: "result",
+        name: `${targets[0].flowName} ${accept ? "通过" : "不通过"}通知`,
         subject,
         accept,
         status: "draft",
         totalCount: targets.length,
         fkFlowId: flowId,
-        fkCreatedBy: session.uid,
+        fkCreatedBy: actorId,
+        metadata: { accept },
       })
       .returning({ id: emailBatch.id });
 
@@ -75,19 +80,20 @@ export const batchSendEmail = async (
           setting: templateSetting,
         });
 
-        const [delivery] = await db
-          .insert(emailDelivery)
-          .values({
-            toAddress,
-            subject,
-            htmlSnapshot,
-            fkEmailBatchId: batch.id,
-            fkUserFlowId: item.userFlowId,
-            fkUserId: item.userId,
-          })
-          .returning({ id: emailDelivery.id });
+        const delivery = await createEmailDelivery({
+          category: "result",
+          templateKey,
+          toAddress,
+          subject,
+          htmlSnapshot,
+          batchId: batch.id,
+          userFlowId: item.userFlowId,
+          recipientUserId: item.userId,
+          createdBy: actorId,
+          metadata: { accept, flowId },
+        });
 
-        return delivery;
+        return { id: delivery.deliveryId };
       }),
     );
 

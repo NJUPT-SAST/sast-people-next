@@ -10,6 +10,7 @@ import {
   renderInterviewScheduleEmail,
   renderInterviewScheduleEmailSubject,
 } from "@/lib/email/interview-schedule";
+import { createEmailDelivery } from "@/lib/email-center/delivery";
 import { getEducationEmail } from "@/lib/email/address";
 import {
   cancelFeishuInterviewSchedule,
@@ -28,11 +29,15 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { verifyRole } from "@/lib/dal";
 import { mqClient } from "@/queue/client";
-import { sendRawEmail } from "@/queue/sendEmail";
 import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
+const interviewEmailTemplateKey = {
+  created: "interview.schedule.created",
+  rescheduled: "interview.schedule.rescheduled",
+  cancelled: "interview.schedule.cancelled",
+} as const;
 
 type CreateInterviewScheduleInput = {
   userFlowId: number;
@@ -91,6 +96,58 @@ function parseDate(value: string, fieldName: string) {
     throw new Error(`${fieldName} 时间格式不正确`);
   }
   return date;
+}
+
+async function sendInterviewEmailDelivery({
+  kind,
+  toAddress,
+  subject,
+  htmlSnapshot,
+  recipientUserId,
+  userFlowId,
+  flowId,
+  scheduleId,
+  createdBy,
+}: {
+  kind: keyof typeof interviewEmailTemplateKey;
+  toAddress: string;
+  subject: string;
+  htmlSnapshot: string;
+  recipientUserId: number;
+  userFlowId: number;
+  flowId?: number | null;
+  scheduleId: number;
+  createdBy: number;
+}) {
+  try {
+    await createEmailDelivery({
+      category: "interview",
+      templateKey: interviewEmailTemplateKey[kind],
+      toAddress,
+      subject,
+      htmlSnapshot,
+      recipientUserId,
+      userFlowId,
+      relatedScheduleId: scheduleId,
+      createdBy,
+      metadata: {
+        kind,
+        flowId: flowId ?? null,
+      },
+      sendImmediately: true,
+    });
+  } catch (error) {
+    logServerError("email-center:interviewDelivery", error, {
+      action: "send-interview-email-delivery",
+      userFlowId,
+      targetUserId: recipientUserId,
+      metadata: {
+        kind,
+        flowId: flowId ?? null,
+        scheduleId,
+      },
+    });
+  }
 }
 
 async function notifyOrganizerByFeishu({
@@ -467,10 +524,16 @@ export async function createInterviewSchedule(
       scheduleLink: feishuSchedule.scheduleLink,
       note,
     });
-    await sendRawEmail({
-      to: attendeeEmail,
+    await sendInterviewEmailDelivery({
+      kind: emailKind,
+      toAddress: attendeeEmail,
       subject,
-      html,
+      htmlSnapshot: html,
+      recipientUserId: target.candidateId,
+      userFlowId: input.userFlowId,
+      flowId: target.flowId,
+      scheduleId: schedule.id,
+      createdBy: session.uid,
     });
 
     await notifyOrganizerByFeishu({
@@ -596,6 +659,7 @@ export async function cancelInterviewSchedule(
       .select({
         userFlowId: userFlow.id,
         candidateId: userFlow.fkUserId,
+        flowId: flow.id,
         flowTitle: flow.title,
       })
       .from(userFlow)
@@ -612,7 +676,7 @@ export async function cancelInterviewSchedule(
     const candidateName = candidate?.name ?? "同学";
     const flowName = target?.flowTitle ?? schedule.summary;
     const organizerName = organizer?.name ?? session.name;
-    if (schedule.attendeeEmail) {
+    if (schedule.attendeeEmail && target) {
       const subject = await renderInterviewScheduleEmailSubject(flowName, "cancelled");
       const html = await renderInterviewScheduleEmail({
         kind: "cancelled",
@@ -624,10 +688,16 @@ export async function cancelInterviewSchedule(
         location: schedule.location,
         meetingLink: "",
       });
-      await sendRawEmail({
-        to: schedule.attendeeEmail,
+      await sendInterviewEmailDelivery({
+        kind: "cancelled",
+        toAddress: schedule.attendeeEmail,
         subject,
-        html,
+        htmlSnapshot: html,
+        recipientUserId: target.candidateId,
+        userFlowId: schedule.userFlowId,
+        flowId: target.flowId,
+        scheduleId: schedule.id,
+        createdBy: session.uid,
       });
     }
 

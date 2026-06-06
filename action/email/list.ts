@@ -25,6 +25,7 @@ export async function listEmailBatches() {
     })
     .from(emailBatch)
     .innerJoin(flow, eq(flow.id, emailBatch.fkFlowId))
+    .where(eq(emailBatch.category, "result"))
     .orderBy(desc(emailBatch.createdAt))
     .limit(20);
 
@@ -78,4 +79,54 @@ export async function listEmailBatches() {
       },
     };
   });
+}
+
+export async function listEmailDeliveries() {
+  await verifyRole(3);
+
+  const deliveries = await db
+    .select({
+      id: emailDelivery.id,
+      category: emailDelivery.category,
+      templateKey: emailDelivery.templateKey,
+      subject: emailDelivery.subject,
+      toAddress: emailDelivery.toAddress,
+      status: emailDelivery.status,
+      errorMessage: emailDelivery.errorMessage,
+      sentAt: emailDelivery.sentAt,
+      createdAt: emailDelivery.createdAt,
+      htmlSnapshot: emailDelivery.htmlSnapshot,
+      userId: emailDelivery.fkUserId,
+      userFlowId: emailDelivery.fkUserFlowId,
+      batchId: emailDelivery.fkEmailBatchId,
+      relatedScheduleId: emailDelivery.relatedScheduleId,
+      createdById: emailDelivery.createdBy,
+      batchName: emailBatch.name,
+      flowTitle: flow.title,
+    })
+    .from(emailDelivery)
+    .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
+    .leftJoin(flow, eq(flow.id, emailBatch.fkFlowId))
+    .orderBy(desc(emailDelivery.createdAt))
+    .limit(50);
+
+  if (deliveries.length === 0) {
+    return [];
+  }
+
+  const userMap = await listPeopleUsersByLinkIds([
+    ...deliveries.map((delivery) => delivery.userId),
+    ...deliveries
+      .map((delivery) => delivery.createdById)
+      .filter((id): id is number => id !== null),
+  ]);
+
+  return deliveries.map((delivery) => ({
+    ...delivery,
+    userName: userMap.get(delivery.userId)?.name ?? "未知用户",
+    studentId: userMap.get(delivery.userId)?.studentId ?? null,
+    createdByName: delivery.createdById
+      ? userMap.get(delivery.createdById)?.name ?? null
+      : null,
+  }));
 }

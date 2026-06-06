@@ -29,6 +29,9 @@ export async function sendEmailBatch(batchId: number) {
     if (!batch) {
       throw new Error("Email batch not found");
     }
+    if (batch.category !== "result" || batch.accept === null) {
+      throw new Error("Only result email batches can be sent from this action");
+    }
     if (batch.status === "completed") {
       return { queuedCount: 0 };
     }

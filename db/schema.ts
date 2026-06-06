@@ -159,14 +159,16 @@ export const problem = pgTable("problem", {
 export const emailBatch = pgTable("email_batch", {
   id: serial("id").primaryKey(),
   templateKey: varchar("template_key", { length: 80 }).notNull(),
+  category: varchar("category", { length: 32 }).notNull().default("result"),
+  name: varchar("name", { length: 255 }),
   subject: varchar("subject", { length: 255 }).notNull(),
-  accept: boolean("accept").notNull(),
+  accept: boolean("accept"),
   status: emailBatchStatusEnum("status").notNull().default("queued"),
   totalCount: integer("total_count").notNull().default(0),
   fkFlowId: integer("fk_flow_id")
-    .references(() => flow.id, { onDelete: "restrict" })
-    .notNull(),
+    .references(() => flow.id, { onDelete: "restrict" }),
   fkCreatedBy: integer("fk_created_by"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()
@@ -176,6 +178,8 @@ export const emailBatch = pgTable("email_batch", {
 
 export const emailDelivery = pgTable("email_delivery", {
   id: serial("id").primaryKey(),
+  category: varchar("category", { length: 32 }).notNull().default("result"),
+  templateKey: varchar("template_key", { length: 80 }).notNull().default("legacy"),
   toAddress: varchar("to_address", { length: 254 }).notNull(),
   subject: varchar("subject", { length: 255 }).notNull(),
   htmlSnapshot: text("html_snapshot").notNull(),
@@ -183,11 +187,13 @@ export const emailDelivery = pgTable("email_delivery", {
   errorMessage: text("error_message"),
   providerMessageId: varchar("provider_message_id", { length: 255 }),
   fkEmailBatchId: integer("fk_email_batch_id")
-    .references(() => emailBatch.id, { onDelete: "cascade" })
-    .notNull(),
+    .references(() => emailBatch.id, { onDelete: "cascade" }),
   fkUserFlowId: integer("fk_user_flow_id")
     .references(() => userFlow.id, { onDelete: "set null" }),
   fkUserId: integer("fk_user_id").notNull(),
+  relatedScheduleId: integer("related_schedule_id"),
+  createdBy: integer("created_by"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   sentAt: timestamp("sent_at"),
   updatedAt: timestamp("updated_at")

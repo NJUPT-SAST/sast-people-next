@@ -1,4 +1,4 @@
-import { listEmailBatches } from "@/action/email/list";
+import { listEmailBatches, listEmailDeliveries } from "@/action/email/list";
 import {
   getInterviewScheduleEmailPreview,
   getInterviewScheduleEmailTemplate,
@@ -24,6 +24,7 @@ export default async function EmailDashboardPage() {
 
   const [
     batches,
+    deliveries,
     flowTargets,
     templateSettings,
     interviewScheduleTemplate,
@@ -42,6 +43,7 @@ export default async function EmailDashboardPage() {
       <div className="mt-5">
         <EmailDashboardClient
           batches={batches}
+          deliveries={deliveries}
           flowTargets={flowTargets}
           templateSettings={templateSettings}
           interviewScheduleTemplate={interviewScheduleTemplate}
@@ -55,6 +57,7 @@ export default async function EmailDashboardPage() {
 async function loadEmailDashboardData() {
   return Promise.all([
     listEmailBatches(),
+    listEmailDeliveries(),
     listEmailFlowTargets(),
     listEmailTemplateSettings(),
     getInterviewScheduleEmailTemplate(),

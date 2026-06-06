@@ -53,6 +53,9 @@ import { toast } from "sonner";
 type EmailBatch = Awaited<
   ReturnType<typeof import("@/action/email/list").listEmailBatches>
 >[number];
+type EmailDeliveryRecord = Awaited<
+  ReturnType<typeof import("@/action/email/list").listEmailDeliveries>
+>[number];
 type FlowTarget = Awaited<
   ReturnType<typeof import("@/action/email/workspace").listEmailFlowTargets>
 >[number];
@@ -74,6 +77,11 @@ const deliveryStatusText: Record<string, string> = {
   sending: "发送中",
   sent: "已发送",
   failed: "失败",
+};
+const emailCategoryText: Record<string, string> = {
+  result: "结果通知",
+  interview: "面试通知",
+  test: "测试邮件",
 };
 const hiddenScrollbar = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 const EMAIL_REFRESH_INTERVAL_MS = 3000;
@@ -1186,14 +1194,183 @@ function RecoverStaleBatchButton({ batchId }: { batchId: number }) {
   );
 }
 
+function AllEmailDeliveriesSection({
+  deliveries,
+}: {
+  deliveries: EmailDeliveryRecord[];
+}) {
+  const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
+
+  return (
+    <section className="rounded-lg border bg-card">
+      <div className="flex items-center justify-between gap-3 border-b p-4">
+        <div>
+          <h2 className="text-base font-semibold">全部邮件记录</h2>
+          <p className="text-sm text-muted-foreground">
+            结果通知、面试通知和测试邮件都会记录在这里。
+          </p>
+        </div>
+      </div>
+
+      <div className={cn("hidden overflow-x-auto p-4 md:block", hiddenScrollbar)}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>状态</TableHead>
+              <TableHead>类型</TableHead>
+              <TableHead>主题</TableHead>
+              <TableHead>收件人</TableHead>
+              <TableHead>收件人姓名</TableHead>
+              <TableHead>创建时间</TableHead>
+              <TableHead>发送时间</TableHead>
+              <TableHead className="text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {safeDeliveries.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="h-20 text-center text-muted-foreground">
+                  暂无邮件记录。
+                </TableCell>
+              </TableRow>
+            ) : (
+              safeDeliveries.map((delivery) => (
+                <TableRow key={delivery.id}>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <Badge
+                        variant="outline"
+                        className={getDeliveryStatusBadgeClass(delivery.status)}
+                      >
+                        {deliveryStatusText[delivery.status] ?? delivery.status}
+                      </Badge>
+                      {delivery.errorMessage && (
+                        <span className="max-w-40 truncate text-xs text-muted-foreground">
+                          {delivery.errorMessage}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">
+                      {emailCategoryText[delivery.category] ?? delivery.category}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {delivery.templateKey}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="max-w-[280px] truncate font-medium">
+                      {delivery.subject}
+                    </div>
+                    <div className="max-w-[280px] truncate text-xs text-muted-foreground">
+                      {delivery.flowTitle ?? delivery.batchName ?? "-"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-xs">{delivery.toAddress}</span>
+                  </TableCell>
+                  <TableCell>
+                    <div>{delivery.userName}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {delivery.studentId ?? "-"}
+                    </div>
+                  </TableCell>
+                  <TableCell>{formatDate(delivery.createdAt)}</TableCell>
+                  <TableCell>{formatDate(delivery.sentAt)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end">
+                      <PreviewDialog
+                        title={`${delivery.subject} 邮件正文`}
+                        html={delivery.htmlSnapshot}
+                        triggerLabel="查看正文"
+                        description="这里展示该收件人实际保存的邮件正文。"
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex flex-col gap-3 p-4 md:hidden">
+        {safeDeliveries.length === 0 ? (
+          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+            暂无邮件记录。
+          </div>
+        ) : (
+          safeDeliveries.map((delivery) => (
+            <div key={delivery.id} className="rounded-md border p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{delivery.subject}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {emailCategoryText[delivery.category] ?? delivery.category} ·{" "}
+                    {formatDate(delivery.createdAt)}
+                  </p>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={getDeliveryStatusBadgeClass(delivery.status)}
+                >
+                  {deliveryStatusText[delivery.status] ?? delivery.status}
+                </Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-2 text-sm min-[420px]:grid-cols-2">
+                <div className="min-w-0 rounded-md bg-muted/30 p-2">
+                  <p className="text-xs text-muted-foreground">收件人</p>
+                  <p className="truncate font-mono text-xs">{delivery.toAddress}</p>
+                </div>
+                <div className="min-w-0 rounded-md bg-muted/30 p-2">
+                  <p className="text-xs text-muted-foreground">姓名</p>
+                  <p className="truncate font-medium">
+                    {delivery.userName}
+                    {delivery.studentId ? ` · ${delivery.studentId}` : ""}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-md bg-muted/30 p-2">
+                  <p className="text-xs text-muted-foreground">发送时间</p>
+                  <p className="truncate">{formatDate(delivery.sentAt)}</p>
+                </div>
+                <div className="min-w-0 rounded-md bg-muted/30 p-2">
+                  <p className="text-xs text-muted-foreground">来源</p>
+                  <p className="truncate">{delivery.flowTitle ?? delivery.batchName ?? "-"}</p>
+                </div>
+              </div>
+              {delivery.errorMessage && (
+                <p className="mt-3 break-words text-xs text-muted-foreground">
+                  {delivery.errorMessage}
+                </p>
+              )}
+              <div className="mt-3">
+                <PreviewDialog
+                  title={`${delivery.subject} 邮件正文`}
+                  html={delivery.htmlSnapshot}
+                  triggerLabel="查看正文"
+                  triggerClassName="w-full"
+                  description="这里展示该收件人实际保存的邮件正文。"
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function EmailDashboardClient({
   batches,
+  deliveries,
   flowTargets,
   templateSettings,
   interviewScheduleTemplate,
   interviewSchedulePreviewHtml,
 }: {
   batches: EmailBatch[];
+  deliveries: EmailDeliveryRecord[];
   flowTargets: FlowTarget[];
   templateSettings: TemplateSetting[];
   interviewScheduleTemplate: InterviewScheduleTemplate;
@@ -1201,6 +1378,10 @@ export function EmailDashboardClient({
 }) {
   const router = useRouter();
   const safeBatches = useMemo(() => (Array.isArray(batches) ? batches : []), [batches]);
+  const safeDeliveries = useMemo(
+    () => (Array.isArray(deliveries) ? deliveries : []),
+    [deliveries],
+  );
   const safeFlowTargets = useMemo(
     () => (Array.isArray(flowTargets) ? flowTargets : []),
     [flowTargets],
@@ -1222,8 +1403,11 @@ export function EmailDashboardClient({
             (delivery) =>
               delivery.status === "pending" || delivery.status === "sending",
           ),
+      ) ||
+      safeDeliveries.some(
+        (delivery) => delivery.status === "pending" || delivery.status === "sending",
       ),
-    [safeBatches],
+    [safeBatches, safeDeliveries],
   );
   const filteredFlows = useMemo(() => {
     const query = flowQuery.trim().toLowerCase();
@@ -1393,12 +1577,14 @@ export function EmailDashboardClient({
         </div>
       </section>
 
+      <AllEmailDeliveriesSection deliveries={safeDeliveries} />
+
       <section className="rounded-lg border bg-card">
         <div className="flex items-center justify-between gap-3 border-b p-4">
           <div>
-            <h2 className="text-base font-semibold">通知发送记录</h2>
+            <h2 className="text-base font-semibold">结果通知批次</h2>
             <p className="text-sm text-muted-foreground">
-              最近 20 个批次；从这里发出的邮件会保存每位同学收到的正文。
+              最近 20 个结果通知批次；这里保留批量发送、重试和明细。
             </p>
           </div>
         </div>

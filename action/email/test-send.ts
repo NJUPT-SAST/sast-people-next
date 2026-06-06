@@ -11,9 +11,9 @@ import {
   renderResultEmail,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
+import { createEmailDelivery } from "@/lib/email-center/delivery";
 import { getEducationEmail, normalizeEducationEmailInput } from "@/lib/email/address";
 import { logServerError } from "@/lib/server-error-log";
-import { sendRawEmail } from "@/queue/sendEmail";
 
 function getStudentIdFromTestAddress(value: string) {
   const normalized = value.trim().toLowerCase();
@@ -58,16 +58,27 @@ export async function sendEmailTest(
       accept,
       setting: templateSetting,
     });
-    const result = await sendRawEmail({
-      to,
+    const result = await createEmailDelivery({
+      category: "test",
+      templateKey: `${getResultEmailTemplateKey(accept)}.test`,
+      toAddress: to,
       subject,
-      html,
+      htmlSnapshot: html,
+      recipientUserId: targetUser?.id ?? session.uid,
+      createdBy: session.uid,
+      metadata: {
+        accept,
+        flowName,
+        originalTemplateKey: getResultEmailTemplateKey(accept),
+        hasCustomAddress: Boolean(toAddress?.trim()),
+      },
+      sendImmediately: true,
     });
 
     return {
       ok: true,
       to,
-      messageId: result.messageId ?? null,
+      messageId: result.messageId,
     };
   } catch (error) {
     logServerError("email:test", error, {
