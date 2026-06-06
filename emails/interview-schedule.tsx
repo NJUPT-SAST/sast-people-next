@@ -102,7 +102,8 @@ export const InterviewScheduleEmail = ({
           </div>
           <div style={detailRow}>
             <Text style={label}>时间</Text>
-            <Text style={value}>{startsAtText} - {endsAtText}</Text>
+            <Text style={value}>{startsAtText}</Text>
+            <Text style={subValue}>至 {endsAtText}</Text>
           </div>
           <div style={detailRow}>
             <Text style={label}>讲师</Text>
@@ -242,6 +243,13 @@ const label = {
 
 const value = {
   margin: 0,
+  fontSize: "15px",
+  lineHeight: "24px",
+  color: "#111827",
+};
+
+const subValue = {
+  margin: "2px 0 0",
   fontSize: "15px",
   lineHeight: "24px",
   color: "#111827",

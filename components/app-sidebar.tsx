@@ -19,6 +19,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { menuItems, isItemActive, getMenuItemTitle } from '@/components/route';
+import { FeishuOAuthStatus } from '@/components/feishu-oauth-status';
 
 interface AppSidebarProps {
   role: number;
@@ -155,7 +156,10 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarSeparator />
-      <SidebarFooter>{userCard}</SidebarFooter>
+      <SidebarFooter>
+        <FeishuOAuthStatus role={role} compact />
+        {userCard}
+      </SidebarFooter>
     </Sidebar>
   );
 }
