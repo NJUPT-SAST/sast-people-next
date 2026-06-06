@@ -81,17 +81,19 @@ export function FeishuOAuthStatus({
     return (
       <div
         className={cn(
-          "rounded-lg border bg-sidebar-accent/40 p-2.5 text-sidebar-foreground group-data-[collapsible=icon]:hidden",
+          "group-data-[collapsible=icon]:hidden",
           className,
         )}
       >
-        <div className="flex items-start gap-2">
-          <div className="mt-0.5 rounded-md border bg-background/70 p-1 text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/35 px-2 py-2 text-sidebar-foreground">
+          <div className="rounded-md bg-background/70 p-1 text-muted-foreground">
             <CalendarCheck className="h-3.5 w-3.5" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium">飞书授权</p>
+              <p className="truncate text-xs font-medium leading-4">
+                飞书{isBound ? "已授权" : failed ? "检查失败" : status === null ? "检查中" : "未授权"}
+              </p>
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
@@ -100,32 +102,29 @@ export function FeishuOAuthStatus({
                 aria-hidden="true"
               />
             </div>
-            <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-              {description}
-            </p>
             {expiresAt && (
-              <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
-                至 {expiresAt}
+              <p className="truncate text-[11px] leading-4 text-muted-foreground">
+                有效期 {expiresAt}
               </p>
             )}
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="h-7 shrink-0 px-2 text-[11px]"
+            disabled={status === null && !failed}
+            loading={isPending}
+            onClick={() => {
+              startTransition(() => {
+                redirectFeishuOAuth();
+              });
+            }}
+          >
+            {failed && <RefreshCw className="h-3 w-3" />}
+            {isBound ? "重绑" : "绑定"}
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant={isBound ? "outline" : "default"}
-          size="xs"
-          className="mt-2 h-7 w-full"
-          disabled={status === null && !failed}
-          loading={isPending}
-          onClick={() => {
-            startTransition(() => {
-              redirectFeishuOAuth();
-            });
-          }}
-        >
-          {failed && <RefreshCw className="h-3 w-3" />}
-          {isBound ? "重新绑定" : "绑定飞书"}
-        </Button>
       </div>
     );
   }

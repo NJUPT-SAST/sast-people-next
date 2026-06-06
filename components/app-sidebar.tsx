@@ -155,8 +155,7 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarSeparator />
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border p-3">
         <FeishuOAuthStatus role={role} compact />
         {userCard}
       </SidebarFooter>

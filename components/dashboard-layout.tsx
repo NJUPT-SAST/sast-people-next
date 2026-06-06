@@ -26,7 +26,7 @@ export function DashboardLayout({
           <div className="min-w-0 flex-1">{breadcrumb}</div>
           <ThemeToggle />
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 w-full max-w-6xl mx-auto">
+        <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 p-4 lg:gap-5 lg:p-6">
           {children}
         </div>
       </SidebarInset>

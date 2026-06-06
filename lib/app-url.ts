@@ -1,9 +1,6 @@
 import "server-only";
 
-const DEFAULT_PUBLIC_BASE_URL =
-  process.env.NODE_ENV === "development"
-    ? "http://localhost:3000"
-    : "https://nextpeople.sast.fun";
+const DEFAULT_PUBLIC_BASE_URL = "https://nextpeople.sast.fun";
 
 export function getPublicBaseUrl() {
   return (

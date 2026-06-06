@@ -71,7 +71,7 @@ const evalStatusBadge = (
 };
 
 const actionTextClass =
-  "whitespace-nowrap text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50";
+  "whitespace-nowrap text-sm text-foreground/80 underline-offset-4 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50";
 
 const getCandidateStatusKey = (candidate: Candidate) => {
   if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
@@ -148,7 +148,7 @@ function StatusCountPill({
 }) {
   return (
     <div
-      className="inline-flex items-center gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1 text-xs text-muted-foreground"
+      className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 py-1 text-xs text-muted-foreground"
     >
       <span>{label}</span>
       <span className="font-semibold tabular-nums text-foreground">{value}</span>
@@ -164,7 +164,7 @@ const PortfolioLink = ({ value }: { value: string | null }) => {
       href={externalHref(value)}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex max-w-full items-center gap-1 text-sm text-muted-foreground hover:text-primary hover:underline"
+      className="inline-flex max-w-full items-center gap-1 text-sm text-foreground/80 hover:text-primary hover:underline"
     >
       <span className="truncate">查看作品</span>
       <ExternalLink className="h-3.5 w-3.5 shrink-0" />
@@ -183,36 +183,38 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
 
   const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
   const endsAt = formatScheduleTime(candidate.scheduleEndsAt);
+  const timeRange = startsAt ? `${startsAt}${endsAt ? ` - ${endsAt}` : ""}` : endsAt;
   const hasDistinctScheduleLink =
     Boolean(candidate.scheduleLink) &&
     candidate.scheduleLink !== candidate.scheduleMeetingLink;
-  const primaryLinkLabel = hasDistinctScheduleLink ? "进入会议" : "查看日程";
 
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <a
-        href={externalHref(candidate.scheduleMeetingLink)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex max-w-full items-center gap-1.5 text-sm text-foreground hover:text-primary hover:underline"
-      >
-        <span className="truncate">{primaryLinkLabel}</span>
-        <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-      </a>
-      {hasDistinctScheduleLink && candidate.scheduleLink && (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <a
-          href={externalHref(candidate.scheduleLink)}
+          href={externalHref(candidate.scheduleMeetingLink)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex max-w-full items-center gap-1.5 text-sm text-muted-foreground hover:text-primary hover:underline"
+          className="inline-flex max-w-full items-center gap-1 text-sm font-medium text-foreground hover:text-primary hover:underline"
         >
-          <span className="truncate">查看日程</span>
+          <span className="truncate">会议</span>
           <ExternalLink className="h-3.5 w-3.5 shrink-0" />
         </a>
-      )}
-      {(startsAt || endsAt) && (
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {startsAt}{endsAt ? ` - ${endsAt}` : ""}
+        {hasDistinctScheduleLink && candidate.scheduleLink && (
+          <a
+            href={externalHref(candidate.scheduleLink)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex max-w-full items-center gap-1 text-sm text-foreground/80 hover:text-primary hover:underline"
+          >
+            <span className="truncate">日程</span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+          </a>
+        )}
+      </div>
+      {timeRange && (
+        <span className="block whitespace-nowrap text-xs tabular-nums leading-4 text-foreground/65">
+          {timeRange}
         </span>
       )}
     </div>
@@ -440,7 +442,7 @@ export const EvaluationTable = ({
 
   if (safeCandidates.length === 0) {
     return (
-      <div className="rounded-xl border bg-card p-10 text-center">
+      <div className="rounded-lg border bg-card p-10 text-center">
         <p className="text-sm font-medium">暂无可评估的候选人</p>
         <p className="mt-1 text-xs text-muted-foreground">
           当前流程还没有可处理的报名人员。
@@ -456,15 +458,15 @@ export const EvaluationTable = ({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex flex-col gap-3 border-b bg-muted/20 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="flex flex-col gap-3 border-b bg-muted/10 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium">面评候选人</p>
           <p className="text-xs text-muted-foreground">
             先为报名同学预约面试会议，面试结束后再提交面评结果。
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {summaryItems.map((item) => (
             <StatusCountPill
               key={item.key}
@@ -475,16 +477,16 @@ export const EvaluationTable = ({
         </div>
       </div>
       <div className="hidden md:block overflow-x-auto">
-        <Table className="table-fixed min-w-[840px]">
+        <Table className="table-fixed min-w-[980px]">
           {role >= 3 ? (
             <colgroup>
+              <col className="w-[11%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[11%]" />
+              <col className="w-[25%]" />
               <col className="w-[12%]" />
-              <col className="w-[15%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
-              <col className="w-[20%]" />
-              <col className="w-[12%]" />
-              <col className="w-[19%]" />
+              <col className="w-[13%]" />
             </colgroup>
           ) : (
             <colgroup>
@@ -498,16 +500,16 @@ export const EvaluationTable = ({
           )}
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
-              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">学号</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">姓名</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">学号</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">姓名</TableHead>
               {role >= 3 && (
-                <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">手机号</TableHead>
+                <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">手机号</TableHead>
               )}
-              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">作品</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">会议</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">状态</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">作品</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">会议</TableHead>
+              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">状态</TableHead>
               {role >= 2 && (
-                <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-medium text-muted-foreground">操作</TableHead>
+                <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">操作</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -524,28 +526,28 @@ export const EvaluationTable = ({
 
               return (
                 <TableRow key={c.userFlowId} className="hover:bg-muted/30">
-                  <TableCell className="whitespace-nowrap px-4 py-3 text-sm tabular-nums">
+                  <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums">
                     {c.studentId}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-4 py-3 text-sm font-medium">
+                  <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm font-medium">
                     {c.name}
                   </TableCell>
                   {role >= 3 && (
-                    <TableCell className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-muted-foreground">
+                    <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-foreground/80">
                       {c.phoneNumber || "-"}
                     </TableCell>
                   )}
-                  <TableCell className="whitespace-nowrap px-4 py-3">
+                  <TableCell className="whitespace-nowrap px-4 py-2.5">
                     <PortfolioLink value={c.portfolioLink} />
                   </TableCell>
-                  <TableCell className="px-4 py-3">
+                  <TableCell className="px-4 py-2.5">
                     <ScheduleInfo candidate={c} />
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-4 py-3">
+                  <TableCell className="whitespace-nowrap px-4 py-2.5">
                     {evalStatusBadge(c.evalStatus, c.status, c.scheduleMeetingLink, scheduleEnded)}
                   </TableCell>
                   {role >= 2 && (
-                    <TableCell className="whitespace-nowrap px-4 py-3">
+                    <TableCell className="whitespace-nowrap px-4 py-2.5">
                       {!canEvaluate ? (
                         <div className="flex flex-nowrap items-center gap-3">
                           <ActionTextButton onClick={() => startSchedule(c)}>

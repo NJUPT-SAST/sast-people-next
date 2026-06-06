@@ -81,9 +81,9 @@ export const RecruitmentContent = ({
         ) / safeScoreData.length;
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-xl border bg-card px-4 py-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-card">
+        <div className="flex flex-col gap-4 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">选择流程</p>
             <p className="text-xs text-muted-foreground">
@@ -98,7 +98,7 @@ export const RecruitmentContent = ({
         </div>
 
         {flowId && !loading && (
-          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t pt-4 text-sm">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 border-t bg-muted/10 px-4 py-2.5 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Users className="size-4" />
               <span>总人数</span>
@@ -148,7 +148,7 @@ export const RecruitmentContent = ({
           </div>
         )
       ) : (
-        <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
           暂无流程
         </div>
       )}
