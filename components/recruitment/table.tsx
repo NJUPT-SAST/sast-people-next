@@ -122,7 +122,7 @@ export function DataTable<TData, TValue>({
   );
   const canEditOutcomes = selectedMutableRows.length > 0;
   const helperText =
-    '成绩管理只负责确定通过/不通过；结果邮件会在邮件管理中按当前流程自动匹配待通知人员';
+    '成绩管理只负责确定通过/不通过；结果通知会在招新通知中按当前流程自动匹配待通知人员';
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'not_started'];
 
   return (
@@ -172,7 +172,7 @@ export function DataTable<TData, TValue>({
                       const firstRow = selectedRows[0];
                       if (!firstRow) return;
                       const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为通过吗？结果邮件仍需在邮件管理中发送。`,
+                        `确定将 ${selectedRows.length} 人设为通过吗？结果通知仍需在招新通知中发送。`,
                       );
                       if (!confirmed) return;
                       const stepId = toRecruitmentRow(firstRow).stepId;
@@ -209,7 +209,7 @@ export function DataTable<TData, TValue>({
                       const firstRow = selectedRows[0];
                       if (!firstRow) return;
                       const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为不通过吗？结果邮件仍需在邮件管理中发送。`,
+                        `确定将 ${selectedRows.length} 人设为不通过吗？结果通知仍需在招新通知中发送。`,
                       );
                       if (!confirmed) return;
                       const stepId = toRecruitmentRow(firstRow).stepId;

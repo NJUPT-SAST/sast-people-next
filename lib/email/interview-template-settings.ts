@@ -19,7 +19,7 @@ export const defaultInterviewScheduleTemplateSetting: InterviewScheduleTemplateS
   templateKey: INTERVIEW_SCHEDULE_TEMPLATE_KEY,
   subjectTemplate: "{flowName} 面试预约通知",
   titleTemplate: "面试预约通知",
-  bodyTemplate: "{candidateName} 同学，你已预约 {flowName} 的面试，请按时通过下方会议链接参加。",
+  bodyTemplate: "{candidateName} 同学，你好。{flowName} 的面试安排已确认，请查看下方时间、地点和参会入口，并按时参加。",
   footerText: "南京邮电大学大学生科学技术协会",
 };
 

@@ -148,6 +148,13 @@
       "when": 1770000000012,
       "tag": "0020_interview_schedule_location",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1770000000013,
+      "tag": "0021_update_interview_schedule_template_body",
+      "breakpoints": true
     }
   ]
 }

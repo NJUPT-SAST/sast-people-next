@@ -35,7 +35,7 @@ export default async function EmailDashboardPage() {
       <div className="flex flex-col gap-1 border-b pb-4">
         <PageTitle />
         <p className="text-sm text-muted-foreground">
-          管理结果邮件草稿、确认发送、查看教育邮箱收件人和发送状态。
+          面向招新流程发送通过/不通过结果通知，并维护面试预约邮件模板。
         </p>
       </div>
 

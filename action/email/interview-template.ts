@@ -7,7 +7,6 @@ import {
   defaultInterviewScheduleTemplateSetting,
   getInterviewScheduleTemplateSetting,
   INTERVIEW_SCHEDULE_TEMPLATE_KEY,
-  interviewScheduleTemplateVariables,
   type InterviewScheduleTemplateSetting,
 } from "@/lib/email/interview-template-settings";
 import { renderInterviewScheduleEmailPreview } from "@/lib/email/interview-schedule";
@@ -58,18 +57,17 @@ export async function updateInterviewScheduleEmailTemplate(
     return { ok: false, message: "落款不能为空。" };
   }
   if (!hasRequiredVariables(normalized.subjectTemplate, ["flowName"])) {
-    return { ok: false, message: "邮件标题必须保留 {flowName} 变量。" };
+    return { ok: false, message: "邮件标题需要包含 {flowName}，用于替换招新流程名称。" };
   }
   if (
     !hasRequiredVariables(
       normalized.bodyTemplate,
-      interviewScheduleTemplateVariables,
+      ["candidateName", "flowName"],
     )
   ) {
     return {
       ok: false,
-      message:
-        "正文说明必须保留候选人、流程、讲师、开始时间、结束时间和会议链接变量。",
+      message: "正文里需要包含 {candidateName} 和 {flowName}，方便系统替换同学姓名和流程名称。",
     };
   }
 

@@ -58,7 +58,7 @@ export const menuItems: MenuItem[] = [
     path: '/recruitment',
   },
   {
-    title: '邮件管理',
+    title: '招新通知',
     icon: Mail,
     path: '/emails',
   },

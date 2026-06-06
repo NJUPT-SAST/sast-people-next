@@ -448,8 +448,6 @@ function InterviewTemplateDialog({
   previewHtml: string | null;
 }) {
   const router = useRouter();
-  const variableText =
-    "{candidateName}、{flowName}、{organizerName}、{startsAt}、{endsAt}、{location}、{meetingLink}";
 
   return (
     <Dialog>
@@ -465,10 +463,10 @@ function InterviewTemplateDialog({
           hiddenScrollbar,
         )}
       >
-        <DialogHeader>
+        <DialogHeader className="pr-8">
           <DialogTitle>面试通知模板</DialogTitle>
           <DialogDescription>
-            用于预约飞书会议后发送给面试者；正文必须保留时间、地点和会议链接变量。
+            编辑邮件开头的提示语。预约时间、地点、讲师和参会入口会自动生成在邮件信息卡片里。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -490,14 +488,8 @@ function InterviewTemplateDialog({
             );
           }}
         >
-          <div className="rounded-lg border bg-muted/10 p-3">
-            <p className="text-xs font-medium text-muted-foreground">可用变量</p>
-            <p className="mt-1 break-words text-xs text-muted-foreground">
-              {variableText}
-            </p>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/10 p-3">
+            <p className="text-xs font-medium text-muted-foreground">邮件内容</p>
             <TemplateField
               id="interview-subject-template"
               name="subjectTemplate"
@@ -510,31 +502,40 @@ function InterviewTemplateDialog({
               label="邮件主标题"
               defaultValue={setting.titleTemplate}
             />
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="interview-body-template" className="text-xs text-muted-foreground">
-              正文说明
-            </Label>
-            <Textarea
-              id="interview-body-template"
-              name="bodyTemplate"
-              defaultValue={setting.bodyTemplate}
-              className="min-h-[120px] resize-y"
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label htmlFor="interview-body-template" className="text-xs text-muted-foreground">
+                开头说明
+              </Label>
+              <Textarea
+                id="interview-body-template"
+                name="bodyTemplate"
+                defaultValue={setting.bodyTemplate}
+                className="min-h-[132px] resize-y bg-background"
+              />
+            </div>
+            <TemplateField
+              id="interview-footer-text"
+              name="footerText"
+              label="落款"
+              defaultValue={setting.footerText}
             />
           </div>
 
-          <TemplateField
-            id="interview-footer-text"
-            name="footerText"
-            label="落款"
-            defaultValue={setting.footerText}
-          />
+          <div className="rounded-lg border bg-muted/10 p-3 text-xs leading-5 text-muted-foreground">
+            <p>
+              正文建议保留 <span className="font-mono text-foreground">{"{candidateName}"}</span>
+              {" "}和 <span className="font-mono text-foreground">{"{flowName}"}</span>。
+            </p>
+            <p className="mt-1">
+              时间、地点、讲师、备注、飞书会议和飞书日程按钮会自动出现在邮件信息卡片里，通常不用重复写进正文。
+            </p>
+          </div>
 
-          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-between">
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <Button
               type="button"
               variant="outline"
+              className="sm:w-auto"
               onClick={() => {
                 toast.promise(
                   resetInterviewScheduleEmailTemplate().then(() => router.refresh()),
@@ -1263,9 +1264,9 @@ export function EmailDashboardClient({
       <section className="rounded-lg border bg-card">
         <div className="flex flex-col gap-4 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-base font-semibold">发送控制</h2>
+            <h2 className="text-base font-semibold">结果通知发送</h2>
             <p className="text-sm text-muted-foreground">
-              选择一个招新流程，系统自动匹配当前通过/不通过名单。
+              选择招新流程后，系统会匹配当前通过和不通过名单。
             </p>
           </div>
           <div className="hidden gap-2 lg:flex lg:flex-wrap">
@@ -1395,7 +1396,7 @@ export function EmailDashboardClient({
       <section className="rounded-lg border bg-card">
         <div className="flex items-center justify-between gap-3 border-b p-4">
           <div>
-            <h2 className="text-base font-semibold">发送记录</h2>
+            <h2 className="text-base font-semibold">通知发送记录</h2>
             <p className="text-sm text-muted-foreground">
               最近 20 个批次；从这里发出的邮件会保存每位同学收到的正文。
             </p>
