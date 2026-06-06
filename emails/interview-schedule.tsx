@@ -59,9 +59,24 @@ type InterviewScheduleEmailProps = {
 };
 
 const statusCopy = {
-  created: { label: "预约确认", color: "#0f766e", background: "#ecfdf5" },
-  rescheduled: { label: "时间调整", color: "#b45309", background: "#fffbeb" },
-  cancelled: { label: "已取消", color: "#b91c1c", background: "#fef2f2" },
+  created: {
+    label: "预约确认",
+    color: "#0f766e",
+    background: "#e8f7f1",
+    accent: "#0f766e",
+  },
+  rescheduled: {
+    label: "时间调整",
+    color: "#a16207",
+    background: "#fff7df",
+    accent: "#d97706",
+  },
+  cancelled: {
+    label: "已取消",
+    color: "#b91c1c",
+    background: "#fff0f0",
+    accent: "#dc2626",
+  },
 } as const;
 
 export const InterviewScheduleEmail = ({
@@ -82,21 +97,26 @@ export const InterviewScheduleEmail = ({
   <Html>
     <Preview>{flowName} {statusCopy[kind].label}</Preview>
     <Body style={body}>
-      <Container style={container}>
+      <Container style={{
+        ...container,
+        borderTop: `4px solid ${statusCopy[kind].accent}`,
+      }}>
         <Section style={brand}>
-          <Img src={logoUrl} alt="SAST" width="48" style={logo} />
+          <Img src={logoUrl} alt="SAST" width="44" style={logo} />
           <div style={brandText}>
             <Text style={brandName}>SAST People</Text>
             <Text style={brandMeta}>南京邮电大学大学生科学技术协会</Text>
           </div>
         </Section>
-        <Section style={statusBar(statusCopy[kind].background, statusCopy[kind].color)}>
-          {statusCopy[kind].label}
+        <Section style={headline}>
+          <Section style={statusBar(statusCopy[kind].background, statusCopy[kind].color)}>
+            {statusCopy[kind].label}
+          </Section>
+          <Heading style={heading}>{titleText}</Heading>
+          <Text style={paragraph}>
+            {bodyText ?? `你已预约 ${flowName} 的面试，请按时通过下方会议链接参加。`}
+          </Text>
         </Section>
-        <Heading style={heading}>{titleText}</Heading>
-        <Text style={paragraph}>
-          {bodyText ?? `你已预约 ${flowName} 的面试，请按时通过下方会议链接参加。`}
-        </Text>
         <Section style={details}>
           <div style={detailRow}>
             <Text style={label}>流程</Text>
@@ -159,19 +179,19 @@ export default InterviewScheduleEmail;
 
 const body = {
   margin: 0,
-  backgroundColor: "#f4f6f5",
+  backgroundColor: "#f2f5f3",
   fontFamily:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
 };
 
 const container = {
   width: "100%",
-  maxWidth: "560px",
-  margin: "18px auto",
-  padding: "26px 24px",
+  maxWidth: "540px",
+  margin: "16px auto",
+  padding: "24px 22px",
   backgroundColor: "#ffffff",
   border: "1px solid #dfe5e1",
-  borderRadius: "10px",
+  borderRadius: "8px",
 };
 
 const statusBar = (backgroundColor: string, color: string) => ({
@@ -189,8 +209,8 @@ const statusBar = (backgroundColor: string, color: string) => ({
 const brand = {
   display: "flex",
   alignItems: "center",
-  gap: "12px",
-  margin: "0 0 18px",
+  gap: "10px",
+  margin: "0 0 20px",
 };
 
 const logo = {
@@ -213,40 +233,44 @@ const brandName = {
 
 const brandMeta = {
   margin: 0,
-  fontSize: "12px",
-  lineHeight: "18px",
+  fontSize: "11px",
+  lineHeight: "17px",
   color: "#65736e",
 };
 
+const headline = {
+  margin: "0 0 18px",
+};
+
 const heading = {
-  margin: "0 0 12px",
-  fontSize: "24px",
-  lineHeight: "32px",
+  margin: "0 0 10px",
+  fontSize: "23px",
+  lineHeight: "31px",
   color: "#12181f",
 };
 
 const paragraph = {
-  margin: "0 0 18px",
+  margin: 0,
   fontSize: "15px",
-  lineHeight: "25px",
+  lineHeight: "24px",
   color: "#3e4a46",
 };
 
 const details = {
-  margin: "18px 0 20px",
+  margin: "0 0 20px",
   border: "1px solid #dfe5e1",
   borderRadius: "8px",
-  backgroundColor: "#fbfcfb",
+  backgroundColor: "#ffffff",
   overflow: "hidden",
 };
 
 const detailRow = {
-  padding: "12px 16px",
+  padding: "10px 14px",
   borderBottom: "1px solid #e6ebe8",
 };
 
 const detailRowLast = {
-  padding: "12px 16px",
+  padding: "10px 14px",
 };
 
 const label = {
@@ -258,29 +282,29 @@ const label = {
 
 const value = {
   margin: 0,
-  fontSize: "16px",
-  lineHeight: "24px",
+  fontSize: "15px",
+  lineHeight: "23px",
   color: "#12181f",
 };
 
 const subValue = {
   margin: "1px 0 0",
-  fontSize: "16px",
-  lineHeight: "24px",
+  fontSize: "15px",
+  lineHeight: "23px",
   color: "#12181f",
 };
 
 const actionBlock = {
-  margin: "20px 0 22px",
+  margin: "18px 0 20px",
   padding: 0,
 };
 
 const buttonBase = {
   display: "inline-block",
-  minWidth: "128px",
-  marginRight: "8px",
+  width: "100%",
+  boxSizing: "border-box" as const,
   marginBottom: "8px",
-  padding: "11px 16px",
+  padding: "11px 14px",
   borderRadius: "6px",
   fontSize: "14px",
   lineHeight: "20px",
