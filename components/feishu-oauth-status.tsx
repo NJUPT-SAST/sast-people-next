@@ -11,7 +11,7 @@ import {
 
 type FeishuOAuthStatusState = {
   bound: boolean;
-  accessTokenExpiresAt?: Date | string | null;
+  authorizationExpiresAt?: Date | string | null;
 };
 
 const statusFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -67,7 +67,7 @@ export function FeishuOAuthStatus({
 
   if (role < 2) return null;
 
-  const expiresAt = formatExpiresAt(status?.accessTokenExpiresAt);
+  const expiresAt = formatExpiresAt(status?.authorizationExpiresAt);
   const isBound = Boolean(status?.bound);
   const description = failed
     ? "状态检查失败"
@@ -104,7 +104,7 @@ export function FeishuOAuthStatus({
             </div>
             {expiresAt && (
               <p className="truncate text-[11px] leading-4 text-muted-foreground">
-                有效期 {expiresAt}
+                授权至 {expiresAt}
               </p>
             )}
           </div>

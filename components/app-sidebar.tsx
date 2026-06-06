@@ -123,18 +123,18 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
               <Link href="/">
                 <div className="flex items-center justify-center">
                   <Image
-                    src="/images/logo.png"
-                    alt="SAST"
-                    width={48}
-                    height={24}
-                    className="h-6 w-auto dark:hidden"
+                    src="/images/sastpeople-logo-white.jpg"
+                    alt="SAST People"
+                    width={32}
+                    height={32}
+                    className="size-8 rounded-md object-cover dark:hidden"
                   />
                   <Image
-                    src="/images/white-logo.png"
-                    alt="SAST"
-                    width={48}
-                    height={24}
-                    className="hidden h-6 w-auto dark:block"
+                    src="/images/sastpeople-logo-black.jpg"
+                    alt="SAST People"
+                    width={32}
+                    height={32}
+                    className="hidden size-8 rounded-md object-cover dark:block"
                   />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">

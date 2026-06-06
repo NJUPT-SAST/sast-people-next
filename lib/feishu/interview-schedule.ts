@@ -11,6 +11,7 @@ export type CreateFeishuInterviewScheduleInput = {
   organizerOpenId: string;
   summary: string;
   description?: string;
+  location?: string | null;
   startsAt: Date;
   endsAt: Date;
   attendeeOpenId?: string | null;
@@ -34,6 +35,7 @@ export type UpdateFeishuInterviewScheduleInput = {
   currentMeetingLink: string;
   summary: string;
   description?: string;
+  location?: string | null;
   startsAt: Date;
   endsAt: Date;
   attendeeOpenId?: string | null;
@@ -261,6 +263,7 @@ export async function createFeishuInterviewSchedule({
   organizerOpenId,
   summary,
   description,
+  location,
   startsAt,
   endsAt,
   attendeeOpenId,
@@ -287,7 +290,11 @@ export async function createFeishuInterviewSchedule({
     },
     data: {
       summary,
-      description,
+      description: [
+        description,
+        location ? `地点：${location}` : null,
+      ].filter(Boolean).join("\n") || undefined,
+      location: location ? { name: location } : undefined,
       need_notification: true,
       start_time: {
         timestamp: toFeishuTimestamp(startsAt),
@@ -346,6 +353,7 @@ export async function updateFeishuInterviewSchedule({
   currentMeetingLink,
   summary,
   description,
+  location,
   startsAt,
   endsAt,
   attendeeOpenId,
@@ -395,11 +403,13 @@ export async function updateFeishuInterviewSchedule({
 
   const eventDescription = [
     description,
+    location ? `地点：${location}` : null,
     `飞书会议：${meetingLink}`,
   ].filter(Boolean).join("\n");
   const eventData = {
     summary,
     description: eventDescription,
+    location: location ? { name: location } : undefined,
     need_notification: true,
     start_time: {
       timestamp: toFeishuTimestamp(startsAt),

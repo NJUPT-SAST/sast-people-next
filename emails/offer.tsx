@@ -90,7 +90,7 @@ export const OfferEmail = ({
               alt="SAST"
               style={logo}
             />
-            <Text style={eyebrow}>SAST R&D Center</Text>
+            <Text style={eyebrow}>SAST People</Text>
             <Text style={title}>SAST 招新结果通知</Text>
             <Text style={subtitle}>
               {accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程'}

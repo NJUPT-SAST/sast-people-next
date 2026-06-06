@@ -103,6 +103,7 @@ export type InterviewScheduleCardInput = {
   candidatePhone?: string | null;
   startsAt: Date;
   endsAt: Date;
+  location?: string | null;
   meetingLink?: string | null;
   scheduleLink?: string | null;
   userFlowId: number;
@@ -120,6 +121,7 @@ export async function sendInterviewScheduleCard({
   candidatePhone,
   startsAt,
   endsAt,
+  location,
   meetingLink,
   scheduleLink,
   scheduleId,
@@ -147,6 +149,7 @@ export async function sendInterviewScheduleCard({
         line("手机号", candidatePhone),
         line("开始", formatDateTime(startsAt)),
         line("结束", formatDateTime(endsAt)),
+        line("地点", location),
         "面试结束后请回到 People 提交面评；飞书妙记生成后会自动同步。",
       ],
       actions,
@@ -164,6 +167,7 @@ export async function sendInterviewCancelledCard({
   candidateName,
   startsAt,
   endsAt,
+  location,
   scheduleId,
 }: {
   openId: string;
@@ -173,6 +177,7 @@ export async function sendInterviewCancelledCard({
   candidateName: string;
   startsAt: Date;
   endsAt: Date;
+  location?: string | null;
   scheduleId: number;
 }) {
   await sendFeishuCardMessage({
@@ -188,6 +193,7 @@ export async function sendInterviewCancelledCard({
         line("面试同学", candidateName),
         line("原开始", formatDateTime(startsAt)),
         line("原结束", formatDateTime(endsAt)),
+        line("原地点", location),
       ],
       actions: [button("打开 People", getPeopleUrl("/dashboard/recruitment"))],
     }),

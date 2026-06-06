@@ -141,6 +141,13 @@
       "when": 1770000000011,
       "tag": "0019_interview_schedule_schedule_link",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1770000000012,
+      "tag": "0020_interview_schedule_location",
+      "breakpoints": true
     }
   ]
 }

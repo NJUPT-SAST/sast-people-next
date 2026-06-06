@@ -29,6 +29,7 @@ export const interviewScheduleTemplateVariables = [
   "organizerName",
   "startsAt",
   "endsAt",
+  "location",
   "meetingLink",
   "scheduleLink",
 ] as const;

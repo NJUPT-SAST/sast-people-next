@@ -14,6 +14,7 @@ export type InterviewScheduleEmailVariables = {
   organizerName: string;
   startsAt: Date;
   endsAt: Date;
+  location?: string | null;
   meetingLink: string;
   scheduleLink?: string | null;
   note?: string;
@@ -65,6 +66,7 @@ export async function renderInterviewScheduleEmailSubject(
     organizerName: "讲师",
     startsAt: "",
     endsAt: "",
+    location: "",
     meetingLink: "",
     scheduleLink: "",
   });
@@ -76,6 +78,7 @@ function getTemplateVariables({
   organizerName,
   startsAt,
   endsAt,
+  location,
   meetingLink,
   scheduleLink,
 }: InterviewScheduleEmailVariables) {
@@ -85,6 +88,7 @@ function getTemplateVariables({
     organizerName,
     startsAt: formatDateTime(startsAt),
     endsAt: formatDateTime(endsAt),
+    location: location ?? "",
     meetingLink,
     scheduleLink: scheduleLink ?? "",
   };
@@ -97,6 +101,7 @@ export async function renderInterviewScheduleEmail({
   organizerName,
   startsAt,
   endsAt,
+  location,
   meetingLink,
   scheduleLink,
   note,
@@ -108,6 +113,7 @@ export async function renderInterviewScheduleEmail({
     organizerName,
     startsAt,
     endsAt,
+    location,
     meetingLink,
     scheduleLink,
     note,
@@ -129,6 +135,7 @@ export async function renderInterviewScheduleEmail({
       organizerName={organizerName}
       startsAtText={formatDateTime(startsAt)}
       endsAtText={formatDateTime(endsAt)}
+      location={location ?? undefined}
       meetingLink={meetingLink}
       scheduleLink={scheduleLink ?? undefined}
       note={note}
@@ -145,6 +152,7 @@ export async function renderInterviewScheduleEmailPreview() {
     organizerName: "Demo Lecturer",
     startsAt: new Date("2026-06-05T11:00:00+08:00"),
     endsAt: new Date("2026-06-05T11:30:00+08:00"),
+    location: "仙林校区大学生活动中心 101",
     meetingLink: "https://vc.feishu.cn/j/123456789",
     scheduleLink: "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
     note: "请提前准备作品介绍。",

@@ -134,7 +134,7 @@ function CountPill({
   return (
     <div
       className={cn(
-        "flex min-w-14 flex-col items-center rounded-md border px-2.5 py-1.5 lg:min-w-16 lg:px-3 lg:py-2",
+        "flex min-w-0 flex-1 flex-col items-center rounded-md border px-2.5 py-1.5 md:min-w-14 md:flex-none lg:min-w-16 lg:px-3 lg:py-2",
         active ? "border-primary/30 bg-primary/10" : "bg-background/70",
       )}
     >
@@ -211,14 +211,18 @@ function MobileTemplateActions({
 }) {
   const safeTemplateSettings = Array.isArray(templateSettings) ? templateSettings : [];
   return (
-    <div className="grid grid-cols-2 gap-2 lg:hidden">
+    <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:hidden">
       {safeTemplateSettings.map((setting) => (
-        <TemplateDialog key={setting.templateKey} setting={setting} />
+        <div key={setting.templateKey} className="min-w-0">
+          <TemplateDialog setting={setting} />
+        </div>
       ))}
-      <InterviewTemplateDialog
-        setting={interviewScheduleTemplate}
-        previewHtml={interviewSchedulePreviewHtml}
-      />
+      <div className="min-w-0 min-[420px]:col-span-2">
+        <InterviewTemplateDialog
+          setting={interviewScheduleTemplate}
+          previewHtml={interviewSchedulePreviewHtml}
+        />
+      </div>
     </div>
   );
 }
@@ -295,7 +299,7 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full sm:w-auto">
+        <Button variant="outline" size="sm" className="w-full lg:w-auto">
           <Settings2 data-icon="inline-start" />
           {getSettingLabel(setting.templateKey)}
         </Button>
@@ -415,7 +419,7 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
             </>
           )}
           <div className="flex justify-end md:col-span-2">
-            <Button type="submit" className="w-full sm:w-auto">
+            <Button type="submit" className="w-full lg:w-auto">
               <Save data-icon="inline-start" />
               保存模板
             </Button>
@@ -445,12 +449,12 @@ function InterviewTemplateDialog({
 }) {
   const router = useRouter();
   const variableText =
-    "{candidateName}、{flowName}、{organizerName}、{startsAt}、{endsAt}、{meetingLink}";
+    "{candidateName}、{flowName}、{organizerName}、{startsAt}、{endsAt}、{location}、{meetingLink}";
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full sm:w-auto">
+        <Button variant="outline" size="sm" className="w-full lg:w-auto">
           <Settings2 data-icon="inline-start" />
           面试通知模板
         </Button>
@@ -464,7 +468,7 @@ function InterviewTemplateDialog({
         <DialogHeader>
           <DialogTitle>面试通知模板</DialogTitle>
           <DialogDescription>
-            用于预约飞书会议后发送给面试者；正文必须保留时间和会议链接变量。
+            用于预约飞书会议后发送给面试者；正文必须保留时间、地点和会议链接变量。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -626,7 +630,7 @@ function RecipientsDialog({
           variant="outline"
           size="sm"
           disabled={safeRecipients.length === 0}
-          className="w-full sm:w-auto"
+          className="w-full lg:w-auto"
         >
           <Users data-icon="inline-start" />
           {triggerLabel}
@@ -1021,7 +1025,7 @@ function TestEmailButton({ flowName }: { flowName?: string }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full sm:w-auto">
+        <Button variant="outline" size="sm" className="w-full lg:w-auto">
           <Send data-icon="inline-start" />
           测试发送
         </Button>
@@ -1110,14 +1114,14 @@ function SendLane({
 
   return (
     <div className={cn("flex flex-col gap-4 rounded-lg border p-4 lg:min-h-[148px] lg:p-5", tone)}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0 md:flex-1">
           <p className="text-sm font-semibold">
             {resultLabel}邮件
           </p>
           <p className="mt-1 break-words text-xs text-muted-foreground">{subject}</p>
         </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:shrink-0 md:flex-wrap md:justify-end">
           <CountPill label="待发送" value={newRecipientCount} active={newRecipientCount > 0} />
           <CountPill label="已发送" value={sentCount} />
         </div>
@@ -1255,7 +1259,7 @@ export function EmailDashboardClient({
   }, [hasActiveEmailWork, router]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 pb-20 md:pb-0">
       <section className="rounded-lg border bg-card">
         <div className="flex flex-col gap-4 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
