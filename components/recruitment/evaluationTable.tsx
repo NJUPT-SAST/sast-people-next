@@ -49,6 +49,7 @@ type Candidate = {
   scheduleMeetingLink: string | null;
   scheduleLink: string | null;
   scheduleMeetingMinuteLink: string | null;
+  scheduleLocation: string | null;
   scheduleStartsAt: Date | string | null;
   scheduleEndsAt: Date | string | null;
   scheduleStatus: string | null;
@@ -217,6 +218,11 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
           {timeRange}
         </span>
       )}
+      {candidate.scheduleLocation && (
+        <span className="block text-xs leading-4 text-foreground/65">
+          {candidate.scheduleLocation}
+        </span>
+      )}
     </div>
   );
 };
@@ -258,6 +264,7 @@ export const EvaluationTable = ({
   const [meetingLink, setMeetingLink] = useState("");
   const [scheduleStartsAt, setScheduleStartsAt] = useState("");
   const [scheduleEndsAt, setScheduleEndsAt] = useState("");
+  const [scheduleLocation, setScheduleLocation] = useState("");
   const [scheduleNote, setScheduleNote] = useState("");
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [emailPreviewLoading, setEmailPreviewLoading] = useState(false);
@@ -292,6 +299,7 @@ export const EvaluationTable = ({
         : getDefaultScheduleRange();
     setScheduleStartsAt(range.startsAt);
     setScheduleEndsAt(range.endsAt);
+    setScheduleLocation(c.scheduleLocation ?? "");
     setScheduleNote("");
   };
 
@@ -306,6 +314,7 @@ export const EvaluationTable = ({
     setSchedulingId(null);
     setScheduleStartsAt("");
     setScheduleEndsAt("");
+    setScheduleLocation("");
     setScheduleNote("");
     setScheduleLoading(false);
   };
@@ -375,6 +384,7 @@ export const EvaluationTable = ({
         userFlowId,
         startsAt: scheduleStartsAt,
         endsAt: scheduleEndsAt,
+        location: scheduleLocation,
         note: scheduleNote,
       });
       if (!result.success) {
@@ -403,6 +413,7 @@ export const EvaluationTable = ({
         userFlowId,
         startsAt: scheduleStartsAt,
         endsAt: scheduleEndsAt,
+        location: scheduleLocation,
         note: scheduleNote,
       });
       if (!result.success) {
@@ -825,6 +836,15 @@ export const EvaluationTable = ({
                   className="h-10"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">地点</label>
+              <Input
+                placeholder="例如：仙林校区大学生活动中心 101"
+                value={scheduleLocation}
+                onChange={(e) => setScheduleLocation(e.target.value)}
+                className="h-10"
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">预约备注</label>

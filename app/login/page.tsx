@@ -16,7 +16,7 @@ const Login = async () => {
           <section className="relative flex min-h-[320px] flex-col overflow-hidden bg-[#18A058] px-8 pb-20 pt-10 text-white sm:min-h-[380px] lg:min-h-dvh lg:justify-center lg:p-12">
             <div className="relative z-10 mb-10 lg:absolute lg:left-12 lg:top-10 lg:mb-0">
               <Image
-                src="/images/white-logo.png"
+                src="/images/sast-logo-white.png"
                 alt="SAST Logo"
                 width={120}
                 height={60}

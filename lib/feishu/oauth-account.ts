@@ -13,7 +13,7 @@ export type FeishuOAuthAccountStatus = {
   bound: boolean;
   providerUserId?: string;
   providerUnionId?: string | null;
-  accessTokenExpiresAt?: Date | null;
+  authorizationExpiresAt?: Date | null;
 };
 
 export async function getFeishuOAuthAccountStatus(
@@ -24,6 +24,7 @@ export async function getFeishuOAuthAccountStatus(
       providerUserId: userOAuthAccount.providerUserId,
       providerUnionId: userOAuthAccount.providerUnionId,
       accessTokenExpiresAt: userOAuthAccount.accessTokenExpiresAt,
+      refreshTokenExpiresAt: userOAuthAccount.refreshTokenExpiresAt,
     })
     .from(userOAuthAccount)
     .where(
@@ -35,7 +36,17 @@ export async function getFeishuOAuthAccountStatus(
     .limit(1);
 
   if (!account) return { bound: false };
-  return { bound: true, ...account };
+  const authorizationExpiresAt =
+    account.refreshTokenExpiresAt ?? account.accessTokenExpiresAt;
+  const bound =
+    !authorizationExpiresAt || authorizationExpiresAt.getTime() > Date.now();
+
+  return {
+    bound,
+    providerUserId: account.providerUserId,
+    providerUnionId: account.providerUnionId,
+    authorizationExpiresAt,
+  };
 }
 
 export async function upsertFeishuOAuthAccount(

@@ -15,7 +15,7 @@ const transporter = createTransport({
   },
 });
 
-const emailFrom = '"SAST R&D Center" <recruitment@sast.fun>';
+const emailFrom = '"SAST People" <recruitment@sast.fun>';
 const DEFAULT_TEST_EMAIL_RECIPIENT = "b24150524@njupt.edu.cn";
 
 function getTestEmailRecipient() {

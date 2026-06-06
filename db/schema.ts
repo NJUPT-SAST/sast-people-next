@@ -300,6 +300,7 @@ export const interviewSchedule = pgTable("interview_schedule", {
   meetingMinuteLink: text("meeting_minute_link"),
   summary: varchar("summary", { length: 255 }).notNull(),
   description: text("description"),
+  location: varchar("location", { length: 255 }),
   attendeeEmail: varchar("attendee_email", { length: 254 }),
   startsAt: timestamp("starts_at").notNull(),
   endsAt: timestamp("ends_at").notNull(),

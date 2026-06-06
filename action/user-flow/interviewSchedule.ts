@@ -38,6 +38,7 @@ type CreateInterviewScheduleInput = {
   userFlowId: number;
   startsAt: string;
   endsAt: string;
+  location?: string;
   note?: string;
 };
 
@@ -101,6 +102,7 @@ async function notifyOrganizerByFeishu({
   flowName,
   startsAt,
   endsAt,
+  location,
   meetingLink,
   scheduleLink,
   userFlowId,
@@ -114,6 +116,7 @@ async function notifyOrganizerByFeishu({
   flowName: string;
   startsAt: Date;
   endsAt: Date;
+  location?: string | null;
   meetingLink: string;
   scheduleLink?: string;
   userFlowId: number;
@@ -129,6 +132,7 @@ async function notifyOrganizerByFeishu({
       flowName,
       startsAt,
       endsAt,
+      location,
       meetingLink,
       scheduleLink,
       userFlowId,
@@ -155,6 +159,7 @@ async function notifyInterviewGroupByFeishu({
   flowName,
   startsAt,
   endsAt,
+  location,
   meetingLink,
   scheduleLink,
   userFlowId,
@@ -166,6 +171,7 @@ async function notifyInterviewGroupByFeishu({
   flowName: string;
   startsAt: Date;
   endsAt: Date;
+  location?: string | null;
   meetingLink?: string | null;
   scheduleLink?: string | null;
   userFlowId: number;
@@ -184,6 +190,7 @@ async function notifyInterviewGroupByFeishu({
       flowName,
       startsAt,
       endsAt,
+      location,
       meetingLink,
       scheduleLink,
       userFlowId,
@@ -232,6 +239,7 @@ export async function previewInterviewScheduleEmail(
   const attendeeEmail = getEducationEmail(candidate?.studentId);
   const candidateName = candidate?.name ?? "同学";
   const organizerName = organizer?.name ?? session.name;
+  const location = input.location?.trim() || undefined;
   const note = input.note?.trim() || undefined;
 
   const [existingSchedule] = await db
@@ -253,6 +261,7 @@ export async function previewInterviewScheduleEmail(
     organizerName,
     startsAt,
     endsAt,
+    location,
     meetingLink: "https://vc.feishu.cn/j/123456789",
     scheduleLink: "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
     note,
@@ -312,6 +321,7 @@ export async function createInterviewSchedule(
     const organizerName = organizer?.name ?? session.name;
     const candidateName = candidate?.name ?? "同学";
     const summary = `${target.flowTitle} 面试 - ${candidateName}`;
+    const location = input.location?.trim() || undefined;
     const note = input.note?.trim() || undefined;
     const description = [
       `面试同学：${candidateName}`,
@@ -357,6 +367,7 @@ export async function createInterviewSchedule(
           currentMeetingLink: existingSchedule.meetingLink,
           summary,
           description,
+          location,
           startsAt,
           endsAt,
           timezone: DEFAULT_TIMEZONE,
@@ -380,6 +391,7 @@ export async function createInterviewSchedule(
           organizerOpenId: credential.openId,
           summary,
           description,
+          location,
           startsAt,
           endsAt,
           timezone: DEFAULT_TIMEZONE,
@@ -392,6 +404,7 @@ export async function createInterviewSchedule(
         organizerOpenId: credential.openId,
         summary,
         description,
+        location,
         startsAt,
         endsAt,
         timezone: DEFAULT_TIMEZONE,
@@ -410,6 +423,7 @@ export async function createInterviewSchedule(
             scheduleLink: feishuSchedule.scheduleLink,
             summary,
             description,
+            location: location ?? null,
             attendeeEmail,
             startsAt,
             endsAt,
@@ -430,6 +444,7 @@ export async function createInterviewSchedule(
             scheduleLink: feishuSchedule.scheduleLink,
             summary,
             description,
+            location: location ?? null,
             attendeeEmail,
             startsAt,
             endsAt,
@@ -447,6 +462,7 @@ export async function createInterviewSchedule(
       organizerName,
       startsAt,
       endsAt,
+      location,
       meetingLink: feishuSchedule.meetingLink,
       scheduleLink: feishuSchedule.scheduleLink,
       note,
@@ -466,6 +482,7 @@ export async function createInterviewSchedule(
       flowName: target.flowTitle,
       startsAt,
       endsAt,
+      location,
       meetingLink: feishuSchedule.meetingLink,
       scheduleLink: feishuSchedule.scheduleLink,
       userFlowId: input.userFlowId,
@@ -478,6 +495,7 @@ export async function createInterviewSchedule(
       flowName: target.flowTitle,
       startsAt,
       endsAt,
+      location,
       meetingLink: feishuSchedule.meetingLink,
       scheduleLink: feishuSchedule.scheduleLink,
       userFlowId: input.userFlowId,
@@ -540,6 +558,7 @@ export async function cancelInterviewSchedule(
         providerReserveId: interviewSchedule.providerReserveId,
         summary: interviewSchedule.summary,
         attendeeEmail: interviewSchedule.attendeeEmail,
+        location: interviewSchedule.location,
         startsAt: interviewSchedule.startsAt,
         endsAt: interviewSchedule.endsAt,
         status: interviewSchedule.status,
@@ -602,6 +621,7 @@ export async function cancelInterviewSchedule(
         organizerName,
         startsAt: schedule.startsAt,
         endsAt: schedule.endsAt,
+        location: schedule.location,
         meetingLink: "",
       });
       await sendRawEmail({
@@ -617,6 +637,7 @@ export async function cancelInterviewSchedule(
       candidateName,
       startsAt: schedule.startsAt,
       endsAt: schedule.endsAt,
+      location: schedule.location,
       scheduleId: schedule.id,
     });
     const chatId = process.env.FEISHU_INTERVIEW_CHAT_ID?.trim();
@@ -629,6 +650,7 @@ export async function cancelInterviewSchedule(
           candidateName,
           startsAt: schedule.startsAt,
           endsAt: schedule.endsAt,
+          location: schedule.location,
           scheduleId: schedule.id,
         });
       } catch (error) {
