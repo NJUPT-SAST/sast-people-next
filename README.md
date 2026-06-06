@@ -117,6 +117,7 @@ DATABASE_URL=postgres://sastpeople:sast_dev_password@localhost:55432/sastpeople_
 ```
 
 SAST Link owns user identity and profile data. Configure `LINK_*` variables for the target Link environment. Use `LINK_USE_MOCK=true` only as a temporary local stub when Link is unavailable.
+Do not enable `LINK_USE_MOCK=true` for production or real-user testing. If the real Link OAuth/API is not ready, this branch can be used for local Feishu and workflow validation only, not as a production login path.
 
 ## Full Development Mode
 
@@ -157,7 +158,7 @@ docker compose up -d --force-recreate
 
 This does not require rebuilding or copying a new image. Build-time public variables such as `NEXT_PUBLIC_SENTRY_DSN` are still passed through GitHub Actions because Next.js inlines `NEXT_PUBLIC_*` values during `pnpm build`.
 
-`PEOPLE_PUBLIC_BASE_URL` must be set in production so Feishu bot cards can link back to People. `FEISHU_INTERVIEW_CHAT_ID` is optional and enables privacy-safe group cards for interview schedule changes.
+`PEOPLE_PUBLIC_BASE_URL` must be set in production so Feishu bot cards can link back to People. `FEISHU_OAUTH_REDIRECT_URI` must match the exact URL allowlisted in the Feishu developer console, for example `https://nextpeople.sast.fun/api/auth/feishu`. `FEISHU_INTERVIEW_CHAT_ID` is optional and enables privacy-safe group cards for interview schedule changes.
 
 ## Documentation
 

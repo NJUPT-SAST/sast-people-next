@@ -153,7 +153,7 @@ async function handleMinuteGenerated(event: FeishuMinuteGeneratedEvent) {
   let minuteUrl = getMinuteUrl(event);
   let minuteTitle = getMinuteTitle(event);
 
-  if (!minuteUrl && minuteToken) {
+  if (minuteToken) {
     const credential = await getValidFeishuUserCredential(schedule.organizerId);
     const minute = await getFeishuMinuteInfo({
       accessToken: credential.accessToken,

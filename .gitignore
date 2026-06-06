@@ -30,6 +30,7 @@ test-results*.zip
 .DS_Store
 *.pem
 .worktrees/
+.codegraph/
 docs/*
 !docs/SAST_PEOPLE_V3_LINK_DEV.md
 !docs/PEOPLE_DATABASE_SCHEMA.md
