@@ -12,11 +12,12 @@ import {
 } from "@/lib/email/result-email";
 import { createRenderedEmailDelivery, sendEmailDelivery } from "@/lib/email-center/delivery";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 
 const EMAIL_SERVICE_UNAVAILABLE =
   "邮件发送服务未启动或未配置，请检查 Inngest 邮件队列和 EMAIL_PASSWORD。";
 const STALE_SENDING_DELIVERY_MINUTES = 10;
+const STALE_SENDING_DELIVERY_MESSAGE = "发送任务可能已中断，请确认后重试。";
 
 export type CreateResultEmailBatchInput = {
   userIds: number[];
@@ -119,6 +120,8 @@ export async function sendEmailBatchById(batchId: number) {
     return { queuedCount: 0 };
   }
 
+  await recoverStaleEmailDeliveriesInBatch(batchId);
+
   const deliveries = await db
     .select({
       id: emailDelivery.id,
@@ -206,6 +209,21 @@ export async function sendEmailBatchById(batchId: number) {
 }
 
 export async function recoverStaleEmailBatchById(batchId: number) {
+  const result = await recoverStaleEmailDeliveriesInBatch(batchId);
+
+  if (result.recoveredCount === 0) {
+    return result;
+  }
+
+  await db
+    .update(emailBatch)
+    .set({ status: "failed", updatedAt: new Date() })
+    .where(eq(emailBatch.id, batchId));
+
+  return result;
+}
+
+async function recoverStaleEmailDeliveriesInBatch(batchId: number) {
   const cutoff = new Date(
     Date.now() - STALE_SENDING_DELIVERY_MINUTES * 60 * 1000,
   );
@@ -216,7 +234,13 @@ export async function recoverStaleEmailBatchById(batchId: number) {
       and(
         eq(emailDelivery.fkEmailBatchId, batchId),
         eq(emailDelivery.status, "sending"),
-        lt(emailDelivery.updatedAt, cutoff),
+        or(
+          lt(emailDelivery.lastAttemptAt, cutoff),
+          and(
+            isNull(emailDelivery.lastAttemptAt),
+            lt(emailDelivery.updatedAt, cutoff),
+          ),
+        )!,
       ),
     );
 
@@ -228,7 +252,7 @@ export async function recoverStaleEmailBatchById(batchId: number) {
     .update(emailDelivery)
     .set({
       status: "failed",
-      errorMessage: "发送任务可能已中断，请确认后重试。",
+      errorMessage: STALE_SENDING_DELIVERY_MESSAGE,
       updatedAt: new Date(),
     })
     .where(
@@ -237,11 +261,6 @@ export async function recoverStaleEmailBatchById(batchId: number) {
         staleDeliveries.map((item) => item.id),
       ),
     );
-
-  await db
-    .update(emailBatch)
-    .set({ status: "failed", updatedAt: new Date() })
-    .where(eq(emailBatch.id, batchId));
 
   return { recoveredCount: staleDeliveries.length };
 }
