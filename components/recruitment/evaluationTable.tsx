@@ -251,10 +251,14 @@ function ActionTextButton({
 export const EvaluationTable = ({
   candidates,
   role,
+  targetUserFlowId,
+  targetScheduleId,
   onRefresh,
 }: {
   candidates: Candidate[];
   role: number;
+  targetUserFlowId?: number;
+  targetScheduleId?: number;
   onRefresh: () => void;
 }) => {
   const safeCandidates = Array.isArray(candidates) ? candidates : [];
@@ -391,7 +395,11 @@ export const EvaluationTable = ({
         toast.error(result.error?.message ?? "飞书日程创建失败");
         return;
       }
-      toast.success("飞书会议和日程已创建，预约邮件已发送");
+      if (result.data.emailWarning) {
+        toast.warning(result.data.emailWarning);
+      } else {
+        toast.success("飞书会议和日程已创建，预约邮件已发送");
+      }
       cancelSchedule();
       onRefresh();
     } catch (error) {
@@ -441,7 +449,11 @@ export const EvaluationTable = ({
         toast.error(result.error?.message ?? "取消预约失败");
         return;
       }
-      toast.success("面试预约已取消");
+      if (result.emailWarning) {
+        toast.warning(result.emailWarning);
+      } else {
+        toast.success("面试预约已取消，取消邮件已发送");
+      }
       cancelSchedule();
       onRefresh();
     } catch (error) {
@@ -467,6 +479,11 @@ export const EvaluationTable = ({
     const key = getCandidateStatusKey(candidate);
     statusCounts.set(key, (statusCounts.get(key) ?? 0) + 1);
   }
+  const isTargetCandidate = (candidate: Candidate) =>
+    Boolean(
+      (targetUserFlowId && candidate.userFlowId === targetUserFlowId) ||
+        (targetScheduleId && candidate.scheduleId === targetScheduleId),
+    );
 
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
@@ -536,7 +553,15 @@ export const EvaluationTable = ({
               const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
 
               return (
-                <TableRow key={c.userFlowId} className="hover:bg-muted/30">
+                <TableRow
+                  key={c.userFlowId}
+                  id={isTargetCandidate(c) ? `user-flow-${c.userFlowId}` : undefined}
+                  className={
+                    isTargetCandidate(c)
+                      ? "scroll-mt-24 bg-primary/10 ring-1 ring-primary/30 hover:bg-primary/10"
+                      : "hover:bg-muted/30"
+                  }
+                >
                   <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums">
                     {c.studentId}
                   </TableCell>
@@ -629,7 +654,15 @@ export const EvaluationTable = ({
           const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
 
           return (
-            <div key={c.userFlowId} className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40">
+            <div
+              key={c.userFlowId}
+              id={isTargetCandidate(c) ? `user-flow-${c.userFlowId}` : undefined}
+              className={
+                isTargetCandidate(c)
+                  ? "flex scroll-mt-24 flex-col gap-3 bg-primary/10 p-4 ring-1 ring-primary/30"
+                  : "flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40"
+              }
+            >
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
                   <span className="font-semibold">{c.name}</span>

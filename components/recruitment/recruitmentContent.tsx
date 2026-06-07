@@ -21,12 +21,16 @@ export const RecruitmentContent = ({
   initialData,
   initialEvalData,
   defaultFlowId,
+  targetUserFlowId,
+  targetScheduleId,
   role,
 }: {
   flowTypes: displayFlow[];
   initialData: ExamResult;
   initialEvalData: CandidatesResult;
   defaultFlowId?: string;
+  targetUserFlowId?: number;
+  targetScheduleId?: number;
   role: number;
 }) => {
   const [flowId, setFlowId] = useState(defaultFlowId);
@@ -134,6 +138,8 @@ export const RecruitmentContent = ({
             <EvaluationTable
               candidates={safeEvalData}
               role={role}
+              targetUserFlowId={targetUserFlowId}
+              targetScheduleId={targetScheduleId}
               onRefresh={refreshEvalData}
             />
           </div>
@@ -143,6 +149,7 @@ export const RecruitmentContent = ({
               columns={columns}
               data={safeScoreData}
               flowTypeId={parseInt(flowId)}
+              targetUserFlowId={targetUserFlowId}
               role={role}
             />
           </div>
