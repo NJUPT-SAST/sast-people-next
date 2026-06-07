@@ -38,6 +38,10 @@ export async function sendEmailTest(
 
     const currentUser = await getPeopleUserByLinkId(session.uid);
 
+    if (!toAddress?.trim() && !currentUser?.studentId) {
+      throw new Error("当前账号没有学号，请输入测试收件地址。");
+    }
+
     const to = toAddress
       ? normalizeEducationEmailInput(toAddress)
       : getEducationEmail(currentUser?.studentId);

@@ -222,7 +222,6 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
 
   const filters = normalizeEmailDeliveryListParams(params);
   const whereConditions = buildEmailDeliveryWhereConditions(filters);
-  const offset = (filters.page - 1) * filters.pageSize;
 
   const totalCountResult = await db
     .select({ value: count() })
@@ -231,6 +230,13 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
     .leftJoin(flow, eq(flow.id, emailDelivery.fkFlowId))
     .where(whereConditions);
   const totalCount = Number(totalCountResult[0]?.value) || 0;
+  const totalPages = Math.ceil(totalCount / filters.pageSize);
+  const currentPage = totalPages > 0 ? Math.min(filters.page, totalPages) : 1;
+  const resolvedFilters = {
+    ...filters,
+    page: currentPage,
+  };
+  const offset = (currentPage - 1) * filters.pageSize;
 
   const deliveries = await db
     .select({
@@ -264,9 +270,9 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
   if (deliveries.length === 0) {
     return {
       deliveries: [],
-      filters,
+      filters: resolvedFilters,
       totalCount,
-      totalPages: Math.ceil(totalCount / filters.pageSize),
+      totalPages,
     };
   }
 
@@ -292,9 +298,9 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
         ? userMap.get(delivery.createdById)?.name ?? null
         : null,
     })),
-    filters,
+    filters: resolvedFilters,
     totalCount,
-    totalPages: Math.ceil(totalCount / filters.pageSize),
+    totalPages,
   };
 }
 
