@@ -11,6 +11,7 @@ import {
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
 import { createRenderedEmailDelivery, sendEmailDelivery } from "@/lib/email-center/delivery";
+import { assertEmailConfigured } from "@/lib/email-center/provider";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 
@@ -181,7 +182,9 @@ export async function sendEmailBatchById(batchId: number) {
         try {
           await event.offer(item.id);
         } catch (_error) {
-          if (!process.env.EMAIL_PASSWORD) {
+          try {
+            assertEmailConfigured();
+          } catch {
             await db
               .update(emailDelivery)
               .set({
