@@ -4,7 +4,139 @@ import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, flow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { desc, eq, inArray } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  or,
+  type SQL,
+} from "drizzle-orm";
+
+const DEFAULT_DELIVERY_PAGE_SIZE = 20;
+const MAX_DELIVERY_PAGE_SIZE = 50;
+const deliveryStatuses = ["pending", "sending", "sent", "failed"] as const;
+type DeliveryStatus = (typeof deliveryStatuses)[number];
+
+export type EmailDeliveryListParams = {
+  page?: string | number;
+  pageSize?: string | number;
+  category?: string;
+  status?: string;
+  templateKey?: string;
+  flowId?: string | number;
+  creatorId?: string | number;
+  from?: string;
+  to?: string;
+  query?: string;
+};
+
+export type NormalizedEmailDeliveryListParams = {
+  page: number;
+  pageSize: number;
+  category: string;
+  status: string;
+  templateKey: string;
+  flowId: string;
+  creatorId: string;
+  from: string;
+  to: string;
+  query: string;
+};
+
+function parsePositiveInt(value: string | number | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeEmailDeliveryListParams(
+  params: EmailDeliveryListParams = {},
+): NormalizedEmailDeliveryListParams {
+  return {
+    page: parsePositiveInt(params.page, 1),
+    pageSize: Math.min(
+      parsePositiveInt(params.pageSize, DEFAULT_DELIVERY_PAGE_SIZE),
+      MAX_DELIVERY_PAGE_SIZE,
+    ),
+    category: params.category?.toString().trim() ?? "",
+    status: params.status?.toString().trim() ?? "",
+    templateKey: params.templateKey?.toString().trim() ?? "",
+    flowId: params.flowId?.toString().trim() ?? "",
+    creatorId: params.creatorId?.toString().trim() ?? "",
+    from: params.from?.trim() ?? "",
+    to: params.to?.trim() ?? "",
+    query: params.query?.trim() ?? "",
+  };
+}
+
+function getDateStart(value: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getDateEnd(value: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+function buildEmailDeliveryWhereConditions({
+  category,
+  status,
+  templateKey,
+  flowId,
+  creatorId,
+  from,
+  to,
+  query,
+}: NormalizedEmailDeliveryListParams) {
+  const conditions: SQL<unknown>[] = [];
+
+  if (category) conditions.push(eq(emailDelivery.category, category));
+  if (deliveryStatuses.includes(status as DeliveryStatus)) {
+    conditions.push(eq(emailDelivery.status, status as DeliveryStatus));
+  }
+  if (templateKey) conditions.push(eq(emailDelivery.templateKey, templateKey));
+
+  const flowIdValue = Number(flowId);
+  if (Number.isInteger(flowIdValue) && flowIdValue > 0) {
+    conditions.push(eq(emailDelivery.fkFlowId, flowIdValue));
+  }
+
+  const creatorIdValue = Number(creatorId);
+  if (Number.isInteger(creatorIdValue) && creatorIdValue > 0) {
+    conditions.push(eq(emailDelivery.createdBy, creatorIdValue));
+  }
+
+  const fromDate = getDateStart(from);
+  if (fromDate) conditions.push(gte(emailDelivery.createdAt, fromDate));
+
+  const toDate = getDateEnd(to);
+  if (toDate) conditions.push(lte(emailDelivery.createdAt, toDate));
+
+  if (query) {
+    const pattern = `%${query}%`;
+    conditions.push(
+      or(
+        ilike(emailDelivery.subject, pattern),
+        ilike(emailDelivery.toAddress, pattern),
+        ilike(emailDelivery.templateKey, pattern),
+        ilike(emailDelivery.errorMessage, pattern),
+        ilike(flow.title, pattern),
+        ilike(emailBatch.name, pattern),
+      )!,
+    );
+  }
+
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
 
 export async function listEmailBatches() {
   await verifyRole(3);
@@ -54,7 +186,9 @@ export async function listEmailBatches() {
     ...batches
       .map((batch) => batch.createdById)
       .filter((id): id is number => id !== null),
-    ...deliveries.map((delivery) => delivery.userId),
+    ...deliveries
+      .map((delivery) => delivery.userId)
+      .filter((id): id is number => id !== null),
   ]);
 
   return batches.map((batch) => {
@@ -62,8 +196,10 @@ export async function listEmailBatches() {
       .filter((item) => item.batchId === batch.id)
       .map((item) => ({
         ...item,
-        userName: userMap.get(item.userId)?.name ?? "未知用户",
-        studentId: userMap.get(item.userId)?.studentId ?? null,
+        userName: item.userId
+          ? userMap.get(item.userId)?.name ?? "未知用户"
+          : "外部/测试收件人",
+        studentId: item.userId ? userMap.get(item.userId)?.studentId ?? null : null,
       }));
     return {
       ...batch,
@@ -81,8 +217,20 @@ export async function listEmailBatches() {
   });
 }
 
-export async function listEmailDeliveries() {
+export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}) {
   await verifyRole(3);
+
+  const filters = normalizeEmailDeliveryListParams(params);
+  const whereConditions = buildEmailDeliveryWhereConditions(filters);
+  const offset = (filters.page - 1) * filters.pageSize;
+
+  const totalCountResult = await db
+    .select({ value: count() })
+    .from(emailDelivery)
+    .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
+    .leftJoin(flow, eq(flow.id, emailDelivery.fkFlowId))
+    .where(whereConditions);
+  const totalCount = Number(totalCountResult[0]?.value) || 0;
 
   const deliveries = await db
     .select({
@@ -97,6 +245,7 @@ export async function listEmailDeliveries() {
       createdAt: emailDelivery.createdAt,
       htmlSnapshot: emailDelivery.htmlSnapshot,
       userId: emailDelivery.fkUserId,
+      flowId: emailDelivery.fkFlowId,
       userFlowId: emailDelivery.fkUserFlowId,
       batchId: emailDelivery.fkEmailBatchId,
       relatedScheduleId: emailDelivery.relatedScheduleId,
@@ -106,27 +255,50 @@ export async function listEmailDeliveries() {
     })
     .from(emailDelivery)
     .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
-    .leftJoin(flow, eq(flow.id, emailBatch.fkFlowId))
+    .leftJoin(flow, eq(flow.id, emailDelivery.fkFlowId))
+    .where(whereConditions)
     .orderBy(desc(emailDelivery.createdAt))
-    .limit(50);
+    .limit(filters.pageSize)
+    .offset(offset);
 
   if (deliveries.length === 0) {
-    return [];
+    return {
+      deliveries: [],
+      filters,
+      totalCount,
+      totalPages: Math.ceil(totalCount / filters.pageSize),
+    };
   }
 
   const userMap = await listPeopleUsersByLinkIds([
-    ...deliveries.map((delivery) => delivery.userId),
+    ...deliveries
+      .map((delivery) => delivery.userId)
+      .filter((id): id is number => id !== null),
     ...deliveries
       .map((delivery) => delivery.createdById)
       .filter((id): id is number => id !== null),
   ]);
 
-  return deliveries.map((delivery) => ({
-    ...delivery,
-    userName: userMap.get(delivery.userId)?.name ?? "未知用户",
-    studentId: userMap.get(delivery.userId)?.studentId ?? null,
-    createdByName: delivery.createdById
-      ? userMap.get(delivery.createdById)?.name ?? null
-      : null,
-  }));
+  return {
+    deliveries: deliveries.map((delivery) => ({
+      ...delivery,
+      userName: delivery.userId
+        ? userMap.get(delivery.userId)?.name ?? "未知用户"
+        : "外部/测试收件人",
+      studentId: delivery.userId
+        ? userMap.get(delivery.userId)?.studentId ?? null
+        : null,
+      createdByName: delivery.createdById
+        ? userMap.get(delivery.createdById)?.name ?? null
+        : null,
+    })),
+    filters,
+    totalCount,
+    totalPages: Math.ceil(totalCount / filters.pageSize),
+  };
+}
+
+export async function listEmailDeliveries() {
+  const page = await listEmailDeliveryPage({ pageSize: 50 });
+  return page.deliveries;
 }

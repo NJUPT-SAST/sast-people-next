@@ -1,2 +1,2 @@
 alter table "interview_schedule"
-  add column "location" varchar(255);
+  add column if not exists "location" varchar(255);

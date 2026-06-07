@@ -2,10 +2,14 @@ import "server-only";
 
 import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { renderEmailTemplate } from "@/lib/email-center/render";
+import type {
+  CreateRenderedEmailDeliveryInput,
+  CreateRenderedTestEmailDeliveryInput,
+  EmailCategory,
+} from "@/lib/email-center/types";
+import { and, eq, inArray } from "drizzle-orm";
 import { createTransport } from "nodemailer";
-
-export type EmailCategory = "result" | "interview" | "test";
 
 export type CreateEmailDeliveryInput = {
   category: EmailCategory;
@@ -13,7 +17,8 @@ export type CreateEmailDeliveryInput = {
   toAddress: string;
   subject: string;
   htmlSnapshot: string;
-  recipientUserId: number;
+  recipientUserId?: number | null;
+  flowId?: number | null;
   batchId?: number | null;
   userFlowId?: number | null;
   relatedScheduleId?: number | null;
@@ -58,7 +63,7 @@ export const assertEmailConfigured = () => {
   }
 };
 
-export const sendRawEmail = async ({
+const sendSmtpEmail = async ({
   to,
   subject,
   html,
@@ -87,8 +92,9 @@ export async function createEmailDelivery(input: CreateEmailDeliveryInput) {
       subject: input.subject,
       htmlSnapshot: input.htmlSnapshot,
       fkEmailBatchId: input.batchId ?? null,
+      fkFlowId: input.flowId ?? null,
       fkUserFlowId: input.userFlowId ?? null,
-      fkUserId: input.recipientUserId,
+      fkUserId: input.recipientUserId ?? null,
       relatedScheduleId: input.relatedScheduleId ?? null,
       createdBy: input.createdBy ?? null,
       metadata: input.metadata,
@@ -102,6 +108,54 @@ export async function createEmailDelivery(input: CreateEmailDeliveryInput) {
   }
 
   return { deliveryId: delivery.id, messageId };
+}
+
+export async function createRenderedEmailDelivery(
+  input: CreateRenderedEmailDeliveryInput,
+) {
+  const rendered = await renderEmailTemplate(input);
+
+  const category = input.templateKey.startsWith("interview.")
+    ? "interview"
+    : "result";
+
+  return createEmailDelivery({
+    category,
+    templateKey: input.templateKey,
+    toAddress: input.toAddress,
+    subject: rendered.subject,
+    htmlSnapshot: rendered.html,
+    recipientUserId: input.recipientUserId,
+    flowId: input.flowId,
+    batchId: input.batchId,
+    userFlowId: input.userFlowId,
+    relatedScheduleId: input.relatedScheduleId,
+    createdBy: input.createdBy,
+    metadata: input.metadata,
+    sendImmediately: input.sendImmediately,
+  });
+}
+
+export async function createRenderedTestEmailDelivery(
+  input: CreateRenderedTestEmailDeliveryInput,
+) {
+  const rendered = await renderEmailTemplate(input);
+
+  return createEmailDelivery({
+    category: "test",
+    templateKey: `${input.templateKey}.test`,
+    toAddress: input.toAddress,
+    subject: rendered.subject,
+    htmlSnapshot: rendered.html,
+    recipientUserId: input.recipientUserId,
+    flowId: input.flowId,
+    createdBy: input.createdBy,
+    metadata: {
+      ...input.metadata,
+      originalTemplateKey: input.templateKey,
+    },
+    sendImmediately: input.sendImmediately,
+  });
 }
 
 export const sendEmailDelivery = async (deliveryId: number) => {
@@ -118,8 +172,11 @@ export const sendEmailDelivery = async (deliveryId: number) => {
   if (delivery.status === "sent") {
     return { messageId: delivery.providerMessageId ?? null };
   }
+  if (delivery.status === "sending") {
+    throw new Error("邮件正在发送中，请稍后刷新状态或恢复中断任务。");
+  }
 
-  await db
+  const [claimedDelivery] = await db
     .update(emailDelivery)
     .set({
       status: "sending",
@@ -128,10 +185,34 @@ export const sendEmailDelivery = async (deliveryId: number) => {
       sentAt: null,
       updatedAt: new Date(),
     })
-    .where(eq(emailDelivery.id, deliveryId));
+    .where(
+      and(
+        eq(emailDelivery.id, deliveryId),
+        inArray(emailDelivery.status, ["pending", "failed"]),
+      ),
+    )
+    .returning({
+      id: emailDelivery.id,
+    });
+
+  if (!claimedDelivery) {
+    const [latestDelivery] = await db
+      .select({
+        status: emailDelivery.status,
+        providerMessageId: emailDelivery.providerMessageId,
+      })
+      .from(emailDelivery)
+      .where(eq(emailDelivery.id, deliveryId))
+      .limit(1);
+
+    if (latestDelivery?.status === "sent") {
+      return { messageId: latestDelivery.providerMessageId ?? null };
+    }
+    throw new Error("邮件正在发送中，请稍后刷新状态或恢复中断任务。");
+  }
 
   try {
-    const result = await sendRawEmail({
+    const result = await sendSmtpEmail({
       to: delivery.toAddress,
       subject: delivery.subject,
       html: delivery.htmlSnapshot,

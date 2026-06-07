@@ -162,6 +162,13 @@
       "when": 1770000000014,
       "tag": "0022_email_center_delivery_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1770000000015,
+      "tag": "0023_email_delivery_flow_nullable_user",
+      "breakpoints": true
     }
   ]
 }

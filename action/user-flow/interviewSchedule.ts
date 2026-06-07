@@ -6,11 +6,8 @@ import {
   interviewSchedule,
   userFlow,
 } from "@/db/schema";
-import {
-  renderInterviewScheduleEmail,
-  renderInterviewScheduleEmailSubject,
-} from "@/lib/email/interview-schedule";
-import { createEmailDelivery } from "@/lib/email-center/delivery";
+import { createRenderedEmailDelivery } from "@/lib/email-center/delivery";
+import { renderEmailTemplate } from "@/lib/email-center/render";
 import { getEducationEmail } from "@/lib/email/address";
 import {
   cancelFeishuInterviewSchedule,
@@ -54,6 +51,7 @@ type CreateInterviewScheduleResult =
         id: number;
         meetingLink: string;
         scheduleLink?: string;
+        emailWarning?: string;
       };
     }
   | {
@@ -82,6 +80,7 @@ type PreviewInterviewScheduleEmailResult =
 type CancelInterviewScheduleResult =
   | {
       success: true;
+      emailWarning?: string;
     }
   | {
       success: false;
@@ -101,42 +100,51 @@ function parseDate(value: string, fieldName: string) {
 async function sendInterviewEmailDelivery({
   kind,
   toAddress,
-  subject,
-  htmlSnapshot,
   recipientUserId,
   userFlowId,
   flowId,
   scheduleId,
   createdBy,
+  variables,
 }: {
   kind: keyof typeof interviewEmailTemplateKey;
   toAddress: string;
-  subject: string;
-  htmlSnapshot: string;
   recipientUserId: number;
   userFlowId: number;
   flowId?: number | null;
   scheduleId: number;
   createdBy: number;
-}) {
+  variables: {
+    candidateName: string;
+    flowName: string;
+    organizerName: string;
+    startsAt: Date;
+    endsAt: Date;
+    location?: string | null;
+    meetingLink: string;
+    scheduleLink?: string | null;
+    note?: string;
+  };
+}): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
-    await createEmailDelivery({
-      category: "interview",
+    await createRenderedEmailDelivery({
       templateKey: interviewEmailTemplateKey[kind],
       toAddress,
-      subject,
-      htmlSnapshot,
+      flowId,
       recipientUserId,
       userFlowId,
       relatedScheduleId: scheduleId,
       createdBy,
+      variables,
       metadata: {
         kind,
         flowId: flowId ?? null,
       },
       sendImmediately: true,
     });
+    return { ok: true };
   } catch (error) {
+    const message = error instanceof Error ? error.message : "邮件发送失败";
     logServerError("email-center:interviewDelivery", error, {
       action: "send-interview-email-delivery",
       userFlowId,
@@ -147,6 +155,7 @@ async function sendInterviewEmailDelivery({
         scheduleId,
       },
     });
+    return { ok: false, message };
   }
 }
 
@@ -310,26 +319,27 @@ export async function previewInterviewScheduleEmail(
     )
     .limit(1);
   const kind = existingSchedule ? "rescheduled" : "created";
-  const subject = await renderInterviewScheduleEmailSubject(target.flowTitle, kind);
-  const html = await renderInterviewScheduleEmail({
-    kind,
-    candidateName,
-    flowName: target.flowTitle,
-    organizerName,
-    startsAt,
-    endsAt,
-    location,
-    meetingLink: "https://vc.feishu.cn/j/123456789",
-    scheduleLink: "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
-    note,
+  const rendered = await renderEmailTemplate({
+    templateKey: interviewEmailTemplateKey[kind],
+    variables: {
+      candidateName,
+      flowName: target.flowTitle,
+      organizerName,
+      startsAt,
+      endsAt,
+      location,
+      meetingLink: "https://vc.feishu.cn/j/123456789",
+      scheduleLink: "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
+      note,
+    },
   });
 
   return {
     success: true,
     data: {
-      subject,
+      subject: rendered.subject,
       to: attendeeEmail,
-      html,
+      html: rendered.html,
     },
   };
 }
@@ -511,29 +521,25 @@ export async function createInterviewSchedule(
           .returning({ id: interviewSchedule.id });
 
     const emailKind = existingSchedule ? "rescheduled" : "created";
-    const subject = await renderInterviewScheduleEmailSubject(target.flowTitle, emailKind);
-    const html = await renderInterviewScheduleEmail({
-      kind: emailKind,
-      candidateName,
-      flowName: target.flowTitle,
-      organizerName,
-      startsAt,
-      endsAt,
-      location,
-      meetingLink: feishuSchedule.meetingLink,
-      scheduleLink: feishuSchedule.scheduleLink,
-      note,
-    });
-    await sendInterviewEmailDelivery({
+    const emailResult = await sendInterviewEmailDelivery({
       kind: emailKind,
       toAddress: attendeeEmail,
-      subject,
-      htmlSnapshot: html,
       recipientUserId: target.candidateId,
       userFlowId: input.userFlowId,
       flowId: target.flowId,
       scheduleId: schedule.id,
       createdBy: session.uid,
+      variables: {
+        candidateName,
+        flowName: target.flowTitle,
+        organizerName,
+        startsAt,
+        endsAt,
+        location,
+        meetingLink: feishuSchedule.meetingLink,
+        scheduleLink: feishuSchedule.scheduleLink,
+        note,
+      },
     });
 
     await notifyOrganizerByFeishu({
@@ -590,6 +596,9 @@ export async function createInterviewSchedule(
         id: schedule.id,
         meetingLink: feishuSchedule.meetingLink,
         scheduleLink: feishuSchedule.scheduleLink,
+        emailWarning: emailResult.ok
+          ? undefined
+          : `面试日程已创建，但预约邮件发送失败：${emailResult.message}`,
       },
     };
   } catch (error) {
@@ -676,29 +685,29 @@ export async function cancelInterviewSchedule(
     const candidateName = candidate?.name ?? "同学";
     const flowName = target?.flowTitle ?? schedule.summary;
     const organizerName = organizer?.name ?? session.name;
+    let emailWarning: string | undefined;
     if (schedule.attendeeEmail && target) {
-      const subject = await renderInterviewScheduleEmailSubject(flowName, "cancelled");
-      const html = await renderInterviewScheduleEmail({
-        kind: "cancelled",
-        candidateName,
-        flowName,
-        organizerName,
-        startsAt: schedule.startsAt,
-        endsAt: schedule.endsAt,
-        location: schedule.location,
-        meetingLink: "",
-      });
-      await sendInterviewEmailDelivery({
+      const emailResult = await sendInterviewEmailDelivery({
         kind: "cancelled",
         toAddress: schedule.attendeeEmail,
-        subject,
-        htmlSnapshot: html,
         recipientUserId: target.candidateId,
         userFlowId: schedule.userFlowId,
         flowId: target.flowId,
         scheduleId: schedule.id,
         createdBy: session.uid,
+        variables: {
+          candidateName,
+          flowName,
+          organizerName,
+          startsAt: schedule.startsAt,
+          endsAt: schedule.endsAt,
+          location: schedule.location,
+          meetingLink: "",
+        },
       });
+      if (!emailResult.ok) {
+        emailWarning = `面试预约已取消，但取消邮件发送失败：${emailResult.message}`;
+      }
     }
 
     await sendInterviewCancelledCard({
@@ -745,7 +754,7 @@ export async function cancelInterviewSchedule(
       },
     });
 
-    return { success: true };
+    return { success: true, emailWarning };
   } catch (error) {
     logServerError("interviewSchedule:cancel", error, {
       path: "/dashboard/recruitment",

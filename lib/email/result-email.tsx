@@ -22,7 +22,9 @@ export function getResultEmailKind(accept: boolean): ResultEmailKind {
   return accept ? "accepted" : "rejected";
 }
 
-export function getResultEmailTemplateKey(accept: boolean) {
+export function getResultEmailTemplateKey(
+  accept: boolean,
+): "recruitment.result.accepted" | "recruitment.result.rejected" {
   return `recruitment.result.${getResultEmailKind(accept)}`;
 }
 
