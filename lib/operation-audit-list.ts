@@ -50,6 +50,10 @@ export const operationAuditActionGroups = {
     "email.batch.create",
     "email.batch_send",
     "email.recover_stale",
+    "email.delivery_retry",
+    "email.test_send",
+    "email.template.update",
+    "email.template.reset",
   ],
   evaluation: [
     "evaluation.create",

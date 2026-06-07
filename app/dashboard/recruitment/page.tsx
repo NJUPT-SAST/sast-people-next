@@ -7,11 +7,26 @@ import { verifySession } from "@/lib/dal";
 
 const EVALUATION_FLOW_TYPES = ["woc", "soc", "recruitment_exemption"];
 
-const Recruitment = async () => {
+const Recruitment = async ({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    flowId?: string;
+    userFlowId?: string;
+    scheduleId?: string;
+  }>;
+}) => {
   const session = await verifySession();
+  const awaitedSearchParams = await searchParams;
   const flowTypesResult = await getFlowList();
   const flowTypes = Array.isArray(flowTypesResult) ? flowTypesResult : [];
-  const defaultFlow = flowTypes[0];
+  const requestedFlowId = Number(awaitedSearchParams.flowId);
+  const requestedFlow = Number.isInteger(requestedFlowId)
+    ? flowTypes.find((flow) => flow.id === requestedFlowId)
+    : undefined;
+  const targetUserFlowId = Number(awaitedSearchParams.userFlowId);
+  const targetScheduleId = Number(awaitedSearchParams.scheduleId);
+  const defaultFlow = requestedFlow ?? flowTypes[0];
   const defaultFlowId = defaultFlow?.id?.toString();
   const isDefaultEvaluationFlow = defaultFlow
     ? EVALUATION_FLOW_TYPES.includes(defaultFlow.type)
@@ -37,6 +52,12 @@ const Recruitment = async () => {
           initialData={initialData}
           initialEvalData={initialEvalData}
           defaultFlowId={defaultFlowId}
+          targetUserFlowId={
+            Number.isInteger(targetUserFlowId) ? targetUserFlowId : undefined
+          }
+          targetScheduleId={
+            Number.isInteger(targetScheduleId) ? targetScheduleId : undefined
+          }
           role={session.role}
         />
       </div>

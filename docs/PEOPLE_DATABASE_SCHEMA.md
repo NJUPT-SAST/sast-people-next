@@ -4,8 +4,8 @@
 | --- | --- |
 | 文档状态 | Draft |
 | 适用分支 | `v3.1` |
-| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql`、`migrations/0012_operation_audit.sql`、`migrations/0013_fix_database_design.sql`、`migrations/0014_fix_email_fk.sql`、`migrations/0015_rename_evaluation_status.sql`、`migrations/0016_feishu_interview_scheduling.sql`、`migrations/0017_email_template_content.sql`、`migrations/0018_interview_schedule_meeting_minute.sql`、`migrations/0019_interview_schedule_schedule_link.sql` |
-| 最后更新 | 2026-06-06 |
+| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql` 至 `migrations/0023_email_delivery_flow_nullable_user.sql` |
+| 最后更新 | 2026-06-07 |
 
 ## 1. 边界
 
@@ -43,7 +43,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `email_template_setting` | 结果邮件模板配置 | 无用户字段 |
 | `email_template_content` | 通用邮件文案模板配置 | 无用户字段 |
 | `email_batch` | 邮件发送批次 | `fk_created_by` 保存 Link 用户 ID |
-| `email_delivery` | 单个用户邮件发送记录 | `fk_user_id` 保存 Link 用户 ID |
+| `email_delivery` | 单封邮件投递记录 | `fk_user_id` 保存 Link 用户 ID，可为空（测试邮件或外部收件人） |
 | `user_oauth_account` | People 私有第三方 OAuth token 绑定 | `fk_user_id` 保存 Link 用户 ID |
 | `interview_schedule` | 非笔试流程面试日程和飞书会议记录 | `fk_organizer_id` 保存 Link 用户 ID |
 | `operation_audit` | 管理操作审计 | `actor_id` 保存 Link 用户 ID |
@@ -201,6 +201,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `meeting_minute_link` | `text` | 飞书妙记/日程妙记链接，由飞书事件回调自动同步 |
 | `summary` | `varchar(255)` | 日程标题 |
 | `description` | `text` | 日程描述 |
+| `location` | `varchar(255)` | 线下面试地点或补充地点说明 |
 | `attendee_email` | `varchar(254)` | 候选人邮箱 |
 | `starts_at` | `timestamp` | 开始时间 |
 | `ends_at` | `timestamp` | 结束时间 |
@@ -237,12 +238,12 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 
 ### `email_template_content`
 
-通用邮件文案模板配置表。当前用于面试预约通知，不承载通过/不通过结果邮件语义。
+通用邮件文案模板配置表。当前用于面试预约、改约和取消通知，不承载通过/不通过结果邮件语义。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `serial` | 模板配置 ID |
-| `template_key` | `varchar(80)` | 模板 key，当前支持 `interview.schedule` |
+| `template_key` | `varchar(80)` | 模板 key，当前支持 `interview.schedule.created`、`interview.schedule.rescheduled`、`interview.schedule.cancelled`；历史 `interview.schedule` 仅作为创建通知 fallback |
 | `subject_template` | `varchar(255)` | 邮件标题模板 |
 | `title_template` | `varchar(255)` | 邮件正文主标题模板 |
 | `body_template` | `text` | 邮件正文说明模板 |
@@ -257,34 +258,49 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | --- | --- | --- |
 | `id` | `serial` | 批次 ID |
 | `template_key` | `varchar(80)` | 模板 key |
+| `category` | `varchar(32)` | 邮件类型，默认 `result` |
+| `name` | `varchar(255)` | 批次名称 |
 | `subject` | `varchar(255)` | 主题 |
 | `accept` | `boolean` | 是否录取结果 |
 | `status` | `email_batch_status_enum` | 批次状态，默认 `queued` |
 | `total_count` | `integer` | 总发送数 |
-| `fk_flow_id` | `integer` | 关联 `flow.id`（RESTRICT — 有邮件记录的流程不可直接删除） |
+| `fk_flow_id` | `integer` | 关联 `flow.id`（RESTRICT，可为空） |
 | `fk_created_by` | `integer` | 创建者 Link 用户 ID |
+| `metadata` | `jsonb` | 批次上下文，例如结果通知的 `accept` |
 | `created_at` | `timestamp` | 创建时间 |
 | `updated_at` | `timestamp` | 更新时间 |
 
 ### `email_delivery`
 
-单封邮件发送记录表。
+单封邮件投递记录表。结果通知、面试通知和测试邮件都在这里保存主题、正文快照、状态和关联业务对象。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `serial` | 发送记录 ID |
+| `category` | `varchar(32)` | 邮件类型：`result`、`interview`、`test` |
+| `template_key` | `varchar(80)` | 模板 key；测试邮件会使用原模板 key 加 `.test` 标记 |
 | `to_address` | `varchar(254)` | 收件地址 |
 | `subject` | `varchar(255)` | 主题 |
 | `html_snapshot` | `text` | 邮件 HTML 快照 |
 | `status` | `email_delivery_status_enum` | 发送状态，默认 `pending` |
 | `error_message` | `text` | 错误信息 |
 | `provider_message_id` | `varchar(255)` | 邮件服务商消息 ID |
-| `fk_email_batch_id` | `integer` | 关联 `email_batch.id`（CASCADE） |
+| `fk_email_batch_id` | `integer` | 关联 `email_batch.id`（CASCADE，可为空） |
+| `fk_flow_id` | `integer` | 关联 `flow.id`（RESTRICT，可为空） |
 | `fk_user_flow_id` | `integer` | 关联 `user_flow.id`（SET NULL — 删除报名记录时保留邮件审计） |
-| `fk_user_id` | `integer` | 收件人 Link 用户 ID |
+| `fk_user_id` | `integer` | 收件人 Link 用户 ID，可为空 |
+| `related_schedule_id` | `integer` | 关联面试预约 ID，可为空 |
+| `created_by` | `integer` | 创建该投递记录的 Link 用户 ID，可为空 |
+| `metadata` | `jsonb` | 投递上下文，例如测试邮件原模板 key、流程 ID、通知类型 |
 | `created_at` | `timestamp` | 创建时间 |
 | `sent_at` | `timestamp` | 发送时间 |
 | `updated_at` | `timestamp` | 更新时间 |
+
+索引：
+
+- `email_delivery_created_at_idx` on `created_at`
+- `email_delivery_filter_idx` on `category, template_key, status`
+- `email_delivery_fk_flow_id_idx` on `fk_flow_id`
 
 ## 9. OAuth 与审计表
 
@@ -337,9 +353,10 @@ People 私有 OAuth token 绑定表。当前用于保存讲师飞书 `user_acces
 
 ```
 flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
-  │                                               │
-  ├──CASCADE──► flow_step ──CASCADE──► problem     │
-  │                │                               │
+  │                     │                         │
+  │                     └──RESTRICT───────────────┤
+  ├──CASCADE──► flow_step ──CASCADE──► problem    │
+  │                │                              │
   │                └──SET NULL──► user_flow.fk_current_step_id
   │                                               │
   └──CASCADE──► user_flow ◄──SET NULL─────────────┘
@@ -355,6 +372,7 @@ flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
 |------|------|------|
 | `flow` → `email_batch` | RESTRICT | 防止误删有邮件记录的流程 |
 | `email_batch` → `email_delivery` | CASCADE | 删除批次时级联清理所有发送记录 |
+| `flow` → `email_delivery` | RESTRICT | 单封面试/测试邮件可直接关联流程，保留审计 |
 | `email_delivery` → `user_flow` | SET NULL | 删除报名记录时保留审计，解除关联 |
 | 其他业务表 → 父表 | CASCADE | 父记录删除时级联清理子数据 |
 | `user_flow.fk_current_step_id` → `flow_step` | SET NULL | step 被物理删除后不阻断用户流程 |

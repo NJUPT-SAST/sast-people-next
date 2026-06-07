@@ -1,19 +1,30 @@
-import { listEmailBatches, listEmailDeliveries } from "@/action/email/list";
 import {
-  getInterviewScheduleEmailPreview,
-  getInterviewScheduleEmailTemplate,
+  listEmailBatches,
+  listEmailDeliveries,
+  listEmailDeliveryPage,
+} from "@/action/email/list";
+import {
+  getInterviewScheduleEmailPreviews,
+  listInterviewScheduleEmailTemplates,
 } from "@/action/email/interview-template";
 import { listEmailTemplateSettings } from "@/action/email/template";
 import { listEmailFlowTargets } from "@/action/email/workspace";
 import { EmailDashboardClient } from "@/components/email/emailDashboardClient";
 import { PageTitle } from "@/components/route";
+import { emailTemplateDefinitions } from "@/lib/email-center/registry";
 import { logServerError } from "@/lib/server-error-log";
+import { MailCheck } from "lucide-react";
 
-export default async function EmailDashboardPage() {
+export default async function EmailDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   let data: Awaited<ReturnType<typeof loadEmailDashboardData>>;
+  const awaitedSearchParams = await searchParams;
 
   try {
-    data = await loadEmailDashboardData();
+    data = await loadEmailDashboardData(awaitedSearchParams);
   } catch (error) {
     logServerError("dashboard:emails", error, {
       path: "/dashboard/emails",
@@ -25,42 +36,99 @@ export default async function EmailDashboardPage() {
   const [
     batches,
     deliveries,
+    recordDeliveryPage,
     flowTargets,
     templateSettings,
-    interviewScheduleTemplate,
-    interviewSchedulePreviewHtml,
+    interviewScheduleTemplates,
+    interviewSchedulePreviews,
   ] = data;
+  const smtpConfigured = Boolean(process.env.EMAIL_PASSWORD);
+  const emailCenterConfig = {
+    smtpConfigured,
+    smtpHost: "smtp.feishu.cn:465",
+    sender: "SAST People <recruitment@sast.fun>",
+    testRecipient:
+      process.env.EMAIL_TEST_RECIPIENT?.trim() || "b24150524@njupt.edu.cn",
+    queueStatus: smtpConfigured
+      ? process.env.NODE_ENV === "production"
+        ? "Inngest 邮件队列（生产）"
+        : "Inngest dev / 直发 fallback（开发）"
+      : "不可发送：EMAIL_PASSWORD 未配置",
+    realRecipientMode: process.env.NODE_ENV === "production",
+  };
 
   return (
     <>
-      <div className="flex flex-col gap-1 border-b pb-4">
-        <PageTitle />
-        <p className="text-sm text-muted-foreground">
-          面向招新流程发送通过/不通过结果通知，并维护面试预约邮件模板。
-        </p>
+      <div className="border-b pb-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 rounded-lg border bg-primary/10 p-2 text-primary">
+              <MailCheck className="size-5" />
+            </div>
+            <div className="min-w-0">
+              <PageTitle />
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                统一管理系统邮件模板、发送任务和发送记录。招新结果通知、面试通知和测试邮件都从这里追踪。
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="rounded-md border bg-card px-2.5 py-1 text-muted-foreground">
+              {emailCenterConfig.realRecipientMode ? "生产真实收件人" : "本地测试重定向"}
+            </span>
+            <span className="rounded-md border bg-card px-2.5 py-1 text-muted-foreground">
+              SMTP {smtpConfigured ? "已配置" : "未配置"}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="mt-5">
         <EmailDashboardClient
           batches={batches}
           deliveries={deliveries}
+          recordDeliveryPage={recordDeliveryPage}
           flowTargets={flowTargets}
           templateSettings={templateSettings}
-          interviewScheduleTemplate={interviewScheduleTemplate}
-          interviewSchedulePreviewHtml={interviewSchedulePreviewHtml}
+          interviewScheduleTemplates={interviewScheduleTemplates}
+          interviewSchedulePreviews={interviewSchedulePreviews}
+          emailCenterConfig={emailCenterConfig}
+          templateDefinitions={emailTemplateDefinitions}
+          activeTab={getSearchParam(awaitedSearchParams, "tab")}
         />
       </div>
     </>
   );
 }
 
-async function loadEmailDashboardData() {
+function getSearchParam(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+async function loadEmailDashboardData(
+  searchParams: Record<string, string | string[] | undefined>,
+) {
   return Promise.all([
     listEmailBatches(),
     listEmailDeliveries(),
+    listEmailDeliveryPage({
+      page: getSearchParam(searchParams, "page"),
+      category: getSearchParam(searchParams, "category"),
+      status: getSearchParam(searchParams, "status"),
+      templateKey: getSearchParam(searchParams, "templateKey"),
+      flowId: getSearchParam(searchParams, "flowId"),
+      creatorId: getSearchParam(searchParams, "creatorId"),
+      from: getSearchParam(searchParams, "from"),
+      to: getSearchParam(searchParams, "to"),
+      query: getSearchParam(searchParams, "query"),
+    }),
     listEmailFlowTargets(),
     listEmailTemplateSettings(),
-    getInterviewScheduleEmailTemplate(),
-    getInterviewScheduleEmailPreview(),
+    listInterviewScheduleEmailTemplates(),
+    getInterviewScheduleEmailPreviews(),
   ]);
 }

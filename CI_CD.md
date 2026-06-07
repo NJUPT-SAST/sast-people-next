@@ -43,6 +43,7 @@ CI/CD 包含代码质量检查、测试、以及 Docker 镜像构建与部署。
 | `SERVER_USER` | SSH 用户名 |
 | `SSH_PRIVATE_KEY` | SSH 私钥 |
 | `NEXT_PUBLIC_SENTRY_DSN` | 构建期公开 Sentry DSN，会被 Next.js inline 到前端产物 |
+| `SENTRY_AUTH_TOKEN` | 可选；配置后 CI 构建会启用 Sentry build plugin |
 
 生产运行时变量不再由 GitHub Actions 写入。它们由服务器上的 `/data/sast-people-next/.env` 管理，并通过 `docker-compose.yml` 的 `env_file` 注入容器。
 
@@ -56,6 +57,8 @@ docker compose up -d --force-recreate
 ```
 
 如果修改 `NEXT_PUBLIC_*` 变量，需要重新构建部署，因为 Next.js 会在 `pnpm build` 时把它们写入前端产物。
+
+本地构建默认不启用 Sentry build plugin，避免在未配置 Sentry CLI 时出现可选构建后 warning。需要验证 Sentry 构建期处理时设置 `SENTRY_BUILD_PLUGIN=true`。
 
 ## 镜像版本管理
 

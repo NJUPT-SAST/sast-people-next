@@ -34,10 +34,12 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   flowTypeId: number;
+  targetUserFlowId?: number;
   role: number;
 }
 
 type RecruitmentRowLike = {
+  userFlowId?: number;
   uid: number;
   stepId: number;
   status: string;
@@ -50,6 +52,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   flowTypeId,
+  targetUserFlowId,
   role,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -81,6 +84,14 @@ export function DataTable<TData, TValue>({
   };
   const isFinalRow = (row: { original: unknown }) =>
     finalStatuses.has(getRowStatus(row));
+  const isTargetRow = (row: { original: unknown }) => {
+    const item = toRecruitmentRow(row);
+    return Boolean(
+      targetUserFlowId &&
+        item.userFlowId &&
+        item.userFlowId === targetUserFlowId,
+    );
+  };
 
   const visibleColumns = useMemo(
     () =>
@@ -122,7 +133,7 @@ export function DataTable<TData, TValue>({
   );
   const canEditOutcomes = selectedMutableRows.length > 0;
   const helperText =
-    '成绩管理只负责确定通过/不通过；结果通知会在招新通知中按当前流程自动匹配待通知人员';
+    '成绩管理只负责确定通过/不通过；结果通知会在邮件中心按当前流程自动匹配待通知人员';
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'not_started'];
 
   return (
@@ -172,7 +183,7 @@ export function DataTable<TData, TValue>({
                       const firstRow = selectedRows[0];
                       if (!firstRow) return;
                       const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为通过吗？结果通知仍需在招新通知中发送。`,
+                        `确定将 ${selectedRows.length} 人设为通过吗？结果通知仍需在邮件中心发送。`,
                       );
                       if (!confirmed) return;
                       const stepId = toRecruitmentRow(firstRow).stepId;
@@ -209,7 +220,7 @@ export function DataTable<TData, TValue>({
                       const firstRow = selectedRows[0];
                       if (!firstRow) return;
                       const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为不通过吗？结果通知仍需在招新通知中发送。`,
+                        `确定将 ${selectedRows.length} 人设为不通过吗？结果通知仍需在邮件中心发送。`,
                       );
                       if (!confirmed) return;
                       const stepId = toRecruitmentRow(firstRow).stepId;
@@ -298,8 +309,17 @@ export function DataTable<TData, TValue>({
                 rowModelRows.map((row) => (
                   <TableRow
                     key={row.id}
+                    id={
+                      isTargetRow(row)
+                        ? `user-flow-${targetUserFlowId}`
+                        : undefined
+                    }
                     data-state={row.getIsSelected() && 'selected'}
-                    className="hover:bg-muted/30 data-[state=selected]:bg-primary/5"
+                    className={
+                      isTargetRow(row)
+                        ? "scroll-mt-24 bg-primary/10 ring-1 ring-primary/30 hover:bg-primary/10"
+                        : "hover:bg-muted/30 data-[state=selected]:bg-primary/5"
+                    }
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
@@ -346,7 +366,17 @@ export function DataTable<TData, TValue>({
               const totalScoreCell = cellById.get('totalScore');
               const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
               return (
-                <div key={row.id} className="flex gap-4 p-4 transition-colors hover:bg-muted/50">
+                <div
+                  key={row.id}
+                  id={
+                    isTargetRow(row) ? `user-flow-${targetUserFlowId}` : undefined
+                  }
+                  className={
+                    isTargetRow(row)
+                      ? "flex scroll-mt-24 gap-4 bg-primary/10 p-4 ring-1 ring-primary/30"
+                      : "flex gap-4 p-4 transition-colors hover:bg-muted/50"
+                  }
+                >
                   {role >= 3 && selectCell && (
                     <div className="pt-1">
                       {flexRender(selectCell.column.columnDef.cell, selectCell.getContext())}

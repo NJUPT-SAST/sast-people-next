@@ -7,11 +7,8 @@ import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import {
-  getResultEmailTemplateKey,
-  renderResultEmail,
-  renderResultEmailSubject,
-} from "@/lib/email/result-email";
+import { getResultEmailTemplateKey } from "@/lib/email/result-email";
+import { renderEmailTemplate } from "@/lib/email-center/render";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -61,20 +58,39 @@ export async function listEmailFlowTargets() {
     const flowTargets = hydratedTargets.filter((target) => target.flowId === item.id);
     const passed = flowTargets.filter((t) => t.status === "passed");
     const failed = flowTargets.filter((t) => t.status === "failed");
+    const acceptedPreview = passed[0]
+      ? await renderEmailTemplate({
+          templateKey: getResultEmailTemplateKey(true),
+          variables: {
+            name: passed[0].name,
+            flowName: item.title,
+            setting: acceptedSetting,
+            genericGreeting: true,
+          },
+        })
+      : null;
+    const rejectedPreview = failed[0]
+      ? await renderEmailTemplate({
+          templateKey: getResultEmailTemplateKey(false),
+          variables: {
+            name: failed[0].name,
+            flowName: item.title,
+            setting: rejectedSetting,
+            genericGreeting: true,
+          },
+        })
+      : null;
+
     return {
       ...item,
       passed,
       failed,
       accepted: passed,
       rejected: failed,
-      acceptedSubject: renderResultEmailSubject(item.title, acceptedSetting),
-      rejectedSubject: renderResultEmailSubject(item.title, rejectedSetting),
-      acceptedPreviewHtml: passed[0]
-        ? await renderResultEmail({ name: passed[0].name, flowName: item.title, accept: true, setting: acceptedSetting, genericGreeting: true })
-        : null,
-      rejectedPreviewHtml: failed[0]
-        ? await renderResultEmail({ name: failed[0].name, flowName: item.title, accept: false, setting: rejectedSetting, genericGreeting: true })
-        : null,
+      acceptedSubject: acceptedPreview?.subject ?? `${item.title} 结果通知`,
+      rejectedSubject: rejectedPreview?.subject ?? `${item.title} 结果通知`,
+      acceptedPreviewHtml: acceptedPreview?.html ?? null,
+      rejectedPreviewHtml: rejectedPreview?.html ?? null,
     };
   }));
 }

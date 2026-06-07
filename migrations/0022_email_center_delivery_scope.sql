@@ -1,18 +1,18 @@
 alter table "email_batch"
-  add column "category" varchar(32) not null default 'result',
-  add column "name" varchar(255),
-  add column "metadata" jsonb;
+  add column if not exists "category" varchar(32) not null default 'result',
+  add column if not exists "name" varchar(255),
+  add column if not exists "metadata" jsonb;
 
 alter table "email_batch"
   alter column "accept" drop not null,
   alter column "fk_flow_id" drop not null;
 
 alter table "email_delivery"
-  add column "category" varchar(32) not null default 'result',
-  add column "template_key" varchar(80) not null default 'legacy',
-  add column "related_schedule_id" integer,
-  add column "created_by" integer,
-  add column "metadata" jsonb;
+  add column if not exists "category" varchar(32) not null default 'result',
+  add column if not exists "template_key" varchar(80) not null default 'legacy',
+  add column if not exists "related_schedule_id" integer,
+  add column if not exists "created_by" integer,
+  add column if not exists "metadata" jsonb;
 
 update "email_delivery"
 set "template_key" = "email_batch"."template_key"

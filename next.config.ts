@@ -13,7 +13,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryBuildPluginEnabled =
+  process.env.SENTRY_BUILD_PLUGIN === "true" ||
+  (process.env.CI === "true" && Boolean(process.env.SENTRY_AUTH_TOKEN));
+
+const sentryBuildConfig = {
   org: "sast-an",
   project: "sast-people",
   silent: true,
@@ -21,4 +25,8 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: {
     disable: true,
   },
-});
+};
+
+export default sentryBuildPluginEnabled
+  ? withSentryConfig(nextConfig, sentryBuildConfig)
+  : nextConfig;

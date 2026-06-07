@@ -188,9 +188,11 @@ export const emailDelivery = pgTable("email_delivery", {
   providerMessageId: varchar("provider_message_id", { length: 255 }),
   fkEmailBatchId: integer("fk_email_batch_id")
     .references(() => emailBatch.id, { onDelete: "cascade" }),
+  fkFlowId: integer("fk_flow_id")
+    .references(() => flow.id, { onDelete: "restrict" }),
   fkUserFlowId: integer("fk_user_flow_id")
     .references(() => userFlow.id, { onDelete: "set null" }),
-  fkUserId: integer("fk_user_id").notNull(),
+  fkUserId: integer("fk_user_id"),
   relatedScheduleId: integer("related_schedule_id"),
   createdBy: integer("created_by"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
@@ -200,7 +202,15 @@ export const emailDelivery = pgTable("email_delivery", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
-});
+}, (table) => ({
+  createdAtIdx: index("email_delivery_created_at_idx").on(table.createdAt),
+  filterIdx: index("email_delivery_filter_idx").on(
+    table.category,
+    table.templateKey,
+    table.status,
+  ),
+  flowIdIdx: index("email_delivery_fk_flow_id_idx").on(table.fkFlowId),
+}));
 
 export const emailTemplateSetting = pgTable("email_template_setting", {
   id: serial("id").primaryKey(),

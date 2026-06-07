@@ -1,14 +1,7 @@
 import "server-only";
 
-import {
-  assertEmailConfigured,
-  sendEmailDelivery,
-  sendRawEmail,
-} from "@/lib/email-center/delivery";
+import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { mqClient } from "./client";
-
-export { assertEmailConfigured, sendRawEmail };
-export const sendDelivery = sendEmailDelivery;
 
 export const sendEmail = mqClient.createFunction(
   {
