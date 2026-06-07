@@ -5,6 +5,7 @@ const rootDir = process.cwd();
 const sourceRoots = ["action", "app", "components", "lib", "queue"];
 const allowedFiles = new Set([
   path.normalize("lib/email-center/delivery.ts"),
+  path.normalize("lib/email-center/provider.ts"),
   path.normalize("lib/email/result-email.tsx"),
   path.normalize("lib/email/interview-schedule.tsx"),
 ]);

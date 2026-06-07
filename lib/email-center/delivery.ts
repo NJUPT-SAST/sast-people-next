@@ -3,13 +3,13 @@ import "server-only";
 import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery } from "@/db/schema";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import { sendEmailViaProvider } from "@/lib/email-center/provider";
 import type {
   CreateRenderedEmailDeliveryInput,
   CreateRenderedTestEmailDeliveryInput,
   EmailCategory,
 } from "@/lib/email-center/types";
 import { and, eq, inArray } from "drizzle-orm";
-import { createTransport } from "nodemailer";
 
 export type CreateEmailDeliveryInput = {
   category: EmailCategory;
@@ -25,61 +25,6 @@ export type CreateEmailDeliveryInput = {
   createdBy?: number | null;
   metadata?: Record<string, unknown>;
   sendImmediately?: boolean;
-};
-
-const transporter = createTransport({
-  host: "smtp.feishu.cn",
-  port: 465,
-  secure: true,
-  auth: {
-    user: "recruitment@sast.fun",
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
-
-const emailFrom = '"SAST People" <recruitment@sast.fun>';
-const DEFAULT_TEST_EMAIL_RECIPIENT = "b24150524@njupt.edu.cn";
-
-function getTestEmailRecipient() {
-  const value = process.env.EMAIL_TEST_RECIPIENT?.trim();
-  return value || DEFAULT_TEST_EMAIL_RECIPIENT;
-}
-
-function resolveEmailEnvelope(to: string, subject: string) {
-  if (process.env.NODE_ENV === "production") {
-    return { to, subject };
-  }
-
-  const testRecipient = getTestEmailRecipient();
-  return {
-    to: testRecipient,
-    subject: `[TEST to ${to}] ${subject}`,
-  };
-}
-
-export const assertEmailConfigured = () => {
-  if (!process.env.EMAIL_PASSWORD) {
-    throw new Error("邮件密码未配置，请先设置 EMAIL_PASSWORD。");
-  }
-};
-
-const sendSmtpEmail = async ({
-  to,
-  subject,
-  html,
-}: {
-  to: string;
-  subject: string;
-  html: string;
-}) => {
-  assertEmailConfigured();
-  const envelope = resolveEmailEnvelope(to, subject);
-  return transporter.sendMail({
-    from: emailFrom,
-    to: envelope.to,
-    subject: envelope.subject,
-    html,
-  });
 };
 
 export async function createEmailDelivery(input: CreateEmailDeliveryInput) {
@@ -212,7 +157,7 @@ export const sendEmailDelivery = async (deliveryId: number) => {
   }
 
   try {
-    const result = await sendSmtpEmail({
+    const result = await sendEmailViaProvider({
       to: delivery.toAddress,
       subject: delivery.subject,
       html: delivery.htmlSnapshot,

@@ -11,6 +11,7 @@ import { listEmailTemplateSettings } from "@/action/email/template";
 import { listEmailFlowTargets } from "@/action/email/workspace";
 import { EmailDashboardClient } from "@/components/email/emailDashboardClient";
 import { PageTitle } from "@/components/route";
+import { getEmailCenterConfigSummary } from "@/lib/email-center/config";
 import { emailTemplateDefinitions } from "@/lib/email-center/registry";
 import { logServerError } from "@/lib/server-error-log";
 import { MailCheck } from "lucide-react";
@@ -42,20 +43,7 @@ export default async function EmailDashboardPage({
     interviewScheduleTemplates,
     interviewSchedulePreviews,
   ] = data;
-  const smtpConfigured = Boolean(process.env.EMAIL_PASSWORD);
-  const emailCenterConfig = {
-    smtpConfigured,
-    smtpHost: "smtp.feishu.cn:465",
-    sender: "SAST People <recruitment@sast.fun>",
-    testRecipient:
-      process.env.EMAIL_TEST_RECIPIENT?.trim() || "b24150524@njupt.edu.cn",
-    queueStatus: smtpConfigured
-      ? process.env.NODE_ENV === "production"
-        ? "Inngest 邮件队列（生产）"
-        : "Inngest dev / 直发 fallback（开发）"
-      : "不可发送：EMAIL_PASSWORD 未配置",
-    realRecipientMode: process.env.NODE_ENV === "production",
-  };
+  const emailCenterConfig = getEmailCenterConfigSummary();
 
   return (
     <>
@@ -77,7 +65,7 @@ export default async function EmailDashboardPage({
               {emailCenterConfig.realRecipientMode ? "生产真实收件人" : "本地测试重定向"}
             </span>
             <span className="rounded-md border bg-card px-2.5 py-1 text-muted-foreground">
-              SMTP {smtpConfigured ? "已配置" : "未配置"}
+              SMTP {emailCenterConfig.smtpConfigured ? "已配置" : "未配置"}
             </span>
           </div>
         </div>
