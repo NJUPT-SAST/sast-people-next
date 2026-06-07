@@ -6,6 +6,7 @@ const mockOffer = jest.fn();
 const mockSyncUserRoleFromAcceptedFlows = jest.fn();
 const mockAssertEmailConfigured = jest.fn();
 const mockSendEmailDelivery = jest.fn();
+const mockListPeopleUsersByLinkIds = jest.fn();
 
 type QueryPromise<T> = Promise<T> & {
   limit: jest.Mock;
@@ -33,6 +34,11 @@ const mockDb = {
       })),
     };
   }),
+  insert: jest.fn(() => ({
+    values: jest.fn(() => ({
+      returning: jest.fn(() => Promise.resolve([{ id: 1 }])),
+    })),
+  })),
   update: jest.fn(() => ({
     set: jest.fn((values: unknown) => {
       mockUpdateSetCalls.push(values);
@@ -72,14 +78,15 @@ jest.mock("@/lib/email-center/provider", () => ({
 }));
 
 jest.mock("@/lib/link/user-lookup", () => ({
-  listPeopleUsersByLinkIds: jest.fn(),
+  listPeopleUsersByLinkIds: mockListPeopleUsersByLinkIds,
 }));
 
 let sendEmailBatchById: typeof import("@/lib/email-center/batch").sendEmailBatchById;
+let createResultEmailBatch: typeof import("@/lib/email-center/batch").createResultEmailBatch;
 
-describe("sendEmailBatchById", () => {
+describe("email batch service", () => {
   beforeAll(async () => {
-    ({ sendEmailBatchById } = await import("@/lib/email-center/batch"));
+    ({ createResultEmailBatch, sendEmailBatchById } = await import("@/lib/email-center/batch"));
   });
 
   beforeEach(() => {
@@ -87,6 +94,39 @@ describe("sendEmailBatchById", () => {
     mockUpdateSetCalls.length = 0;
     jest.clearAllMocks();
     mockAssertEmailConfigured.mockReturnValue(undefined);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(new Map());
+  });
+
+  it("rejects result batch creation before inserting when recipients miss student ids", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 201,
+        userId: 301,
+        flowName: "2026 春季招新",
+      },
+      {
+        userFlowId: 202,
+        userId: 302,
+        flowName: "2026 春季招新",
+      },
+    ]);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([
+        [301, { id: 301, name: "Alice", studentId: "B001" }],
+        [302, { id: 302, name: "Bob", studentId: null }],
+      ]),
+    );
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [301, 302],
+        flowId: 7,
+        accept: true,
+        createdBy: 99,
+      }),
+    ).rejects.toThrow("Bob");
+
+    expect(mockDb.insert).not.toHaveBeenCalled();
   });
 
   it("recovers stale sending deliveries before queueing a batch", async () => {

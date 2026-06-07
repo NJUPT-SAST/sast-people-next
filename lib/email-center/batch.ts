@@ -57,6 +57,24 @@ export async function createResultEmailBatch({
   const userMap = await listPeopleUsersByLinkIds(
     targets.map((item) => item.userId),
   );
+  const missingStudentIdRecipients = targets
+    .map((item) => {
+      const targetUser = userMap.get(item.userId);
+      return {
+        name: targetUser?.name ?? `Link 用户 #${item.userId}`,
+        studentId: targetUser?.studentId ?? null,
+      };
+    })
+    .filter((item) => !item.studentId?.trim());
+
+  if (missingStudentIdRecipients.length > 0) {
+    throw new Error(
+      `以下同学缺少学号，无法生成教育邮箱：${missingStudentIdRecipients
+        .map((item) => item.name)
+        .join("、")}`,
+    );
+  }
+
   const templateKey = getResultEmailTemplateKey(accept);
   const templateSetting = await getEmailTemplateSetting(templateKey);
   const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
