@@ -9,7 +9,7 @@ import type {
   CreateRenderedTestEmailDeliveryInput,
   EmailCategory,
 } from "@/lib/email-center/types";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 export type CreateEmailDeliveryInput = {
   category: EmailCategory;
@@ -121,6 +121,7 @@ export const sendEmailDelivery = async (deliveryId: number) => {
     throw new Error("邮件正在发送中，请稍后刷新状态或恢复中断任务。");
   }
 
+  const attemptAt = new Date();
   const [claimedDelivery] = await db
     .update(emailDelivery)
     .set({
@@ -128,7 +129,9 @@ export const sendEmailDelivery = async (deliveryId: number) => {
       errorMessage: null,
       providerMessageId: null,
       sentAt: null,
-      updatedAt: new Date(),
+      attemptCount: sql`${emailDelivery.attemptCount} + 1`,
+      lastAttemptAt: attemptAt,
+      updatedAt: attemptAt,
     })
     .where(
       and(

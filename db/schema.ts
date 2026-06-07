@@ -186,6 +186,8 @@ export const emailDelivery = pgTable("email_delivery", {
   status: emailDeliveryStatusEnum("status").notNull().default("pending"),
   errorMessage: text("error_message"),
   providerMessageId: varchar("provider_message_id", { length: 255 }),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at"),
   fkEmailBatchId: integer("fk_email_batch_id")
     .references(() => emailBatch.id, { onDelete: "cascade" }),
   fkFlowId: integer("fk_flow_id")
@@ -210,6 +212,10 @@ export const emailDelivery = pgTable("email_delivery", {
     table.status,
   ),
   flowIdIdx: index("email_delivery_fk_flow_id_idx").on(table.fkFlowId),
+  attemptStatusIdx: index("email_delivery_attempt_status_idx").on(
+    table.status,
+    table.lastAttemptAt,
+  ),
 }));
 
 export const emailTemplateSetting = pgTable("email_template_setting", {

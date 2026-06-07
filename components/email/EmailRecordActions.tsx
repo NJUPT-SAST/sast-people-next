@@ -157,6 +157,18 @@ function EmailDeliveryDetailDialog({
             <DetailItem label="创建人" value={delivery.createdByName} />
             <DetailItem label="创建时间" value={formatDate(delivery.createdAt)} />
             <DetailItem label="发送时间" value={formatDate(delivery.sentAt)} />
+            <DetailItem
+              label="尝试次数"
+              value={
+                delivery.attemptCount > 0
+                  ? `${delivery.attemptCount} 次`
+                  : "-"
+              }
+            />
+            <DetailItem
+              label="最近尝试"
+              value={formatDate(delivery.lastAttemptAt)}
+            />
             <DetailItem label="投递记录" value={`#${delivery.id}`} mono />
           </div>
         </section>

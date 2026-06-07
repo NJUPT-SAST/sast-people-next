@@ -332,6 +332,11 @@ export function EmailRecordsSection({
                   <p className="mt-1 truncate text-xs text-muted-foreground">
                     发送 {formatDate(delivery.sentAt)}
                   </p>
+                  {delivery.attemptCount > 0 && (
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      最近尝试 {formatDate(delivery.lastAttemptAt)}
+                    </p>
+                  )}
                 </RecordInfo>
 
                 <div className="flex flex-col gap-3 xl:items-end">

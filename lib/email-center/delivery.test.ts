@@ -63,6 +63,8 @@ const pendingDelivery = {
   status: "pending",
   errorMessage: null,
   providerMessageId: null,
+  attemptCount: 0,
+  lastAttemptAt: null,
   fkEmailBatchId: null,
   fkFlowId: 7,
   fkUserFlowId: 11,
@@ -128,6 +130,8 @@ describe("sendEmailDelivery", () => {
           errorMessage: null,
           providerMessageId: null,
           sentAt: null,
+          attemptCount: expect.anything(),
+          lastAttemptAt: expect.any(Date),
         }),
         expect.objectContaining({
           status: "sent",

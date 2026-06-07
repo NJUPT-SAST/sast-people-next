@@ -72,4 +72,21 @@ describe("email center source constraints", () => {
       expect(migration).toContain(indexName);
     }
   });
+
+  it("keeps email delivery attempt tracking declared in schema and migration", () => {
+    const schema = readFileSync(path.join(rootDir, "db/schema.ts"), "utf8");
+    const migration = readFileSync(
+      path.join(rootDir, "migrations/0024_email_delivery_attempt_tracking.sql"),
+      "utf8",
+    );
+
+    for (const fieldName of ["attemptCount", "lastAttemptAt"]) {
+      expect(schema).toContain(fieldName);
+    }
+    for (const columnName of ["attempt_count", "last_attempt_at"]) {
+      expect(migration).toContain(columnName);
+    }
+    expect(schema).toContain("email_delivery_attempt_status_idx");
+    expect(migration).toContain("email_delivery_attempt_status_idx");
+  });
 });

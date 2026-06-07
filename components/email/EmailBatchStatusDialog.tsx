@@ -95,6 +95,12 @@ export function EmailBatchStatusDialog({ batch }: { batch: EmailBatch }) {
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
+                <span className="text-muted-foreground">尝试次数</span>
+                <span className="text-right tabular-nums">
+                  {delivery.attemptCount > 0
+                    ? `${delivery.attemptCount} 次`
+                    : "-"}
+                </span>
                 <span className="text-muted-foreground">发送时间</span>
                 <span className="text-right tabular-nums">
                   {formatDate(delivery.sentAt)}
@@ -124,11 +130,12 @@ export function EmailBatchStatusDialog({ batch }: { batch: EmailBatch }) {
           <Table className="table-fixed" containerClassName="overflow-visible">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[18%]">姓名</TableHead>
-                <TableHead className="w-[30%]">收件地址</TableHead>
-                <TableHead className="w-[12%]">状态</TableHead>
-                <TableHead className="w-[18%]">发送时间</TableHead>
-                <TableHead className="w-[22%]">失败原因</TableHead>
+                <TableHead className="w-[16%]">姓名</TableHead>
+                <TableHead className="w-[28%]">收件地址</TableHead>
+                <TableHead className="w-[10%]">状态</TableHead>
+                <TableHead className="w-[9%]">尝试</TableHead>
+                <TableHead className="w-[17%]">发送时间</TableHead>
+                <TableHead className="w-[20%]">失败原因</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -142,6 +149,11 @@ export function EmailBatchStatusDialog({ batch }: { batch: EmailBatch }) {
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {renderDeliveryStatus(delivery.status)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    {delivery.attemptCount > 0
+                      ? `${delivery.attemptCount} 次`
+                      : "-"}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     {formatDate(delivery.sentAt)}

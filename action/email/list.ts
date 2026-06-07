@@ -175,6 +175,8 @@ export async function listEmailBatches() {
       subject: emailDelivery.subject,
       status: emailDelivery.status,
       errorMessage: emailDelivery.errorMessage,
+      attemptCount: emailDelivery.attemptCount,
+      lastAttemptAt: emailDelivery.lastAttemptAt,
       sentAt: emailDelivery.sentAt,
       htmlSnapshot: emailDelivery.htmlSnapshot,
     })
@@ -247,6 +249,8 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
       toAddress: emailDelivery.toAddress,
       status: emailDelivery.status,
       errorMessage: emailDelivery.errorMessage,
+      attemptCount: emailDelivery.attemptCount,
+      lastAttemptAt: emailDelivery.lastAttemptAt,
       sentAt: emailDelivery.sentAt,
       createdAt: emailDelivery.createdAt,
       htmlSnapshot: emailDelivery.htmlSnapshot,
