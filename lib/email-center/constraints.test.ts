@@ -37,6 +37,33 @@ function listSourceFiles(directory: string): string[] {
   });
 }
 
+function isMigrationJournalEntry(value: unknown): value is { tag: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "tag" in value &&
+    typeof value.tag === "string"
+  );
+}
+
+function readMigrationJournalTags() {
+  const journal: unknown = JSON.parse(
+    readFileSync(path.join(rootDir, "migrations/meta/_journal.json"), "utf8"),
+  );
+
+  if (
+    typeof journal !== "object" ||
+    journal === null ||
+    !("entries" in journal) ||
+    !Array.isArray(journal.entries) ||
+    !journal.entries.every(isMigrationJournalEntry)
+  ) {
+    throw new Error("Invalid Drizzle migration journal format");
+  }
+
+  return journal.entries.map((entry) => entry.tag);
+}
+
 describe("email center source constraints", () => {
   it("keeps direct email sending and React Email render calls inside email center boundaries", () => {
     const violations = sourceRoots
@@ -54,6 +81,15 @@ describe("email center source constraints", () => {
       });
 
     expect(violations).toEqual([]);
+  });
+
+  it("registers every SQL migration in the Drizzle journal", () => {
+    const migrationTags = readdirSync(path.join(rootDir, "migrations"))
+      .filter((fileName) => fileName.endsWith(".sql"))
+      .map((fileName) => fileName.replace(/\.sql$/, ""))
+      .sort();
+
+    expect(readMigrationJournalTags().sort()).toEqual(migrationTags);
   });
 
   it("keeps delivery filter indexes declared in schema and migration", () => {
