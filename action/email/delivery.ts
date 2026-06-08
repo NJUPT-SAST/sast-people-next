@@ -33,7 +33,10 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
       return { messageId: null, skipped: true };
     }
 
-    const result = await sendEmailDelivery(delivery.id);
+    const result = await sendEmailDelivery(delivery.id, {
+      trigger: "manual_retry",
+      triggeredBy: session.uid,
+    });
 
     await writeOperationAudit({
       actorId: session.uid,

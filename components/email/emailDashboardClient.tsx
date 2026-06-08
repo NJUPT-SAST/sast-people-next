@@ -33,7 +33,6 @@ import type {
   EmailBatch,
   EmailCenterConfig,
   EmailDeliveryPage,
-  EmailDeliveryRecord,
   EmailTemplateDefinition,
   FlowTarget,
   InterviewSchedulePreviews,
@@ -116,7 +115,6 @@ function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
 
 export function EmailDashboardClient({
   batches,
-  deliveries,
   recordDeliveryPage,
   flowTargets,
   templateSettings,
@@ -127,7 +125,6 @@ export function EmailDashboardClient({
   activeTab,
 }: {
   batches: EmailBatch[];
-  deliveries: EmailDeliveryRecord[];
   recordDeliveryPage: EmailDeliveryPage;
   flowTargets: FlowTarget[];
   templateSettings: TemplateSetting[];
@@ -140,8 +137,11 @@ export function EmailDashboardClient({
   const router = useRouter();
   const safeBatches = useMemo(() => (Array.isArray(batches) ? batches : []), [batches]);
   const safeDeliveries = useMemo(
-    () => (Array.isArray(deliveries) ? deliveries : []),
-    [deliveries],
+    () =>
+      Array.isArray(recordDeliveryPage.deliveries)
+        ? recordDeliveryPage.deliveries
+        : [],
+    [recordDeliveryPage.deliveries],
   );
   const safeFlowTargets = useMemo(
     () => (Array.isArray(flowTargets) ? flowTargets : []),
@@ -171,6 +171,22 @@ export function EmailDashboardClient({
       ),
     [safeBatches, safeDeliveries],
   );
+  const activeEmailWorkKey = useMemo(() => {
+    const batchKey = safeBatches
+      .map((batch) => {
+        const deliveryKey = Array.isArray(batch.deliveries)
+          ? batch.deliveries
+              .map((delivery) => `${delivery.id}:${delivery.status}:${delivery.attemptCount}`)
+              .join("|")
+          : "";
+        return `${batch.id}:${batch.status}:${batch.counts.pending}:${batch.counts.sending}:${deliveryKey}`;
+      })
+      .join(";");
+    const deliveryKey = safeDeliveries
+      .map((delivery) => `${delivery.id}:${delivery.status}:${delivery.attemptCount}`)
+      .join(";");
+    return `${batchKey}::${deliveryKey}`;
+  }, [safeBatches, safeDeliveries]);
   const filteredFlows = useMemo(() => {
     const query = flowQuery.trim().toLowerCase();
     if (!query) return safeFlowTargets;
@@ -188,12 +204,17 @@ export function EmailDashboardClient({
   }, [filteredFlows, flowQuery, safeFlowTargets, selectedFlowId]);
 
   useEffect(() => {
+    refreshAttemptsRef.current = 0;
+  }, [activeEmailWorkKey]);
+
+  useEffect(() => {
     if (!hasActiveEmailWork) {
       refreshAttemptsRef.current = 0;
       return;
     }
 
     const timer = window.setInterval(() => {
+      if (document.hidden) return;
       if (refreshAttemptsRef.current >= EMAIL_REFRESH_MAX_ATTEMPTS) {
         window.clearInterval(timer);
         return;
@@ -203,6 +224,21 @@ export function EmailDashboardClient({
     }, EMAIL_REFRESH_INTERVAL_MS);
 
     return () => window.clearInterval(timer);
+  }, [hasActiveEmailWork, router]);
+
+  useEffect(() => {
+    if (!hasActiveEmailWork) return;
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshAttemptsRef.current = 0;
+        router.refresh();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [hasActiveEmailWork, router]);
 
   let content;

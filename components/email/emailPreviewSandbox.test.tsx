@@ -48,6 +48,7 @@ const delivery: EmailDeliveryRecord = {
   userName: "张三",
   studentId: "B001",
   createdByName: "管理员",
+  attempts: [],
 };
 
 describe("email preview iframes", () => {

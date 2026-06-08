@@ -304,7 +304,9 @@ describe("email batch service", () => {
 
     await expect(sendEmailBatchById(9)).resolves.toEqual({ queuedCount: 1 });
 
-    expect(mockSendEmailDelivery).toHaveBeenCalledWith(103);
+    expect(mockSendEmailDelivery).toHaveBeenCalledWith(103, {
+      trigger: "batch_fallback",
+    });
     expect(mockUpdateSetCalls).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({

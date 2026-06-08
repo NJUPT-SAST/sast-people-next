@@ -1,6 +1,5 @@
 import {
   listEmailBatches,
-  listEmailDeliveries,
   listEmailDeliveryPage,
 } from "@/action/email/list";
 import {
@@ -36,7 +35,6 @@ export default async function EmailDashboardPage({
 
   const [
     batches,
-    deliveries,
     recordDeliveryPage,
     flowTargets,
     templateSettings,
@@ -74,7 +72,6 @@ export default async function EmailDashboardPage({
       <div className="mt-5">
         <EmailDashboardClient
           batches={batches}
-          deliveries={deliveries}
           recordDeliveryPage={recordDeliveryPage}
           flowTargets={flowTargets}
           templateSettings={templateSettings}
@@ -100,19 +97,24 @@ function getSearchParam(
 async function loadEmailDashboardData(
   searchParams: Record<string, string | string[] | undefined>,
 ) {
+  const activeTab = getSearchParam(searchParams, "tab");
+  const isRecordsTab = activeTab === "records";
+
   return Promise.all([
     listEmailBatches(),
-    listEmailDeliveries(),
     listEmailDeliveryPage({
-      page: getSearchParam(searchParams, "page"),
-      category: getSearchParam(searchParams, "category"),
-      status: getSearchParam(searchParams, "status"),
-      templateKey: getSearchParam(searchParams, "templateKey"),
-      flowId: getSearchParam(searchParams, "flowId"),
-      creatorId: getSearchParam(searchParams, "creatorId"),
-      from: getSearchParam(searchParams, "from"),
-      to: getSearchParam(searchParams, "to"),
-      query: getSearchParam(searchParams, "query"),
+      page: isRecordsTab ? getSearchParam(searchParams, "page") : 1,
+      pageSize: isRecordsTab ? getSearchParam(searchParams, "pageSize") : 50,
+      category: isRecordsTab ? getSearchParam(searchParams, "category") : "",
+      status: isRecordsTab ? getSearchParam(searchParams, "status") : "",
+      templateKey: isRecordsTab
+        ? getSearchParam(searchParams, "templateKey")
+        : "",
+      flowId: isRecordsTab ? getSearchParam(searchParams, "flowId") : "",
+      creatorId: isRecordsTab ? getSearchParam(searchParams, "creatorId") : "",
+      from: isRecordsTab ? getSearchParam(searchParams, "from") : "",
+      to: isRecordsTab ? getSearchParam(searchParams, "to") : "",
+      query: isRecordsTab ? getSearchParam(searchParams, "query") : "",
     }),
     listEmailFlowTargets(),
     listEmailTemplateSettings(),

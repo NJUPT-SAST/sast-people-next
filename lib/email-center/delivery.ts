@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery } from "@/db/schema";
+import { emailBatch, emailDelivery, emailDeliveryAttempt } from "@/db/schema";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import { sendEmailViaProvider } from "@/lib/email-center/provider";
 import type {
@@ -10,6 +10,20 @@ import type {
   EmailCategory,
 } from "@/lib/email-center/types";
 import { and, eq, inArray, sql } from "drizzle-orm";
+
+export type SendEmailDeliveryTrigger =
+  | "queue"
+  | "manual_retry"
+  | "batch_fallback"
+  | "test"
+  | "interview_immediate"
+  | "immediate"
+  | "unknown";
+
+export type SendEmailDeliveryOptions = {
+  trigger?: SendEmailDeliveryTrigger;
+  triggeredBy?: number | null;
+};
 
 export type CreateEmailDeliveryInput = {
   category: EmailCategory;
@@ -48,11 +62,26 @@ export async function createEmailDelivery(input: CreateEmailDeliveryInput) {
 
   let messageId: string | null = null;
   if (input.sendImmediately) {
-    const result = await sendEmailDelivery(delivery.id);
+    const result = await sendEmailDelivery(delivery.id, {
+      trigger: getImmediateDeliveryTrigger(input.category),
+      triggeredBy: input.createdBy ?? null,
+    });
     messageId = result.messageId;
   }
 
   return { deliveryId: delivery.id, messageId };
+}
+
+function getImmediateDeliveryTrigger(
+  category: EmailCategory,
+): SendEmailDeliveryTrigger {
+  if (category === "test") return "test";
+  if (category === "interview") return "interview_immediate";
+  return "immediate";
+}
+
+function getAttemptDurationMs(startedAt: Date, finishedAt: Date) {
+  return Math.max(0, finishedAt.getTime() - startedAt.getTime());
 }
 
 export async function createRenderedEmailDelivery(
@@ -103,7 +132,10 @@ export async function createRenderedTestEmailDelivery(
   });
 }
 
-export const sendEmailDelivery = async (deliveryId: number) => {
+export const sendEmailDelivery = async (
+  deliveryId: number,
+  options: SendEmailDeliveryOptions = {},
+) => {
   const [delivery] = await db
     .select()
     .from(emailDelivery)
@@ -122,26 +154,44 @@ export const sendEmailDelivery = async (deliveryId: number) => {
   }
 
   const attemptAt = new Date();
-  const [claimedDelivery] = await db
-    .update(emailDelivery)
-    .set({
-      status: "sending",
-      errorMessage: null,
-      providerMessageId: null,
-      sentAt: null,
-      attemptCount: sql`${emailDelivery.attemptCount} + 1`,
-      lastAttemptAt: attemptAt,
-      updatedAt: attemptAt,
-    })
-    .where(
-      and(
-        eq(emailDelivery.id, deliveryId),
-        inArray(emailDelivery.status, ["pending", "failed"]),
-      ),
-    )
-    .returning({
-      id: emailDelivery.id,
-    });
+  const claimedDelivery = await db.transaction(async (tx) => {
+    const [claimed] = await tx
+      .update(emailDelivery)
+      .set({
+        status: "sending",
+        errorMessage: null,
+        providerMessageId: null,
+        sentAt: null,
+        attemptCount: sql`${emailDelivery.attemptCount} + 1`,
+        lastAttemptAt: attemptAt,
+        updatedAt: attemptAt,
+      })
+      .where(
+        and(
+          eq(emailDelivery.id, deliveryId),
+          inArray(emailDelivery.status, ["pending", "failed"]),
+        ),
+      )
+      .returning({
+        id: emailDelivery.id,
+      });
+
+    if (!claimed) return null;
+
+    const [attempt] = await tx
+      .insert(emailDeliveryAttempt)
+      .values({
+        fkEmailDeliveryId: deliveryId,
+        trigger: options.trigger ?? "unknown",
+        provider: "smtp",
+        status: "sending",
+        triggeredBy: options.triggeredBy ?? null,
+        startedAt: attemptAt,
+      })
+      .returning({ id: emailDeliveryAttempt.id });
+
+    return { deliveryId: claimed.id, attemptId: attempt.id };
+  });
 
   if (!claimedDelivery) {
     const [latestDelivery] = await db
@@ -165,27 +215,53 @@ export const sendEmailDelivery = async (deliveryId: number) => {
       subject: delivery.subject,
       html: delivery.htmlSnapshot,
     });
-    await db
-      .update(emailDelivery)
-      .set({
-        status: "sent",
-        providerMessageId: result.messageId ?? null,
-        sentAt: new Date(),
-        errorMessage: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(emailDelivery.id, deliveryId));
+    const finishedAt = new Date();
+    await db.transaction(async (tx) => {
+      await tx
+        .update(emailDelivery)
+        .set({
+          status: "sent",
+          providerMessageId: result.messageId ?? null,
+          sentAt: finishedAt,
+          errorMessage: null,
+          updatedAt: finishedAt,
+        })
+        .where(eq(emailDelivery.id, deliveryId));
+      await tx
+        .update(emailDeliveryAttempt)
+        .set({
+          status: "sent",
+          providerMessageId: result.messageId ?? null,
+          errorMessage: null,
+          finishedAt,
+          durationMs: getAttemptDurationMs(attemptAt, finishedAt),
+        })
+        .where(eq(emailDeliveryAttempt.id, claimedDelivery.attemptId));
+    });
     await refreshBatchStatus(delivery.fkEmailBatchId);
     return { messageId: result.messageId ?? null };
   } catch (error) {
-    await db
-      .update(emailDelivery)
-      .set({
-        status: "failed",
-        errorMessage: error instanceof Error ? error.message : String(error),
-        updatedAt: new Date(),
-      })
-      .where(eq(emailDelivery.id, deliveryId));
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const finishedAt = new Date();
+    await db.transaction(async (tx) => {
+      await tx
+        .update(emailDelivery)
+        .set({
+          status: "failed",
+          errorMessage,
+          updatedAt: finishedAt,
+        })
+        .where(eq(emailDelivery.id, deliveryId));
+      await tx
+        .update(emailDeliveryAttempt)
+        .set({
+          status: "failed",
+          errorMessage,
+          finishedAt,
+          durationMs: getAttemptDurationMs(attemptAt, finishedAt),
+        })
+        .where(eq(emailDeliveryAttempt.id, claimedDelivery.attemptId));
+    });
     await refreshBatchStatus(delivery.fkEmailBatchId);
     throw error;
   }

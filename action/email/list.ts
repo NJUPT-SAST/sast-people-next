@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow } from "@/db/schema";
+import { emailBatch, emailDelivery, emailDeliveryAttempt, flow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import {
@@ -21,6 +21,7 @@ const DEFAULT_DELIVERY_PAGE_SIZE = 20;
 const MAX_DELIVERY_PAGE_SIZE = 50;
 const deliveryStatuses = ["pending", "sending", "sent", "failed"] as const;
 type DeliveryStatus = (typeof deliveryStatuses)[number];
+const MAX_DELIVERY_ATTEMPTS_PER_RECORD = 5;
 
 export type EmailDeliveryListParams = {
   page?: string | number;
@@ -136,6 +137,34 @@ function buildEmailDeliveryWhereConditions({
   }
 
   return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+function groupRecentAttemptsByDelivery(
+  attempts: Array<{
+    id: number;
+    deliveryId: number;
+    trigger: string;
+    provider: string;
+    status: string;
+    providerMessageId: string | null;
+    errorMessage: string | null;
+    triggeredBy: number | null;
+    startedAt: Date;
+    finishedAt: Date | null;
+    durationMs: number | null;
+  }>,
+) {
+  const attemptMap = new Map<number, typeof attempts>();
+
+  for (const attempt of attempts) {
+    const deliveryAttempts = attemptMap.get(attempt.deliveryId) ?? [];
+    if (deliveryAttempts.length < MAX_DELIVERY_ATTEMPTS_PER_RECORD) {
+      deliveryAttempts.push(attempt);
+      attemptMap.set(attempt.deliveryId, deliveryAttempts);
+    }
+  }
+
+  return attemptMap;
 }
 
 export async function listEmailBatches() {
@@ -288,10 +317,29 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
       .map((delivery) => delivery.createdById)
       .filter((id): id is number => id !== null),
   ]);
+  const attempts = await db
+    .select({
+      id: emailDeliveryAttempt.id,
+      deliveryId: emailDeliveryAttempt.fkEmailDeliveryId,
+      trigger: emailDeliveryAttempt.trigger,
+      provider: emailDeliveryAttempt.provider,
+      status: emailDeliveryAttempt.status,
+      providerMessageId: emailDeliveryAttempt.providerMessageId,
+      errorMessage: emailDeliveryAttempt.errorMessage,
+      triggeredBy: emailDeliveryAttempt.triggeredBy,
+      startedAt: emailDeliveryAttempt.startedAt,
+      finishedAt: emailDeliveryAttempt.finishedAt,
+      durationMs: emailDeliveryAttempt.durationMs,
+    })
+    .from(emailDeliveryAttempt)
+    .where(inArray(emailDeliveryAttempt.fkEmailDeliveryId, deliveries.map((delivery) => delivery.id)))
+    .orderBy(desc(emailDeliveryAttempt.startedAt));
+  const attemptMap = groupRecentAttemptsByDelivery(attempts);
 
   return {
     deliveries: deliveries.map((delivery) => ({
       ...delivery,
+      attempts: attemptMap.get(delivery.id) ?? [],
       userName: delivery.userId
         ? userMap.get(delivery.userId)?.name ?? "未知用户"
         : "外部/测试收件人",

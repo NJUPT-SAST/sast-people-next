@@ -20,6 +20,7 @@ const EMAIL_SERVICE_UNAVAILABLE =
   "邮件发送服务未启动或未配置，请检查 Inngest 邮件队列和 EMAIL_PASSWORD。";
 const STALE_SENDING_DELIVERY_MINUTES = 10;
 const STALE_SENDING_DELIVERY_MESSAGE = "发送任务可能已中断，请确认后重试。";
+const BATCH_SEND_CONCURRENCY = 5;
 
 export type CreateResultEmailBatchInput = {
   userIds: number[];
@@ -27,6 +28,25 @@ export type CreateResultEmailBatchInput = {
   accept: boolean;
   createdBy: number;
 };
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+) {
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const item = items[nextIndex];
+        nextIndex += 1;
+        await worker(item);
+      }
+    }),
+  );
+}
 
 export async function createResultEmailBatch({
   userIds,
@@ -216,8 +236,10 @@ export async function sendEmailBatchById(batchId: number) {
   );
 
   try {
-    await Promise.all(
-      queueableDeliveries.map(async (item) => {
+    await runWithConcurrency(
+      queueableDeliveries,
+      BATCH_SEND_CONCURRENCY,
+      async (item) => {
         try {
           await event.offer(item.id);
         } catch (_error) {
@@ -235,9 +257,9 @@ export async function sendEmailBatchById(batchId: number) {
             throw new Error(EMAIL_SERVICE_UNAVAILABLE);
           }
 
-          await sendEmailDelivery(item.id);
+          await sendEmailDelivery(item.id, { trigger: "batch_fallback" });
         }
-      }),
+      },
     );
   } catch (error) {
     await db
