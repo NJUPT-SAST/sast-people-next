@@ -311,7 +311,7 @@ export function DataTable<TData, TValue>({
                     key={row.id}
                     id={
                       isTargetRow(row)
-                        ? `user-flow-${targetUserFlowId}`
+                        ? `user-flow-${targetUserFlowId}-desktop`
                         : undefined
                     }
                     data-state={row.getIsSelected() && 'selected'}
@@ -369,7 +369,9 @@ export function DataTable<TData, TValue>({
                 <div
                   key={row.id}
                   id={
-                    isTargetRow(row) ? `user-flow-${targetUserFlowId}` : undefined
+                    isTargetRow(row)
+                      ? `user-flow-${targetUserFlowId}-mobile`
+                      : undefined
                   }
                   className={
                     isTargetRow(row)

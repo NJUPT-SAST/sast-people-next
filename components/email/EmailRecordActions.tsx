@@ -216,6 +216,7 @@ function EmailDeliveryDetailDialog({
           <iframe
             title={`${delivery.subject} 邮件正文`}
             srcDoc={delivery.htmlSnapshot}
+            sandbox=""
             className="mt-3 h-[60vh] w-full rounded-md border bg-background"
           />
         </section>

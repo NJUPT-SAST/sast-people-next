@@ -25,6 +25,7 @@ jest.mock("sonner", () => ({
 describe("Recruitment DataTable", () => {
   type RecruitmentRow = {
     uid: number;
+    userFlowId?: number;
     stepId: number;
     name: string;
     totalScore: string;
@@ -164,5 +165,30 @@ describe("Recruitment DataTable", () => {
     );
 
     expect(screen.queryByRole("button", { name: /邮件/ })).not.toBeInTheDocument();
+  });
+
+  it("uses distinct target ids for desktop and mobile render paths", () => {
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        targetUserFlowId={42}
+        data={[
+          {
+            uid: 1,
+            userFlowId: 42,
+            stepId: 3,
+            name: "张三",
+            totalScore: "90",
+            status: "passed",
+          },
+        ]}
+      />,
+    );
+
+    expect(document.getElementById("user-flow-42-desktop")).toBeInTheDocument();
+    expect(document.getElementById("user-flow-42-mobile")).toBeInTheDocument();
+    expect(document.getElementById("user-flow-42")).not.toBeInTheDocument();
   });
 });
