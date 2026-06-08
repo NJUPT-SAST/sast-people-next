@@ -20,6 +20,10 @@ const originalEnv = Object.fromEntries(
   ["NODE_ENV", ...envKeys].map((key) => [key, process.env[key]]),
 ) as Record<(typeof envKeys)[number] | "NODE_ENV", string | undefined>;
 
+function setNodeEnv(value: string) {
+  Object.assign(process.env, { NODE_ENV: value });
+}
+
 function restoreOriginalEnv() {
   for (const [key, value] of Object.entries(originalEnv)) {
     if (value === undefined) {
@@ -35,7 +39,7 @@ describe("email center config", () => {
     for (const key of envKeys) {
       delete process.env[key];
     }
-    process.env.NODE_ENV = "test";
+    setNodeEnv("test");
   });
 
   afterAll(() => {
@@ -93,7 +97,7 @@ describe("email center config", () => {
   });
 
   it("keeps the real recipient in production", () => {
-    process.env.NODE_ENV = "production";
+    setNodeEnv("production");
 
     expect(resolveEmailEnvelope("candidate@njupt.edu.cn", "结果通知")).toEqual({
       to: "candidate@njupt.edu.cn",

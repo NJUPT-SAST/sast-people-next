@@ -10,8 +10,9 @@ import {
   getResultEmailTemplateKey,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
-import { createRenderedEmailDelivery, sendEmailDelivery } from "@/lib/email-center/delivery";
 import { assertEmailConfigured } from "@/lib/email-center/provider";
+import { renderEmailTemplate } from "@/lib/email-center/render";
+import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 
@@ -79,35 +80,12 @@ export async function createResultEmailBatch({
   const templateSetting = await getEmailTemplateSetting(templateKey);
   const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
 
-  const [batch] = await db
-    .insert(emailBatch)
-    .values({
-      templateKey,
-      category: "result",
-      name: `${targets[0].flowName} ${accept ? "通过" : "不通过"}通知`,
-      subject,
-      accept,
-      status: "draft",
-      totalCount: targets.length,
-      fkFlowId: flowId,
-      fkCreatedBy: createdBy,
-      metadata: { accept },
-    })
-    .returning({ id: emailBatch.id });
-
-  const deliveries = await Promise.all(
+  const deliveryDrafts = await Promise.all(
     targets.map(async (item) => {
       const targetUser = userMap.get(item.userId);
       const toAddress = getEducationEmail(targetUser?.studentId);
-      const delivery = await createRenderedEmailDelivery({
+      const rendered = await renderEmailTemplate({
         templateKey,
-        toAddress,
-        flowId,
-        batchId: batch.id,
-        userFlowId: item.userFlowId,
-        recipientUserId: item.userId,
-        createdBy,
-        metadata: { accept, flowId },
         variables: {
           name: targetUser?.name ?? "同学",
           flowName: item.flowName,
@@ -115,11 +93,54 @@ export async function createResultEmailBatch({
         },
       });
 
-      return { id: delivery.deliveryId };
+      return {
+        item,
+        toAddress,
+        rendered,
+      };
     }),
   );
 
-  return { batchId: batch.id, deliveryCount: deliveries.length };
+  return db.transaction(async (tx) => {
+    const [batch] = await tx
+      .insert(emailBatch)
+      .values({
+        templateKey,
+        category: "result",
+        name: `${targets[0].flowName} ${accept ? "通过" : "不通过"}通知`,
+        subject,
+        accept,
+        status: "draft",
+        totalCount: targets.length,
+        fkFlowId: flowId,
+        fkCreatedBy: createdBy,
+        metadata: { accept },
+      })
+      .returning({ id: emailBatch.id });
+
+    let deliveryCount = 0;
+    for (const { item, rendered, toAddress } of deliveryDrafts) {
+      await tx
+        .insert(emailDelivery)
+        .values({
+          category: "result",
+          templateKey,
+          toAddress,
+          subject: rendered.subject,
+          htmlSnapshot: rendered.html,
+          fkEmailBatchId: batch.id,
+          fkFlowId: flowId,
+          fkUserFlowId: item.userFlowId,
+          fkUserId: item.userId,
+          createdBy,
+          metadata: { accept, flowId },
+        })
+        .returning({ id: emailDelivery.id });
+      deliveryCount += 1;
+    }
+
+    return { batchId: batch.id, deliveryCount };
+  });
 }
 
 export async function sendEmailBatchById(batchId: number) {

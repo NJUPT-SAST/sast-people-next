@@ -53,8 +53,13 @@ const delivery: EmailDeliveryRecord = {
 describe("email preview iframes", () => {
   beforeEach(() => {
     mockUseRouter.mockReturnValue({
+      back: jest.fn(),
+      forward: jest.fn(),
       refresh: jest.fn(),
-    } as ReturnType<typeof useRouter>);
+      push: jest.fn(),
+      replace: jest.fn(),
+      prefetch: jest.fn(),
+    });
   });
 
   it("sandboxes template preview iframe content", async () => {

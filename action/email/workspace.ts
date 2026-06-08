@@ -6,6 +6,10 @@ import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import {
+  requireBooleanInput,
+  requirePositiveIntegerInput,
+} from "@/lib/email-center/action-input";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { getResultEmailTemplateKey } from "@/lib/email/result-email";
 import { renderEmailTemplate } from "@/lib/email-center/render";
@@ -95,8 +99,13 @@ export async function listEmailFlowTargets() {
   }));
 }
 
-export async function createResultEmailBatchFromFlow(flowId: number, accept: boolean) {
+export async function createResultEmailBatchFromFlow(
+  flowIdInput: unknown,
+  acceptInput: unknown,
+) {
   await verifyRole(3);
+  const flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
+  const accept = requireBooleanInput(acceptInput, "结果通知类型");
   const sourceStatus = accept ? "passed" : "failed";
   const rows = await db
     .select({ userFlowId: userFlow.id, userId: userFlow.fkUserId })
@@ -124,8 +133,13 @@ export async function createResultEmailBatchFromFlow(flowId: number, accept: boo
   return result;
 }
 
-export async function sendResultEmailFromFlow(flowId: number, accept: boolean) {
+export async function sendResultEmailFromFlow(
+  flowIdInput: unknown,
+  acceptInput: unknown,
+) {
   await verifyRole(3);
+  const flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
+  const accept = requireBooleanInput(acceptInput, "结果通知类型");
   const batch = await createResultEmailBatchFromFlow(flowId, accept);
   if (!batch.batchId) return { batchId: null, queuedCount: 0 };
   const sent = await sendEmailBatch(batch.batchId);

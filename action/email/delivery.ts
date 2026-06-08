@@ -3,16 +3,19 @@
 import { db } from "@/db/drizzle";
 import { emailDelivery } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { requirePositiveIntegerInput } from "@/lib/email-center/action-input";
 import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { eq } from "drizzle-orm";
 
-export async function retryEmailDelivery(deliveryId: number) {
+export async function retryEmailDelivery(deliveryIdInput: unknown) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let deliveryId: number | null = null;
 
   try {
     session = await verifyRole(3);
+    deliveryId = requirePositiveIntegerInput(deliveryIdInput, "邮件记录 ID");
 
     const [delivery] = await db
       .select({

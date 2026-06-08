@@ -1,5 +1,7 @@
 jest.mock("server-only", () => ({}));
 
+export {};
+
 const mockSelectResults: unknown[][] = [];
 const mockUpdateSetCalls: unknown[] = [];
 const mockOffer = jest.fn();
@@ -7,6 +9,8 @@ const mockSyncUserRoleFromAcceptedFlows = jest.fn();
 const mockAssertEmailConfigured = jest.fn();
 const mockSendEmailDelivery = jest.fn();
 const mockListPeopleUsersByLinkIds = jest.fn();
+const mockGetEmailTemplateSetting = jest.fn();
+const mockRenderEmailTemplate = jest.fn();
 
 type QueryPromise<T> = Promise<T> & {
   limit: jest.Mock;
@@ -49,12 +53,19 @@ const mockDb = {
   })),
 };
 
+const mockTransaction = jest.fn((callback: (tx: typeof mockDb) => Promise<unknown>) =>
+  callback(mockDb),
+);
+
 jest.mock("@/db/drizzle", () => ({
-  db: mockDb,
+  db: {
+    ...mockDb,
+    transaction: mockTransaction,
+  },
 }));
 
 jest.mock("@/action/email/template", () => ({
-  getEmailTemplateSetting: jest.fn(),
+  getEmailTemplateSetting: mockGetEmailTemplateSetting,
 }));
 
 jest.mock("@/action/user-flow/roleTransition", () => ({
@@ -69,8 +80,11 @@ jest.mock("@/event", () => ({
 }));
 
 jest.mock("@/lib/email-center/delivery", () => ({
-  createRenderedEmailDelivery: jest.fn(),
   sendEmailDelivery: mockSendEmailDelivery,
+}));
+
+jest.mock("@/lib/email-center/render", () => ({
+  renderEmailTemplate: mockRenderEmailTemplate,
 }));
 
 jest.mock("@/lib/email-center/provider", () => ({
@@ -95,6 +109,14 @@ describe("email batch service", () => {
     jest.clearAllMocks();
     mockAssertEmailConfigured.mockReturnValue(undefined);
     mockListPeopleUsersByLinkIds.mockResolvedValue(new Map());
+    mockGetEmailTemplateSetting.mockResolvedValue({
+      templateKey: "recruitment.result.accepted",
+      subjectTemplate: "{flowName} 结果通知",
+    });
+    mockRenderEmailTemplate.mockResolvedValue({
+      subject: "2026 春季招新 结果通知",
+      html: "<p>通知正文</p>",
+    });
   });
 
   it("rejects result batch creation before inserting when recipients miss student ids", async () => {
@@ -127,6 +149,44 @@ describe("email batch service", () => {
     ).rejects.toThrow("Bob");
 
     expect(mockDb.insert).not.toHaveBeenCalled();
+    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockRenderEmailTemplate).not.toHaveBeenCalled();
+  });
+
+  it("creates result batches and deliveries in one transaction", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 203,
+        userId: 303,
+        flowName: "2026 春季招新",
+      },
+    ]);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[303, { id: 303, name: "Carol", studentId: "B003" }]]),
+    );
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [303],
+        flowId: 7,
+        accept: true,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith({
+      templateKey: "recruitment.result.accepted",
+      variables: {
+        name: "Carol",
+        flowName: "2026 春季招新",
+        setting: {
+          templateKey: "recruitment.result.accepted",
+          subjectTemplate: "{flowName} 结果通知",
+        },
+      },
+    });
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+    expect(mockDb.insert).toHaveBeenCalledTimes(2);
   });
 
   it("recovers stale sending deliveries before queueing a batch", async () => {

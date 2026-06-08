@@ -1,5 +1,7 @@
 jest.mock("server-only", () => ({}));
 
+export {};
+
 const mockSendMail = jest.fn();
 const mockSelectResults: unknown[][] = [];
 const mockUpdateResults: unknown[][] = [];

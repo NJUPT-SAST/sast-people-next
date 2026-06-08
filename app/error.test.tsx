@@ -21,7 +21,12 @@ describe("app error boundary", () => {
 
     mockUseRouter.mockReturnValue({
       back: jest.fn(),
-    } as ReturnType<typeof useRouter>);
+      forward: jest.fn(),
+      refresh: jest.fn(),
+      push: jest.fn(),
+      replace: jest.fn(),
+      prefetch: jest.fn(),
+    });
 
     render(
       <ErrorBoundary
