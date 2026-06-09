@@ -1,9 +1,12 @@
 jest.mock("server-only", () => ({}));
 
+export {};
+
 const mockSendMail = jest.fn();
 const mockSelectResults: unknown[][] = [];
 const mockUpdateResults: unknown[][] = [];
 const mockUpdateSetCalls: unknown[] = [];
+const mockInsertValueCalls: unknown[] = [];
 
 type QueryPromise<T> = Promise<T> & {
   limit: jest.Mock;
@@ -35,10 +38,25 @@ const mockDb = {
       };
     }),
   })),
+  insert: jest.fn(() => ({
+    values: jest.fn((values: unknown) => {
+      mockInsertValueCalls.push(values);
+      return {
+        returning: jest.fn(() => Promise.resolve([{ id: 77 }])),
+      };
+    }),
+  })),
 };
 
+const mockTransaction = jest.fn((callback: (tx: typeof mockDb) => Promise<unknown>) =>
+  callback(mockDb),
+);
+
 jest.mock("@/db/drizzle", () => ({
-  db: mockDb,
+  db: {
+    ...mockDb,
+    transaction: mockTransaction,
+  },
 }));
 
 jest.mock("@/lib/email-center/render", () => ({
@@ -63,6 +81,8 @@ const pendingDelivery = {
   status: "pending",
   errorMessage: null,
   providerMessageId: null,
+  attemptCount: 0,
+  lastAttemptAt: null,
   fkEmailBatchId: null,
   fkFlowId: 7,
   fkUserFlowId: 11,
@@ -89,6 +109,7 @@ describe("sendEmailDelivery", () => {
     mockSelectResults.length = 0;
     mockUpdateResults.length = 0;
     mockUpdateSetCalls.length = 0;
+    mockInsertValueCalls.length = 0;
     jest.clearAllMocks();
   });
 
@@ -128,14 +149,33 @@ describe("sendEmailDelivery", () => {
           errorMessage: null,
           providerMessageId: null,
           sentAt: null,
+          attemptCount: expect.anything(),
+          lastAttemptAt: expect.any(Date),
         }),
         expect.objectContaining({
           status: "sent",
           providerMessageId: "smtp-message-1",
           errorMessage: null,
         }),
+        expect.objectContaining({
+          status: "sent",
+          providerMessageId: "smtp-message-1",
+          errorMessage: null,
+          finishedAt: expect.any(Date),
+          durationMs: expect.any(Number),
+        }),
       ]),
     );
+    expect(mockInsertValueCalls).toEqual([
+      expect.objectContaining({
+        fkEmailDeliveryId: pendingDelivery.id,
+        trigger: "unknown",
+        provider: "smtp",
+        status: "sending",
+        triggeredBy: null,
+        startedAt: expect.any(Date),
+      }),
+    ]);
   });
 
   it("does not send again when another worker already sent the delivery", async () => {
@@ -185,5 +225,11 @@ describe("sendEmailDelivery", () => {
         }),
       ]),
     );
+    expect(mockInsertValueCalls).toEqual([
+      expect.objectContaining({
+        fkEmailDeliveryId: pendingDelivery.id,
+        status: "sending",
+      }),
+    ]);
   });
 });

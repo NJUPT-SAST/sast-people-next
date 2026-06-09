@@ -186,6 +186,8 @@ export const emailDelivery = pgTable("email_delivery", {
   status: emailDeliveryStatusEnum("status").notNull().default("pending"),
   errorMessage: text("error_message"),
   providerMessageId: varchar("provider_message_id", { length: 255 }),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at"),
   fkEmailBatchId: integer("fk_email_batch_id")
     .references(() => emailBatch.id, { onDelete: "cascade" }),
   fkFlowId: integer("fk_flow_id")
@@ -210,6 +212,35 @@ export const emailDelivery = pgTable("email_delivery", {
     table.status,
   ),
   flowIdIdx: index("email_delivery_fk_flow_id_idx").on(table.fkFlowId),
+  attemptStatusIdx: index("email_delivery_attempt_status_idx").on(
+    table.status,
+    table.lastAttemptAt,
+  ),
+}));
+
+export const emailDeliveryAttempt = pgTable("email_delivery_attempt", {
+  id: serial("id").primaryKey(),
+  fkEmailDeliveryId: integer("fk_email_delivery_id")
+    .references(() => emailDelivery.id, { onDelete: "cascade" })
+    .notNull(),
+  trigger: varchar("trigger", { length: 32 }).notNull().default("unknown"),
+  provider: varchar("provider", { length: 32 }).notNull().default("smtp"),
+  status: varchar("status", { length: 32 }).notNull(),
+  providerMessageId: varchar("provider_message_id", { length: 255 }),
+  errorMessage: text("error_message"),
+  triggeredBy: integer("triggered_by"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+  durationMs: integer("duration_ms"),
+}, (table) => ({
+  deliveryStartedAtIdx: index("email_delivery_attempt_delivery_started_at_idx").on(
+    table.fkEmailDeliveryId,
+    table.startedAt,
+  ),
+  statusStartedAtIdx: index("email_delivery_attempt_status_started_at_idx").on(
+    table.status,
+    table.startedAt,
+  ),
 }));
 
 export const emailTemplateSetting = pgTable("email_template_setting", {

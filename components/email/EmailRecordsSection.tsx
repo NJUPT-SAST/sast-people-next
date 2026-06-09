@@ -42,6 +42,8 @@ function getRelatedObjectText(delivery: EmailDeliveryRecord) {
   return "-";
 }
 
+const pageSizeOptions = [10, 20, 50] as const;
+
 function getRecordAccentClass(status: string) {
   if (status === "failed") return "border-l-destructive/70";
   if (status === "sent") return "border-l-primary/70";
@@ -116,7 +118,7 @@ export function EmailRecordsSection({
 
         <form
           action="/dashboard/emails"
-          className="grid gap-3 rounded-lg border bg-background/35 p-3 md:grid-cols-2 xl:grid-cols-[160px_160px_minmax(220px,1fr)_minmax(220px,1fr)]"
+          className="grid gap-3 rounded-lg border bg-background/35 p-3 md:grid-cols-2 xl:grid-cols-[140px_140px_140px_minmax(220px,1fr)_minmax(220px,1fr)]"
         >
           <input type="hidden" name="tab" value="records" />
           <div className="flex min-w-0 flex-col gap-1.5">
@@ -169,6 +171,23 @@ export function EmailRecordsSection({
               {templateOptions.map((value) => (
                 <option key={value} value={value}>
                   {value}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="email-record-page-size" className="text-xs text-muted-foreground">
+              每页数量
+            </Label>
+            <select
+              id="email-record-page-size"
+              name="pageSize"
+              defaultValue={filters.pageSize.toString()}
+              className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              {pageSizeOptions.map((value) => (
+                <option key={value} value={value}>
+                  {value} 条
                 </option>
               ))}
             </select>
@@ -236,7 +255,7 @@ export function EmailRecordsSection({
               placeholder="搜索收件人、主题、模板或失败原因"
             />
           </div>
-          <div className="flex gap-2 md:col-span-2 xl:col-span-4">
+          <div className="flex gap-2 md:col-span-2 xl:col-span-5">
             <Button type="submit">
               <Search data-icon="inline-start" />
               筛选
@@ -313,6 +332,11 @@ export function EmailRecordsSection({
                   <p className="mt-1 truncate text-xs text-muted-foreground">
                     发送 {formatDate(delivery.sentAt)}
                   </p>
+                  {delivery.attemptCount > 0 && (
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      最近尝试 {formatDate(delivery.lastAttemptAt)}
+                    </p>
+                  )}
                 </RecordInfo>
 
                 <div className="flex flex-col gap-3 xl:items-end">

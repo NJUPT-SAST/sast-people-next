@@ -1,15 +1,29 @@
 import "server-only";
 
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery } from "@/db/schema";
+import { emailBatch, emailDelivery, emailDeliveryAttempt } from "@/db/schema";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import { sendEmailViaProvider } from "@/lib/email-center/provider";
 import type {
   CreateRenderedEmailDeliveryInput,
   CreateRenderedTestEmailDeliveryInput,
   EmailCategory,
 } from "@/lib/email-center/types";
-import { and, eq, inArray } from "drizzle-orm";
-import { createTransport } from "nodemailer";
+import { and, eq, inArray, sql } from "drizzle-orm";
+
+export type SendEmailDeliveryTrigger =
+  | "queue"
+  | "manual_retry"
+  | "batch_fallback"
+  | "test"
+  | "interview_immediate"
+  | "immediate"
+  | "unknown";
+
+export type SendEmailDeliveryOptions = {
+  trigger?: SendEmailDeliveryTrigger;
+  triggeredBy?: number | null;
+};
 
 export type CreateEmailDeliveryInput = {
   category: EmailCategory;
@@ -25,61 +39,6 @@ export type CreateEmailDeliveryInput = {
   createdBy?: number | null;
   metadata?: Record<string, unknown>;
   sendImmediately?: boolean;
-};
-
-const transporter = createTransport({
-  host: "smtp.feishu.cn",
-  port: 465,
-  secure: true,
-  auth: {
-    user: "recruitment@sast.fun",
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
-
-const emailFrom = '"SAST People" <recruitment@sast.fun>';
-const DEFAULT_TEST_EMAIL_RECIPIENT = "b24150524@njupt.edu.cn";
-
-function getTestEmailRecipient() {
-  const value = process.env.EMAIL_TEST_RECIPIENT?.trim();
-  return value || DEFAULT_TEST_EMAIL_RECIPIENT;
-}
-
-function resolveEmailEnvelope(to: string, subject: string) {
-  if (process.env.NODE_ENV === "production") {
-    return { to, subject };
-  }
-
-  const testRecipient = getTestEmailRecipient();
-  return {
-    to: testRecipient,
-    subject: `[TEST to ${to}] ${subject}`,
-  };
-}
-
-export const assertEmailConfigured = () => {
-  if (!process.env.EMAIL_PASSWORD) {
-    throw new Error("邮件密码未配置，请先设置 EMAIL_PASSWORD。");
-  }
-};
-
-const sendSmtpEmail = async ({
-  to,
-  subject,
-  html,
-}: {
-  to: string;
-  subject: string;
-  html: string;
-}) => {
-  assertEmailConfigured();
-  const envelope = resolveEmailEnvelope(to, subject);
-  return transporter.sendMail({
-    from: emailFrom,
-    to: envelope.to,
-    subject: envelope.subject,
-    html,
-  });
 };
 
 export async function createEmailDelivery(input: CreateEmailDeliveryInput) {
@@ -103,11 +62,26 @@ export async function createEmailDelivery(input: CreateEmailDeliveryInput) {
 
   let messageId: string | null = null;
   if (input.sendImmediately) {
-    const result = await sendEmailDelivery(delivery.id);
+    const result = await sendEmailDelivery(delivery.id, {
+      trigger: getImmediateDeliveryTrigger(input.category),
+      triggeredBy: input.createdBy ?? null,
+    });
     messageId = result.messageId;
   }
 
   return { deliveryId: delivery.id, messageId };
+}
+
+function getImmediateDeliveryTrigger(
+  category: EmailCategory,
+): SendEmailDeliveryTrigger {
+  if (category === "test") return "test";
+  if (category === "interview") return "interview_immediate";
+  return "immediate";
+}
+
+function getAttemptDurationMs(startedAt: Date, finishedAt: Date) {
+  return Math.max(0, finishedAt.getTime() - startedAt.getTime());
 }
 
 export async function createRenderedEmailDelivery(
@@ -158,7 +132,10 @@ export async function createRenderedTestEmailDelivery(
   });
 }
 
-export const sendEmailDelivery = async (deliveryId: number) => {
+export const sendEmailDelivery = async (
+  deliveryId: number,
+  options: SendEmailDeliveryOptions = {},
+) => {
   const [delivery] = await db
     .select()
     .from(emailDelivery)
@@ -176,24 +153,45 @@ export const sendEmailDelivery = async (deliveryId: number) => {
     throw new Error("邮件正在发送中，请稍后刷新状态或恢复中断任务。");
   }
 
-  const [claimedDelivery] = await db
-    .update(emailDelivery)
-    .set({
-      status: "sending",
-      errorMessage: null,
-      providerMessageId: null,
-      sentAt: null,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(emailDelivery.id, deliveryId),
-        inArray(emailDelivery.status, ["pending", "failed"]),
-      ),
-    )
-    .returning({
-      id: emailDelivery.id,
-    });
+  const attemptAt = new Date();
+  const claimedDelivery = await db.transaction(async (tx) => {
+    const [claimed] = await tx
+      .update(emailDelivery)
+      .set({
+        status: "sending",
+        errorMessage: null,
+        providerMessageId: null,
+        sentAt: null,
+        attemptCount: sql`${emailDelivery.attemptCount} + 1`,
+        lastAttemptAt: attemptAt,
+        updatedAt: attemptAt,
+      })
+      .where(
+        and(
+          eq(emailDelivery.id, deliveryId),
+          inArray(emailDelivery.status, ["pending", "failed"]),
+        ),
+      )
+      .returning({
+        id: emailDelivery.id,
+      });
+
+    if (!claimed) return null;
+
+    const [attempt] = await tx
+      .insert(emailDeliveryAttempt)
+      .values({
+        fkEmailDeliveryId: deliveryId,
+        trigger: options.trigger ?? "unknown",
+        provider: "smtp",
+        status: "sending",
+        triggeredBy: options.triggeredBy ?? null,
+        startedAt: attemptAt,
+      })
+      .returning({ id: emailDeliveryAttempt.id });
+
+    return { deliveryId: claimed.id, attemptId: attempt.id };
+  });
 
   if (!claimedDelivery) {
     const [latestDelivery] = await db
@@ -212,32 +210,58 @@ export const sendEmailDelivery = async (deliveryId: number) => {
   }
 
   try {
-    const result = await sendSmtpEmail({
+    const result = await sendEmailViaProvider({
       to: delivery.toAddress,
       subject: delivery.subject,
       html: delivery.htmlSnapshot,
     });
-    await db
-      .update(emailDelivery)
-      .set({
-        status: "sent",
-        providerMessageId: result.messageId ?? null,
-        sentAt: new Date(),
-        errorMessage: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(emailDelivery.id, deliveryId));
+    const finishedAt = new Date();
+    await db.transaction(async (tx) => {
+      await tx
+        .update(emailDelivery)
+        .set({
+          status: "sent",
+          providerMessageId: result.messageId ?? null,
+          sentAt: finishedAt,
+          errorMessage: null,
+          updatedAt: finishedAt,
+        })
+        .where(eq(emailDelivery.id, deliveryId));
+      await tx
+        .update(emailDeliveryAttempt)
+        .set({
+          status: "sent",
+          providerMessageId: result.messageId ?? null,
+          errorMessage: null,
+          finishedAt,
+          durationMs: getAttemptDurationMs(attemptAt, finishedAt),
+        })
+        .where(eq(emailDeliveryAttempt.id, claimedDelivery.attemptId));
+    });
     await refreshBatchStatus(delivery.fkEmailBatchId);
     return { messageId: result.messageId ?? null };
   } catch (error) {
-    await db
-      .update(emailDelivery)
-      .set({
-        status: "failed",
-        errorMessage: error instanceof Error ? error.message : String(error),
-        updatedAt: new Date(),
-      })
-      .where(eq(emailDelivery.id, deliveryId));
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const finishedAt = new Date();
+    await db.transaction(async (tx) => {
+      await tx
+        .update(emailDelivery)
+        .set({
+          status: "failed",
+          errorMessage,
+          updatedAt: finishedAt,
+        })
+        .where(eq(emailDelivery.id, deliveryId));
+      await tx
+        .update(emailDeliveryAttempt)
+        .set({
+          status: "failed",
+          errorMessage,
+          finishedAt,
+          durationMs: getAttemptDurationMs(attemptAt, finishedAt),
+        })
+        .where(eq(emailDeliveryAttempt.id, claimedDelivery.attemptId));
+    });
     await refreshBatchStatus(delivery.fkEmailBatchId);
     throw error;
   }

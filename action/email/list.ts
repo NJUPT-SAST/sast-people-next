@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow } from "@/db/schema";
+import { emailBatch, emailDelivery, emailDeliveryAttempt, flow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import {
@@ -21,6 +21,7 @@ const DEFAULT_DELIVERY_PAGE_SIZE = 20;
 const MAX_DELIVERY_PAGE_SIZE = 50;
 const deliveryStatuses = ["pending", "sending", "sent", "failed"] as const;
 type DeliveryStatus = (typeof deliveryStatuses)[number];
+const MAX_DELIVERY_ATTEMPTS_PER_RECORD = 5;
 
 export type EmailDeliveryListParams = {
   page?: string | number;
@@ -138,6 +139,34 @@ function buildEmailDeliveryWhereConditions({
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
+function groupRecentAttemptsByDelivery(
+  attempts: Array<{
+    id: number;
+    deliveryId: number;
+    trigger: string;
+    provider: string;
+    status: string;
+    providerMessageId: string | null;
+    errorMessage: string | null;
+    triggeredBy: number | null;
+    startedAt: Date;
+    finishedAt: Date | null;
+    durationMs: number | null;
+  }>,
+) {
+  const attemptMap = new Map<number, typeof attempts>();
+
+  for (const attempt of attempts) {
+    const deliveryAttempts = attemptMap.get(attempt.deliveryId) ?? [];
+    if (deliveryAttempts.length < MAX_DELIVERY_ATTEMPTS_PER_RECORD) {
+      deliveryAttempts.push(attempt);
+      attemptMap.set(attempt.deliveryId, deliveryAttempts);
+    }
+  }
+
+  return attemptMap;
+}
+
 export async function listEmailBatches() {
   await verifyRole(3);
 
@@ -175,6 +204,8 @@ export async function listEmailBatches() {
       subject: emailDelivery.subject,
       status: emailDelivery.status,
       errorMessage: emailDelivery.errorMessage,
+      attemptCount: emailDelivery.attemptCount,
+      lastAttemptAt: emailDelivery.lastAttemptAt,
       sentAt: emailDelivery.sentAt,
       htmlSnapshot: emailDelivery.htmlSnapshot,
     })
@@ -222,7 +253,6 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
 
   const filters = normalizeEmailDeliveryListParams(params);
   const whereConditions = buildEmailDeliveryWhereConditions(filters);
-  const offset = (filters.page - 1) * filters.pageSize;
 
   const totalCountResult = await db
     .select({ value: count() })
@@ -231,6 +261,13 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
     .leftJoin(flow, eq(flow.id, emailDelivery.fkFlowId))
     .where(whereConditions);
   const totalCount = Number(totalCountResult[0]?.value) || 0;
+  const totalPages = Math.ceil(totalCount / filters.pageSize);
+  const currentPage = totalPages > 0 ? Math.min(filters.page, totalPages) : 1;
+  const resolvedFilters = {
+    ...filters,
+    page: currentPage,
+  };
+  const offset = (currentPage - 1) * filters.pageSize;
 
   const deliveries = await db
     .select({
@@ -241,6 +278,8 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
       toAddress: emailDelivery.toAddress,
       status: emailDelivery.status,
       errorMessage: emailDelivery.errorMessage,
+      attemptCount: emailDelivery.attemptCount,
+      lastAttemptAt: emailDelivery.lastAttemptAt,
       sentAt: emailDelivery.sentAt,
       createdAt: emailDelivery.createdAt,
       htmlSnapshot: emailDelivery.htmlSnapshot,
@@ -264,9 +303,9 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
   if (deliveries.length === 0) {
     return {
       deliveries: [],
-      filters,
+      filters: resolvedFilters,
       totalCount,
-      totalPages: Math.ceil(totalCount / filters.pageSize),
+      totalPages,
     };
   }
 
@@ -278,10 +317,29 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
       .map((delivery) => delivery.createdById)
       .filter((id): id is number => id !== null),
   ]);
+  const attempts = await db
+    .select({
+      id: emailDeliveryAttempt.id,
+      deliveryId: emailDeliveryAttempt.fkEmailDeliveryId,
+      trigger: emailDeliveryAttempt.trigger,
+      provider: emailDeliveryAttempt.provider,
+      status: emailDeliveryAttempt.status,
+      providerMessageId: emailDeliveryAttempt.providerMessageId,
+      errorMessage: emailDeliveryAttempt.errorMessage,
+      triggeredBy: emailDeliveryAttempt.triggeredBy,
+      startedAt: emailDeliveryAttempt.startedAt,
+      finishedAt: emailDeliveryAttempt.finishedAt,
+      durationMs: emailDeliveryAttempt.durationMs,
+    })
+    .from(emailDeliveryAttempt)
+    .where(inArray(emailDeliveryAttempt.fkEmailDeliveryId, deliveries.map((delivery) => delivery.id)))
+    .orderBy(desc(emailDeliveryAttempt.startedAt));
+  const attemptMap = groupRecentAttemptsByDelivery(attempts);
 
   return {
     deliveries: deliveries.map((delivery) => ({
       ...delivery,
+      attempts: attemptMap.get(delivery.id) ?? [],
       userName: delivery.userId
         ? userMap.get(delivery.userId)?.name ?? "未知用户"
         : "外部/测试收件人",
@@ -292,9 +350,9 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
         ? userMap.get(delivery.createdById)?.name ?? null
         : null,
     })),
-    filters,
+    filters: resolvedFilters,
     totalCount,
-    totalPages: Math.ceil(totalCount / filters.pageSize),
+    totalPages,
   };
 }
 

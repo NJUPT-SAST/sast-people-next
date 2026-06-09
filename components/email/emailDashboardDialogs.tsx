@@ -50,6 +50,7 @@ export function PreviewDialog({
           <iframe
             title={title}
             srcDoc={html}
+            sandbox=""
             className="h-[70vh] w-full rounded-md border bg-background"
           />
         )}

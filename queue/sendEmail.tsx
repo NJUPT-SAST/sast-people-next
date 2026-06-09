@@ -10,7 +10,7 @@ export const sendEmail = mqClient.createFunction(
   },
   async ({ event }) => {
     const { deliveryId } = event.data;
-    await sendEmailDelivery(Number(deliveryId));
+    await sendEmailDelivery(Number(deliveryId), { trigger: "queue" });
     return { success: true, deliveryId };
   },
 );

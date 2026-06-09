@@ -10,13 +10,17 @@ import {
   getResultEmailTemplateKey,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
-import { createRenderedEmailDelivery, sendEmailDelivery } from "@/lib/email-center/delivery";
+import { assertEmailConfigured } from "@/lib/email-center/provider";
+import { renderEmailTemplate } from "@/lib/email-center/render";
+import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 
 const EMAIL_SERVICE_UNAVAILABLE =
   "邮件发送服务未启动或未配置，请检查 Inngest 邮件队列和 EMAIL_PASSWORD。";
 const STALE_SENDING_DELIVERY_MINUTES = 10;
+const STALE_SENDING_DELIVERY_MESSAGE = "发送任务可能已中断，请确认后重试。";
+const BATCH_SEND_CONCURRENCY = 5;
 
 export type CreateResultEmailBatchInput = {
   userIds: number[];
@@ -24,6 +28,25 @@ export type CreateResultEmailBatchInput = {
   accept: boolean;
   createdBy: number;
 };
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+) {
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const item = items[nextIndex];
+        nextIndex += 1;
+        await worker(item);
+      }
+    }),
+  );
+}
 
 export async function createResultEmailBatch({
   userIds,
@@ -55,39 +78,34 @@ export async function createResultEmailBatch({
   const userMap = await listPeopleUsersByLinkIds(
     targets.map((item) => item.userId),
   );
+  const missingStudentIdRecipients = targets
+    .map((item) => {
+      const targetUser = userMap.get(item.userId);
+      return {
+        name: targetUser?.name ?? `Link 用户 #${item.userId}`,
+        studentId: targetUser?.studentId ?? null,
+      };
+    })
+    .filter((item) => !item.studentId?.trim());
+
+  if (missingStudentIdRecipients.length > 0) {
+    throw new Error(
+      `以下同学缺少学号，无法生成教育邮箱：${missingStudentIdRecipients
+        .map((item) => item.name)
+        .join("、")}`,
+    );
+  }
+
   const templateKey = getResultEmailTemplateKey(accept);
   const templateSetting = await getEmailTemplateSetting(templateKey);
   const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
 
-  const [batch] = await db
-    .insert(emailBatch)
-    .values({
-      templateKey,
-      category: "result",
-      name: `${targets[0].flowName} ${accept ? "通过" : "不通过"}通知`,
-      subject,
-      accept,
-      status: "draft",
-      totalCount: targets.length,
-      fkFlowId: flowId,
-      fkCreatedBy: createdBy,
-      metadata: { accept },
-    })
-    .returning({ id: emailBatch.id });
-
-  const deliveries = await Promise.all(
+  const deliveryDrafts = await Promise.all(
     targets.map(async (item) => {
       const targetUser = userMap.get(item.userId);
       const toAddress = getEducationEmail(targetUser?.studentId);
-      const delivery = await createRenderedEmailDelivery({
+      const rendered = await renderEmailTemplate({
         templateKey,
-        toAddress,
-        flowId,
-        batchId: batch.id,
-        userFlowId: item.userFlowId,
-        recipientUserId: item.userId,
-        createdBy,
-        metadata: { accept, flowId },
         variables: {
           name: targetUser?.name ?? "同学",
           flowName: item.flowName,
@@ -95,11 +113,54 @@ export async function createResultEmailBatch({
         },
       });
 
-      return { id: delivery.deliveryId };
+      return {
+        item,
+        toAddress,
+        rendered,
+      };
     }),
   );
 
-  return { batchId: batch.id, deliveryCount: deliveries.length };
+  return db.transaction(async (tx) => {
+    const [batch] = await tx
+      .insert(emailBatch)
+      .values({
+        templateKey,
+        category: "result",
+        name: `${targets[0].flowName} ${accept ? "通过" : "不通过"}通知`,
+        subject,
+        accept,
+        status: "draft",
+        totalCount: targets.length,
+        fkFlowId: flowId,
+        fkCreatedBy: createdBy,
+        metadata: { accept },
+      })
+      .returning({ id: emailBatch.id });
+
+    let deliveryCount = 0;
+    for (const { item, rendered, toAddress } of deliveryDrafts) {
+      await tx
+        .insert(emailDelivery)
+        .values({
+          category: "result",
+          templateKey,
+          toAddress,
+          subject: rendered.subject,
+          htmlSnapshot: rendered.html,
+          fkEmailBatchId: batch.id,
+          fkFlowId: flowId,
+          fkUserFlowId: item.userFlowId,
+          fkUserId: item.userId,
+          createdBy,
+          metadata: { accept, flowId },
+        })
+        .returning({ id: emailDelivery.id });
+      deliveryCount += 1;
+    }
+
+    return { batchId: batch.id, deliveryCount };
+  });
 }
 
 export async function sendEmailBatchById(batchId: number) {
@@ -118,6 +179,8 @@ export async function sendEmailBatchById(batchId: number) {
   if (batch.status === "completed") {
     return { queuedCount: 0 };
   }
+
+  await recoverStaleEmailDeliveriesInBatch(batchId);
 
   const deliveries = await db
     .select({
@@ -173,12 +236,16 @@ export async function sendEmailBatchById(batchId: number) {
   );
 
   try {
-    await Promise.all(
-      queueableDeliveries.map(async (item) => {
+    await runWithConcurrency(
+      queueableDeliveries,
+      BATCH_SEND_CONCURRENCY,
+      async (item) => {
         try {
           await event.offer(item.id);
         } catch (_error) {
-          if (!process.env.EMAIL_PASSWORD) {
+          try {
+            assertEmailConfigured();
+          } catch {
             await db
               .update(emailDelivery)
               .set({
@@ -190,9 +257,9 @@ export async function sendEmailBatchById(batchId: number) {
             throw new Error(EMAIL_SERVICE_UNAVAILABLE);
           }
 
-          await sendEmailDelivery(item.id);
+          await sendEmailDelivery(item.id, { trigger: "batch_fallback" });
         }
-      }),
+      },
     );
   } catch (error) {
     await db
@@ -206,6 +273,21 @@ export async function sendEmailBatchById(batchId: number) {
 }
 
 export async function recoverStaleEmailBatchById(batchId: number) {
+  const result = await recoverStaleEmailDeliveriesInBatch(batchId);
+
+  if (result.recoveredCount === 0) {
+    return result;
+  }
+
+  await db
+    .update(emailBatch)
+    .set({ status: "failed", updatedAt: new Date() })
+    .where(eq(emailBatch.id, batchId));
+
+  return result;
+}
+
+async function recoverStaleEmailDeliveriesInBatch(batchId: number) {
   const cutoff = new Date(
     Date.now() - STALE_SENDING_DELIVERY_MINUTES * 60 * 1000,
   );
@@ -216,7 +298,13 @@ export async function recoverStaleEmailBatchById(batchId: number) {
       and(
         eq(emailDelivery.fkEmailBatchId, batchId),
         eq(emailDelivery.status, "sending"),
-        lt(emailDelivery.updatedAt, cutoff),
+        or(
+          lt(emailDelivery.lastAttemptAt, cutoff),
+          and(
+            isNull(emailDelivery.lastAttemptAt),
+            lt(emailDelivery.updatedAt, cutoff),
+          ),
+        )!,
       ),
     );
 
@@ -228,7 +316,7 @@ export async function recoverStaleEmailBatchById(batchId: number) {
     .update(emailDelivery)
     .set({
       status: "failed",
-      errorMessage: "发送任务可能已中断，请确认后重试。",
+      errorMessage: STALE_SENDING_DELIVERY_MESSAGE,
       updatedAt: new Date(),
     })
     .where(
@@ -237,11 +325,6 @@ export async function recoverStaleEmailBatchById(batchId: number) {
         staleDeliveries.map((item) => item.id),
       ),
     );
-
-  await db
-    .update(emailBatch)
-    .set({ status: "failed", updatedAt: new Date() })
-    .where(eq(emailBatch.id, batchId));
 
   return { recoveredCount: staleDeliveries.length };
 }

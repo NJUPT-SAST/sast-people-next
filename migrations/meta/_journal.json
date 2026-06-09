@@ -169,6 +169,20 @@
       "when": 1770000000015,
       "tag": "0023_email_delivery_flow_nullable_user",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1770000000016,
+      "tag": "0024_email_delivery_attempt_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1770000000017,
+      "tag": "0025_email_delivery_attempt_log",
+      "breakpoints": true
     }
   ]
 }

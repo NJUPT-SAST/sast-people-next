@@ -26,6 +26,16 @@ import {
 } from "./emailDashboardConstants";
 import type { EmailDeliveryRecord } from "./emailDashboardTypes";
 
+const attemptTriggerText: Record<string, string> = {
+  queue: "队列发送",
+  manual_retry: "手动重试",
+  batch_fallback: "直发 fallback",
+  test: "测试发送",
+  interview_immediate: "面试通知",
+  immediate: "立即发送",
+  unknown: "未知来源",
+};
+
 function DetailItem({
   label,
   value,
@@ -55,6 +65,12 @@ function DetailItem({
       )}
     </div>
   );
+}
+
+function formatDuration(value: number | null) {
+  if (value === null) return "-";
+  if (value < 1000) return `${value} ms`;
+  return `${(value / 1000).toFixed(1)} s`;
 }
 
 function EmailDeliveryDetailDialog({
@@ -157,8 +173,80 @@ function EmailDeliveryDetailDialog({
             <DetailItem label="创建人" value={delivery.createdByName} />
             <DetailItem label="创建时间" value={formatDate(delivery.createdAt)} />
             <DetailItem label="发送时间" value={formatDate(delivery.sentAt)} />
+            <DetailItem
+              label="尝试次数"
+              value={
+                delivery.attemptCount > 0
+                  ? `${delivery.attemptCount} 次`
+                  : "-"
+              }
+            />
+            <DetailItem
+              label="最近尝试"
+              value={formatDate(delivery.lastAttemptAt)}
+            />
             <DetailItem label="投递记录" value={`#${delivery.id}`} mono />
           </div>
+        </section>
+
+        <section className="rounded-lg border bg-card p-4">
+          <h3 className="text-sm font-semibold">发送尝试</h3>
+          {delivery.attempts.length === 0 ? (
+            <p className="mt-3 rounded-md border border-dashed bg-background/40 px-3 py-2 text-sm text-muted-foreground">
+              暂无发送尝试记录。
+            </p>
+          ) : (
+            <div className="mt-3 flex flex-col gap-2">
+              {delivery.attempts.map((attempt) => (
+                <div
+                  key={attempt.id}
+                  className="grid gap-3 rounded-md border bg-background/55 px-3 py-3 lg:grid-cols-[minmax(120px,0.8fr)_minmax(140px,1fr)_minmax(120px,0.8fr)_minmax(160px,1.2fr)]"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">状态</p>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "mt-1",
+                        getDeliveryStatusBadgeClass(attempt.status),
+                      )}
+                    >
+                      {deliveryStatusText[attempt.status] ?? attempt.status}
+                    </Badge>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">来源</p>
+                    <p className="mt-1 truncate text-sm">
+                      {attemptTriggerText[attempt.trigger] ?? attempt.trigger}
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">开始时间</p>
+                    <p className="mt-1 truncate text-sm">
+                      {formatDate(attempt.startedAt)}
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">
+                      耗时 / Message ID
+                    </p>
+                    <p className="mt-1 truncate font-mono text-xs">
+                      {formatDuration(attempt.durationMs)} /{" "}
+                      {attempt.providerMessageId ?? "-"}
+                    </p>
+                  </div>
+                  {attempt.errorMessage && (
+                    <div className="min-w-0 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 lg:col-span-4">
+                      <p className="text-xs text-destructive">错误</p>
+                      <p className="mt-1 break-words text-sm text-destructive">
+                        {attempt.errorMessage}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="rounded-lg border bg-card p-4">
@@ -204,6 +292,7 @@ function EmailDeliveryDetailDialog({
           <iframe
             title={`${delivery.subject} 邮件正文`}
             srcDoc={delivery.htmlSnapshot}
+            sandbox=""
             className="mt-3 h-[60vh] w-full rounded-md border bg-background"
           />
         </section>

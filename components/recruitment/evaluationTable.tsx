@@ -555,7 +555,11 @@ export const EvaluationTable = ({
               return (
                 <TableRow
                   key={c.userFlowId}
-                  id={isTargetCandidate(c) ? `user-flow-${c.userFlowId}` : undefined}
+                  id={
+                    isTargetCandidate(c)
+                      ? `user-flow-${c.userFlowId}-desktop`
+                      : undefined
+                  }
                   className={
                     isTargetCandidate(c)
                       ? "scroll-mt-24 bg-primary/10 ring-1 ring-primary/30 hover:bg-primary/10"
@@ -656,7 +660,11 @@ export const EvaluationTable = ({
           return (
             <div
               key={c.userFlowId}
-              id={isTargetCandidate(c) ? `user-flow-${c.userFlowId}` : undefined}
+              id={
+                isTargetCandidate(c)
+                  ? `user-flow-${c.userFlowId}-mobile`
+                  : undefined
+              }
               className={
                 isTargetCandidate(c)
                   ? "flex scroll-mt-24 flex-col gap-3 bg-primary/10 p-4 ring-1 ring-primary/30"

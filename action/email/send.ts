@@ -5,14 +5,17 @@ import {
   recoverStaleEmailBatchById,
   sendEmailBatchById,
 } from "@/lib/email-center/batch";
+import { requirePositiveIntegerInput } from "@/lib/email-center/action-input";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 
-export async function sendEmailBatch(batchId: number) {
+export async function sendEmailBatch(batchIdInput: unknown) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let batchId: number | null = null;
 
   try {
     session = await verifyRole(3);
+    batchId = requirePositiveIntegerInput(batchIdInput, "邮件批次 ID");
     const result = await sendEmailBatchById(batchId);
 
     await writeOperationAudit({
@@ -38,11 +41,13 @@ export async function sendEmailBatch(batchId: number) {
   }
 }
 
-export async function recoverStaleEmailBatch(batchId: number) {
+export async function recoverStaleEmailBatch(batchIdInput: unknown) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let batchId: number | null = null;
 
   try {
     session = await verifyRole(3);
+    batchId = requirePositiveIntegerInput(batchIdInput, "邮件批次 ID");
     const result = await recoverStaleEmailBatchById(batchId);
 
     await writeOperationAudit({

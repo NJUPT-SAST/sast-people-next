@@ -1,6 +1,5 @@
 import {
   listEmailBatches,
-  listEmailDeliveries,
   listEmailDeliveryPage,
 } from "@/action/email/list";
 import {
@@ -11,6 +10,7 @@ import { listEmailTemplateSettings } from "@/action/email/template";
 import { listEmailFlowTargets } from "@/action/email/workspace";
 import { EmailDashboardClient } from "@/components/email/emailDashboardClient";
 import { PageTitle } from "@/components/route";
+import { getEmailCenterConfigSummary } from "@/lib/email-center/config";
 import { emailTemplateDefinitions } from "@/lib/email-center/registry";
 import { logServerError } from "@/lib/server-error-log";
 import { MailCheck } from "lucide-react";
@@ -35,27 +35,13 @@ export default async function EmailDashboardPage({
 
   const [
     batches,
-    deliveries,
     recordDeliveryPage,
     flowTargets,
     templateSettings,
     interviewScheduleTemplates,
     interviewSchedulePreviews,
   ] = data;
-  const smtpConfigured = Boolean(process.env.EMAIL_PASSWORD);
-  const emailCenterConfig = {
-    smtpConfigured,
-    smtpHost: "smtp.feishu.cn:465",
-    sender: "SAST People <recruitment@sast.fun>",
-    testRecipient:
-      process.env.EMAIL_TEST_RECIPIENT?.trim() || "b24150524@njupt.edu.cn",
-    queueStatus: smtpConfigured
-      ? process.env.NODE_ENV === "production"
-        ? "Inngest 邮件队列（生产）"
-        : "Inngest dev / 直发 fallback（开发）"
-      : "不可发送：EMAIL_PASSWORD 未配置",
-    realRecipientMode: process.env.NODE_ENV === "production",
-  };
+  const emailCenterConfig = getEmailCenterConfigSummary();
 
   return (
     <>
@@ -77,7 +63,7 @@ export default async function EmailDashboardPage({
               {emailCenterConfig.realRecipientMode ? "生产真实收件人" : "本地测试重定向"}
             </span>
             <span className="rounded-md border bg-card px-2.5 py-1 text-muted-foreground">
-              SMTP {smtpConfigured ? "已配置" : "未配置"}
+              SMTP {emailCenterConfig.smtpConfigured ? "已配置" : "未配置"}
             </span>
           </div>
         </div>
@@ -86,7 +72,6 @@ export default async function EmailDashboardPage({
       <div className="mt-5">
         <EmailDashboardClient
           batches={batches}
-          deliveries={deliveries}
           recordDeliveryPage={recordDeliveryPage}
           flowTargets={flowTargets}
           templateSettings={templateSettings}
@@ -112,19 +97,24 @@ function getSearchParam(
 async function loadEmailDashboardData(
   searchParams: Record<string, string | string[] | undefined>,
 ) {
+  const activeTab = getSearchParam(searchParams, "tab");
+  const isRecordsTab = activeTab === "records";
+
   return Promise.all([
     listEmailBatches(),
-    listEmailDeliveries(),
     listEmailDeliveryPage({
-      page: getSearchParam(searchParams, "page"),
-      category: getSearchParam(searchParams, "category"),
-      status: getSearchParam(searchParams, "status"),
-      templateKey: getSearchParam(searchParams, "templateKey"),
-      flowId: getSearchParam(searchParams, "flowId"),
-      creatorId: getSearchParam(searchParams, "creatorId"),
-      from: getSearchParam(searchParams, "from"),
-      to: getSearchParam(searchParams, "to"),
-      query: getSearchParam(searchParams, "query"),
+      page: isRecordsTab ? getSearchParam(searchParams, "page") : 1,
+      pageSize: isRecordsTab ? getSearchParam(searchParams, "pageSize") : 50,
+      category: isRecordsTab ? getSearchParam(searchParams, "category") : "",
+      status: isRecordsTab ? getSearchParam(searchParams, "status") : "",
+      templateKey: isRecordsTab
+        ? getSearchParam(searchParams, "templateKey")
+        : "",
+      flowId: isRecordsTab ? getSearchParam(searchParams, "flowId") : "",
+      creatorId: isRecordsTab ? getSearchParam(searchParams, "creatorId") : "",
+      from: isRecordsTab ? getSearchParam(searchParams, "from") : "",
+      to: isRecordsTab ? getSearchParam(searchParams, "to") : "",
+      query: isRecordsTab ? getSearchParam(searchParams, "query") : "",
     }),
     listEmailFlowTargets(),
     listEmailTemplateSettings(),
