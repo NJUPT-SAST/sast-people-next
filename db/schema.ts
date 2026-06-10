@@ -54,6 +54,7 @@ export const emailDeliveryStatusEnum = pgEnum("email_delivery_status_enum", [
   "sending",
   "sent",
   "failed",
+  "dead",
 ]);
 
 export const interviewScheduleStatusEnum = pgEnum("interview_schedule_status_enum", [
@@ -158,6 +159,7 @@ export const problem = pgTable("problem", {
 
 export const emailBatch = pgTable("email_batch", {
   id: serial("id").primaryKey(),
+  idempotencyKey: varchar("idempotency_key", { length: 160 }),
   templateKey: varchar("template_key", { length: 80 }).notNull(),
   category: varchar("category", { length: 32 }).notNull().default("result"),
   name: varchar("name", { length: 255 }),
@@ -174,10 +176,15 @@ export const emailBatch = pgTable("email_batch", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
-});
+}, (table) => ({
+  idempotencyKeyIdx: uniqueIndex("email_batch_idempotency_key_uidx").on(
+    table.idempotencyKey,
+  ),
+}));
 
 export const emailDelivery = pgTable("email_delivery", {
   id: serial("id").primaryKey(),
+  idempotencyKey: varchar("idempotency_key", { length: 160 }),
   category: varchar("category", { length: 32 }).notNull().default("result"),
   templateKey: varchar("template_key", { length: 80 }).notNull().default("legacy"),
   toAddress: varchar("to_address", { length: 254 }).notNull(),
@@ -188,6 +195,8 @@ export const emailDelivery = pgTable("email_delivery", {
   providerMessageId: varchar("provider_message_id", { length: 255 }),
   attemptCount: integer("attempt_count").notNull().default(0),
   lastAttemptAt: timestamp("last_attempt_at"),
+  nextRetryAt: timestamp("next_retry_at"),
+  deadLetteredAt: timestamp("dead_lettered_at"),
   fkEmailBatchId: integer("fk_email_batch_id")
     .references(() => emailBatch.id, { onDelete: "cascade" }),
   fkFlowId: integer("fk_flow_id")
@@ -205,6 +214,9 @@ export const emailDelivery = pgTable("email_delivery", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
 }, (table) => ({
+  idempotencyKeyIdx: uniqueIndex("email_delivery_idempotency_key_uidx").on(
+    table.idempotencyKey,
+  ),
   createdAtIdx: index("email_delivery_created_at_idx").on(table.createdAt),
   filterIdx: index("email_delivery_filter_idx").on(
     table.category,
@@ -215,6 +227,13 @@ export const emailDelivery = pgTable("email_delivery", {
   attemptStatusIdx: index("email_delivery_attempt_status_idx").on(
     table.status,
     table.lastAttemptAt,
+  ),
+  retryDueIdx: index("email_delivery_retry_due_idx").on(
+    table.status,
+    table.nextRetryAt,
+  ),
+  providerMessageIdx: index("email_delivery_provider_message_id_idx").on(
+    table.providerMessageId,
   ),
 }));
 
@@ -240,6 +259,20 @@ export const emailDeliveryAttempt = pgTable("email_delivery_attempt", {
   statusStartedAtIdx: index("email_delivery_attempt_status_started_at_idx").on(
     table.status,
     table.startedAt,
+  ),
+}));
+
+export const emailSendRateLimit = pgTable("email_send_rate_limit", {
+  bucketKey: varchar("bucket_key", { length: 80 }).primaryKey(),
+  windowStart: timestamp("window_start").notNull(),
+  count: integer("count").notNull().default(0),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  windowStartIdx: index("email_send_rate_limit_window_start_idx").on(
+    table.windowStart,
   ),
 }));
 

@@ -84,6 +84,14 @@ function ConfigItem({
   );
 }
 
+function getReadinessClass(status: "pass" | "warn" | "fail") {
+  if (status === "pass") return "border-primary/25 bg-primary/5 text-primary";
+  if (status === "fail") {
+    return "border-destructive/25 bg-destructive/5 text-destructive";
+  }
+  return "border-chart-3/25 bg-chart-3/5 text-chart-3";
+}
+
 export function EmailOverviewSection({
   batches,
   deliveries,
@@ -100,7 +108,7 @@ export function EmailOverviewSection({
     (delivery) => delivery.status === "sent",
   ).length;
   const todayFailedCount = todayDeliveries.filter(
-    (delivery) => delivery.status === "failed",
+    (delivery) => delivery.status === "failed" || delivery.status === "dead",
   ).length;
   const pendingCount = deliveries.filter(
     (delivery) => delivery.status === "pending",
@@ -109,7 +117,7 @@ export function EmailOverviewSection({
     (delivery) => delivery.status === "sending",
   ).length;
   const recentFailures = deliveries
-    .filter((delivery) => delivery.status === "failed")
+    .filter((delivery) => delivery.status === "failed" || delivery.status === "dead")
     .slice(0, 5);
   const recentBatches = batches.slice(0, 5);
   const todayTotalCount = todayDeliveries.length;
@@ -277,6 +285,16 @@ export function EmailOverviewSection({
             detail={emailCenterConfig.queueStatus}
           />
           <MetricBlock
+            label="全局限速"
+            value={`${emailCenterConfig.sendRateLimitPerMinute}/分钟`}
+            detail="跨实例共享数据库限速 bucket"
+          />
+          <MetricBlock
+            label="自动重试"
+            value={`${emailCenterConfig.retryMaxAttempts} 次`}
+            detail={`${emailCenterConfig.retryBaseDelaySeconds}s 起步，最多 ${emailCenterConfig.retryMaxDelaySeconds}s`}
+          />
+          <MetricBlock
             label="收件人模式"
             value={emailCenterConfig.realRecipientMode ? "真实收件人" : "测试重定向"}
           />
@@ -303,6 +321,13 @@ export function EmailConfigSection({
     ["测试收件人", emailCenterConfig.testRecipient],
     ["队列状态", emailCenterConfig.queueStatus],
     ["生产环境真实收件人", emailCenterConfig.realRecipientMode ? "启用" : "未启用"],
+    ["回执入口", emailCenterConfig.webhookConfigured ? "已配置" : "未配置"],
+    ["全局限速", `${emailCenterConfig.sendRateLimitPerMinute} 封/分钟`],
+    [
+      "自动重试",
+      `${emailCenterConfig.retryMaxAttempts} 次，扫描 ${emailCenterConfig.retryScanLimit} 封/轮`,
+    ],
+    ["尝试日志保留", `${emailCenterConfig.attemptRetentionDays} 天`],
   ];
 
   return (
@@ -320,6 +345,33 @@ export function EmailConfigSection({
         {rows.map(([label, value]) => (
           <ConfigItem key={label} label={label} value={value} />
         ))}
+      </div>
+      <div className="border-t p-4">
+        <h3 className="text-sm font-semibold">生产就绪检查</h3>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {emailCenterConfig.readinessChecks.map((check) => {
+            const Icon = check.status === "pass" ? CheckCircle2 : AlertTriangle;
+            return (
+              <div
+                key={check.key}
+                className={cn(
+                  "rounded-lg border p-4",
+                  getReadinessClass(check.status),
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <Icon className="mt-0.5 size-4 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{check.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {check.detail}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

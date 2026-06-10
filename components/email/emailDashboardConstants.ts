@@ -10,6 +10,7 @@ export const deliveryStatusText: Record<string, string> = {
   sending: "发送中",
   sent: "已发送",
   failed: "失败",
+  dead: "死信",
 };
 
 export const emailCategoryText: Record<string, string> = {
@@ -54,7 +55,7 @@ export function getBatchStatusBadgeClass(status: string) {
   if (status === "completed") {
     return "border-primary/25 bg-primary/10 text-primary";
   }
-  if (status === "failed") {
+  if (status === "failed" || status === "dead") {
     return "border-destructive/25 bg-destructive/10 text-destructive";
   }
   if (status === "queued") {
@@ -67,7 +68,7 @@ export function getDeliveryStatusBadgeClass(status: string) {
   if (status === "sent") {
     return "border-primary/25 bg-primary/10 text-primary";
   }
-  if (status === "failed") {
+  if (status === "failed" || status === "dead") {
     return "border-destructive/25 bg-destructive/10 text-destructive";
   }
   if (status === "sending") {

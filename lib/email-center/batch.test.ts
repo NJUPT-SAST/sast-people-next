@@ -16,6 +16,7 @@ type QueryPromise<T> = Promise<T> & {
   limit: jest.Mock;
   returning: jest.Mock;
   orderBy: jest.Mock;
+  onConflictDoNothing: jest.Mock;
 };
 
 function createQueryPromise<T>(result: T): QueryPromise<T> {
@@ -23,6 +24,9 @@ function createQueryPromise<T>(result: T): QueryPromise<T> {
   promise.limit = jest.fn(() => Promise.resolve(result));
   promise.returning = jest.fn(() => Promise.resolve(result));
   promise.orderBy = jest.fn(() => Promise.resolve(result));
+  promise.onConflictDoNothing = jest.fn(() => ({
+    returning: jest.fn(() => Promise.resolve(result)),
+  }));
   return promise;
 }
 
@@ -40,6 +44,9 @@ const mockDb = {
   }),
   insert: jest.fn(() => ({
     values: jest.fn(() => ({
+      onConflictDoNothing: jest.fn(() => ({
+        returning: jest.fn(() => Promise.resolve([{ id: 1 }])),
+      })),
       returning: jest.fn(() => Promise.resolve([{ id: 1 }])),
     })),
   })),
@@ -131,7 +138,7 @@ describe("email batch service", () => {
         userId: 302,
         flowName: "2026 春季招新",
       },
-    ]);
+    ], []);
     mockListPeopleUsersByLinkIds.mockResolvedValue(
       new Map([
         [301, { id: 301, name: "Alice", studentId: "B001" }],
@@ -160,7 +167,7 @@ describe("email batch service", () => {
         userId: 303,
         flowName: "2026 春季招新",
       },
-    ]);
+    ], []);
     mockListPeopleUsersByLinkIds.mockResolvedValue(
       new Map([[303, { id: 303, name: "Carol", studentId: "B003" }]]),
     );

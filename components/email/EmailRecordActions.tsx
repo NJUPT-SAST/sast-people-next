@@ -30,6 +30,8 @@ const attemptTriggerText: Record<string, string> = {
   queue: "队列发送",
   manual_retry: "手动重试",
   batch_fallback: "直发 fallback",
+  auto_retry: "自动重试",
+  provider_event: "投递回执",
   test: "测试发送",
   interview_immediate: "面试通知",
   immediate: "立即发送",
@@ -185,6 +187,14 @@ function EmailDeliveryDetailDialog({
               label="最近尝试"
               value={formatDate(delivery.lastAttemptAt)}
             />
+            <DetailItem
+              label="下次重试"
+              value={formatDate(delivery.nextRetryAt)}
+            />
+            <DetailItem
+              label="进入死信"
+              value={formatDate(delivery.deadLetteredAt)}
+            />
             <DetailItem label="投递记录" value={`#${delivery.id}`} mono />
           </div>
         </section>
@@ -309,7 +319,10 @@ export function EmailRecordActions({
   compact?: boolean;
 }) {
   const router = useRouter();
-  const canRetry = delivery.status === "failed" || delivery.status === "pending";
+  const canRetry =
+    delivery.status === "failed" ||
+    delivery.status === "pending" ||
+    delivery.status === "dead";
   const handleRetry = () => {
     toast.promise(
       retryEmailDelivery(delivery.id).then((result) => {

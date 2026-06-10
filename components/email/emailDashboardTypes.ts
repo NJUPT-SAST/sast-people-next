@@ -40,4 +40,17 @@ export type EmailCenterConfig = {
   testRecipient: string;
   queueStatus: string;
   realRecipientMode: boolean;
+  retryMaxAttempts: number;
+  retryBaseDelaySeconds: number;
+  retryMaxDelaySeconds: number;
+  retryScanLimit: number;
+  sendRateLimitPerMinute: number;
+  attemptRetentionDays: number;
+  webhookConfigured: boolean;
+  readinessChecks: Array<{
+    key: string;
+    label: string;
+    status: "pass" | "warn" | "fail";
+    detail: string;
+  }>;
 };

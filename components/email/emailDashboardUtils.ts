@@ -48,7 +48,9 @@ export function getQueueableEmailRecipients<TRecipient extends EmailRecipient>({
     if (statuses.some((status) => status === "sent" || status === "sending")) {
       return false;
     }
-    return statuses.some((status) => status === "pending" || status === "failed");
+    return statuses.some(
+      (status) => status === "pending" || status === "failed" || status === "dead",
+    );
   });
 }
 

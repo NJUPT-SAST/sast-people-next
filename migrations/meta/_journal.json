@@ -183,6 +183,13 @@
       "when": 1770000000017,
       "tag": "0025_email_delivery_attempt_log",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1770000000018,
+      "tag": "0026_email_center_production_hardening",
+      "breakpoints": true
     }
   ]
 }

@@ -145,4 +145,31 @@ describe("email center source constraints", () => {
 
     expect(migration).toContain("grant select, insert, update, delete");
   });
+
+  it("keeps email production hardening fields declared in schema and migration", () => {
+    const schema = readFileSync(path.join(rootDir, "db/schema.ts"), "utf8");
+    const migration = readFileSync(
+      path.join(rootDir, "migrations/0026_email_center_production_hardening.sql"),
+      "utf8",
+    );
+
+    for (const fieldName of [
+      "idempotencyKey",
+      "nextRetryAt",
+      "deadLetteredAt",
+      "emailSendRateLimit",
+    ]) {
+      expect(schema).toContain(fieldName);
+    }
+    for (const name of [
+      "email_batch_idempotency_key_uidx",
+      "email_delivery_idempotency_key_uidx",
+      "email_delivery_retry_due_idx",
+      "email_delivery_provider_message_id_idx",
+      "email_send_rate_limit",
+    ]) {
+      expect(schema).toContain(name);
+      expect(migration).toContain(name);
+    }
+  });
 });

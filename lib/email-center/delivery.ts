@@ -2,7 +2,9 @@ import "server-only";
 
 import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, emailDeliveryAttempt } from "@/db/schema";
+import { assertEmailSendRateLimit } from "@/lib/email-center/rate-limit";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import { getFailedDeliveryRetryState } from "@/lib/email-center/retry-policy";
 import { sendEmailViaProvider } from "@/lib/email-center/provider";
 import type {
   CreateRenderedEmailDeliveryInput,
@@ -15,6 +17,7 @@ export type SendEmailDeliveryTrigger =
   | "queue"
   | "manual_retry"
   | "batch_fallback"
+  | "auto_retry"
   | "test"
   | "interview_immediate"
   | "immediate"
@@ -38,6 +41,7 @@ export type CreateEmailDeliveryInput = {
   relatedScheduleId?: number | null;
   createdBy?: number | null;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string | null;
   sendImmediately?: boolean;
 };
 
@@ -45,6 +49,7 @@ export async function createEmailDelivery(input: CreateEmailDeliveryInput) {
   const [delivery] = await db
     .insert(emailDelivery)
     .values({
+      idempotencyKey: input.idempotencyKey ?? null,
       category: input.category,
       templateKey: input.templateKey,
       toAddress: input.toAddress,
@@ -106,6 +111,7 @@ export async function createRenderedEmailDelivery(
     relatedScheduleId: input.relatedScheduleId,
     createdBy: input.createdBy,
     metadata: input.metadata,
+    idempotencyKey: input.idempotencyKey,
     sendImmediately: input.sendImmediately,
   });
 }
@@ -128,6 +134,7 @@ export async function createRenderedTestEmailDelivery(
       ...input.metadata,
       originalTemplateKey: input.templateKey,
     },
+    idempotencyKey: input.idempotencyKey,
     sendImmediately: input.sendImmediately,
   });
 }
@@ -152,8 +159,15 @@ export const sendEmailDelivery = async (
   if (delivery.status === "sending") {
     throw new Error("邮件正在发送中，请稍后刷新状态或恢复中断任务。");
   }
+  if (delivery.status === "dead" && options.trigger !== "manual_retry") {
+    throw new Error("邮件已进入死信状态，请在确认原因后手动重试。");
+  }
 
   const attemptAt = new Date();
+  const claimableStatuses =
+    options.trigger === "manual_retry"
+      ? (["pending", "failed", "dead"] as const)
+      : (["pending", "failed"] as const);
   const claimedDelivery = await db.transaction(async (tx) => {
     const [claimed] = await tx
       .update(emailDelivery)
@@ -162,6 +176,8 @@ export const sendEmailDelivery = async (
         errorMessage: null,
         providerMessageId: null,
         sentAt: null,
+        nextRetryAt: null,
+        deadLetteredAt: null,
         attemptCount: sql`${emailDelivery.attemptCount} + 1`,
         lastAttemptAt: attemptAt,
         updatedAt: attemptAt,
@@ -169,7 +185,7 @@ export const sendEmailDelivery = async (
       .where(
         and(
           eq(emailDelivery.id, deliveryId),
-          inArray(emailDelivery.status, ["pending", "failed"]),
+          inArray(emailDelivery.status, claimableStatuses),
         ),
       )
       .returning({
@@ -210,6 +226,7 @@ export const sendEmailDelivery = async (
   }
 
   try {
+    await assertEmailSendRateLimit();
     const result = await sendEmailViaProvider({
       to: delivery.toAddress,
       subject: delivery.subject,
@@ -224,6 +241,8 @@ export const sendEmailDelivery = async (
           providerMessageId: result.messageId ?? null,
           sentAt: finishedAt,
           errorMessage: null,
+          nextRetryAt: null,
+          deadLetteredAt: null,
           updatedAt: finishedAt,
         })
         .where(eq(emailDelivery.id, deliveryId));
@@ -238,17 +257,23 @@ export const sendEmailDelivery = async (
         })
         .where(eq(emailDeliveryAttempt.id, claimedDelivery.attemptId));
     });
-    await refreshBatchStatus(delivery.fkEmailBatchId);
+    await refreshEmailBatchStatus(delivery.fkEmailBatchId);
     return { messageId: result.messageId ?? null };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const finishedAt = new Date();
+    const retryState = getFailedDeliveryRetryState({
+      attemptCount: delivery.attemptCount + 1,
+      now: finishedAt,
+    });
     await db.transaction(async (tx) => {
       await tx
         .update(emailDelivery)
         .set({
-          status: "failed",
+          status: retryState.status,
           errorMessage,
+          nextRetryAt: retryState.nextRetryAt,
+          deadLetteredAt: retryState.deadLetteredAt,
           updatedAt: finishedAt,
         })
         .where(eq(emailDelivery.id, deliveryId));
@@ -262,12 +287,12 @@ export const sendEmailDelivery = async (
         })
         .where(eq(emailDeliveryAttempt.id, claimedDelivery.attemptId));
     });
-    await refreshBatchStatus(delivery.fkEmailBatchId);
+    await refreshEmailBatchStatus(delivery.fkEmailBatchId);
     throw error;
   }
 };
 
-async function refreshBatchStatus(batchId: number | null) {
+export async function refreshEmailBatchStatus(batchId: number | null) {
   if (!batchId) return;
 
   const deliveries = await db
@@ -277,7 +302,9 @@ async function refreshBatchStatus(batchId: number | null) {
 
   if (deliveries.length === 0) return;
 
-  const hasFailed = deliveries.some((item) => item.status === "failed");
+  const hasFailed = deliveries.some(
+    (item) => item.status === "failed" || item.status === "dead",
+  );
   const allSent = deliveries.every((item) => item.status === "sent");
 
   await db

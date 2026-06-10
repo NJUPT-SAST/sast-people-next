@@ -19,7 +19,7 @@ import {
 
 const DEFAULT_DELIVERY_PAGE_SIZE = 20;
 const MAX_DELIVERY_PAGE_SIZE = 50;
-const deliveryStatuses = ["pending", "sending", "sent", "failed"] as const;
+const deliveryStatuses = ["pending", "sending", "sent", "failed", "dead"] as const;
 type DeliveryStatus = (typeof deliveryStatuses)[number];
 const MAX_DELIVERY_ATTEMPTS_PER_RECORD = 5;
 
@@ -206,6 +206,8 @@ export async function listEmailBatches() {
       errorMessage: emailDelivery.errorMessage,
       attemptCount: emailDelivery.attemptCount,
       lastAttemptAt: emailDelivery.lastAttemptAt,
+      nextRetryAt: emailDelivery.nextRetryAt,
+      deadLetteredAt: emailDelivery.deadLetteredAt,
       sentAt: emailDelivery.sentAt,
       htmlSnapshot: emailDelivery.htmlSnapshot,
     })
@@ -243,6 +245,7 @@ export async function listEmailBatches() {
         sending: batchDeliveries.filter((item) => item.status === "sending").length,
         sent: batchDeliveries.filter((item) => item.status === "sent").length,
         failed: batchDeliveries.filter((item) => item.status === "failed").length,
+        dead: batchDeliveries.filter((item) => item.status === "dead").length,
       },
     };
   });
@@ -280,6 +283,8 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
       errorMessage: emailDelivery.errorMessage,
       attemptCount: emailDelivery.attemptCount,
       lastAttemptAt: emailDelivery.lastAttemptAt,
+      nextRetryAt: emailDelivery.nextRetryAt,
+      deadLetteredAt: emailDelivery.deadLetteredAt,
       sentAt: emailDelivery.sentAt,
       createdAt: emailDelivery.createdAt,
       htmlSnapshot: emailDelivery.htmlSnapshot,
