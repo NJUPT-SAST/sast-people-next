@@ -67,6 +67,7 @@ export type CreateRenderedEmailDeliveryInput = EmailTemplateRenderRequest & {
   relatedScheduleId?: number | null;
   createdBy?: number | null;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string | null;
   sendImmediately?: boolean;
 };
 
@@ -76,5 +77,6 @@ export type CreateRenderedTestEmailDeliveryInput = EmailTemplateRenderRequest & 
   flowId?: number | null;
   createdBy: number;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string | null;
   sendImmediately?: boolean;
 };

@@ -34,6 +34,8 @@ const delivery: EmailDeliveryRecord = {
   errorMessage: null,
   attemptCount: 1,
   lastAttemptAt: new Date("2026-06-08T08:00:00.000Z"),
+  nextRetryAt: null,
+  deadLetteredAt: null,
   sentAt: new Date("2026-06-08T08:01:00.000Z"),
   createdAt: new Date("2026-06-08T08:00:00.000Z"),
   htmlSnapshot: "<html><body><script>window.top.alert('xss')</script></body></html>",

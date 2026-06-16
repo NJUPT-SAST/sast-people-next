@@ -14,6 +14,13 @@ const envKeys = [
   "EMAIL_FROM",
   "EMAIL_PASSWORD",
   "EMAIL_TEST_RECIPIENT",
+  "EMAIL_RETRY_MAX_ATTEMPTS",
+  "EMAIL_RETRY_BASE_DELAY_SECONDS",
+  "EMAIL_RETRY_MAX_DELAY_SECONDS",
+  "EMAIL_RETRY_SCAN_LIMIT",
+  "EMAIL_SEND_RATE_LIMIT_PER_MINUTE",
+  "EMAIL_ATTEMPT_RETENTION_DAYS",
+  "EMAIL_WEBHOOK_SECRET",
 ] as const;
 
 const originalEnv = Object.fromEntries(
@@ -84,7 +91,38 @@ describe("email center config", () => {
       sender: '"People Ops" <mailer@example.com>',
       testRecipient: "safe@example.com",
       realRecipientMode: false,
+      retryMaxAttempts: 5,
+      sendRateLimitPerMinute: 120,
+      attemptRetentionDays: 180,
+      webhookConfigured: false,
     });
+  });
+
+  it("summarizes production hardening settings", () => {
+    process.env.EMAIL_PASSWORD = "secret";
+    process.env.EMAIL_RETRY_MAX_ATTEMPTS = "7";
+    process.env.EMAIL_RETRY_BASE_DELAY_SECONDS = "30";
+    process.env.EMAIL_RETRY_MAX_DELAY_SECONDS = "900";
+    process.env.EMAIL_RETRY_SCAN_LIMIT = "25";
+    process.env.EMAIL_SEND_RATE_LIMIT_PER_MINUTE = "80";
+    process.env.EMAIL_ATTEMPT_RETENTION_DAYS = "365";
+    process.env.EMAIL_WEBHOOK_SECRET = "webhook-secret";
+
+    expect(getEmailCenterConfigSummary()).toMatchObject({
+      retryMaxAttempts: 7,
+      retryBaseDelaySeconds: 30,
+      retryMaxDelaySeconds: 900,
+      retryScanLimit: 25,
+      sendRateLimitPerMinute: 80,
+      attemptRetentionDays: 365,
+      webhookConfigured: true,
+    });
+    expect(getEmailCenterConfigSummary().readinessChecks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "smtp", status: "pass" }),
+        expect.objectContaining({ key: "webhook", status: "pass" }),
+      ]),
+    );
   });
 
   it("redirects non-production email to the configured test recipient", () => {

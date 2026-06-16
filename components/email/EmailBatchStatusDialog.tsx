@@ -30,7 +30,9 @@ import type { EmailBatch } from "./emailDashboardTypes";
 
 export function EmailBatchStatusDialog({ batch }: { batch: EmailBatch }) {
   const deliveries = Array.isArray(batch.deliveries) ? batch.deliveries : [];
-  const failedCount = deliveries.filter((delivery) => delivery.status === "failed").length;
+  const failedCount = deliveries.filter(
+    (delivery) => delivery.status === "failed" || delivery.status === "dead",
+  ).length;
   const sentCount = deliveries.filter((delivery) => delivery.status === "sent").length;
   const renderDeliveryStatus = (status: string) => (
     <Badge variant="outline" className={getDeliveryStatusBadgeClass(status)}>

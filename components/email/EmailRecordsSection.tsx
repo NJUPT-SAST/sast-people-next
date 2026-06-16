@@ -45,7 +45,7 @@ function getRelatedObjectText(delivery: EmailDeliveryRecord) {
 const pageSizeOptions = [10, 20, 50] as const;
 
 function getRecordAccentClass(status: string) {
-  if (status === "failed") return "border-l-destructive/70";
+  if (status === "failed" || status === "dead") return "border-l-destructive/70";
   if (status === "sent") return "border-l-primary/70";
   if (status === "sending") return "border-l-chart-3/70";
   return "border-l-muted-foreground/40";

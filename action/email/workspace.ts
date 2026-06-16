@@ -121,7 +121,12 @@ export async function createResultEmailBatchFromFlow(
     .where(and(eq(emailBatch.fkFlowId, flowId), eq(emailBatch.accept, accept), inArray(emailDelivery.fkUserFlowId, rows.map((item) => item.userFlowId))))
     .orderBy(asc(emailDelivery.createdAt));
 
-  const reusableDelivery = existingDeliveries.find((item) => item.status === "pending" || item.status === "failed");
+  const reusableDelivery = existingDeliveries.find(
+    (item) =>
+      item.status === "pending" ||
+      item.status === "failed" ||
+      item.status === "dead",
+  );
   if (reusableDelivery) return { batchId: reusableDelivery.batchId, deliveryCount: 0 };
 
   const existingUserFlowIds = new Set(existingDeliveries.map((item) => item.userFlowId));

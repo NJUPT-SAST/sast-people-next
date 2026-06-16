@@ -85,6 +85,7 @@ function BatchProgress({ batch }: { batch: EmailBatch }) {
   const total = Math.max(batch.totalCount, 0);
   const sentPercent = total > 0 ? (batch.counts.sent / total) * 100 : 0;
   const failedPercent = total > 0 ? (batch.counts.failed / total) * 100 : 0;
+  const deadPercent = total > 0 ? (batch.counts.dead / total) * 100 : 0;
   const sendingPercent = total > 0 ? (batch.counts.sending / total) * 100 : 0;
 
   return (
@@ -92,12 +93,14 @@ function BatchProgress({ batch }: { batch: EmailBatch }) {
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span>发送进度</span>
         <span className="tabular-nums">
-          {batch.counts.sent + batch.counts.failed}/{batch.totalCount}
+          {batch.counts.sent + batch.counts.failed + batch.counts.dead}/
+          {batch.totalCount}
         </span>
       </div>
       <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
         <div className="bg-primary" style={{ width: `${sentPercent}%` }} />
         <div className="bg-destructive" style={{ width: `${failedPercent}%` }} />
+        <div className="bg-destructive/70" style={{ width: `${deadPercent}%` }} />
         <div className="bg-chart-3" style={{ width: `${sendingPercent}%` }} />
       </div>
     </div>
@@ -185,7 +188,10 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
           batches.map((batch) => {
             const deliveries = Array.isArray(batch.deliveries) ? batch.deliveries : [];
             const preview = deliveries[0]?.htmlSnapshot ?? null;
-            const canRetry = batch.counts.pending > 0 || batch.counts.failed > 0;
+            const canRetry =
+              batch.counts.pending > 0 ||
+              batch.counts.failed > 0 ||
+              batch.counts.dead > 0;
             const canRecover = batch.counts.sending > 0;
             return (
               <article
@@ -220,8 +226,12 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
                       <BatchMetric label="成功" value={batch.counts.sent} tone="success" />
                       <BatchMetric
                         label="失败"
-                        value={batch.counts.failed}
-                        tone={batch.counts.failed > 0 ? "danger" : "default"}
+                        value={batch.counts.failed + batch.counts.dead}
+                        tone={
+                          batch.counts.failed + batch.counts.dead > 0
+                            ? "danger"
+                            : "default"
+                        }
                       />
                       <BatchMetric
                         label="待处理"
@@ -246,7 +256,7 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
                         <Clock3 className="size-3.5" />
                         {formatDate(batch.createdAt)}
                       </span>
-                      {batch.counts.failed > 0 && (
+                      {batch.counts.failed + batch.counts.dead > 0 && (
                         <span className="inline-flex items-center gap-1.5 text-destructive">
                           <TriangleAlert className="size-3.5" />
                           有失败投递待处理

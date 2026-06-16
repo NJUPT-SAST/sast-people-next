@@ -10,6 +10,10 @@ import {
   getResultEmailTemplateKey,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
+import {
+  getResultEmailBatchIdempotencyKey,
+  getResultEmailDeliveryIdempotencyKey,
+} from "@/lib/email-center/idempotency";
 import { assertEmailConfigured } from "@/lib/email-center/provider";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import { sendEmailDelivery } from "@/lib/email-center/delivery";
@@ -75,10 +79,47 @@ export async function createResultEmailBatch({
     return { batchId: null, deliveryCount: 0 };
   }
 
-  const userMap = await listPeopleUsersByLinkIds(
-    targets.map((item) => item.userId),
+  const targetsWithIdempotency = targets.map((item) => ({
+    ...item,
+    idempotencyKey: getResultEmailDeliveryIdempotencyKey({
+      flowId,
+      accept,
+      userFlowId: item.userFlowId,
+    }),
+  }));
+
+  const existingDeliveries = await db
+    .select({
+      idempotencyKey: emailDelivery.idempotencyKey,
+      batchId: emailDelivery.fkEmailBatchId,
+    })
+    .from(emailDelivery)
+    .where(
+      inArray(
+        emailDelivery.idempotencyKey,
+        targetsWithIdempotency.map((item) => item.idempotencyKey),
+      ),
+    );
+  const existingIdempotencyKeys = new Set(
+    existingDeliveries
+      .map((item) => item.idempotencyKey)
+      .filter((key): key is string => key !== null),
   );
-  const missingStudentIdRecipients = targets
+  const missingTargets = targetsWithIdempotency.filter(
+    (item) => !existingIdempotencyKeys.has(item.idempotencyKey),
+  );
+
+  if (missingTargets.length === 0) {
+    return {
+      batchId: existingDeliveries.find((item) => item.batchId)?.batchId ?? null,
+      deliveryCount: 0,
+    };
+  }
+
+  const userMap = await listPeopleUsersByLinkIds(
+    missingTargets.map((item) => item.userId),
+  );
+  const missingStudentIdRecipients = missingTargets
     .map((item) => {
       const targetUser = userMap.get(item.userId);
       return {
@@ -99,9 +140,14 @@ export async function createResultEmailBatch({
   const templateKey = getResultEmailTemplateKey(accept);
   const templateSetting = await getEmailTemplateSetting(templateKey);
   const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
+  const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
+    flowId,
+    accept,
+    userFlowIds: missingTargets.map((item) => item.userFlowId),
+  });
 
   const deliveryDrafts = await Promise.all(
-    targets.map(async (item) => {
+    missingTargets.map(async (item) => {
       const targetUser = userMap.get(item.userId);
       const toAddress = getEducationEmail(targetUser?.studentId);
       const rendered = await renderEmailTemplate({
@@ -125,24 +171,37 @@ export async function createResultEmailBatch({
     const [batch] = await tx
       .insert(emailBatch)
       .values({
+        idempotencyKey: batchIdempotencyKey,
         templateKey,
         category: "result",
         name: `${targets[0].flowName} ${accept ? "通过" : "不通过"}通知`,
         subject,
         accept,
         status: "draft",
-        totalCount: targets.length,
+        totalCount: missingTargets.length,
         fkFlowId: flowId,
         fkCreatedBy: createdBy,
         metadata: { accept },
       })
+      .onConflictDoNothing({ target: emailBatch.idempotencyKey })
       .returning({ id: emailBatch.id });
+
+    if (!batch) {
+      const [existingBatch] = await tx
+        .select({ id: emailBatch.id })
+        .from(emailBatch)
+        .where(eq(emailBatch.idempotencyKey, batchIdempotencyKey))
+        .limit(1);
+
+      return { batchId: existingBatch?.id ?? null, deliveryCount: 0 };
+    }
 
     let deliveryCount = 0;
     for (const { item, rendered, toAddress } of deliveryDrafts) {
-      await tx
+      const [delivery] = await tx
         .insert(emailDelivery)
         .values({
+          idempotencyKey: item.idempotencyKey,
           category: "result",
           templateKey,
           toAddress,
@@ -155,8 +214,9 @@ export async function createResultEmailBatch({
           createdBy,
           metadata: { accept, flowId },
         })
+        .onConflictDoNothing({ target: emailDelivery.idempotencyKey })
         .returning({ id: emailDelivery.id });
-      deliveryCount += 1;
+      if (delivery) deliveryCount += 1;
     }
 
     return { batchId: batch.id, deliveryCount };
@@ -193,7 +253,10 @@ export async function sendEmailBatchById(batchId: number) {
     .where(eq(emailDelivery.fkEmailBatchId, batchId));
 
   const queueableDeliveries = deliveries.filter(
-    (item) => item.status === "pending" || item.status === "failed",
+    (item) =>
+      item.status === "pending" ||
+      item.status === "failed" ||
+      item.status === "dead",
   );
 
   if (queueableDeliveries.length === 0) {
@@ -204,7 +267,13 @@ export async function sendEmailBatchById(batchId: number) {
 
   await db
     .update(emailDelivery)
-    .set({ status: "pending", errorMessage: null, updatedAt: new Date() })
+    .set({
+      status: "pending",
+      errorMessage: null,
+      nextRetryAt: null,
+      deadLetteredAt: null,
+      updatedAt: new Date(),
+    })
     .where(
       inArray(
         emailDelivery.id,
@@ -251,6 +320,8 @@ export async function sendEmailBatchById(batchId: number) {
               .set({
                 status: "failed",
                 errorMessage: EMAIL_SERVICE_UNAVAILABLE,
+                nextRetryAt: new Date(),
+                deadLetteredAt: null,
                 updatedAt: new Date(),
               })
               .where(eq(emailDelivery.id, item.id));
@@ -317,6 +388,8 @@ async function recoverStaleEmailDeliveriesInBatch(batchId: number) {
     .set({
       status: "failed",
       errorMessage: STALE_SENDING_DELIVERY_MESSAGE,
+      nextRetryAt: new Date(),
+      deadLetteredAt: null,
       updatedAt: new Date(),
     })
     .where(

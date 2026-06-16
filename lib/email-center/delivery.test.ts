@@ -3,6 +3,7 @@ jest.mock("server-only", () => ({}));
 export {};
 
 const mockSendMail = jest.fn();
+const mockAssertEmailSendRateLimit = jest.fn();
 const mockSelectResults: unknown[][] = [];
 const mockUpdateResults: unknown[][] = [];
 const mockUpdateSetCalls: unknown[] = [];
@@ -63,6 +64,10 @@ jest.mock("@/lib/email-center/render", () => ({
   renderEmailTemplate: jest.fn(),
 }));
 
+jest.mock("@/lib/email-center/rate-limit", () => ({
+  assertEmailSendRateLimit: mockAssertEmailSendRateLimit,
+}));
+
 jest.mock("nodemailer", () => ({
   createTransport: jest.fn(() => ({
     sendMail: mockSendMail,
@@ -73,6 +78,7 @@ let sendEmailDelivery: typeof import("@/lib/email-center/delivery").sendEmailDel
 
 const pendingDelivery = {
   id: 1,
+  idempotencyKey: null,
   category: "result",
   templateKey: "recruitment.result.accepted",
   toAddress: "candidate@njupt.edu.cn",
@@ -83,6 +89,8 @@ const pendingDelivery = {
   providerMessageId: null,
   attemptCount: 0,
   lastAttemptAt: null,
+  nextRetryAt: null,
+  deadLetteredAt: null,
   fkEmailBatchId: null,
   fkFlowId: 7,
   fkUserFlowId: 11,
@@ -97,6 +105,7 @@ const pendingDelivery = {
 
 const originalEmailPassword = process.env.EMAIL_PASSWORD;
 const originalEmailTestRecipient = process.env.EMAIL_TEST_RECIPIENT;
+const originalEmailRetryMaxAttempts = process.env.EMAIL_RETRY_MAX_ATTEMPTS;
 
 describe("sendEmailDelivery", () => {
   beforeAll(async () => {
@@ -111,6 +120,14 @@ describe("sendEmailDelivery", () => {
     mockUpdateSetCalls.length = 0;
     mockInsertValueCalls.length = 0;
     jest.clearAllMocks();
+    mockAssertEmailSendRateLimit.mockResolvedValue({
+      allowed: true,
+      limit: 120,
+      bucketKey: "smtp:test",
+      count: 1,
+      retryAfterSeconds: 60,
+    });
+    delete process.env.EMAIL_RETRY_MAX_ATTEMPTS;
   });
 
   afterAll(() => {
@@ -123,6 +140,11 @@ describe("sendEmailDelivery", () => {
       delete process.env.EMAIL_TEST_RECIPIENT;
     } else {
       process.env.EMAIL_TEST_RECIPIENT = originalEmailTestRecipient;
+    }
+    if (originalEmailRetryMaxAttempts === undefined) {
+      delete process.env.EMAIL_RETRY_MAX_ATTEMPTS;
+    } else {
+      process.env.EMAIL_RETRY_MAX_ATTEMPTS = originalEmailRetryMaxAttempts;
     }
   });
 
@@ -156,6 +178,8 @@ describe("sendEmailDelivery", () => {
           status: "sent",
           providerMessageId: "smtp-message-1",
           errorMessage: null,
+          nextRetryAt: null,
+          deadLetteredAt: null,
         }),
         expect.objectContaining({
           status: "sent",
@@ -176,6 +200,7 @@ describe("sendEmailDelivery", () => {
         startedAt: expect.any(Date),
       }),
     ]);
+    expect(mockAssertEmailSendRateLimit).toHaveBeenCalledTimes(1);
   });
 
   it("does not send again when another worker already sent the delivery", async () => {
@@ -222,6 +247,8 @@ describe("sendEmailDelivery", () => {
         expect.objectContaining({
           status: "failed",
           errorMessage: "SMTP down",
+          nextRetryAt: expect.any(Date),
+          deadLetteredAt: null,
         }),
       ]),
     );
@@ -231,5 +258,27 @@ describe("sendEmailDelivery", () => {
         status: "sending",
       }),
     ]);
+  });
+
+  it("dead-letters the delivery after the retry limit is reached", async () => {
+    process.env.EMAIL_RETRY_MAX_ATTEMPTS = "1";
+    mockSelectResults.push([pendingDelivery]);
+    mockUpdateResults.push([{ id: pendingDelivery.id }], []);
+    mockSendMail.mockRejectedValue(new Error("SMTP down"));
+
+    await expect(sendEmailDelivery(pendingDelivery.id)).rejects.toThrow(
+      "SMTP down",
+    );
+
+    expect(mockUpdateSetCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: "dead",
+          errorMessage: "SMTP down",
+          nextRetryAt: null,
+          deadLetteredAt: expect.any(Date),
+        }),
+      ]),
+    );
   });
 });
