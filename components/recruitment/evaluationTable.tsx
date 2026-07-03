@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { externalHref } from "@/lib/link";
+import { generateEvaluationDraft } from "@/action/ai/candidate";
 
 type Candidate = {
   userFlowId: number;
@@ -272,6 +274,7 @@ export const EvaluationTable = ({
   const [scheduleNote, setScheduleNote] = useState("");
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [emailPreviewLoading, setEmailPreviewLoading] = useState(false);
+  const [aiDraftLoading, setAiDraftLoading] = useState(false);
   const [emailPreview, setEmailPreview] = useState<{
     subject: string;
     to: string;
@@ -460,6 +463,28 @@ export const EvaluationTable = ({
       toast.error(error instanceof Error ? error.message : "取消预约失败");
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const handleGenerateEvaluationDraft = async () => {
+    if (!editingCandidate) return;
+
+    setAiDraftLoading(true);
+    try {
+      const result = await generateEvaluationDraft(
+        editingCandidate.userFlowId,
+        content,
+      );
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      setContent(result.data.text);
+      toast.success(content.trim() ? "面评内容已润色" : "面评草稿已生成");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "AI 面评生成失败");
+    } finally {
+      setAiDraftLoading(false);
     }
   };
 
@@ -772,7 +797,19 @@ export const EvaluationTable = ({
               </div>
             )}
             <div className="space-y-2">
-              <label className="text-sm font-medium">面评内容</label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <label className="text-sm font-medium">面评内容</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateEvaluationDraft}
+                  loading={aiDraftLoading}
+                >
+                  <Sparkles data-icon="inline-start" />
+                  {content.trim() ? "润色内容" : "生成草稿"}
+                </Button>
+              </div>
               <Textarea
                 placeholder="请输入面评内容..."
                 value={content}

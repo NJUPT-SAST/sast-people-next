@@ -14,6 +14,10 @@ jest.mock("@/action/user-flow/interviewSchedule", () => ({
   previewInterviewScheduleEmail: jest.fn(),
 }));
 
+jest.mock("@/action/ai/candidate", () => ({
+  generateEvaluationDraft: jest.fn(),
+}));
+
 jest.mock("sonner", () => ({
   toast: {
     error: jest.fn(),

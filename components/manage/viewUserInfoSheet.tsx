@@ -18,12 +18,13 @@ import {
   SelectValue,
 } from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { ExternalLink, User } from 'lucide-react';
+import { ExternalLink, Sparkles, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { userType } from '@/types/user';
 import originalDayjs from '@/lib/dayjs';
 import { updateUserRole } from '@/action/user/updateRole';
 import { useUserInfoById as getUserInfoById } from '@/hooks/useUserInfoById';
+import { generateCandidateSummary } from '@/action/ai/candidate';
 
 const roleName: Record<number, string> = {
   0: '新同学',
@@ -146,6 +147,8 @@ export const ViewUserInfoSheet = ({
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [detailUserInfo, setDetailUserInfo] = useState<userType | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const displayUserInfo = detailUserInfo ?? userInfo;
 
   const handleRoleChange = async (newRole: string) => {
@@ -177,6 +180,23 @@ export const ViewUserInfoSheet = ({
       toast.error('加载用户详细信息失败');
     } finally {
       setIsLoadingDetail(false);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    setIsGeneratingSummary(true);
+    try {
+      const result = await generateCandidateSummary(userInfo.id);
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      setAiSummary(result.data.text);
+      toast.success('AI 摘要已生成');
+    } catch {
+      toast.error('AI 摘要生成失败');
+    } finally {
+      setIsGeneratingSummary(false);
     }
   };
 
@@ -312,6 +332,30 @@ export const ViewUserInfoSheet = ({
             </InfoRow>
             <InfoRow label="个人陈述">
               <TextValue value={displayUserInfo.personalStatement} multiline />
+            </InfoRow>
+          </InfoSection>
+
+          <InfoSection title="AI 摘要">
+            <InfoRow label="摘要">
+              <div className="flex flex-col gap-3">
+                {aiSummary ? (
+                  <p className="whitespace-pre-wrap leading-6">{aiSummary}</p>
+                ) : (
+                  <p className="text-muted-foreground">尚未生成</p>
+                )}
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateSummary}
+                    loading={isGeneratingSummary}
+                  >
+                    <Sparkles data-icon="inline-start" />
+                    {aiSummary ? '重新生成' : '生成摘要'}
+                  </Button>
+                </div>
+              </div>
             </InfoRow>
           </InfoSection>
 
