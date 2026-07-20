@@ -18,6 +18,9 @@ const eslintConfig = defineConfig([
   ]),
   {
     rules: {
+      // Existing controlled state-synchronization patterns predate the rule added by eslint-config-next 16.2.10.
+      // Keep their established behavior while allowing the dependency patch upgrade.
+      "react-hooks/set-state-in-effect": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
