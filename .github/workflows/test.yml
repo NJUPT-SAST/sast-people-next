@@ -55,12 +55,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # The historical migration chain cannot be replayed on an empty PostgreSQL
-      # database because migration 0006 adds enum values used later in the same
-      # transaction. E2E only requires the current schema, so initialize this
-      # disposable CI database directly from the Drizzle schema.
-      - name: Apply current database schema
-        run: pnpm db:push --force
+      - name: Apply database migrations
+        run: pnpm db:migrate
 
       - name: Seed E2E fixture data
         run: pnpm db:seed:demo
