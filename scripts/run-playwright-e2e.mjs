@@ -2,8 +2,27 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function loadLocalEnv() {
+  const envPath = path.join(rootDir, ".env.local");
+  if (!existsSync(envPath)) return;
+
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!match) continue;
+
+    const [, key, rawValue] = match;
+    if (process.env[key] !== undefined) continue;
+
+    const value = rawValue.replace(/^(["'])(.*)\1$/, "$2");
+    process.env[key] = value;
+  }
+}
+
+loadLocalEnv();
 const port = process.env.PLAYWRIGHT_PORT ?? "3101";
 const baseURL = `http://127.0.0.1:${port}`;
 const env = {
@@ -60,10 +79,12 @@ function killProcessTree(processRef) {
   processRef.kill("SIGTERM");
 }
 
+const playwrightArgs = process.argv.slice(2).filter((argument) => argument !== "--");
+
 function runPlaywright() {
   return new Promise((resolve) => {
     const cliPath = path.join(rootDir, "node_modules", "@playwright", "test", "cli.js");
-    const child = spawn(process.execPath, [cliPath, "test"], {
+    const child = spawn(process.execPath, [cliPath, "test", ...playwrightArgs], {
       cwd: rootDir,
       env,
       stdio: "inherit",

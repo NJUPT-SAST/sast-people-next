@@ -15,6 +15,54 @@ export interface ServerErrorLogContext {
   metadata?: Record<string, unknown>;
 }
 
+const sensitiveMetadataKeys = new Set([
+  "authorization",
+  "accesstoken",
+  "refreshtoken",
+  "cookie",
+  "email",
+  "identifier",
+  "ip",
+  "name",
+  "openid",
+  "password",
+  "phone",
+  "secret",
+  "studentid",
+  "token",
+  "useragent",
+]);
+
+function isSensitiveMetadataKey(key: string) {
+  return sensitiveMetadataKeys.has(key.replace(/[^a-z]/gi, "").toLowerCase());
+}
+
+function sanitizeMetadataValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeMetadataValue);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([key, nestedValue]) =>
+        isSensitiveMetadataKey(key)
+          ? []
+          : [[key, sanitizeMetadataValue(nestedValue)]],
+      ),
+    );
+  }
+
+  return value;
+}
+
+function sanitizeServerErrorContext(context: ServerErrorLogContext) {
+  const { studentId: _studentId, metadata, ...safeContext } = context;
+
+  return metadata
+    ? { ...safeContext, metadata: sanitizeMetadataValue(metadata) }
+    : safeContext;
+}
+
 export function isNextControlFlowError(err: unknown) {
   if (!(err instanceof Error)) return false;
   const digest = (err as Error & { digest?: string }).digest;
@@ -35,14 +83,15 @@ export function logServerError(
     scope.setTag("source", source);
     if (digest) scope.setTag("digest", digest);
     if (context) {
-      scope.setContext("serverErrorLog", { ...context });
-      if (context.path) scope.setTag("path", context.path);
-      if (context.action) scope.setTag("action", context.action);
-      if (context.role !== undefined && context.role !== null) {
-        scope.setTag("role", String(context.role));
+      const safeContext = sanitizeServerErrorContext(context);
+      scope.setContext("serverErrorLog", safeContext);
+      if (safeContext.path) scope.setTag("path", safeContext.path);
+      if (safeContext.action) scope.setTag("action", safeContext.action);
+      if (safeContext.role !== undefined && safeContext.role !== null) {
+        scope.setTag("role", String(safeContext.role));
       }
-      if (context.userId !== undefined && context.userId !== null) {
-        scope.setUser({ id: String(context.userId) });
+      if (safeContext.userId !== undefined && safeContext.userId !== null) {
+        scope.setUser({ id: String(safeContext.userId) });
       }
     }
     Sentry.captureException(err instanceof Error ? err : new Error(String(err)));

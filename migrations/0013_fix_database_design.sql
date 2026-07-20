@@ -109,8 +109,10 @@ UPDATE "user_flow" SET
     WHEN "status" = 'accepted' THEN 'passed'::"progress_status_enum"
     WHEN "status" = 'rejected' THEN 'failed'::"progress_status_enum"
     WHEN "status" = 'ongoing'  THEN 'ongoing'::"progress_status_enum"
-    WHEN "status" = 'passed'   THEN 'passed'::"progress_status_enum"
-    WHEN "status" = 'failed'   THEN 'failed'::"progress_status_enum"
+    -- Drizzle replays pending migrations in one transaction; values added by
+    -- 0006 must be compared as text until that transaction has committed.
+    WHEN "status"::text = 'passed' THEN 'passed'::"progress_status_enum"
+    WHEN "status"::text = 'failed' THEN 'failed'::"progress_status_enum"
   END;
 
 -- current_step_order → fk_current_step_id

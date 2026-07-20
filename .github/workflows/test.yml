@@ -10,18 +10,40 @@ concurrency:
 
 jobs:
   test:
-    name: Tests & Build
+    name: Tests, E2E & Build
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://sast:sast@localhost:5432/sastpeople
+      SESSION_SECRET: ci-session-secret
+      EMAIL_WEBHOOK_SECRET: ci-email-webhook-secret
+      LINK_USE_MOCK: "true"
+      LINK_LOGIN_FEISHU_TEST_MOCK: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sastpeople
+          POSTGRES_USER: sast
+          POSTGRES_PASSWORD: sast
+        options: >-
+          --health-cmd "pg_isready -U sast -d sastpeople"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22.x
 
@@ -33,10 +55,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests
+      - name: Apply database migrations
+        run: pnpm db:migrate
+
+      - name: Seed E2E fixture data
+        run: pnpm db:seed:demo
+
+      - name: Run unit tests
         run: pnpm exec jest
 
       - name: Build Next.js application
         run: pnpm build
         env:
           NEXT_PUBLIC_MOCK: true
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        run: pnpm test:e2e

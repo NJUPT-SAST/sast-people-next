@@ -160,6 +160,8 @@ This does not require rebuilding or copying a new image. Build-time public varia
 
 `PEOPLE_PUBLIC_BASE_URL` must be set in production so Feishu bot cards can link back to People. `FEISHU_OAUTH_REDIRECT_URI` must match the exact URL allowlisted in the Feishu developer console, for example `https://nextpeople.sast.fun/api/auth/feishu`. `FEISHU_INTERVIEW_CHAT_ID` is optional and enables privacy-safe group cards for interview schedule changes.
 
+AI-assisted candidate summaries and interview evaluation drafts are server-side only. Set `OPENAI_API_KEY` to enable them. `OPENAI_MODEL` defaults to `gpt-5-mini`, and `OPENAI_BASE_URL` can be set when using an OpenAI-compatible gateway. Do not expose these values with `NEXT_PUBLIC_*`.
+
 ## Documentation
 
 - [SAST People v3 Link integration plan](docs/SAST_PEOPLE_V3_LINK_DEV.md)
