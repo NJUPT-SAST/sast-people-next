@@ -133,6 +133,32 @@ describe("SubmitRegister", () => {
     expect(screen.getByRole("button", { name: "提交报名" })).toBeDisabled();
   });
 
+  it("disables registration when every flow is outside its registration window", () => {
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[
+          {
+            id: 1,
+            title: "已结束流程",
+            type: "recruitment",
+            startedAt: new Date("2026-03-20T08:00:00.000Z"),
+            endedAt: new Date("2026-03-21T08:00:00.000Z"),
+          },
+          {
+            id: 2,
+            title: "尚未开始流程",
+            type: "recruitment",
+            startedAt: new Date("2026-03-23T08:00:00.000Z"),
+            endedAt: new Date("2026-03-24T08:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "暂无开放报名" })).toBeDisabled();
+  });
+
   it("shows optional portfolio link for non-written flows", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
