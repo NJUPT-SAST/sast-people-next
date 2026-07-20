@@ -45,7 +45,6 @@ export async function loginFromX(
           });
       }
     } else if (type === 'link') {
-      console.debug('link login', openid, userIdentifier);
       uidList = await db
         .select({
           id: user.id,
@@ -60,7 +59,6 @@ export async function loginFromX(
         )
         .limit(1);
       if (!uidList || uidList.length === 0) {
-        console.debug('link login insert', openid, userIdentifier);
         uidList = await db
           .insert(user)
           .values({
@@ -79,7 +77,6 @@ export async function loginFromX(
           });
       } else {
         if (uidList[0].linkOpenid !== openid) {
-          console.debug('link login update', openid, userIdentifier);
           await db
             .update(user)
             .set({
@@ -91,7 +88,6 @@ export async function loginFromX(
       }
     }
     if (uidList && uidList.length > 0 && !uidList[0].isDeleted) {
-      console.debug('login success', uidList[0]);
       await createSession(
         uidList[0].id as number,
         uidList[0].name || userIdentifier,
@@ -104,11 +100,7 @@ export async function loginFromX(
     logServerError('auth:loginFromX', error, {
       path: '/login',
       action: 'login-from-oauth',
-      studentId: type === 'link' ? userIdentifier : null,
-      metadata: {
-        type,
-        identifier: type === 'feishu' ? userIdentifier : undefined,
-      },
+      metadata: { type },
     });
     throw error;
   }
@@ -136,7 +128,6 @@ export async function loginFromTest(formData: FormData) {
     logServerError('auth:loginFromTest', error, {
       path: '/login',
       action: 'login-from-test',
-      studentId,
     });
     throw error;
   }
