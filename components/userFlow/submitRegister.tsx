@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -24,12 +25,18 @@ import { toast } from 'sonner';
 import { displayFlow } from '@/types/flow';
 import originalDayjs from '@/lib/dayjs';
 
+const isFlowActive = (flow: displayFlow, now: Date) =>
+  now >= flow.startedAt && (!flow.endedAt || now <= flow.endedAt);
+
 const SubmitRegister = ({
   flowList,
   uid,
 }: { flowList: displayFlow[]; uid: number }) => {
   const safeFlowList = Array.isArray(flowList) ? flowList : [];
   const hasFlows = safeFlowList.length > 0;
+  const now = new Date();
+  const hasOpenFlows = safeFlowList.some((flow) => isFlowActive(flow, now));
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<number | null>(null);
   const [portfolioLink, setPortfolioLink] = useState("");
@@ -54,6 +61,7 @@ const SubmitRegister = ({
             setOpen(false);
             setSelectedFlow(null);
             setPortfolioLink("");
+            router.refresh();
           } catch (error) {
             if (error instanceof Error) {
               throw new Error(error.message);
@@ -79,8 +87,8 @@ const SubmitRegister = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" disabled={!hasFlows}>
-          提交报名
+        <Button size="sm" disabled={!hasOpenFlows}>
+          {hasFlows && !hasOpenFlows ? "暂无开放报名" : "提交报名"}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
@@ -101,10 +109,9 @@ const SubmitRegister = ({
           {hasFlows && (
             <SelectContent>
               {safeFlowList.map((flow) => {
-                const now = new Date();
                 const isBeforeStart = now < flow.startedAt;
                 const isAfterEnd = flow.endedAt ? now > flow.endedAt : false;
-                const isActive = !isBeforeStart && !isAfterEnd;
+                const isActive = isFlowActive(flow, now);
 
                 return (
                   <SelectItem
