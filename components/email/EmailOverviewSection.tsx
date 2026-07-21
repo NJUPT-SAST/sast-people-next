@@ -1,14 +1,18 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
-  Clock3,
-  Server,
+  ClipboardList,
+  FileText,
+  ListChecks,
   ShieldCheck,
 } from "lucide-react";
+import Link from "next/link";
 
 import {
   batchStatusText,
@@ -92,6 +96,55 @@ function getReadinessClass(status: "pass" | "warn" | "fail") {
   return "border-chart-3/25 bg-chart-3/5 text-chart-3";
 }
 
+function QuickAction({
+  href,
+  title,
+  description,
+  icon: Icon,
+  emphasize,
+}: {
+  href: string;
+  title: string;
+  description: string;
+  icon: typeof ListChecks;
+  emphasize?: boolean;
+}) {
+  return (
+    <Button
+      asChild
+      variant="outline"
+      className={cn(
+        "h-auto justify-start whitespace-normal rounded-xl border bg-background/50 px-4 py-3 text-left shadow-none hover:bg-background",
+        emphasize && "border-primary/30 bg-primary/5 hover:bg-primary/10",
+      )}
+    >
+      <Link href={href}>
+        <div className="flex w-full items-start gap-3">
+          <div
+            className={cn(
+              "mt-0.5 rounded-lg border p-2",
+              emphasize
+                ? "border-primary/25 bg-primary/10 text-primary"
+                : "border-border bg-muted/40 text-muted-foreground",
+            )}
+          >
+            <Icon className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">{title}</span>
+              <ArrowRight className="size-3.5 text-muted-foreground" />
+            </div>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {description}
+            </p>
+          </div>
+        </div>
+      </Link>
+    </Button>
+  );
+}
+
 export function EmailOverviewSection({
   batches,
   deliveries,
@@ -123,18 +176,18 @@ export function EmailOverviewSection({
   const todayTotalCount = todayDeliveries.length;
   const healthLabel =
     todayFailedCount > 0
-      ? "需要处理失败"
+      ? "有失败需要处理"
       : sendingCount > 0
-        ? "正在发送"
+        ? "正在发送中"
         : pendingCount > 0
-          ? "有待发送"
+          ? "还有待发送邮件"
           : "运行正常";
   const HealthIcon = todayFailedCount > 0 ? AlertTriangle : CheckCircle2;
 
   return (
     <div className="flex flex-col gap-5">
       <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
-        <div className="grid gap-0 lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.6fr)]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(280px,0.95fr)_minmax(0,1.55fr)]">
           <div className="border-b p-5 lg:border-b-0 lg:border-r">
             <div className="flex items-start gap-3">
               <div
@@ -149,27 +202,28 @@ export function EmailOverviewSection({
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground">
-                  邮件系统状态
+                  今天邮件状态
                 </p>
                 <h2 className="mt-1 text-xl font-semibold">{healthLabel}</h2>
                 <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-                  今日共处理 {todayTotalCount} 封投递，失败 {todayFailedCount} 封。
+                  今日共 {todayTotalCount} 封，成功 {todaySentCount} 封，失败{" "}
+                  {todayFailedCount} 封。
                   {emailCenterConfig.realRecipientMode
-                    ? "当前发送到真实收件人。"
-                    : "当前处于非生产测试重定向模式。"}
+                    ? "当前会发到真实收件人。"
+                    : "当前是本地测试模式，实际会重定向到测试邮箱。"}
                 </p>
               </div>
             </div>
           </div>
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricBlock label="今日发送" value={todaySentCount} tone="success" />
+            <MetricBlock label="今日已发送" value={todaySentCount} tone="success" />
             <MetricBlock
               label="今日失败"
               value={todayFailedCount}
               tone={todayFailedCount > 0 ? "danger" : "default"}
             />
             <MetricBlock
-              label="待发送"
+              label="排队待发"
               value={pendingCount}
               tone={pendingCount > 0 ? "warning" : "default"}
             />
@@ -182,20 +236,57 @@ export function EmailOverviewSection({
         </div>
       </section>
 
+      <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
+        <div className="border-b px-5 py-4">
+          <h2 className="text-base font-semibold">接下来做什么</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            快捷入口。日常发结果通知请直接用顶部「发结果通知」页签。
+          </p>
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-3">
+          <QuickAction
+            href="/dashboard/emails?tab=tasks"
+            title="发结果通知"
+            description="选招新流程，给通过/不通过名单发邮件。"
+            icon={ListChecks}
+            emphasize={todayFailedCount === 0}
+          />
+          <QuickAction
+            href="/dashboard/emails?tab=records"
+            title={todayFailedCount > 0 ? "处理失败记录" : "查发送记录"}
+            description={
+              todayFailedCount > 0
+                ? "查看失败原因，并重试可恢复的邮件。"
+                : "按收件人、状态或流程查找每一封邮件。"
+            }
+            icon={ClipboardList}
+            emphasize={todayFailedCount > 0}
+          />
+          <QuickAction
+            href="/dashboard/emails?tab=templates"
+            title="改邮件文案"
+            description="编辑结果通知、面试通知模板，并可测试发送。"
+            icon={FileText}
+          />
+        </div>
+      </section>
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
           <div className="flex items-start justify-between gap-3 border-b p-5">
             <div>
-              <h2 className="text-base font-semibold">最近发送任务</h2>
+              <h2 className="text-base font-semibold">最近批量任务</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                最近批量任务和当前处理状态。
+                结果通知批量发送的最近记录。
               </p>
             </div>
-            <Clock3 className="mt-1 size-5 text-muted-foreground" />
+            <Button asChild variant="ghost" size="sm" className="shrink-0">
+              <Link href="/dashboard/emails?tab=tasks">查看全部</Link>
+            </Button>
           </div>
           <div className="flex flex-col gap-3 p-4">
             {recentBatches.length === 0 ? (
-              <EmptyPanel>暂无邮件发送任务。</EmptyPanel>
+              <EmptyPanel>还没有批量发送任务。去「发结果通知」创建第一个。</EmptyPanel>
             ) : (
               recentBatches.map((batch) => (
                 <div
@@ -209,7 +300,7 @@ export function EmailOverviewSection({
                     </p>
                   </div>
                   <Badge variant="outline" className={getBatchStatusBadgeClass(batch.status)}>
-                    {batchStatusText[batch.status]}
+                    {batchStatusText[batch.status] ?? batch.status}
                   </Badge>
                 </div>
               ))
@@ -220,16 +311,18 @@ export function EmailOverviewSection({
         <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
           <div className="flex items-start justify-between gap-3 border-b p-5">
             <div>
-              <h2 className="text-base font-semibold">最近失败</h2>
+              <h2 className="text-base font-semibold">需要关注的失败</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                优先处理可重试或配置类问题。
+                优先处理可重试或配置问题。
               </p>
             </div>
-            <AlertTriangle className="mt-1 size-5 text-muted-foreground" />
+            <Button asChild variant="ghost" size="sm" className="shrink-0">
+              <Link href="/dashboard/emails?tab=records&status=failed">查看记录</Link>
+            </Button>
           </div>
           <div className="flex flex-col gap-3 p-4">
             {recentFailures.length === 0 ? (
-              <EmptyPanel>暂无失败记录。</EmptyPanel>
+              <EmptyPanel>最近没有失败记录。</EmptyPanel>
             ) : (
               recentFailures.map((delivery) => (
                 <div
@@ -239,8 +332,8 @@ export function EmailOverviewSection({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{delivery.subject}</p>
-                      <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                        {delivery.toAddress}
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {delivery.userName || "未知收件人"} · {delivery.toAddress}
                       </p>
                     </div>
                     <Badge
@@ -262,49 +355,6 @@ export function EmailOverviewSection({
         </section>
       </div>
 
-      <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
-        <div className="flex items-start justify-between gap-3 border-b p-5">
-          <div>
-            <h2 className="text-base font-semibold">服务状态</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              第一阶段仅展示邮件中心可读配置，不显示敏感信息。
-            </p>
-          </div>
-          <Server className="mt-1 size-5 text-muted-foreground" />
-        </div>
-        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricBlock
-            label="SMTP"
-            value={emailCenterConfig.smtpConfigured ? "已配置" : "未配置"}
-            detail={emailCenterConfig.smtpHost}
-            tone={emailCenterConfig.smtpConfigured ? "success" : "danger"}
-          />
-          <MetricBlock
-            label="队列"
-            value="邮件队列"
-            detail={emailCenterConfig.queueStatus}
-          />
-          <MetricBlock
-            label="全局限速"
-            value={`${emailCenterConfig.sendRateLimitPerMinute}/分钟`}
-            detail="跨实例共享数据库限速 bucket"
-          />
-          <MetricBlock
-            label="自动重试"
-            value={`${emailCenterConfig.retryMaxAttempts} 次`}
-            detail={`${emailCenterConfig.retryBaseDelaySeconds}s 起步，最多 ${emailCenterConfig.retryMaxDelaySeconds}s`}
-          />
-          <MetricBlock
-            label="收件人模式"
-            value={emailCenterConfig.realRecipientMode ? "真实收件人" : "测试重定向"}
-          />
-          <MetricBlock
-            label="测试收件人"
-            value="默认测试邮箱"
-            detail={emailCenterConfig.testRecipient}
-          />
-        </div>
-      </section>
     </div>
   );
 }
@@ -322,7 +372,7 @@ export function EmailConfigSection({
     ["队列状态", emailCenterConfig.queueStatus],
     ["生产环境真实收件人", emailCenterConfig.realRecipientMode ? "启用" : "未启用"],
     ["回执入口", emailCenterConfig.webhookConfigured ? "已配置" : "未配置"],
-    ["全局限速", `${emailCenterConfig.sendRateLimitPerMinute} 封/分钟`],
+    ["发送限速", `${emailCenterConfig.sendRateLimitPerMinute} 封/分钟`],
     [
       "自动重试",
       `${emailCenterConfig.retryMaxAttempts} 次，扫描 ${emailCenterConfig.retryScanLimit} 封/轮`,
@@ -334,9 +384,9 @@ export function EmailConfigSection({
     <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
       <div className="flex items-start justify-between gap-3 border-b p-5">
         <div>
-          <h2 className="text-lg font-semibold">配置</h2>
+          <h2 className="text-lg font-semibold">运行配置</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            第一阶段只展示只读配置状态，敏感信息不会明文展示。
+            这里只读展示当前环境配置，改配置请走部署/环境变量，不会在页面明文显示密钥。
           </p>
         </div>
         <ShieldCheck className="mt-1 size-5 text-muted-foreground" />
@@ -347,7 +397,10 @@ export function EmailConfigSection({
         ))}
       </div>
       <div className="border-t p-4">
-        <h3 className="text-sm font-semibold">生产就绪检查</h3>
+        <h3 className="text-sm font-semibold">上线前检查</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          通过项表示当前环境满足该项要求；未通过需要先修环境再发正式邮件。
+        </p>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {emailCenterConfig.readinessChecks.map((check) => {
             const Icon = check.status === "pass" ? CheckCircle2 : AlertTriangle;

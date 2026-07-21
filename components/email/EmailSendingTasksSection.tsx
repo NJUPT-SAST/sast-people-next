@@ -231,10 +231,10 @@ export function EmailSendingTasksSection({
           <div>
             <div className="flex items-center gap-2">
               <MailPlus className="size-5 text-primary" />
-              <h2 className="text-lg font-semibold">发送任务</h2>
+              <h2 className="text-lg font-semibold">发结果通知</h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              当前第一阶段支持结果通知批量任务；任务会保存正文快照和投递记录。
+              按流程给候选人发「通过 / 不通过」结果邮件。发送后可在下方历史里查看进度和失败。
             </p>
           </div>
           <div className="hidden lg:block">
@@ -288,7 +288,8 @@ export function EmailSendingTasksSection({
 
         <div className="grid lg:grid-cols-[300px_minmax(0,1fr)]">
           <div className="hidden p-3 lg:block lg:border-r">
-            <div className="mb-3">
+            <div className="mb-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">1. 选择招新流程</p>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -330,9 +331,10 @@ export function EmailSendingTasksSection({
               <div className="flex flex-col gap-4 lg:gap-5">
                 <div className="flex flex-col gap-3">
                   <div className="min-w-0">
-                    <h3 className="truncate text-lg font-semibold">{selectedFlow.title}</h3>
+                    <p className="text-xs font-medium text-muted-foreground">2. 发送通过 / 不通过邮件</p>
+                    <h3 className="mt-1 truncate text-lg font-semibold">{selectedFlow.title}</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      发送会为待发送名单创建发送记录，已有记录不会重复创建。
+                      只会给还没成功发送的人建任务；已发送的不会重复发。
                     </p>
                   </div>
                   <SelectedFlowSummary flow={selectedFlow} batches={batches} />
@@ -355,3 +357,5 @@ export function EmailSendingTasksSection({
     </div>
   );
 }
+
+

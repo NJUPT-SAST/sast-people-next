@@ -21,6 +21,7 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { batchSetOutcomeByUid } from '@/action/user-flow/edit';
 import {
@@ -133,7 +134,7 @@ export function DataTable<TData, TValue>({
   );
   const canEditOutcomes = selectedMutableRows.length > 0;
   const helperText =
-    '成绩管理只负责确定通过/不通过；结果通知会在邮件中心按当前流程自动匹配待通知人员';
+    '成绩管理只负责确定通过/不通过；标完结果后，到邮件中心按本流程发送结果通知。';
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'not_started'];
 
   return (
@@ -147,6 +148,13 @@ export function DataTable<TData, TValue>({
                 ? helperText
                 : '查看当前流程的报名结果与状态。'}
             </p>
+            {role >= 3 && (
+              <Button asChild size="sm" variant="link" className="h-auto px-0 text-xs">
+                <Link href={`/dashboard/emails?tab=tasks&flowId=${flowTypeId}`}>
+                  去邮件中心发结果通知
+                </Link>
+              </Button>
+            )}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
             <Input
@@ -183,7 +191,7 @@ export function DataTable<TData, TValue>({
                       const firstRow = selectedRows[0];
                       if (!firstRow) return;
                       const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为通过吗？结果通知仍需在邮件中心发送。`,
+                        `确定将 ${selectedRows.length} 人设为通过吗？标完后请到邮件中心发送结果通知。`,
                       );
                       if (!confirmed) return;
                       const stepId = toRecruitmentRow(firstRow).stepId;
@@ -220,7 +228,7 @@ export function DataTable<TData, TValue>({
                       const firstRow = selectedRows[0];
                       if (!firstRow) return;
                       const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为不通过吗？结果通知仍需在邮件中心发送。`,
+                        `确定将 ${selectedRows.length} 人设为不通过吗？标完后请到邮件中心发送结果通知。`,
                       );
                       if (!confirmed) return;
                       const stepId = toRecruitmentRow(firstRow).stepId;

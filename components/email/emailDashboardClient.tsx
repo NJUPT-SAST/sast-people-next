@@ -7,7 +7,6 @@ import {
   ClipboardList,
   Library,
   ListChecks,
-  Settings2,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -44,73 +43,81 @@ const tabMeta: Record<
   EmailCenterTab,
   {
     icon: LucideIcon;
-    description: string;
+    guide: string;
   }
 > = {
-  overview: {
-    icon: Activity,
-    description: "健康度与失败概览",
-  },
   tasks: {
     icon: ListChecks,
-    description: "结果通知批量处理",
+    guide: "主流程：选招新流程 → 分别发送「通过 / 不通过」结果通知。面试邮件由预约自动发出，不在这里群发。",
   },
   records: {
     icon: ClipboardList,
-    description: "投递、快照和重试",
+    guide: "查结果、面试、测试邮件是否发出；失败可重试。",
   },
   templates: {
     icon: Library,
-    description: "文案、预览和测试",
+    guide: "维护结果通知和面试通知文案，改完可先测试发送。",
   },
-  config: {
-    icon: Settings2,
-    description: "运行配置只读状态",
+  status: {
+    icon: Activity,
+    guide: "今日发送概况、失败关注点与运行配置（只读）。",
   },
 };
 
 function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
   return (
-    <nav
-      aria-label="邮件中心导航"
-      className={cn("overflow-x-auto", hiddenScrollbar)}
-    >
-      <div className="flex min-w-max gap-2 rounded-xl border bg-card/80 p-1.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/70">
-        {emailCenterTabs.map((tab) => {
-          const meta = tabMeta[tab.value];
-          const Icon = meta.icon;
-          const active = activeTab === tab.value;
+    <div className="flex flex-col gap-3">
+      <nav
+        aria-label="邮件中心导航"
+        className={cn("overflow-x-auto", hiddenScrollbar)}
+      >
+        <div className="inline-flex min-w-max gap-1 rounded-xl border bg-card/80 p-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/70">
+          {emailCenterTabs.map((tab) => {
+            const meta = tabMeta[tab.value];
+            const Icon = meta.icon;
+            const active = activeTab === tab.value;
 
-          return (
-            <Button
-              key={tab.value}
-              asChild
-              variant={active ? "secondary" : "ghost"}
-              size="sm"
-              className={cn(
-                "h-auto min-w-[128px] justify-start px-3 py-2 transition-all duration-200 active:scale-[0.99]",
-                active
-                  ? "bg-primary/10 text-foreground shadow-none ring-1 ring-primary/25 hover:bg-primary/15"
-                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-              )}
-            >
-              <Link href={`/dashboard/emails?tab=${tab.value}`}>
-                <Icon data-icon="inline-start" />
-                <span className="flex min-w-0 flex-col items-start gap-0.5">
-                  <span className="text-sm font-semibold leading-none">
-                    {tab.label}
-                  </span>
-                  <span className="hidden max-w-28 truncate text-xs font-normal text-muted-foreground lg:block">
-                    {meta.description}
-                  </span>
-                </span>
-              </Link>
-            </Button>
-          );
-        })}
-      </div>
-    </nav>
+            return (
+              <Button
+                key={tab.value}
+                asChild
+                variant={active ? "secondary" : "ghost"}
+                size="sm"
+                className={cn(
+                  "h-9 px-3 transition-all duration-200 active:scale-[0.99]",
+                  active
+                    ? "bg-primary/10 text-foreground shadow-none ring-1 ring-primary/25 hover:bg-primary/15"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                )}
+              >
+                <Link href={`/dashboard/emails?tab=${tab.value}`}>
+                  <Icon data-icon="inline-start" />
+                  <span className="text-sm font-medium">{tab.label}</span>
+                </Link>
+              </Button>
+            );
+          })}
+        </div>
+      </nav>
+      <p className="text-sm leading-6 text-muted-foreground">
+        {tabMeta[activeTab].guide}
+      </p>
+    </div>
   );
+}
+
+function resolveInitialFlowId(
+  flowTargets: FlowTarget[],
+  initialFlowId?: number,
+) {
+  if (
+    typeof initialFlowId === "number" &&
+    Number.isFinite(initialFlowId) &&
+    flowTargets.some((flow) => flow.id === initialFlowId)
+  ) {
+    return initialFlowId;
+  }
+  return flowTargets[0]?.id;
 }
 
 export function EmailDashboardClient({
@@ -123,6 +130,7 @@ export function EmailDashboardClient({
   emailCenterConfig,
   templateDefinitions,
   activeTab,
+  initialFlowId,
 }: {
   batches: EmailBatch[];
   recordDeliveryPage: EmailDeliveryPage;
@@ -133,6 +141,7 @@ export function EmailDashboardClient({
   emailCenterConfig: EmailCenterConfig;
   templateDefinitions: EmailTemplateDefinition[];
   activeTab?: string;
+  initialFlowId?: number;
 }) {
   const router = useRouter();
   const safeBatches = useMemo(() => (Array.isArray(batches) ? batches : []), [batches]);
@@ -151,7 +160,9 @@ export function EmailDashboardClient({
     () => (Array.isArray(templateSettings) ? templateSettings : []),
     [templateSettings],
   );
-  const [selectedFlowId, setSelectedFlowId] = useState(safeFlowTargets[0]?.id);
+  const [selectedFlowId, setSelectedFlowId] = useState(() =>
+    resolveInitialFlowId(safeFlowTargets, initialFlowId),
+  );
   const [flowQuery, setFlowQuery] = useState("");
   const refreshAttemptsRef = useRef(0);
   const resolvedActiveTab = normalizeEmailCenterTab(activeTab);
@@ -204,6 +215,13 @@ export function EmailDashboardClient({
   }, [filteredFlows, flowQuery, safeFlowTargets, selectedFlowId]);
 
   useEffect(() => {
+    const next = resolveInitialFlowId(safeFlowTargets, initialFlowId);
+    if (typeof next === "number") {
+      setSelectedFlowId(next);
+    }
+  }, [initialFlowId, safeFlowTargets]);
+
+  useEffect(() => {
     refreshAttemptsRef.current = 0;
   }, [activeEmailWorkKey]);
 
@@ -243,20 +261,7 @@ export function EmailDashboardClient({
 
   let content;
 
-  if (resolvedActiveTab === "tasks") {
-    content = (
-      <EmailSendingTasksSection
-        batches={safeBatches}
-        filteredFlows={filteredFlows}
-        selectedFlow={selectedFlow}
-        selectedFlowId={selectedFlow?.id}
-        flowQuery={flowQuery}
-        setFlowQuery={setFlowQuery}
-        setSelectedFlowId={setSelectedFlowId}
-        templateDefinitions={templateDefinitions}
-      />
-    );
-  } else if (resolvedActiveTab === "records") {
+  if (resolvedActiveTab === "records") {
     content = (
       <EmailRecordsSection
         deliveryPage={recordDeliveryPage}
@@ -274,14 +279,28 @@ export function EmailDashboardClient({
         templateDefinitions={templateDefinitions}
       />
     );
-  } else if (resolvedActiveTab === "config") {
-    content = <EmailConfigSection emailCenterConfig={emailCenterConfig} />;
+  } else if (resolvedActiveTab === "status") {
+    content = (
+      <div className="flex flex-col gap-5">
+        <EmailOverviewSection
+          batches={safeBatches}
+          deliveries={safeDeliveries}
+          emailCenterConfig={emailCenterConfig}
+        />
+        <EmailConfigSection emailCenterConfig={emailCenterConfig} />
+      </div>
+    );
   } else {
     content = (
-      <EmailOverviewSection
+      <EmailSendingTasksSection
         batches={safeBatches}
-        deliveries={safeDeliveries}
-        emailCenterConfig={emailCenterConfig}
+        filteredFlows={filteredFlows}
+        selectedFlow={selectedFlow}
+        selectedFlowId={selectedFlow?.id}
+        flowQuery={flowQuery}
+        setFlowQuery={setFlowQuery}
+        setSelectedFlowId={setSelectedFlowId}
+        templateDefinitions={templateDefinitions}
       />
     );
   }

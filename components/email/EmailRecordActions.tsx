@@ -192,7 +192,7 @@ function EmailDeliveryDetailDialog({
               value={formatDate(delivery.nextRetryAt)}
             />
             <DetailItem
-              label="进入死信"
+              label="标记为无法自动重试"
               value={formatDate(delivery.deadLetteredAt)}
             />
             <DetailItem label="投递记录" value={`#${delivery.id}`} mono />

@@ -108,7 +108,7 @@ export function EmailRecordsSection({
           <div>
             <h2 className="text-lg font-semibold">发送记录</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              结果通知、面试通知和测试邮件都会记录在这里。
+              每封发出的邮件都会在这里留下记录，失败后可重试。
             </p>
           </div>
           <p className="rounded-md border bg-background/60 px-2.5 py-1 text-sm text-muted-foreground">
@@ -275,7 +275,7 @@ export function EmailRecordsSection({
           <div className="rounded-lg border border-dashed bg-background/30 p-10 text-center">
             <p className="text-sm font-medium">暂无邮件记录</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              发送测试邮件或创建结果通知任务后，这里会显示投递快照和状态。
+              先去「发结果通知」群发，或在「模板管理」测试发送后，记录会出现在这里。
             </p>
           </div>
         ) : (
@@ -369,3 +369,4 @@ export function EmailRecordsSection({
     </section>
   );
 }
+

@@ -42,6 +42,9 @@ export default async function EmailDashboardPage({
     interviewSchedulePreviews,
   ] = data;
   const emailCenterConfig = getEmailCenterConfigSummary();
+  const initialFlowId = parseOptionalPositiveInt(
+    getSearchParam(awaitedSearchParams, "flowId"),
+  );
 
   return (
     <>
@@ -54,7 +57,7 @@ export default async function EmailDashboardPage({
             <div className="min-w-0">
               <PageTitle />
               <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                统一管理系统邮件模板、发送任务和发送记录。招新结果通知、面试通知和测试邮件都从这里追踪。
+                统一管理系统邮件模板、发送任务和发送记录。结果通知在这里群发；面试通知由预约自动发出，可在记录与模板中查看。
               </p>
             </div>
           </div>
@@ -80,6 +83,7 @@ export default async function EmailDashboardPage({
           emailCenterConfig={emailCenterConfig}
           templateDefinitions={emailTemplateDefinitions}
           activeTab={getSearchParam(awaitedSearchParams, "tab")}
+          initialFlowId={initialFlowId}
         />
       </div>
     </>
@@ -92,6 +96,13 @@ function getSearchParam(
 ) {
   const value = searchParams[key];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function parseOptionalPositiveInt(value: string | undefined) {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
 }
 
 async function loadEmailDashboardData(

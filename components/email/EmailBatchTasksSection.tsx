@@ -165,9 +165,10 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
     <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
       <div className="flex flex-col gap-2 border-b p-4 lg:flex-row lg:items-start lg:justify-between lg:p-5">
         <div>
-          <h2 className="text-lg font-semibold">批量任务</h2>
+          <p className="text-xs font-medium text-muted-foreground">3. 查看历史批量任务</p>
+          <h2 className="mt-1 text-lg font-semibold">批量任务</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            最近 20 个发送任务；这里保留批量发送、重试和明细。
+            最近 20 个批量任务。可查看明细、重试失败或恢复中断。
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-md border bg-background/55 px-2.5 py-1 text-xs text-muted-foreground">
@@ -179,9 +180,9 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
         {batches.length === 0 ? (
           <div className="rounded-lg border border-dashed bg-background/30 p-10 text-center">
             <MailOpen className="mx-auto size-6 text-muted-foreground" />
-            <p className="mt-3 text-sm font-medium">暂无发送任务</p>
+            <p className="mt-3 text-sm font-medium">暂无批量任务</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              已有“邮件已发”状态的人员会计入上方已发人数。
+              从上方选择流程并发送后，任务会出现在这里。
             </p>
           </div>
         ) : (
@@ -279,3 +280,4 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
     </section>
   );
 }
+
