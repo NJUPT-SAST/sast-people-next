@@ -555,7 +555,7 @@ export function EmailTemplateManagementSection({
               <h2 className="text-lg font-semibold">模板管理</h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              先改文案，再点「测试发送」确认效果。结果通知和面试通知分开管理。
+              编辑结果与面试通知文案，保存后可用测试发送确认效果。
             </p>
           </div>
           <TestEmailButton
@@ -569,7 +569,7 @@ export function EmailTemplateManagementSection({
             <div>
               <h3 className="text-sm font-semibold">招新结果通知</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                通过 / 不通过邮件文案。真正群发请去「发结果通知」。
+                通过 / 不通过结果邮件的文案。发送请到「发结果通知」。
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

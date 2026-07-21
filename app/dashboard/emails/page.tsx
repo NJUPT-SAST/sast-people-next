@@ -49,25 +49,27 @@ export default async function EmailDashboardPage({
   return (
     <>
       <div className="border-b pb-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="mt-1 rounded-lg border bg-primary/10 p-2 text-primary">
               <MailCheck className="size-5" />
             </div>
             <div className="min-w-0">
               <PageTitle />
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                统一管理系统邮件模板、发送任务和发送记录。结果通知在这里群发；面试通知由预约自动发出，可在记录与模板中查看。
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                统一管理系统邮件模板、发送任务和发送记录。结果通知在这里发送，面试邮件由预约自动发出。
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="rounded-md border bg-card px-2.5 py-1 text-muted-foreground">
-              {emailCenterConfig.realRecipientMode ? "生产真实收件人" : "本地测试重定向"}
+              {emailCenterConfig.realRecipientMode ? "正式发送" : "测试模式"}
             </span>
-            <span className="rounded-md border bg-card px-2.5 py-1 text-muted-foreground">
-              SMTP {emailCenterConfig.smtpConfigured ? "已配置" : "未配置"}
-            </span>
+            {!emailCenterConfig.smtpConfigured && (
+              <span className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1 text-destructive">
+                发信服务未配置
+              </span>
+            )}
           </div>
         </div>
       </div>

@@ -33,7 +33,7 @@ export function RecipientsDialog({
   recipients,
   title,
   triggerLabel = "查看名单",
-  description = "收件地址固定按学号生成，不使用个人资料中的邮箱字段。",
+  description = "收件邮箱按学号生成（教育邮箱）。",
 }: {
   recipients: FlowTarget["passed"];
   title: string;
@@ -171,7 +171,7 @@ export function SendConfirmDialog({
         <DialogHeader>
           <DialogTitle>确认发送{resultLabel}邮件</DialogTitle>
           <DialogDescription>
-            系统只会为未创建过发送记录的同学创建邮件；已有记录请在发送记录里重试。
+            只会发给还没成功发出的同学；已发送过的不会重复创建。
           </DialogDescription>
         </DialogHeader>
 
@@ -192,7 +192,7 @@ export function SendConfirmDialog({
               </p>
             </div>
             <div className="rounded-md border bg-background p-3">
-              <p className="text-xs text-muted-foreground">已有记录</p>
+              <p className="text-xs text-muted-foreground">已处理</p>
               <p className="mt-1 text-lg font-semibold tabular-nums">
                 {preflight.alreadyCreatedCount}
               </p>
@@ -222,11 +222,11 @@ export function SendConfirmDialog({
             />
             <SendCheckItem
               status={hasPreview ? "ok" : "error"}
-              label="邮件样张"
+              label="邮件预览"
               detail={
                 hasPreview
-                  ? "模板样张已生成，发送前可以打开核对正文。"
-                  : "当前没有模板样张，请先检查模板配置。"
+                  ? "预览已生成，发送前可打开核对正文。"
+                  : "当前没有预览内容，请先检查模板配置。"
               }
             />
             <SendCheckItem
@@ -234,8 +234,8 @@ export function SendConfirmDialog({
               label="重复发送"
               detail={
                 preflight.alreadyCreatedCount === 0
-                  ? "没有已有发送记录。"
-                  : `${preflight.alreadyCreatedCount} 人已有发送记录，本次不会重复创建。`
+                  ? "这些同学还没有发送记录。"
+                  : `${preflight.alreadyCreatedCount} 人已处理过，本次不会重复发送。`
               }
             />
           </div>
@@ -259,9 +259,9 @@ export function SendConfirmDialog({
               description="确认无误后再发送；教育邮箱由学号自动生成。"
             />
             <PreviewDialog
-              title={`${flow.title} ${resultLabel}邮件样张`}
+              title={`${flow.title} ${resultLabel}邮件预览`}
               html={previewHtml}
-              triggerLabel="查看样张"
+              triggerLabel="预览"
               triggerClassName="w-full"
             />
           </div>

@@ -39,70 +39,46 @@ import type {
   TemplateSetting,
 } from "./emailDashboardTypes";
 
-const tabMeta: Record<
-  EmailCenterTab,
-  {
-    icon: LucideIcon;
-    guide: string;
-  }
-> = {
-  tasks: {
-    icon: ListChecks,
-    guide: "主流程：选招新流程 → 分别发送「通过 / 不通过」结果通知。面试邮件由预约自动发出，不在这里群发。",
-  },
-  records: {
-    icon: ClipboardList,
-    guide: "查结果、面试、测试邮件是否发出；失败可重试。",
-  },
-  templates: {
-    icon: Library,
-    guide: "维护结果通知和面试通知文案，改完可先测试发送。",
-  },
-  status: {
-    icon: Activity,
-    guide: "今日发送概况、失败关注点与运行配置（只读）。",
-  },
+const tabIcons: Record<EmailCenterTab, LucideIcon> = {
+  tasks: ListChecks,
+  records: ClipboardList,
+  templates: Library,
+  status: Activity,
 };
 
 function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
   return (
-    <div className="flex flex-col gap-3">
-      <nav
-        aria-label="邮件中心导航"
-        className={cn("overflow-x-auto", hiddenScrollbar)}
-      >
-        <div className="inline-flex min-w-max gap-1 rounded-xl border bg-card/80 p-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/70">
-          {emailCenterTabs.map((tab) => {
-            const meta = tabMeta[tab.value];
-            const Icon = meta.icon;
-            const active = activeTab === tab.value;
+    <nav
+      aria-label="邮件中心导航"
+      className={cn("overflow-x-auto", hiddenScrollbar)}
+    >
+      <div className="inline-flex min-w-max gap-1 rounded-xl border bg-card/80 p-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/70">
+        {emailCenterTabs.map((tab) => {
+          const Icon = tabIcons[tab.value];
+          const active = activeTab === tab.value;
 
-            return (
-              <Button
-                key={tab.value}
-                asChild
-                variant={active ? "secondary" : "ghost"}
-                size="sm"
-                className={cn(
-                  "h-9 px-3 transition-all duration-200 active:scale-[0.99]",
-                  active
-                    ? "bg-primary/10 text-foreground shadow-none ring-1 ring-primary/25 hover:bg-primary/15"
-                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                )}
-              >
-                <Link href={`/dashboard/emails?tab=${tab.value}`}>
-                  <Icon data-icon="inline-start" />
-                  <span className="text-sm font-medium">{tab.label}</span>
-                </Link>
-              </Button>
-            );
-          })}
-        </div>
-      </nav>
-      <p className="text-sm leading-6 text-muted-foreground">
-        {tabMeta[activeTab].guide}
-      </p>
-    </div>
+          return (
+            <Button
+              key={tab.value}
+              asChild
+              variant={active ? "secondary" : "ghost"}
+              size="sm"
+              className={cn(
+                "h-9 px-3 transition-all duration-200 active:scale-[0.99]",
+                active
+                  ? "bg-primary/10 text-foreground shadow-none ring-1 ring-primary/25 hover:bg-primary/15"
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+              )}
+            >
+              <Link href={`/dashboard/emails?tab=${tab.value}`}>
+                <Icon data-icon="inline-start" />
+                <span className="text-sm font-medium">{tab.label}</span>
+              </Link>
+            </Button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
@@ -283,7 +259,6 @@ export function EmailDashboardClient({
     content = (
       <div className="flex flex-col gap-5">
         <EmailOverviewSection
-          batches={safeBatches}
           deliveries={safeDeliveries}
           emailCenterConfig={emailCenterConfig}
         />
@@ -300,7 +275,6 @@ export function EmailDashboardClient({
         flowQuery={flowQuery}
         setFlowQuery={setFlowQuery}
         setSelectedFlowId={setSelectedFlowId}
-        templateDefinitions={templateDefinitions}
       />
     );
   }
@@ -312,3 +286,4 @@ export function EmailDashboardClient({
     </div>
   );
 }
+
