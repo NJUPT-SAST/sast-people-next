@@ -25,7 +25,6 @@ const Text = ({ children, ...props }: ElementProps<"p">) => (
 const Link = ({ children, ...props }: ElementProps<"a">) => (
   <a {...props}>{children}</a>
 );
-const Hr = (props: ElementProps<"hr">) => <hr {...props} />;
 const Preview = ({ children }: { children: React.ReactNode }) => (
   <div
     style={{
@@ -39,7 +38,9 @@ const Preview = ({ children }: { children: React.ReactNode }) => (
     {children}
   </div>
 );
-const Img = ({ alt = "", ...props }: ElementProps<"img">) => <img alt={alt} {...props} />;
+const Img = ({ alt = "", ...props }: ElementProps<"img">) => (
+  <img alt={alt} {...props} />
+);
 
 type InterviewScheduleEmailProps = {
   kind?: "created" | "rescheduled" | "cancelled";
@@ -58,29 +59,38 @@ type InterviewScheduleEmailProps = {
   logoUrl?: string;
 };
 
-const statusCopy = {
+const statusTone = {
   created: {
-    label: "预约确认",
-    color: "#0f766e",
-    background: "#e8f7f1",
-    accent: "#0f766e",
+    label: "已预约",
+    accent: "#2563eb",
+    accentSoft: "#eff6ff",
+    accentBorder: "#bfdbfe",
+    chipText: "#1d4ed8",
   },
   rescheduled: {
-    label: "时间调整",
-    color: "#a16207",
-    background: "#fff7df",
+    label: "已改约",
     accent: "#d97706",
+    accentSoft: "#fffbeb",
+    accentBorder: "#fde68a",
+    chipText: "#b45309",
   },
   cancelled: {
     label: "已取消",
-    color: "#b91c1c",
-    background: "#fff0f0",
-    accent: "#dc2626",
+    accent: "#64748b",
+    accentSoft: "#f8fafc",
+    accentBorder: "#cbd5e1",
+    chipText: "#475569",
   },
 } as const;
 
+type MetaItem = {
+  label: string;
+  value: string;
+};
+
 export const InterviewScheduleEmail = ({
   kind = "created",
+  candidateName,
   flowName,
   titleText = "面试预约通知",
   bodyText,
@@ -93,83 +103,152 @@ export const InterviewScheduleEmail = ({
   note,
   footerText = "南京邮电大学大学生科学技术协会",
   logoUrl = "https://storage.sast.fun/sast-logo.png",
-}: InterviewScheduleEmailProps) => (
-  <Html>
-    <Preview>{flowName} {statusCopy[kind].label}</Preview>
-    <Body style={body}>
-      <Container style={{
-        ...container,
-        borderTop: `4px solid ${statusCopy[kind].accent}`,
-      }}>
-        <Section style={brand}>
-          <Img src={logoUrl} alt="SAST" width="44" style={logo} />
-          <div style={brandText}>
-            <Text style={brandName}>SAST People</Text>
-            <Text style={brandMeta}>南京邮电大学大学生科学技术协会</Text>
-          </div>
-        </Section>
-        <Section style={headline}>
-          <Section style={statusBar(statusCopy[kind].background, statusCopy[kind].color)}>
-            {statusCopy[kind].label}
+}: InterviewScheduleEmailProps) => {
+  const tone = statusTone[kind];
+  const meta: MetaItem[] = [
+    { label: "流程", value: flowName },
+    { label: "讲师", value: organizerName },
+  ];
+  if (location) {
+    meta.push({ label: "地点", value: location });
+  }
+  if (note) {
+    meta.push({ label: "备注", value: note });
+  }
+
+  const defaultBody =
+    kind === "cancelled"
+      ? `${candidateName} 同学，你好。你的 ${flowName} 面试预约已取消，后续安排请关注新的通知。`
+      : kind === "rescheduled"
+        ? `${candidateName} 同学，你好。你的 ${flowName} 面试时间已调整，请以本邮件中的新时间为准。`
+        : `${candidateName} 同学，你好。${flowName} 的面试安排已确认，请查看下方时间与参会入口。`;
+
+  return (
+    <Html>
+      <Preview>
+        {flowName} {tone.label} {startsAtText}
+      </Preview>
+      <Body style={main}>
+        <Container style={container}>
+          <Section style={toolbar}>
+            <table
+              role="presentation"
+              cellPadding={0}
+              cellSpacing={0}
+              style={toolbarTable}
+            >
+              <tbody>
+                <tr>
+                  <td style={toolbarBrandCell}>
+                    <Img src={logoUrl} width="28" alt="SAST" style={logo} />
+                    <Text style={brandName}>SAST People · 面试安排</Text>
+                  </td>
+                  <td style={toolbarChipCell}>
+                    <Text
+                      style={{
+                        ...statusChip,
+                        color: tone.chipText,
+                        backgroundColor: tone.accentSoft,
+                        borderColor: tone.accentBorder,
+                      }}
+                    >
+                      {tone.label}
+                    </Text>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </Section>
-          <Heading style={heading}>{titleText}</Heading>
-          <Text style={paragraph}>
-            {bodyText ?? `你已预约 ${flowName} 的面试，请按时通过下方会议链接参加。`}
-          </Text>
-        </Section>
-        <Section style={details}>
-          <div style={detailRow}>
-            <Text style={label}>流程</Text>
-            <Text style={value}>{flowName}</Text>
-          </div>
-          <div style={detailRow}>
-            <Text style={label}>时间</Text>
-            <Text style={value}>{startsAtText}</Text>
-            <Text style={subValue}>至 {endsAtText}</Text>
-          </div>
-          <div style={detailRow}>
-            <Text style={label}>讲师</Text>
-            <Text style={value}>{organizerName}</Text>
-          </div>
-          {location && (
-            <div style={note ? detailRow : detailRowLast}>
-              <Text style={label}>地点</Text>
-              <Text style={value}>{location}</Text>
-            </div>
-          )}
-          {note && (
-            <div style={detailRowLast}>
-              <Text style={label}>备注</Text>
-              <Text style={value}>{note}</Text>
-            </div>
-          )}
-        </Section>
-        {kind !== "cancelled" && (
-          <Section style={actionBlock}>
-            <Link href={meetingLink} style={primaryButton}>飞书会议</Link>
-            {scheduleLink && (
-              <Link href={scheduleLink} style={secondaryButton}>飞书日程</Link>
+
+          <Section style={bodySection}>
+            <Heading style={title}>{titleText}</Heading>
+            <Text style={intro}>{bodyText ?? defaultBody}</Text>
+
+            <Section
+              style={{
+                ...scheduleCard,
+                borderLeftColor: tone.accent,
+                backgroundColor: tone.accentSoft,
+              }}
+            >
+              <Text style={scheduleLabel}>面试时间</Text>
+              <Text style={scheduleStart}>{startsAtText}</Text>
+              <Text style={scheduleEnd}>至 {endsAtText}</Text>
+            </Section>
+
+            <Section style={metaList}>
+              {meta.map((item, index) => (
+                <table
+                  key={`${item.label}-${index}`}
+                  role="presentation"
+                  cellPadding={0}
+                  cellSpacing={0}
+                  style={
+                    index === meta.length - 1 ? metaRowLast : metaRow
+                  }
+                >
+                  <tbody>
+                    <tr>
+                      <td style={metaLabelCell}>{item.label}</td>
+                      <td style={metaValueCell}>{item.value}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              ))}
+            </Section>
+
+            {kind !== "cancelled" ? (
+              <Section style={actionSection}>
+                <Link
+                  href={meetingLink}
+                  style={{
+                    ...primaryButton,
+                    backgroundColor: tone.accent,
+                    borderColor: tone.accent,
+                  }}
+                >
+                  进入飞书会议
+                </Link>
+                {scheduleLink ? (
+                  <Link href={scheduleLink} style={secondaryButton}>
+                    打开飞书日程
+                  </Link>
+                ) : null}
+                <Text style={actionHint}>
+                  建议提前几分钟进入，并确认设备与网络正常。
+                </Text>
+              </Section>
+            ) : (
+              <Section style={cancelNotice}>
+                <Text style={cancelNoticeText}>
+                  原会议与日程入口已失效。如需重新安排，请等待后续通知。
+                </Text>
+              </Section>
             )}
           </Section>
-        )}
-        <Hr style={hr} />
-        <Text style={footer}>{footerText}</Text>
-      </Container>
-    </Body>
-  </Html>
-);
+
+          <Section style={footer}>
+            <Text style={footerTextStyle}>{footerText}</Text>
+            <Text style={footerMeta}>面试通知 · SAST People 自动发送</Text>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
+};
 
 InterviewScheduleEmail.PreviewProps = {
   kind: "created",
   candidateName: "张三",
   flowName: "2026 免试招新",
-  titleText: "面试预约通知",
+  titleText: "面试预约已确认",
   organizerName: "讲师",
   startsAtText: "2026-06-04 19:00",
   endsAtText: "2026-06-04 19:30",
   location: "仙林校区大学生活动中心 101",
   meetingLink: "https://vc.feishu.cn/j/123456789",
-  scheduleLink: "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
+  scheduleLink:
+    "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
   note: "请提前准备作品介绍。",
   footerText: "南京邮电大学大学生科学技术协会",
   logoUrl: "https://storage.sast.fun/sast-logo.png",
@@ -177,164 +256,257 @@ InterviewScheduleEmail.PreviewProps = {
 
 export default InterviewScheduleEmail;
 
-const body = {
+const fontStack =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif';
+
+const main = {
   margin: 0,
-  backgroundColor: "#f2f5f3",
-  fontFamily:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+  padding: "20px 12px",
+  backgroundColor: "#f1f5f9",
+  fontFamily: fontStack,
 };
 
 const container = {
   width: "100%",
-  maxWidth: "540px",
-  margin: "16px auto",
-  padding: "24px 22px",
+  maxWidth: "520px",
+  margin: "0 auto",
   backgroundColor: "#ffffff",
-  border: "1px solid #dfe5e1",
-  borderRadius: "8px",
+  border: "1px solid #e2e8f0",
+  borderRadius: "6px",
+  overflow: "hidden" as const,
 };
 
-const statusBar = (backgroundColor: string, color: string) => ({
-  display: "inline-block",
-  margin: "8px 0 14px",
-  padding: "4px 9px",
-  borderRadius: "999px",
-  backgroundColor,
-  color,
-  fontSize: "11px",
-  lineHeight: "16px",
-  fontWeight: 700,
-});
+const toolbar = {
+  padding: "12px 16px",
+  backgroundColor: "#0f172a",
+};
 
-const brand = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  margin: "0 0 20px",
+const toolbarTable = {
+  width: "100%",
+  borderCollapse: "collapse" as const,
+};
+
+const toolbarBrandCell = {
+  verticalAlign: "middle" as const,
+};
+
+const toolbarChipCell = {
+  verticalAlign: "middle" as const,
+  textAlign: "right" as const,
 };
 
 const logo = {
-  display: "block",
-  flexShrink: 0,
-};
-
-const brandText = {
-  minWidth: 0,
+  display: "inline-block",
+  verticalAlign: "middle",
+  marginRight: "10px",
+  borderRadius: "4px",
+  backgroundColor: "#ffffff",
 };
 
 const brandName = {
-  margin: "0 0 3px",
-  fontSize: "13px",
-  lineHeight: "17px",
-  fontWeight: 700,
-  letterSpacing: "0.2px",
-  color: "#27332f",
-};
-
-const brandMeta = {
-  margin: 0,
-  fontSize: "11px",
-  lineHeight: "17px",
-  color: "#65736e",
-};
-
-const headline = {
-  margin: "0 0 18px",
-};
-
-const heading = {
-  margin: "0 0 10px",
-  fontSize: "23px",
-  lineHeight: "31px",
-  color: "#12181f",
-};
-
-const paragraph = {
-  margin: 0,
-  fontSize: "15px",
-  lineHeight: "24px",
-  color: "#3e4a46",
-};
-
-const details = {
-  margin: "0 0 20px",
-  border: "1px solid #dfe5e1",
-  borderRadius: "8px",
-  backgroundColor: "#ffffff",
-  overflow: "hidden",
-};
-
-const detailRow = {
-  padding: "10px 14px",
-  borderBottom: "1px solid #e6ebe8",
-};
-
-const detailRowLast = {
-  padding: "10px 14px",
-};
-
-const label = {
-  margin: "0 0 3px",
-  fontSize: "12px",
-  lineHeight: "17px",
-  color: "#7b8782",
-};
-
-const value = {
-  margin: 0,
-  fontSize: "15px",
-  lineHeight: "23px",
-  color: "#12181f",
-};
-
-const subValue = {
-  margin: "1px 0 0",
-  fontSize: "15px",
-  lineHeight: "23px",
-  color: "#12181f",
-};
-
-const actionBlock = {
-  margin: "18px 0 20px",
-  padding: 0,
-};
-
-const buttonBase = {
   display: "inline-block",
-  width: "100%",
-  boxSizing: "border-box" as const,
-  marginBottom: "8px",
-  padding: "11px 14px",
-  borderRadius: "6px",
+  margin: 0,
+  verticalAlign: "middle",
+  color: "#e2e8f0",
+  fontFamily: fontStack,
+  fontSize: "13px",
+  fontWeight: 600,
+  letterSpacing: "0.2px",
+  lineHeight: "20px",
+};
+
+const statusChip = {
+  display: "inline-block",
+  margin: 0,
+  padding: "4px 8px",
+  border: "1px solid",
+  borderRadius: "4px",
+  fontFamily: fontStack,
+  fontSize: "11px",
+  fontWeight: 700,
+  lineHeight: "14px",
+  letterSpacing: "0.3px",
+};
+
+const bodySection = {
+  padding: "22px 20px 8px",
+};
+
+const title = {
+  margin: "0 0 10px",
+  color: "#0f172a",
+  fontFamily: fontStack,
+  fontSize: "22px",
+  fontWeight: 700,
+  lineHeight: "30px",
+};
+
+const intro = {
+  margin: "0 0 18px",
+  color: "#334155",
+  fontFamily: fontStack,
+  fontSize: "14px",
+  lineHeight: "22px",
+};
+
+const scheduleCard = {
+  margin: "0 0 16px",
+  padding: "14px 16px",
+  border: "1px solid #e2e8f0",
+  borderLeft: "4px solid #2563eb",
+  borderRadius: "4px",
+};
+
+const scheduleLabel = {
+  margin: "0 0 6px",
+  color: "#64748b",
+  fontFamily: fontStack,
+  fontSize: "11px",
+  fontWeight: 700,
+  letterSpacing: "0.4px",
+  lineHeight: "16px",
+  textTransform: "uppercase" as const,
+};
+
+const scheduleStart = {
+  margin: "0 0 2px",
+  color: "#0f172a",
+  fontFamily: fontStack,
+  fontSize: "20px",
+  fontWeight: 700,
+  lineHeight: "28px",
+};
+
+const scheduleEnd = {
+  margin: 0,
+  color: "#475569",
+  fontFamily: fontStack,
   fontSize: "14px",
   lineHeight: "20px",
+};
+
+const metaList = {
+  margin: "0 0 18px",
+  border: "1px solid #e2e8f0",
+  borderRadius: "4px",
+  overflow: "hidden" as const,
+};
+
+const metaRow = {
+  width: "100%",
+  borderCollapse: "collapse" as const,
+  borderBottom: "1px solid #e2e8f0",
+};
+
+const metaRowLast = {
+  width: "100%",
+  borderCollapse: "collapse" as const,
+};
+
+const metaLabelCell = {
+  width: "72px",
+  padding: "11px 12px",
+  backgroundColor: "#f8fafc",
+  color: "#64748b",
+  fontFamily: fontStack,
+  fontSize: "12px",
   fontWeight: 700,
+  lineHeight: "18px",
+  verticalAlign: "top" as const,
+};
+
+const metaValueCell = {
+  padding: "11px 12px",
+  color: "#0f172a",
+  fontFamily: fontStack,
+  fontSize: "14px",
+  fontWeight: 500,
+  lineHeight: "20px",
+  verticalAlign: "top" as const,
+};
+
+const actionSection = {
+  margin: "0 0 12px",
+};
+
+const primaryButton = {
+  display: "block",
+  width: "100%",
+  boxSizing: "border-box" as const,
+  margin: "0 0 8px",
+  padding: "11px 14px",
+  border: "1px solid #2563eb",
+  borderRadius: "4px",
+  backgroundColor: "#2563eb",
+  color: "#ffffff",
+  fontFamily: fontStack,
+  fontSize: "14px",
+  fontWeight: 700,
+  lineHeight: "18px",
   textAlign: "center" as const,
   textDecoration: "none",
 };
 
-const primaryButton = {
-  ...buttonBase,
-  border: "1px solid #0f766e",
-  backgroundColor: "#0f766e",
-  color: "#ffffff",
-};
-
 const secondaryButton = {
-  ...buttonBase,
-  border: "1px solid #b8cbc5",
-  backgroundColor: "#f5fbf8",
-  color: "#0f766e",
+  display: "block",
+  width: "100%",
+  boxSizing: "border-box" as const,
+  margin: "0 0 10px",
+  padding: "11px 14px",
+  border: "1px solid #cbd5e1",
+  borderRadius: "4px",
+  backgroundColor: "#ffffff",
+  color: "#0f172a",
+  fontFamily: fontStack,
+  fontSize: "14px",
+  fontWeight: 700,
+  lineHeight: "18px",
+  textAlign: "center" as const,
+  textDecoration: "none",
 };
 
-const hr = {
-  margin: "20px 0",
-  borderColor: "#dfe5e1",
+const actionHint = {
+  margin: "0 0 8px",
+  color: "#64748b",
+  fontFamily: fontStack,
+  fontSize: "12px",
+  lineHeight: "18px",
+};
+
+const cancelNotice = {
+  margin: "0 0 14px",
+  padding: "12px 14px",
+  border: "1px dashed #cbd5e1",
+  borderRadius: "4px",
+  backgroundColor: "#f8fafc",
+};
+
+const cancelNoticeText = {
+  margin: 0,
+  color: "#475569",
+  fontFamily: fontStack,
+  fontSize: "13px",
+  lineHeight: "20px",
 };
 
 const footer = {
-  margin: 0,
+  padding: "14px 20px 18px",
+  borderTop: "1px solid #e2e8f0",
+  backgroundColor: "#f8fafc",
+};
+
+const footerTextStyle = {
+  margin: "0 0 2px",
+  color: "#64748b",
+  fontFamily: fontStack,
   fontSize: "12px",
   lineHeight: "18px",
-  color: "#6b7280",
+};
+
+const footerMeta = {
+  margin: 0,
+  color: "#94a3b8",
+  fontFamily: fontStack,
+  fontSize: "11px",
+  lineHeight: "16px",
 };
