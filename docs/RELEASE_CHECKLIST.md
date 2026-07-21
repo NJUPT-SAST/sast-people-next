@@ -185,6 +185,11 @@ pnpm test:e2e
 | --- | --- | --- |
 | 2026-07-21 | `pnpm test:e2e -- e2e/recruitment-flow.spec.ts e2e/visual-smoke.spec.ts` | 19 passed |
 | 2026-07-21 | `pnpm test:e2e -- e2e/email-center.spec.ts` | 2 passed |
+| 2026-07-21 | `pnpm exec eslint` (changed files) | passed |
+| 2026-07-21 | `pnpm exec tsc --noEmit` | passed |
+| 2026-07-21 | `pnpm test` | 135 passed |
+| 2026-07-21 | `pnpm build` | passed |
 
 说明：上述结果仅证明本地可自动化路径可用，不能替代目标预发环境的迁移、密钥、外部服务联调和业务走查。
+
 
