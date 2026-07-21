@@ -103,7 +103,10 @@ test.describe("email center prelaunch", () => {
       timeout: 15_000,
     });
     await expect(page.getByText("不通过").first()).toBeVisible();
-    await expect(page.getByText(/待发 \d+|已发完/).first()).toBeVisible();
+    // Prefer visible lane/sidebar copy; avoid hidden <option>（待发 N）
+    await expect(
+      page.locator("p", { hasText: /待发 \d+|已发完/ }).first(),
+    ).toBeVisible();
   });
 
   test("result send dialog respects already-sent preflight", async ({
@@ -141,7 +144,7 @@ test.describe("email center prelaunch", () => {
     }
 
     if (!opened) {
-      await expect(page.getByText(/待发 0|已发完/).first()).toBeVisible();
+      await expect(page.locator("p", { hasText: /待发 0|已发完/ }).first()).toBeVisible();
       await expect(sendButtons.first()).toBeDisabled();
     }
   });
