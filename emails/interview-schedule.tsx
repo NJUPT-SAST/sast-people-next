@@ -60,27 +60,31 @@ type InterviewScheduleEmailProps = {
 };
 
 /**
- * Soft coordinated palette for schedule notices.
- * Intentionally different from result emails (warm green invitation).
+ * Quiet calendar invitation style.
+ * Distinct from result/offer mail (no Georgia, no green result panel).
+ * One warm-stone base + soft status tint only on badge and time card.
  */
 const statusTone = {
   created: {
     label: "已预约",
-    accent: "#2f6b73",
-    accentSoft: "#f3f8f8",
-    accentBorder: "#c7dbde",
+    accent: "#4d6a6e",
+    soft: "#f2f6f6",
+    border: "#d5e0e1",
+    rail: "#4d6a6e",
   },
   rescheduled: {
     label: "已改约",
-    accent: "#8a6a3d",
-    accentSoft: "#faf7f2",
-    accentBorder: "#e6d8c2",
+    accent: "#7d6550",
+    soft: "#f7f3ef",
+    border: "#e5d9cd",
+    rail: "#7d6550",
   },
   cancelled: {
     label: "已取消",
-    accent: "#6b7280",
-    accentSoft: "#f6f7f8",
-    accentBorder: "#d7dbe0",
+    accent: "#6b6560",
+    soft: "#f5f3f1",
+    border: "#ddd8d2",
+    rail: "#9a948c",
   },
 } as const;
 
@@ -131,6 +135,8 @@ export const InterviewScheduleEmail = ({
       </Preview>
       <Body style={main}>
         <Container style={container}>
+          <Section style={topAccent} />
+
           <Section style={header}>
             <table
               role="presentation"
@@ -141,18 +147,16 @@ export const InterviewScheduleEmail = ({
               <tbody>
                 <tr>
                   <td style={headerBrandCell}>
-                    <Img src={logoUrl} width="32" alt="SAST" style={logo} />
+                    <Img src={logoUrl} width="28" alt="SAST" style={logo} />
                     <Text style={brandName}>SAST People</Text>
-                    <Text style={brandDivider}>·</Text>
-                    <Text style={brandMeta}>面试安排</Text>
                   </td>
                   <td style={headerChipCell}>
                     <Text
                       style={{
                         ...statusChip,
                         color: tone.accent,
-                        backgroundColor: tone.accentSoft,
-                        borderColor: tone.accentBorder,
+                        backgroundColor: tone.soft,
+                        borderColor: tone.border,
                       }}
                     >
                       {tone.label}
@@ -164,51 +168,58 @@ export const InterviewScheduleEmail = ({
           </Section>
 
           <Section style={bodySection}>
+            <Text style={eyebrow}>面试日程</Text>
             <Heading style={title}>{titleText}</Heading>
             <Text style={intro}>{bodyText ?? defaultBody}</Text>
 
             <Section
               style={{
                 ...scheduleCard,
-                borderColor: tone.accentBorder,
-                borderLeftColor: tone.accent,
-                backgroundColor: tone.accentSoft,
+                backgroundColor: tone.soft,
+                borderColor: tone.border,
               }}
             >
-              <Text style={scheduleLabel}>面试时间</Text>
-              <Text style={scheduleStart}>{startsAtText}</Text>
-              <Text style={scheduleEnd}>至 {endsAtText}</Text>
+              <table
+                role="presentation"
+                cellPadding={0}
+                cellSpacing={0}
+                style={scheduleTable}
+              >
+                <tbody>
+                  <tr>
+                    <td
+                      style={{
+                        ...scheduleRail,
+                        backgroundColor: tone.rail,
+                      }}
+                    />
+                    <td style={scheduleContent}>
+                      <Text style={scheduleLabel}>面试时间</Text>
+                      <Text style={scheduleStart}>{startsAtText}</Text>
+                      <Text style={scheduleEnd}>至 {endsAtText}</Text>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </Section>
 
             <Section style={metaList}>
               {meta.map((item, index) => (
-                <table
+                <Section
                   key={`${item.label}-${index}`}
-                  role="presentation"
-                  cellPadding={0}
-                  cellSpacing={0}
-                  style={index === meta.length - 1 ? metaRowLast : metaRow}
+                  style={
+                    index === meta.length - 1 ? metaItemLast : metaItem
+                  }
                 >
-                  <tbody>
-                    <tr>
-                      <td style={metaLabelCell}>{item.label}</td>
-                      <td style={metaValueCell}>{item.value}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                  <Text style={metaLabel}>{item.label}</Text>
+                  <Text style={metaValue}>{item.value}</Text>
+                </Section>
               ))}
             </Section>
 
             {kind !== "cancelled" ? (
               <Section style={actionSection}>
-                <Link
-                  href={meetingLink}
-                  style={{
-                    ...primaryButton,
-                    backgroundColor: tone.accent,
-                    borderColor: tone.accent,
-                  }}
-                >
+                <Link href={meetingLink} style={primaryButton}>
                   进入飞书会议
                 </Link>
                 {scheduleLink ? (
@@ -261,28 +272,34 @@ export default InterviewScheduleEmail;
 const fontStack =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif';
 
+/* Warm stone base — not offer-mail green cream, not cold blue-gray */
 const main = {
   margin: 0,
-  padding: "24px 12px",
-  backgroundColor: "#eef1f4",
+  padding: "28px 14px",
+  backgroundColor: "#f1eee9",
   fontFamily: fontStack,
 };
 
 const container = {
   width: "100%",
-  maxWidth: "528px",
+  maxWidth: "540px",
   margin: "0 auto",
-  backgroundColor: "#ffffff",
-  border: "1px solid #dde3e8",
-  borderRadius: "10px",
+  backgroundColor: "#fffcf8",
+  border: "1px solid #e4dfd6",
+  borderRadius: "14px",
   overflow: "hidden" as const,
-  boxShadow: "0 1px 2px rgba(31, 41, 55, 0.04)",
+  boxShadow: "0 8px 28px rgba(55, 48, 40, 0.06)",
+};
+
+const topAccent = {
+  height: "3px",
+  lineHeight: "3px",
+  fontSize: "0",
+  backgroundColor: "#c9bfb2",
 };
 
 const header = {
-  padding: "14px 20px",
-  backgroundColor: "#f7f9fa",
-  borderBottom: "1px solid #e5eaef",
+  padding: "18px 26px 0",
 };
 
 const headerTable = {
@@ -303,166 +320,168 @@ const logo = {
   display: "inline-block",
   verticalAlign: "middle",
   marginRight: "10px",
+  borderRadius: "6px",
 };
 
 const brandName = {
   display: "inline-block",
   margin: 0,
   verticalAlign: "middle",
-  color: "#374151",
+  color: "#44403c",
   fontFamily: fontStack,
   fontSize: "13px",
-  fontWeight: 700,
-  lineHeight: "20px",
-};
-
-const brandDivider = {
-  display: "inline-block",
-  margin: "0 6px",
-  verticalAlign: "middle",
-  color: "#c0c7cf",
-  fontFamily: fontStack,
-  fontSize: "13px",
-  lineHeight: "20px",
-};
-
-const brandMeta = {
-  display: "inline-block",
-  margin: 0,
-  verticalAlign: "middle",
-  color: "#6b7280",
-  fontFamily: fontStack,
-  fontSize: "13px",
-  fontWeight: 500,
+  fontWeight: 600,
+  letterSpacing: "0.01em",
   lineHeight: "20px",
 };
 
 const statusChip = {
   display: "inline-block",
   margin: 0,
-  padding: "4px 9px",
+  padding: "5px 11px",
   border: "1px solid",
   borderRadius: "999px",
   fontFamily: fontStack,
-  fontSize: "12px",
-  fontWeight: 700,
+  fontSize: "11px",
+  fontWeight: 600,
+  letterSpacing: "0.04em",
   lineHeight: "16px",
 };
 
 const bodySection = {
-  padding: "22px 20px 10px",
+  padding: "20px 26px 8px",
+};
+
+const eyebrow = {
+  margin: "0 0 8px",
+  color: "#8a8178",
+  fontFamily: fontStack,
+  fontSize: "11px",
+  fontWeight: 600,
+  letterSpacing: "0.12em",
+  lineHeight: "16px",
+  textTransform: "uppercase" as const,
 };
 
 const title = {
-  margin: "0 0 10px",
-  color: "#1f2937",
+  margin: "0 0 12px",
+  color: "#1c1917",
   fontFamily: fontStack,
-  fontSize: "21px",
+  fontSize: "24px",
   fontWeight: 700,
-  lineHeight: "30px",
+  letterSpacing: "-0.02em",
+  lineHeight: "32px",
 };
 
 const intro = {
-  margin: "0 0 18px",
-  color: "#4b5563",
+  margin: "0 0 22px",
+  color: "#57534e",
   fontFamily: fontStack,
   fontSize: "14px",
-  lineHeight: "23px",
+  lineHeight: "24px",
 };
 
 const scheduleCard = {
-  margin: "0 0 16px",
-  padding: "14px 16px",
+  margin: "0 0 22px",
   border: "1px solid",
-  borderLeft: "3px solid",
-  borderRadius: "8px",
+  borderRadius: "12px",
+  overflow: "hidden" as const,
+};
+
+const scheduleTable = {
+  width: "100%",
+  borderCollapse: "collapse" as const,
+};
+
+const scheduleRail = {
+  width: "4px",
+  fontSize: "0",
+  lineHeight: "0",
+};
+
+const scheduleContent = {
+  padding: "16px 18px",
+  verticalAlign: "top" as const,
 };
 
 const scheduleLabel = {
-  margin: "0 0 6px",
-  color: "#6b7280",
+  margin: "0 0 8px",
+  color: "#8a8178",
   fontFamily: fontStack,
-  fontSize: "12px",
-  fontWeight: 700,
-  letterSpacing: "0.2px",
+  fontSize: "11px",
+  fontWeight: 600,
+  letterSpacing: "0.08em",
   lineHeight: "16px",
 };
 
 const scheduleStart = {
-  margin: "0 0 2px",
-  color: "#1f2937",
+  margin: "0 0 4px",
+  color: "#1c1917",
   fontFamily: fontStack,
-  fontSize: "19px",
+  fontSize: "20px",
   fontWeight: 700,
+  letterSpacing: "-0.01em",
   lineHeight: "28px",
 };
 
 const scheduleEnd = {
   margin: 0,
-  color: "#4b5563",
+  color: "#57534e",
   fontFamily: fontStack,
   fontSize: "14px",
-  lineHeight: "20px",
+  lineHeight: "22px",
 };
 
 const metaList = {
-  margin: "0 0 18px",
-  border: "1px solid #e5eaef",
-  borderRadius: "8px",
-  overflow: "hidden" as const,
-  backgroundColor: "#ffffff",
+  margin: "0 0 22px",
+  padding: "4px 2px 0",
 };
 
-const metaRow = {
-  width: "100%",
-  borderCollapse: "collapse" as const,
-  borderBottom: "1px solid #eef1f4",
+const metaItem = {
+  margin: "0 0 14px",
 };
 
-const metaRowLast = {
-  width: "100%",
-  borderCollapse: "collapse" as const,
+const metaItemLast = {
+  margin: 0,
 };
 
-const metaLabelCell = {
-  width: "72px",
-  padding: "12px 14px",
-  backgroundColor: "#f9fafb",
-  color: "#6b7280",
+const metaLabel = {
+  margin: "0 0 4px",
+  color: "#8a8178",
   fontFamily: fontStack,
-  fontSize: "12px",
-  fontWeight: 700,
-  lineHeight: "18px",
-  verticalAlign: "top" as const,
+  fontSize: "11px",
+  fontWeight: 600,
+  letterSpacing: "0.06em",
+  lineHeight: "16px",
 };
 
-const metaValueCell = {
-  padding: "12px 14px",
-  color: "#1f2937",
+const metaValue = {
+  margin: 0,
+  color: "#292524",
   fontFamily: fontStack,
   fontSize: "14px",
   fontWeight: 500,
-  lineHeight: "20px",
-  verticalAlign: "top" as const,
+  lineHeight: "22px",
 };
 
 const actionSection = {
-  margin: "0 0 12px",
+  margin: "0 0 8px",
 };
 
 const primaryButton = {
   display: "block",
   width: "100%",
   boxSizing: "border-box" as const,
-  margin: "0 0 8px",
-  padding: "12px 14px",
-  border: "1px solid",
-  borderRadius: "8px",
-  color: "#ffffff",
+  margin: "0 0 10px",
+  padding: "13px 16px",
+  border: "1px solid #3f3a36",
+  borderRadius: "10px",
+  backgroundColor: "#3f3a36",
+  color: "#fffcf8",
   fontFamily: fontStack,
   fontSize: "14px",
-  fontWeight: 700,
-  lineHeight: "18px",
+  fontWeight: 600,
+  lineHeight: "20px",
   textAlign: "center" as const,
   textDecoration: "none",
 };
@@ -471,53 +490,53 @@ const secondaryButton = {
   display: "block",
   width: "100%",
   boxSizing: "border-box" as const,
-  margin: "0 0 10px",
-  padding: "12px 14px",
-  border: "1px solid #d1d5db",
-  borderRadius: "8px",
-  backgroundColor: "#ffffff",
-  color: "#374151",
+  margin: "0 0 12px",
+  padding: "12px 16px",
+  border: "1px solid #d6d0c6",
+  borderRadius: "10px",
+  backgroundColor: "#fffcf8",
+  color: "#44403c",
   fontFamily: fontStack,
   fontSize: "14px",
-  fontWeight: 700,
-  lineHeight: "18px",
+  fontWeight: 600,
+  lineHeight: "20px",
   textAlign: "center" as const,
   textDecoration: "none",
 };
 
 const actionHint = {
-  margin: "0 0 8px",
-  color: "#6b7280",
+  margin: "0 0 10px",
+  color: "#8a8178",
   fontFamily: fontStack,
   fontSize: "12px",
   lineHeight: "18px",
+  textAlign: "center" as const,
 };
 
 const cancelNotice = {
   margin: "0 0 14px",
-  padding: "12px 14px",
-  border: "1px solid #e5eaef",
-  borderRadius: "8px",
-  backgroundColor: "#f9fafb",
+  padding: "14px 16px",
+  border: "1px solid #e4dfd6",
+  borderRadius: "10px",
+  backgroundColor: "#f7f4ef",
 };
 
 const cancelNoticeText = {
   margin: 0,
-  color: "#4b5563",
+  color: "#57534e",
   fontFamily: fontStack,
   fontSize: "13px",
-  lineHeight: "20px",
+  lineHeight: "21px",
 };
 
 const footer = {
-  padding: "14px 20px 18px",
-  borderTop: "1px solid #e5eaef",
-  backgroundColor: "#f7f9fa",
+  padding: "16px 26px 22px",
+  borderTop: "1px solid #ebe6de",
 };
 
 const footerTextStyle = {
-  margin: "0 0 2px",
-  color: "#6b7280",
+  margin: "0 0 4px",
+  color: "#78716c",
   fontFamily: fontStack,
   fontSize: "12px",
   lineHeight: "18px",
@@ -525,7 +544,7 @@ const footerTextStyle = {
 
 const footerMeta = {
   margin: 0,
-  color: "#9ca3af",
+  color: "#a8a29e",
   fontFamily: fontStack,
   fontSize: "11px",
   lineHeight: "16px",
