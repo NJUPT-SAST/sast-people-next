@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { CalendarCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -35,17 +35,30 @@ export function FeishuOAuthStatus({
   role,
   compact = false,
   className,
+  onStatusChange,
 }: {
   role: number;
   compact?: boolean;
   className?: string;
+  onStatusChange?: (
+    status: FeishuOAuthStatusState | null,
+    meta: { failed: boolean },
+  ) => void;
 }) {
   const [status, setStatus] = useState<FeishuOAuthStatusState | null>(null);
   const [failed, setFailed] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const onStatusChangeRef = useRef(onStatusChange);
 
   useEffect(() => {
-    if (role < 2) return;
+    onStatusChangeRef.current = onStatusChange;
+  }, [onStatusChange]);
+
+  useEffect(() => {
+    if (role < 2) {
+      onStatusChangeRef.current?.(null, { failed: false });
+      return;
+    }
 
     let cancelled = false;
     getCurrentFeishuOAuthStatus()
@@ -53,11 +66,13 @@ export function FeishuOAuthStatus({
         if (cancelled) return;
         setStatus(nextStatus);
         setFailed(false);
+        onStatusChangeRef.current?.(nextStatus, { failed: false });
       })
       .catch(() => {
         if (cancelled) return;
         setStatus(null);
         setFailed(true);
+        onStatusChangeRef.current?.(null, { failed: true });
       });
 
     return () => {
