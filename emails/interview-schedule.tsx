@@ -62,7 +62,7 @@ type InterviewScheduleEmailProps = {
 /**
  * Quiet calendar invitation style.
  * Distinct from result/offer mail (no Georgia, no green result panel).
- * One warm-stone theme for all kinds — status differs by label only.
+ * One cool slate theme for all kinds — status differs by label only.
  */
 const statusLabel = {
   created: "已预约",
@@ -234,11 +234,11 @@ export default InterviewScheduleEmail;
 const fontStack =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif';
 
-/* Warm stone base — not offer-mail green cream, not cold blue-gray */
+/* Cool slate base — no brown stone, no offer-mail green cream */
 const main = {
   margin: 0,
   padding: "28px 14px",
-  backgroundColor: "#f1eee9",
+  backgroundColor: "#f3f5f8",
   fontFamily: fontStack,
 };
 
@@ -246,18 +246,18 @@ const container = {
   width: "100%",
   maxWidth: "540px",
   margin: "0 auto",
-  backgroundColor: "#fffcf8",
-  border: "1px solid #e4dfd6",
+  backgroundColor: "#ffffff",
+  border: "1px solid #e2e8f0",
   borderRadius: "14px",
   overflow: "hidden" as const,
-  boxShadow: "0 8px 28px rgba(55, 48, 40, 0.06)",
+  boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
 };
 
 const topAccent = {
   height: "3px",
   lineHeight: "3px",
   fontSize: "0",
-  backgroundColor: "#3f3a36",
+  backgroundColor: "#1e293b",
 };
 
 const header = {
@@ -289,7 +289,7 @@ const brandName = {
   display: "inline-block",
   margin: 0,
   verticalAlign: "middle",
-  color: "#44403c",
+  color: "#334155",
   fontFamily: fontStack,
   fontSize: "13px",
   fontWeight: 600,
@@ -301,10 +301,10 @@ const statusChip = {
   display: "inline-block",
   margin: 0,
   padding: "5px 11px",
-  border: "1px solid #ddd6cb",
+  border: "1px solid #e2e8f0",
   borderRadius: "999px",
-  backgroundColor: "#f3efe9",
-  color: "#57534e",
+  backgroundColor: "#f1f5f9",
+  color: "#64748b",
   fontFamily: fontStack,
   fontSize: "11px",
   fontWeight: 600,
@@ -318,7 +318,7 @@ const bodySection = {
 
 const eyebrow = {
   margin: "0 0 8px",
-  color: "#8a8178",
+  color: "#94a3b8",
   fontFamily: fontStack,
   fontSize: "11px",
   fontWeight: 600,
@@ -329,7 +329,7 @@ const eyebrow = {
 
 const title = {
   margin: "0 0 12px",
-  color: "#1c1917",
+  color: "#0f172a",
   fontFamily: fontStack,
   fontSize: "24px",
   fontWeight: 700,
@@ -339,7 +339,7 @@ const title = {
 
 const intro = {
   margin: "0 0 22px",
-  color: "#57534e",
+  color: "#64748b",
   fontFamily: fontStack,
   fontSize: "14px",
   lineHeight: "24px",
@@ -347,10 +347,10 @@ const intro = {
 
 const scheduleCard = {
   margin: "0 0 22px",
-  border: "1px solid #e4dfd6",
+  border: "1px solid #e2e8f0",
   borderRadius: "12px",
   overflow: "hidden" as const,
-  backgroundColor: "#f7f4ef",
+  backgroundColor: "#f8fafc",
 };
 
 const scheduleTable = {
@@ -362,7 +362,7 @@ const scheduleRail = {
   width: "4px",
   fontSize: "0",
   lineHeight: "0",
-  backgroundColor: "#3f3a36",
+  backgroundColor: "#1e293b",
 };
 
 const scheduleContent = {
@@ -372,7 +372,7 @@ const scheduleContent = {
 
 const scheduleLabel = {
   margin: "0 0 8px",
-  color: "#8a8178",
+  color: "#94a3b8",
   fontFamily: fontStack,
   fontSize: "11px",
   fontWeight: 600,
@@ -382,7 +382,7 @@ const scheduleLabel = {
 
 const scheduleStart = {
   margin: "0 0 4px",
-  color: "#1c1917",
+  color: "#0f172a",
   fontFamily: fontStack,
   fontSize: "20px",
   fontWeight: 700,
@@ -392,7 +392,7 @@ const scheduleStart = {
 
 const scheduleEnd = {
   margin: 0,
-  color: "#57534e",
+  color: "#64748b",
   fontFamily: fontStack,
   fontSize: "14px",
   lineHeight: "22px",
@@ -413,7 +413,7 @@ const metaItemLast = {
 
 const metaLabel = {
   margin: "0 0 4px",
-  color: "#8a8178",
+  color: "#94a3b8",
   fontFamily: fontStack,
   fontSize: "11px",
   fontWeight: 600,
@@ -423,7 +423,7 @@ const metaLabel = {
 
 const metaValue = {
   margin: 0,
-  color: "#292524",
+  color: "#1e293b",
   fontFamily: fontStack,
   fontSize: "14px",
   fontWeight: 500,
@@ -440,10 +440,10 @@ const primaryButton = {
   boxSizing: "border-box" as const,
   margin: "0 0 10px",
   padding: "13px 16px",
-  border: "1px solid #3f3a36",
+  border: "1px solid #1e293b",
   borderRadius: "10px",
-  backgroundColor: "#3f3a36",
-  color: "#fffcf8",
+  backgroundColor: "#1e293b",
+  color: "#ffffff",
   fontFamily: fontStack,
   fontSize: "14px",
   fontWeight: 600,
@@ -458,10 +458,10 @@ const secondaryButton = {
   boxSizing: "border-box" as const,
   margin: "0 0 12px",
   padding: "12px 16px",
-  border: "1px solid #d6d0c6",
+  border: "1px solid #cbd5e1",
   borderRadius: "10px",
-  backgroundColor: "#fffcf8",
-  color: "#44403c",
+  backgroundColor: "#ffffff",
+  color: "#334155",
   fontFamily: fontStack,
   fontSize: "14px",
   fontWeight: 600,
@@ -472,7 +472,7 @@ const secondaryButton = {
 
 const actionHint = {
   margin: "0 0 10px",
-  color: "#8a8178",
+  color: "#94a3b8",
   fontFamily: fontStack,
   fontSize: "12px",
   lineHeight: "18px",
@@ -482,14 +482,14 @@ const actionHint = {
 const cancelNotice = {
   margin: "0 0 14px",
   padding: "14px 16px",
-  border: "1px solid #e4dfd6",
+  border: "1px solid #e2e8f0",
   borderRadius: "10px",
-  backgroundColor: "#f7f4ef",
+  backgroundColor: "#f8fafc",
 };
 
 const cancelNoticeText = {
   margin: 0,
-  color: "#57534e",
+  color: "#64748b",
   fontFamily: fontStack,
   fontSize: "13px",
   lineHeight: "21px",
@@ -497,12 +497,12 @@ const cancelNoticeText = {
 
 const footer = {
   padding: "16px 26px 22px",
-  borderTop: "1px solid #ebe6de",
+  borderTop: "1px solid #eef2f7",
 };
 
 const footerTextStyle = {
   margin: "0 0 4px",
-  color: "#78716c",
+  color: "#64748b",
   fontFamily: fontStack,
   fontSize: "12px",
   lineHeight: "18px",
@@ -510,7 +510,7 @@ const footerTextStyle = {
 
 const footerMeta = {
   margin: 0,
-  color: "#a8a29e",
+  color: "#94a3b8",
   fontFamily: fontStack,
   fontSize: "11px",
   lineHeight: "16px",
