@@ -280,7 +280,7 @@ export function EmailDashboardClient({
   }
 
   return (
-    <div className="flex flex-col gap-5 pb-20 md:pb-0">
+    <div className="flex flex-col gap-4 pb-20 md:pb-0">
       <EmailCenterTabNav activeTab={resolvedActiveTab} />
       {content}
     </div>

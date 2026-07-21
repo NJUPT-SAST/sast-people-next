@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, CircleX, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { EmailBatchTasksSection } from "./EmailBatchTasksSection";
 import {
@@ -64,42 +64,27 @@ function SendLane({
   });
   const pending = preflight.remainingRecipients.length;
   const sent = laneDeliveries.filter((d) => d.status === "sent").length;
-  const Icon = accept ? CheckCircle2 : CircleX;
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 rounded-xl border p-4",
+        "flex flex-col gap-3 rounded-xl border p-4",
         accept
-          ? "border-primary/20 bg-primary/5"
-          : "border-destructive/15 bg-destructive/5",
+          ? "border-primary/20 bg-primary/[0.03]"
+          : "border-destructive/15 bg-destructive/[0.03]",
       )}
     >
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "rounded-lg border p-2",
-            accept
-              ? "border-primary/25 bg-primary/10 text-primary"
-              : "border-destructive/25 bg-destructive/10 text-destructive",
-          )}
-        >
-          <Icon className="size-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold">{resultLabel}</p>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              待发 {pending} · 已发 {sent}
-            </p>
-          </div>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-            {subject || "未设置主题"}
-          </p>
-        </div>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold">{resultLabel}</p>
+        <p className="text-xs tabular-nums text-muted-foreground">
+          待发 {pending}
+          {sent > 0 ? ` · 已发 ${sent}` : ""}
+        </p>
       </div>
-
-      <div className="mt-auto grid grid-cols-2 gap-2">
+      <p className="line-clamp-1 text-xs text-muted-foreground">
+        {subject || "未设置主题"}
+      </p>
+      <div className="mt-auto flex flex-wrap gap-2">
         <RecipientsDialog
           recipients={preflight.remainingRecipients}
           title={`${flow.title} · ${resultLabel} · 待发名单`}
@@ -109,17 +94,18 @@ function SendLane({
           title={`${flow.title} · ${resultLabel}`}
           html={previewHtml}
           triggerLabel="预览"
-          triggerClassName="w-full"
         />
+        <div className="min-w-[5.5rem] flex-1">
+          <SendConfirmDialog
+            flow={flow}
+            accept={accept}
+            subject={subject}
+            previewHtml={previewHtml}
+            recipients={recipients}
+            deliveries={laneDeliveries}
+          />
+        </div>
       </div>
-      <SendConfirmDialog
-        flow={flow}
-        accept={accept}
-        subject={subject}
-        previewHtml={previewHtml}
-        recipients={recipients}
-        deliveries={laneDeliveries}
-      />
     </div>
   );
 }
@@ -142,22 +128,12 @@ export function EmailSendingTasksSection({
   setSelectedFlowId: (value: number) => void;
 }) {
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
-        <div className="border-b px-4 py-4 sm:px-5">
-          <h2 className="text-base font-semibold">发结果通知</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            选择招新流程，给通过 / 不通过的同学发送结果邮件。
-          </p>
-        </div>
-
-        {/* mobile flow picker */}
         <div className="border-b p-4 lg:hidden">
-          <label className="mb-2 block text-xs text-muted-foreground" htmlFor="email-flow-picker">
-            招新流程
-          </label>
           <select
             id="email-flow-picker"
+            aria-label="招新流程"
             value={selectedFlow?.id ?? ""}
             onChange={(event) => setSelectedFlowId(Number(event.target.value))}
             className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -175,20 +151,21 @@ export function EmailSendingTasksSection({
           </select>
         </div>
 
-        <div className="grid lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="hidden border-r p-3 lg:block">
-            <div className="relative mb-3">
+            <div className="relative mb-2">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={flowQuery}
                 onChange={(event) => setFlowQuery(event.target.value)}
                 placeholder="搜索流程"
-                className="pl-9"
+                className="h-9 pl-9"
+                aria-label="搜索流程"
               />
             </div>
             <div
               className={cn(
-                "flex max-h-[360px] flex-col gap-1.5 overflow-y-auto pr-1",
+                "flex max-h-[360px] flex-col gap-0.5 overflow-y-auto pr-1",
                 hiddenScrollbar,
               )}
             >
@@ -201,28 +178,23 @@ export function EmailSendingTasksSection({
                     type="button"
                     onClick={() => setSelectedFlowId(flow.id)}
                     className={cn(
-                      "rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-muted/50",
+                      "rounded-md px-3 py-2 text-left transition-colors",
                       active
-                        ? "border-primary/35 bg-primary/10"
-                        : "border-transparent bg-transparent",
+                        ? "bg-primary/10 text-foreground"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     )}
                   >
-                    <p className="truncate text-sm font-medium">{flow.title}</p>
-                    <p
-                      className={cn(
-                        "mt-1 text-xs",
-                        pending > 0
-                          ? "text-primary"
-                          : "text-muted-foreground",
-                      )}
-                    >
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {flow.title}
+                    </p>
+                    <p className="mt-0.5 text-xs tabular-nums">
                       {pending > 0 ? `待发 ${pending}` : "已发完"}
                     </p>
                   </button>
                 );
               })}
               {filteredFlows.length === 0 && (
-                <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                <p className="p-3 text-center text-sm text-muted-foreground">
                   没有匹配的流程
                 </p>
               )}
@@ -231,20 +203,19 @@ export function EmailSendingTasksSection({
 
           <div className="p-4 sm:p-5">
             {selectedFlow ? (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h3 className="text-base font-semibold">{selectedFlow.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    已成功发送过的人不会重复发送。
-                  </p>
-                </div>
+              <div className="flex flex-col gap-3">
+                <h2 className="text-base font-semibold">{selectedFlow.title}</h2>
                 <div className="grid gap-3 md:grid-cols-2">
                   <SendLane flow={selectedFlow} accept batches={batches} />
-                  <SendLane flow={selectedFlow} accept={false} batches={batches} />
+                  <SendLane
+                    flow={selectedFlow}
+                    accept={false}
+                    batches={batches}
+                  />
                 </div>
               </div>
             ) : (
-              <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+              <div className="flex min-h-[160px] items-center justify-center text-sm text-muted-foreground">
                 暂无可发送的招新流程
               </div>
             )}

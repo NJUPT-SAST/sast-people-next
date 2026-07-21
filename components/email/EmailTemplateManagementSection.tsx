@@ -6,7 +6,6 @@ import {
 } from "@/action/email/interview-template";
 import { sendEmailTest } from "@/action/email/test-send";
 import { updateEmailTemplateSetting } from "@/action/email/template";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { FileText, Save, Send, Settings2 } from "lucide-react";
+import { Save, Send, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -372,51 +371,6 @@ function getTemplateVariablesSummary(definition: EmailTemplateDefinition) {
   return required.map((item) => `{${item.key}}`).join("、");
 }
 
-function TemplateVariableChips({
-  definition,
-}: {
-  definition: EmailTemplateDefinition;
-}) {
-  const required = definition.variables.filter((item) => item.required);
-  const chips = required.length > 0 ? required : definition.variables.slice(0, 3);
-
-  return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
-      {chips.length === 0 ? (
-        <span className="rounded-md border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
-          无变量
-        </span>
-      ) : (
-        chips.map((item) => (
-          <span
-            key={item.key}
-            className={cn(
-              "rounded-md border px-2 py-1 font-mono text-[11px]",
-              item.required
-                ? "border-primary/25 bg-primary/10 text-primary"
-                : "bg-muted/30 text-muted-foreground",
-            )}
-          >
-            {`{${item.key}}`}
-          </span>
-        ))
-      )}
-      {required.length === 0 && definition.variables.length > chips.length && (
-        <span className="rounded-md border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
-          +{definition.variables.length - chips.length}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function getTemplateEditDescription(category: EmailTemplateDefinition["category"]) {
-  if (category === "result") {
-    return "可调整链接、飞书群、活动日历和联系邮箱；邮件标题按流程名称自动生成。";
-  }
-  return "时间、地点、讲师和参会入口会自动生成到信息卡片里，模板只维护标题、开头说明和落款。";
-}
-
 export function TestEmailButton({
   flowName,
   templateDefinitions,
@@ -529,7 +483,7 @@ export function EmailTemplateManagementSection({
     (definition) => definition.category === "interview",
   );
   const templateCardClassName =
-    "group relative flex min-h-[220px] flex-col overflow-hidden rounded-xl border bg-background/45 p-4 transition-colors hover:bg-background/70";
+    "group relative flex min-h-0 flex-col overflow-hidden rounded-xl border bg-background/45 p-4 transition-colors hover:bg-background/70";
 
   const resultDefinitionsMissing = templateDefinitions.filter(
     (definition) =>
@@ -550,13 +504,7 @@ export function EmailTemplateManagementSection({
       <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
         <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between lg:p-5">
           <div>
-            <div className="flex items-center gap-2">
-              <FileText className="size-5 text-primary" />
-              <h2 className="text-lg font-semibold">模板管理</h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              编辑结果与面试通知文案，保存后可用测试发送确认效果。
-            </p>
+            <h2 className="text-sm font-semibold">模板管理</h2>
           </div>
           <TestEmailButton
             flowName={selectedFlowTitle}
@@ -564,13 +512,10 @@ export function EmailTemplateManagementSection({
           />
         </div>
 
-        <div className="space-y-6 p-4 lg:p-5">
+        <div className="space-y-5 p-4">
           <div className="space-y-3">
             <div>
-              <h3 className="text-sm font-semibold">招新结果通知</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                通过 / 不通过结果邮件的文案。发送请到「发结果通知」。
-              </p>
+              <h3 className="text-sm font-semibold">结果通知</h3>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {templateSettings.map((setting) => (
@@ -584,28 +529,9 @@ export function EmailTemplateManagementSection({
                           setting.templateKey,
                         )}
                       </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {emailCategoryText.result}
-                      </p>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="border-primary/25 bg-primary/10 text-primary"
-                    >
-                      可编辑
-                    </Badge>
                   </div>
-                  <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-                    {definitionMap.get(setting.templateKey)?.description ??
-                      getTemplateEditDescription("result")}
-                  </p>
-                  {definitionMap.get(setting.templateKey) && (
-                    <TemplateVariableChips
-                      definition={
-                        definitionMap.get(setting.templateKey) as EmailTemplateDefinition
-                      }
-                    />
-                  )}
+                  
                   <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
                     <TemplateDialog setting={setting} />
                     <TestEmailButton
@@ -624,16 +550,8 @@ export function EmailTemplateManagementSection({
                       <h3 className="break-words text-sm font-semibold leading-5">
                         {definition.name}
                       </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {emailCategoryText[definition.category]}
-                      </p>
                     </div>
-                    <Badge variant="outline">默认模板</Badge>
                   </div>
-                  <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-                    {definition.description}
-                  </p>
-                  <TemplateVariableChips definition={definition} />
                   <div className="mt-auto pt-4">
                     <TestEmailButton
                       flowName={selectedFlowTitle}
@@ -654,9 +572,6 @@ export function EmailTemplateManagementSection({
           <div className="space-y-3 border-t pt-6">
             <div>
               <h3 className="text-sm font-semibold">面试通知</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                预约创建、改约、取消时自动使用；这里只改文案，不在这里触发发送。
-              </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {interviewCards.map(({ definition, setting, templateKey }) => (
@@ -667,21 +582,8 @@ export function EmailTemplateManagementSection({
                       <h3 className="break-words text-sm font-semibold leading-5">
                         {definition.name}
                       </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {emailCategoryText[definition.category]}
-                      </p>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="border-primary/25 bg-primary/10 text-primary"
-                    >
-                      可编辑
-                    </Badge>
                   </div>
-                  <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-                    {definition.description}
-                  </p>
-                  <TemplateVariableChips definition={definition} />
                   <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
                     <InterviewTemplateDialog
                       definition={definition}

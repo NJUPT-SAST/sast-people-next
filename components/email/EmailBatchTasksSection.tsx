@@ -4,7 +4,7 @@ import { recoverStaleEmailBatch, sendEmailBatch } from "@/action/email/send";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MailOpen, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -30,11 +30,11 @@ function RecoverStaleBatchButton({ batchId }: { batchId: number }) {
             return result;
           }),
           {
-            loading: "正在检查中断任务…",
+            loading: "正在恢复…",
             success: (result) =>
               result.recoveredCount > 0
                 ? `已恢复 ${result.recoveredCount} 封`
-                : "没有可恢复的中断任务",
+                : "没有可恢复项",
             error: (error) =>
               error instanceof Error ? error.message : "恢复失败",
           },
@@ -65,7 +65,7 @@ function RetryBatchButton({
           sendEmailBatch(batchId).then(() => router.refresh()),
           {
             loading: "正在重试…",
-            success: "已重新排队发送",
+            success: "已重新发送",
             error: (error) =>
               error instanceof Error ? error.message : "重试失败",
           },
@@ -81,22 +81,15 @@ function RetryBatchButton({
 export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
   return (
     <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
-      <div className="border-b px-4 py-4 sm:px-5">
-        <h2 className="text-base font-semibold">最近发送</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          本页最近的批量发送，失败时可重试。
-        </p>
+      <div className="border-b px-4 py-3 sm:px-5">
+        <h2 className="text-sm font-semibold">最近发送</h2>
       </div>
 
       <div className="flex flex-col divide-y">
         {batches.length === 0 ? (
-          <div className="p-10 text-center">
-            <MailOpen className="mx-auto size-6 text-muted-foreground" />
-            <p className="mt-3 text-sm font-medium">还没有发送记录</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              上方发送后，会出现在这里。
-            </p>
-          </div>
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            发送后会出现在这里
+          </p>
         ) : (
           batches.map((batch) => {
             const deliveries = Array.isArray(batch.deliveries)
@@ -120,7 +113,7 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
               <article
                 key={batch.id}
                 className={cn(
-                  "flex flex-col gap-3 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between",
+                  "flex flex-col gap-2 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between",
                   batch.status === "failed" && "bg-destructive/5",
                 )}
               >
@@ -133,30 +126,28 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
                       {batchStatusText[batch.status] ?? batch.status}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {batch.accept ? "通过" : "不通过"}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(batch.createdAt)}
+                      {batch.accept ? "通过" : "不通过"} · {formatDate(batch.createdAt)}
                     </span>
                   </div>
-                  <p className="mt-1.5 truncate text-sm font-medium">
+                  <p className="mt-1 truncate text-sm font-medium">
                     {batch.flowTitle}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                    共 {batch.totalCount} 人 · {summary}
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {summary}
+                    {batch.subject ? ` · ${batch.subject}` : ""}
                   </p>
                 </div>
-
                 <div className="flex flex-wrap gap-2 lg:justify-end">
                   <PreviewDialog
                     title={batch.flowTitle}
                     html={preview}
                     triggerLabel="预览"
-                    description="展示该批次中一封邮件的正文快照。"
                   />
                   <EmailBatchStatusDialog batch={batch} />
                   {canRecover && <RecoverStaleBatchButton batchId={batch.id} />}
-                  <RetryBatchButton batchId={batch.id} disabled={!canRetry} />
+                  {canRetry && (
+                    <RetryBatchButton batchId={batch.id} disabled={false} />
+                  )}
                 </div>
               </article>
             );
