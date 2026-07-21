@@ -192,6 +192,10 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
             <PortfolioLinkEditor
               userFlowId={safeFlow.id}
               initialValue={safeFlow.portfolioLink}
+              editable={
+                safeFlow.status === "not_started" ||
+                safeFlow.status === "ongoing"
+              }
             />
           </div>
         )}

@@ -7,6 +7,8 @@ import { logServerError } from "@/lib/server-error-log";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+const editableStatuses = new Set(["not_started", "ongoing"]);
+
 export const updatePortfolioLink = async (
   userFlowId: number,
   portfolioLink: string,
@@ -20,6 +22,7 @@ export const updatePortfolioLink = async (
       .select({
         id: userFlow.id,
         flowType: flow.type,
+        progressStatus: userFlow.progressStatus,
       })
       .from(userFlow)
       .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
@@ -38,6 +41,13 @@ export const updatePortfolioLink = async (
 
     if (record.flowType === "recruitment") {
       return { success: false, error: { message: "当前流程不需要作品链接" } };
+    }
+
+    if (!record.progressStatus || !editableStatuses.has(record.progressStatus)) {
+      return {
+        success: false,
+        error: { message: "流程已结束，作品链接不可修改" },
+      };
     }
 
     await db

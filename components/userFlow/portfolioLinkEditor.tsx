@@ -11,18 +11,25 @@ import { externalHref } from "@/lib/link";
 export const PortfolioLinkEditor = ({
   userFlowId,
   initialValue,
+  editable = true,
 }: {
   userFlowId: number;
   initialValue: string | null;
+  editable?: boolean;
 }) => {
   const [value, setValue] = useState(initialValue ?? "");
   const [draft, setDraft] = useState(initialValue ?? "");
-  const [editing, setEditing] = useState(!initialValue);
+  const [editing, setEditing] = useState(editable && !initialValue);
   const [saving, setSaving] = useState(false);
   const hasLink = value.trim().length > 0;
   const href = externalHref(value);
+  const canEdit = editable;
 
   const handleSave = async () => {
+    if (!canEdit) {
+      toast.error("流程已结束，作品链接不可修改");
+      return;
+    }
     setSaving(true);
     try {
       const result = await updatePortfolioLink(userFlowId, draft);
@@ -56,10 +63,17 @@ export const PortfolioLinkEditor = ({
               <ExternalLink className="h-3.5 w-3.5 shrink-0" />
             </a>
           ) : !editing ? (
-            <p className="text-xs text-muted-foreground">暂未填写</p>
+            <p className="text-xs text-muted-foreground">
+              {canEdit ? "暂未填写" : "未填写（流程已结束）"}
+            </p>
           ) : null}
+          {!canEdit && (
+            <p className="text-xs text-muted-foreground">
+              流程已结束，作品链接已锁定
+            </p>
+          )}
         </div>
-        {!editing && (
+        {canEdit && !editing && (
           <Button
             type="button"
             variant="outline"
@@ -75,7 +89,7 @@ export const PortfolioLinkEditor = ({
           </Button>
         )}
       </div>
-      {editing && (
+      {canEdit && editing && (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <Input
             value={draft}
