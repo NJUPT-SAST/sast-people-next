@@ -62,30 +62,12 @@ type InterviewScheduleEmailProps = {
 /**
  * Quiet calendar invitation style.
  * Distinct from result/offer mail (no Georgia, no green result panel).
- * One warm-stone base + soft status tint only on badge and time card.
+ * One warm-stone theme for all kinds — status differs by label only.
  */
-const statusTone = {
-  created: {
-    label: "已预约",
-    accent: "#4d6a6e",
-    soft: "#f2f6f6",
-    border: "#d5e0e1",
-    rail: "#4d6a6e",
-  },
-  rescheduled: {
-    label: "已改约",
-    accent: "#7d6550",
-    soft: "#f7f3ef",
-    border: "#e5d9cd",
-    rail: "#7d6550",
-  },
-  cancelled: {
-    label: "已取消",
-    accent: "#6b6560",
-    soft: "#f5f3f1",
-    border: "#ddd8d2",
-    rail: "#9a948c",
-  },
+const statusLabel = {
+  created: "已预约",
+  rescheduled: "已改约",
+  cancelled: "已取消",
 } as const;
 
 type MetaItem = {
@@ -109,7 +91,7 @@ export const InterviewScheduleEmail = ({
   footerText = "南京邮电大学大学生科学技术协会",
   logoUrl = "https://storage.sast.fun/sast-logo.png",
 }: InterviewScheduleEmailProps) => {
-  const tone = statusTone[kind];
+  const label = statusLabel[kind];
   const meta: MetaItem[] = [
     { label: "流程", value: flowName },
     { label: "讲师", value: organizerName },
@@ -131,7 +113,7 @@ export const InterviewScheduleEmail = ({
   return (
     <Html>
       <Preview>
-        {flowName} {tone.label} {startsAtText}
+        {flowName} {label} {startsAtText}
       </Preview>
       <Body style={main}>
         <Container style={container}>
@@ -151,16 +133,7 @@ export const InterviewScheduleEmail = ({
                     <Text style={brandName}>SAST People</Text>
                   </td>
                   <td style={headerChipCell}>
-                    <Text
-                      style={{
-                        ...statusChip,
-                        color: tone.accent,
-                        backgroundColor: tone.soft,
-                        borderColor: tone.border,
-                      }}
-                    >
-                      {tone.label}
-                    </Text>
+                    <Text style={statusChip}>{label}</Text>
                   </td>
                 </tr>
               </tbody>
@@ -172,13 +145,7 @@ export const InterviewScheduleEmail = ({
             <Heading style={title}>{titleText}</Heading>
             <Text style={intro}>{bodyText ?? defaultBody}</Text>
 
-            <Section
-              style={{
-                ...scheduleCard,
-                backgroundColor: tone.soft,
-                borderColor: tone.border,
-              }}
-            >
+            <Section style={scheduleCard}>
               <table
                 role="presentation"
                 cellPadding={0}
@@ -187,12 +154,7 @@ export const InterviewScheduleEmail = ({
               >
                 <tbody>
                   <tr>
-                    <td
-                      style={{
-                        ...scheduleRail,
-                        backgroundColor: tone.rail,
-                      }}
-                    />
+                    <td style={scheduleRail} />
                     <td style={scheduleContent}>
                       <Text style={scheduleLabel}>面试时间</Text>
                       <Text style={scheduleStart}>{startsAtText}</Text>
@@ -295,7 +257,7 @@ const topAccent = {
   height: "3px",
   lineHeight: "3px",
   fontSize: "0",
-  backgroundColor: "#c9bfb2",
+  backgroundColor: "#3f3a36",
 };
 
 const header = {
@@ -339,8 +301,10 @@ const statusChip = {
   display: "inline-block",
   margin: 0,
   padding: "5px 11px",
-  border: "1px solid",
+  border: "1px solid #ddd6cb",
   borderRadius: "999px",
+  backgroundColor: "#f3efe9",
+  color: "#57534e",
   fontFamily: fontStack,
   fontSize: "11px",
   fontWeight: 600,
@@ -383,9 +347,10 @@ const intro = {
 
 const scheduleCard = {
   margin: "0 0 22px",
-  border: "1px solid",
+  border: "1px solid #e4dfd6",
   borderRadius: "12px",
   overflow: "hidden" as const,
+  backgroundColor: "#f7f4ef",
 };
 
 const scheduleTable = {
@@ -397,6 +362,7 @@ const scheduleRail = {
   width: "4px",
   fontSize: "0",
   lineHeight: "0",
+  backgroundColor: "#3f3a36",
 };
 
 const scheduleContent = {
