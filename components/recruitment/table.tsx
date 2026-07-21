@@ -273,7 +273,7 @@ export function DataTable<TData, TValue>({
         )}
       </div>
       
-      <div className="overflow-hidden rounded-xl border bg-card">
+      <div className="min-w-0 overflow-hidden rounded-xl border bg-card">
         {role >= 3 && (
           <div className="border-b bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">
@@ -284,7 +284,7 @@ export function DataTable<TData, TValue>({
         )}
 
         {/* PC 端长表格试图 */}
-        <div className="hidden md:block overflow-x-auto">
+        <div className="hidden min-w-0 md:block overflow-x-auto">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (

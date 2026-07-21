@@ -511,7 +511,7 @@ export const EvaluationTable = ({
     );
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
       <div className="flex flex-col gap-3 border-b bg-muted/10 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium">面评候选人</p>
@@ -529,7 +529,7 @@ export const EvaluationTable = ({
           ))}
         </div>
       </div>
-      <div className="hidden md:block overflow-x-auto">
+      <div className="hidden min-w-0 md:block overflow-x-auto">
         <Table className="table-fixed min-w-[980px]">
           {role >= 3 ? (
             <colgroup>
