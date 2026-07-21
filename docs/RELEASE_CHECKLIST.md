@@ -189,6 +189,7 @@ pnpm test:e2e
 | 2026-07-21 | `pnpm exec tsc --noEmit` | passed |
 | 2026-07-21 | `pnpm test` | 135 passed |
 | 2026-07-21 | `pnpm build` | passed |
+| 2026-07-21 | GitHub Actions on PR #121 (commit f29b7ca) | Quality + Test/E2E/Build + GitGuardian passed |
 
 说明：上述结果仅证明本地可自动化路径可用，不能替代目标预发环境的迁移、密钥、外部服务联调和业务走查。
 
