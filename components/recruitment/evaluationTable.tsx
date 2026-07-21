@@ -980,24 +980,24 @@ export const EvaluationTable = ({
           if (!open) setEmailPreview(null);
         }}
       >
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85dvh] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-4 overflow-hidden sm:max-w-3xl">
+          <DialogHeader className="shrink-0">
             <DialogTitle>预约邮件预览</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="line-clamp-2">
               {emailPreview
                 ? `收件人：${emailPreview.to}；主题：${emailPreview.subject}`
                 : "预览将使用当前填写的时间和备注。"}
             </DialogDescription>
           </DialogHeader>
-          <div className="overflow-hidden rounded-lg border bg-muted/20">
+          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-muted/20">
             <iframe
               title="预约邮件预览"
               srcDoc={emailPreview?.html ?? ""}
               sandbox=""
-              className="h-[620px] w-full bg-white"
+              className="h-[min(55dvh,520px)] w-full bg-white"
             />
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button type="button" variant="outline" onClick={() => setEmailPreview(null)}>
               关闭
             </Button>
