@@ -10,7 +10,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { getEducationEmailLabel, getEmailPreflight } from "@/components/email/emailDashboardUtils";
+import {
+  getEducationEmailLabel,
+  getEmailPreflight,
+} from "@/components/email/emailDashboardUtils";
 import {
   Table,
   TableBody,
@@ -20,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { AlertCircle, CheckCircle2, Send, Users } from "lucide-react";
+import { Send, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -32,8 +35,8 @@ import type { EmailBatch, FlowTarget } from "./emailDashboardTypes";
 export function RecipientsDialog({
   recipients,
   title,
-  triggerLabel = "查看名单",
-  description = "收件地址固定按学号生成，不使用个人资料中的邮箱字段。",
+  triggerLabel = "名单",
+  description = "教育邮箱由学号生成。",
 }: {
   recipients: FlowTarget["passed"];
   title: string;
@@ -48,7 +51,6 @@ export function RecipientsDialog({
           variant="outline"
           size="sm"
           disabled={safeRecipients.length === 0}
-          className="w-full lg:w-auto"
         >
           <Users data-icon="inline-start" />
           {triggerLabel}
@@ -91,37 +93,6 @@ export function RecipientsDialog({
   );
 }
 
-function SendCheckItem({
-  status,
-  label,
-  detail,
-}: {
-  status: "ok" | "warning" | "error";
-  label: string;
-  detail: string;
-}) {
-  const Icon = status === "ok" ? CheckCircle2 : AlertCircle;
-
-  return (
-    <div className="flex items-start gap-3 rounded-md border bg-background px-3 py-2.5">
-      <Icon
-        className={cn(
-          "mt-0.5 h-4 w-4 shrink-0",
-          status === "ok" && "text-primary",
-          status === "warning" && "text-muted-foreground",
-          status === "error" && "text-destructive",
-        )}
-      />
-      <div className="min-w-0">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="mt-0.5 break-words text-xs text-muted-foreground">
-          {detail}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export function SendConfirmDialog({
   flow,
   accept,
@@ -147,8 +118,10 @@ export function SendConfirmDialog({
   const invalidNames = preflight.invalidRecipients
     .map((recipient) => recipient.name)
     .join("、");
-  const totalRecipientCount = Array.isArray(recipients) ? recipients.length : 0;
   const hasPreview = Boolean(previewHtml);
+  const remaining = preflight.remainingRecipients.length;
+  const skipped = preflight.alreadyCreatedCount;
+  const invalidCount = preflight.invalidRecipients.length;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -156,7 +129,7 @@ export function SendConfirmDialog({
         <Button
           size="sm"
           className="w-full"
-          disabled={preflight.remainingRecipients.length === 0}
+          disabled={remaining === 0}
         >
           <Send data-icon="inline-start" />
           发送
@@ -164,86 +137,33 @@ export function SendConfirmDialog({
       </DialogTrigger>
       <DialogContent
         className={cn(
-          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto",
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-md overflow-y-auto",
           hiddenScrollbar,
         )}
       >
         <DialogHeader>
-          <DialogTitle>确认发送{resultLabel}邮件</DialogTitle>
+          <DialogTitle>发送{resultLabel}通知</DialogTitle>
           <DialogDescription>
-            系统只会为未创建过发送记录的同学创建邮件；已有记录请在发送记录里重试。
+            {flow.title}
+            {subject ? ` · ${subject}` : ""}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3">
-          <div className="rounded-lg border bg-muted/20 p-3">
-            <p className="text-xs text-muted-foreground">流程</p>
-            <p className="mt-1 font-medium">{flow.title}</p>
-            <p className="mt-2 break-words text-xs text-muted-foreground">
-              {subject}
-            </p>
-          </div>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            将发送给{" "}
+            <span className="font-semibold text-foreground tabular-nums">
+              {remaining}
+            </span>{" "}
+            人
+            {skipped > 0 ? `（已跳过 ${skipped} 人）` : ""}
+            。
+          </p>
 
-          <div className="grid grid-cols-3 gap-2 text-sm">
-            <div className="rounded-md border bg-background p-3">
-              <p className="text-xs text-muted-foreground">待发送</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">
-                {preflight.remainingRecipients.length}
-              </p>
-            </div>
-            <div className="rounded-md border bg-background p-3">
-              <p className="text-xs text-muted-foreground">已有记录</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">
-                {preflight.alreadyCreatedCount}
-              </p>
-            </div>
-            <div className="rounded-md border bg-background p-3">
-              <p className="text-xs text-muted-foreground">缺学号</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">
-                {preflight.invalidRecipients.length}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <SendCheckItem
-              status={preflight.remainingRecipients.length > 0 ? "ok" : "error"}
-              label="目标名单"
-              detail={`当前${resultLabel}名单 ${totalRecipientCount} 人，本次会处理 ${preflight.remainingRecipients.length} 人。`}
-            />
-            <SendCheckItem
-              status={preflight.invalidRecipients.length === 0 ? "ok" : "error"}
-              label="教育邮箱"
-              detail={
-                preflight.invalidRecipients.length === 0
-                  ? "待发名单都有学号，可以自动生成教育邮箱。"
-                  : `${preflight.invalidRecipients.length} 人缺少学号，不能自动生成教育邮箱。`
-              }
-            />
-            <SendCheckItem
-              status={hasPreview ? "ok" : "error"}
-              label="邮件样张"
-              detail={
-                hasPreview
-                  ? "模板样张已生成，发送前可以打开核对正文。"
-                  : "当前没有模板样张，请先检查模板配置。"
-              }
-            />
-            <SendCheckItem
-              status={preflight.alreadyCreatedCount === 0 ? "ok" : "warning"}
-              label="重复发送"
-              detail={
-                preflight.alreadyCreatedCount === 0
-                  ? "没有已有发送记录。"
-                  : `${preflight.alreadyCreatedCount} 人已有发送记录，本次不会重复创建。`
-              }
-            />
-          </div>
-
-          {preflight.invalidRecipients.length > 0 && (
+          {invalidCount > 0 && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
               <p className="font-medium text-destructive">
-                不能发送：待发名单中有人缺少学号
+                {invalidCount} 人缺少学号，无法发送
               </p>
               <p className="mt-1 break-words text-xs text-muted-foreground">
                 {invalidNames}
@@ -251,22 +171,25 @@ export function SendConfirmDialog({
             </div>
           )}
 
-          <div className="grid gap-2 sm:grid-cols-2">
+          {!hasPreview && (
+            <p className="text-sm text-destructive">
+              没有可用预览，请先检查模板。
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-2">
             <RecipientsDialog
               recipients={preflight.remainingRecipients}
-              title={`${flow.title} ${resultLabel}邮件待发名单`}
-              triggerLabel="查看待发名单"
-              description="确认无误后再发送；教育邮箱由学号自动生成。"
+              title={`${flow.title} · ${resultLabel} · 待发名单`}
             />
             <PreviewDialog
-              title={`${flow.title} ${resultLabel}邮件样张`}
+              title={`${flow.title} · ${resultLabel}`}
               html={previewHtml}
-              triggerLabel="查看样张"
-              triggerClassName="w-full"
+              triggerLabel="预览"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
               取消
             </Button>
@@ -279,8 +202,8 @@ export function SendConfirmDialog({
                     router.refresh();
                   }),
                   {
-                    loading: "正在处理邮件发送",
-                    success: "邮件发送任务已处理，结果已更新",
+                    loading: "正在发送…",
+                    success: "已开始发送",
                     error: (error) =>
                       error instanceof Error ? error.message : "发送失败",
                   },

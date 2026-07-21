@@ -10,7 +10,7 @@ export const deliveryStatusText: Record<string, string> = {
   sending: "发送中",
   sent: "已发送",
   failed: "失败",
-  dead: "死信",
+  dead: "无法自动重试",
 };
 
 export const emailCategoryText: Record<string, string> = {
@@ -23,20 +23,28 @@ export const hiddenScrollbar = "[scrollbar-width:none] [&::-webkit-scrollbar]:hi
 export const EMAIL_REFRESH_INTERVAL_MS = 3000;
 export const EMAIL_REFRESH_MAX_ATTEMPTS = 20;
 
+/** Primary workbench tabs. Order = usage frequency. */
 export const emailCenterTabs = [
-  { value: "overview", label: "概览" },
-  { value: "tasks", label: "发送任务" },
+  { value: "tasks", label: "发结果通知" },
   { value: "records", label: "发送记录" },
   { value: "templates", label: "模板管理" },
-  { value: "config", label: "配置" },
+  { value: "status", label: "系统状态" },
 ] as const;
 
 export type EmailCenterTab = (typeof emailCenterTabs)[number]["value"];
 
+/** Legacy query values still accepted and mapped. */
+const legacyTabMap: Record<string, EmailCenterTab> = {
+  overview: "status",
+  config: "status",
+};
+
 export function normalizeEmailCenterTab(value: string | undefined): EmailCenterTab {
+  if (!value) return "tasks";
+  if (legacyTabMap[value]) return legacyTabMap[value];
   return emailCenterTabs.some((tab) => tab.value === value)
     ? (value as EmailCenterTab)
-    : "overview";
+    : "tasks";
 }
 
 export function isToday(value: Date | string | null) {

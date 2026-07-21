@@ -1,6 +1,7 @@
 import { LinkLogin } from "@/components/linkLogin";
 import BlurIn from "@/components/magicui/blur-in";
 import FlickeringGrid from "@/components/magicui/flickering-grid";
+import { TestLogin } from "@/components/testLogin";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 import "@fontsource/ma-shan-zheng/chinese-simplified.css";
@@ -77,6 +78,7 @@ const Login = async () => {
                   </div>
 
                   <LinkLogin isBinding={false} />
+                  {process.env.NODE_ENV === "development" && <TestLogin />}
                 </CardContent>
               </Card>
             </div>
@@ -88,3 +90,4 @@ const Login = async () => {
 };
 
 export default Login;
+

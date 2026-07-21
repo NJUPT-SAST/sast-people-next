@@ -6,7 +6,6 @@ import {
 } from "@/action/email/interview-template";
 import { sendEmailTest } from "@/action/email/test-send";
 import { updateEmailTemplateSetting } from "@/action/email/template";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { FileText, Save, Send, Settings2 } from "lucide-react";
+import { Save, Send, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -125,20 +124,20 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
             );
           }}
         >
-          <div className="rounded-lg border bg-muted/10 p-3 md:col-span-2">
+          <div className="rounded-lg border bg-muted/40 p-3 md:col-span-2">
             <p className="text-xs font-medium text-muted-foreground">邮件标题</p>
             <input
               type="hidden"
               name="subjectTemplate"
               value={setting.subjectTemplate}
             />
-            <div className="mt-2 flex flex-col gap-1 rounded-md bg-background/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-2 flex flex-col gap-1 rounded-md bg-muted px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-sm">流程名称 + 结果通知</span>
               <span className="text-xs text-muted-foreground">自动生成</span>
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-lg border bg-muted/10 p-3 md:col-span-2 md:grid-cols-2">
+          <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 md:col-span-2 md:grid-cols-2">
             <TemplateField
               id={`${setting.templateKey}-contact`}
               label="联系邮箱"
@@ -175,7 +174,7 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
           </div>
 
           {isAcceptedTemplate ? (
-            <div className="grid gap-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
+            <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 md:col-span-2">
               <TemplateField
                 id={`${setting.templateKey}-form-url`}
                 label="成员信息表链接"
@@ -278,7 +277,7 @@ function InterviewTemplateDialog({
             );
           }}
         >
-          <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/10 p-3">
+          <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/40 p-3">
             <p className="text-xs font-medium text-muted-foreground">邮件内容</p>
             <TemplateField
               id="interview-subject-template"
@@ -311,7 +310,7 @@ function InterviewTemplateDialog({
             />
           </div>
 
-          <div className="rounded-lg border bg-muted/10 p-3 text-xs leading-5 text-muted-foreground">
+          <div className="rounded-lg border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
             <p>
               正文建议保留 <span className="font-mono text-foreground">{"{candidateName}"}</span>
               {" "}和 <span className="font-mono text-foreground">{"{flowName}"}</span>。
@@ -372,51 +371,6 @@ function getTemplateVariablesSummary(definition: EmailTemplateDefinition) {
   return required.map((item) => `{${item.key}}`).join("、");
 }
 
-function TemplateVariableChips({
-  definition,
-}: {
-  definition: EmailTemplateDefinition;
-}) {
-  const required = definition.variables.filter((item) => item.required);
-  const chips = required.length > 0 ? required : definition.variables.slice(0, 3);
-
-  return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
-      {chips.length === 0 ? (
-        <span className="rounded-md border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
-          无变量
-        </span>
-      ) : (
-        chips.map((item) => (
-          <span
-            key={item.key}
-            className={cn(
-              "rounded-md border px-2 py-1 font-mono text-[11px]",
-              item.required
-                ? "border-primary/25 bg-primary/10 text-primary"
-                : "bg-muted/30 text-muted-foreground",
-            )}
-          >
-            {`{${item.key}}`}
-          </span>
-        ))
-      )}
-      {required.length === 0 && definition.variables.length > chips.length && (
-        <span className="rounded-md border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
-          +{definition.variables.length - chips.length}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function getTemplateEditDescription(category: EmailTemplateDefinition["category"]) {
-  if (category === "result") {
-    return "可调整链接、飞书群、活动日历和联系邮箱；邮件标题按流程名称自动生成。";
-  }
-  return "时间、地点、讲师和参会入口会自动生成到信息卡片里，模板只维护标题、开头说明和落款。";
-}
-
 export function TestEmailButton({
   flowName,
   templateDefinitions,
@@ -445,7 +399,7 @@ export function TestEmailButton({
         <DialogHeader>
           <DialogTitle>测试发送</DialogTitle>
           <DialogDescription>
-            选择任意注册模板发送样张；仅支持南邮教育邮箱，也可以直接输入学号。
+            选一个模板，发一封测试邮件确认效果。收件人用南邮邮箱，或直接填学号。
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -529,153 +483,134 @@ export function EmailTemplateManagementSection({
     (definition) => definition.category === "interview",
   );
   const templateCardClassName =
-    "group relative flex min-h-[220px] flex-col overflow-hidden rounded-xl border bg-background/45 p-4 transition-colors hover:bg-background/70";
+    "group relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card p-4 transition-colors hover:bg-muted";
+
+  const resultDefinitionsMissing = templateDefinitions.filter(
+    (definition) =>
+      definition.category === "result" && !resultTemplateKeys.has(definition.key),
+  );
+  const interviewCards = interviewDefinitions
+    .map((definition) => {
+      const templateKey =
+        definition.key as InterviewScheduleTemplates[number]["templateKey"];
+      const setting = interviewTemplateSettingsMap.get(templateKey);
+      if (!setting) return null;
+      return { definition, setting, templateKey };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
-      <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between lg:p-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <FileText className="size-5 text-primary" />
-            <h2 className="text-lg font-semibold">模板管理</h2>
+    <div className="flex flex-col gap-5">
+      <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+        <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between lg:p-5">
+          <div>
+            <h2 className="text-sm font-semibold">模板管理</h2>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            统一编辑、预览和测试结果通知、面试通知相关模板。
-          </p>
+          <TestEmailButton
+            flowName={selectedFlowTitle}
+            templateDefinitions={templateDefinitions}
+          />
         </div>
-        <TestEmailButton
-          flowName={selectedFlowTitle}
-          templateDefinitions={templateDefinitions}
-        />
-      </div>
-      <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
-        {templateSettings.map((setting) => (
-          <div key={setting.templateKey} className={templateCardClassName}>
-            <div className="absolute inset-x-0 top-0 h-1 bg-primary/60" />
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="break-words text-sm font-semibold leading-5">
-                  {getTemplateDisplayName(
-                    definitionMap.get(setting.templateKey),
-                    setting.templateKey,
-                  )}
-                </h3>
-                <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
-                  {emailCategoryText.result} · {setting.templateKey}
-                </p>
-              </div>
-              <Badge
-                variant="outline"
-                className="border-primary/25 bg-primary/10 text-primary"
-              >
-                启用
-              </Badge>
+
+        <div className="space-y-5 p-4">
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold">结果通知</h3>
             </div>
-            <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-              {definitionMap.get(setting.templateKey)?.description ??
-                getTemplateEditDescription("result")}
-            </p>
-            {definitionMap.get(setting.templateKey) && (
-              <TemplateVariableChips
-                definition={
-                  definitionMap.get(setting.templateKey) as EmailTemplateDefinition
-                }
-              />
-            )}
-            <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
-              <TemplateDialog setting={setting} />
-              <TestEmailButton
-                flowName={selectedFlowTitle}
-                templateDefinitions={templateDefinitions}
-                defaultTemplateKey={setting.templateKey as EmailTemplateDefinition["key"]}
-              />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {templateSettings.map((setting) => (
+                <div key={setting.templateKey} className={templateCardClassName}>
+                  <div className="absolute inset-x-0 top-0 h-1 bg-primary/60" />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-sm font-semibold leading-5">
+                        {getTemplateDisplayName(
+                          definitionMap.get(setting.templateKey),
+                          setting.templateKey,
+                        )}
+                      </h3>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
+                    <TemplateDialog setting={setting} />
+                    <TestEmailButton
+                      flowName={selectedFlowTitle}
+                      templateDefinitions={templateDefinitions}
+                      defaultTemplateKey={setting.templateKey as EmailTemplateDefinition["key"]}
+                    />
+                  </div>
+                </div>
+              ))}
+              {resultDefinitionsMissing.map((definition) => (
+                <div key={definition.key} className={templateCardClassName}>
+                  <div className="absolute inset-x-0 top-0 h-1 bg-muted-foreground/30" />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-sm font-semibold leading-5">
+                        {definition.name}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="mt-auto pt-4">
+                    <TestEmailButton
+                      flowName={selectedFlowTitle}
+                      templateDefinitions={templateDefinitions}
+                      defaultTemplateKey={definition.key}
+                    />
+                  </div>
+                </div>
+              ))}
+              {templateSettings.length === 0 && resultDefinitionsMissing.length === 0 && (
+                <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
+                  暂无结果通知模板。
+                </div>
+              )}
             </div>
           </div>
-        ))}
-        {interviewDefinitions
-          .map((definition) => {
-            const templateKey =
-              definition.key as InterviewScheduleTemplates[number]["templateKey"];
-            const setting = interviewTemplateSettingsMap.get(templateKey);
-            if (!setting) return null;
-            return (
-              <div key={definition.key} className={templateCardClassName}>
-                <div className="absolute inset-x-0 top-0 h-1 bg-chart-3/70" />
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="break-words text-sm font-semibold leading-5">
-                      {definition.name}
-                    </h3>
-                    <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
-                      {emailCategoryText[definition.category]} · {definition.key}
-                    </p>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="border-primary/25 bg-primary/10 text-primary"
-                  >
-                    启用
-                  </Badge>
-                </div>
-                <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-                  {definition.description}
-                </p>
-                <TemplateVariableChips definition={definition} />
-                <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
-                  <InterviewTemplateDialog
-                    definition={definition}
-                    setting={setting}
-                    previewHtml={
-                      interviewSchedulePreviews[templateKey] ?? null
-                    }
-                  />
-                  <TestEmailButton
-                    flowName={selectedFlowTitle}
-                    templateDefinitions={templateDefinitions}
-                    defaultTemplateKey={definition.key}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        {templateDefinitions
-          .filter(
-            (definition) =>
-              definition.category === "result" && !resultTemplateKeys.has(definition.key),
-          )
-          .map((definition) => (
-            <div key={definition.key} className={templateCardClassName}>
-              <div className="absolute inset-x-0 top-0 h-1 bg-muted-foreground/30" />
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="break-words text-sm font-semibold leading-5">
-                    {definition.name}
-                  </h3>
-                  <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
-                    {emailCategoryText[definition.category]} · {definition.key}
-                  </p>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="border-primary/25 bg-primary/10 text-primary"
-                >
-                  启用
-                </Badge>
-              </div>
-              <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-                {definition.description}
-              </p>
-              <TemplateVariableChips definition={definition} />
-              <div className="mt-auto pt-4">
-                <TestEmailButton
-                  flowName={selectedFlowTitle}
-                  templateDefinitions={templateDefinitions}
-                  defaultTemplateKey={definition.key}
-                />
-              </div>
+
+          <div className="space-y-3 border-t pt-6">
+            <div>
+              <h3 className="text-sm font-semibold">面试通知</h3>
             </div>
-          ))}
-      </div>
-    </section>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {interviewCards.map(({ definition, setting, templateKey }) => (
+                <div key={definition.key} className={templateCardClassName}>
+                  <div className="absolute inset-x-0 top-0 h-1 bg-chart-3/70" />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-sm font-semibold leading-5">
+                        {definition.name}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
+                    <InterviewTemplateDialog
+                      definition={definition}
+                      setting={setting}
+                      previewHtml={
+                        interviewSchedulePreviews[templateKey] ?? null
+                      }
+                    />
+                    <TestEmailButton
+                      flowName={selectedFlowTitle}
+                      templateDefinitions={templateDefinitions}
+                      defaultTemplateKey={definition.key}
+                    />
+                  </div>
+                </div>
+              ))}
+              {interviewCards.length === 0 && (
+                <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
+                  暂无面试通知模板。
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
+
+

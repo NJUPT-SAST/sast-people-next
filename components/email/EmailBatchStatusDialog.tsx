@@ -61,15 +61,15 @@ export function EmailBatchStatusDialog({ batch }: { batch: EmailBatch }) {
         </DialogHeader>
 
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-md border bg-muted/20 px-3 py-2">
+          <div className="rounded-md border bg-muted/40 px-3 py-2">
             <p className="text-xs text-muted-foreground">总数</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">{deliveries.length}</p>
           </div>
-          <div className="rounded-md border bg-muted/20 px-3 py-2">
+          <div className="rounded-md border bg-muted/40 px-3 py-2">
             <p className="text-xs text-muted-foreground">已发送</p>
             <p className="mt-1 text-lg font-semibold tabular-nums text-primary">{sentCount}</p>
           </div>
-          <div className="rounded-md border bg-muted/20 px-3 py-2">
+          <div className="rounded-md border bg-muted/40 px-3 py-2">
             <p className="text-xs text-muted-foreground">失败</p>
             <p className="mt-1 text-lg font-semibold tabular-nums text-destructive">{failedCount}</p>
           </div>

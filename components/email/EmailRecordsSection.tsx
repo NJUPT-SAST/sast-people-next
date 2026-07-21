@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PaginationComponent } from "@/components/ui/pagination";
-import { cn } from "@/lib/utils";
-import { RotateCcw, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import {
   deliveryStatusText,
@@ -25,60 +22,11 @@ import type {
   FlowTarget,
 } from "./emailDashboardTypes";
 
-function getDeliverySource(delivery: EmailDeliveryRecord) {
-  return delivery.flowTitle ?? delivery.batchName ?? "";
-}
-
-function getRelatedObjectText(delivery: EmailDeliveryRecord) {
-  if (delivery.relatedScheduleId) {
-    return `面试预约 #${delivery.relatedScheduleId}`;
-  }
-  if (delivery.userFlowId) {
-    return `报名记录 #${delivery.userFlowId}`;
-  }
-  if (delivery.batchId) {
-    return `批量任务 #${delivery.batchId}`;
-  }
-  return "-";
-}
-
-const pageSizeOptions = [10, 20, 50] as const;
-
-function getRecordAccentClass(status: string) {
-  if (status === "failed" || status === "dead") return "border-l-destructive/70";
-  if (status === "sent") return "border-l-primary/70";
-  if (status === "sending") return "border-l-chart-3/70";
-  return "border-l-muted-foreground/40";
-}
-
-function getTemplateOptions({
-  deliveries,
-  templateDefinitions,
-}: {
-  deliveries: EmailDeliveryRecord[];
-  templateDefinitions: EmailTemplateDefinition[];
-}) {
-  return Array.from(
-    new Set([
-      ...templateDefinitions.map((definition) => definition.key),
-      ...deliveries.map((delivery) => delivery.templateKey),
-    ]),
-  ).sort((a, b) => a.localeCompare(b, "zh-CN"));
-}
-
-function RecordInfo({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="mt-1 min-w-0 text-sm">{children}</div>
-    </div>
-  );
+function templateLabel(
+  key: string,
+  definitions: EmailTemplateDefinition[],
+) {
+  return definitions.find((item) => item.key === key)?.name ?? key;
 }
 
 export function EmailRecordsSection({
@@ -94,271 +42,151 @@ export function EmailRecordsSection({
     ? deliveryPage.deliveries
     : [];
   const filters = deliveryPage.filters;
-  const templateOptions = getTemplateOptions({ deliveries, templateDefinitions });
   const start =
     deliveryPage.totalCount === 0
       ? 0
       : (filters.page - 1) * filters.pageSize + 1;
-  const end = Math.min(filters.page * filters.pageSize, deliveryPage.totalCount);
+  const end = Math.min(
+    filters.page * filters.pageSize,
+    deliveryPage.totalCount,
+  );
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
-      <div className="flex flex-col gap-4 border-b p-4 lg:p-5">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">发送记录</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              结果通知、面试通知和测试邮件都会记录在这里。
-            </p>
-          </div>
-          <p className="rounded-md border bg-background/60 px-2.5 py-1 text-sm text-muted-foreground">
-            显示 {start} - {end}，共 {deliveryPage.totalCount} 条
+    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+      <div className="border-b px-4 py-3 sm:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">发送记录</h2>
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {start}-{end} / {deliveryPage.totalCount}
           </p>
         </div>
 
         <form
           action="/dashboard/emails"
-          className="grid gap-3 rounded-lg border bg-background/35 p-3 md:grid-cols-2 xl:grid-cols-[140px_140px_140px_minmax(220px,1fr)_minmax(220px,1fr)]"
+          className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
         >
           <input type="hidden" name="tab" value="records" />
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-category" className="text-xs text-muted-foreground">
-              邮件类型
-            </Label>
-            <select
-              id="email-record-category"
-              name="category"
-              defaultValue={filters.category}
-              className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <option value="">全部类型</option>
-              {Object.entries(emailCategoryText).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-status" className="text-xs text-muted-foreground">
-              状态
-            </Label>
-            <select
-              id="email-record-status"
-              name="status"
-              defaultValue={filters.status}
-              className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <option value="">全部状态</option>
-              {Object.entries(deliveryStatusText).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-template" className="text-xs text-muted-foreground">
-              模板
-            </Label>
-            <select
-              id="email-record-template"
-              name="templateKey"
-              defaultValue={filters.templateKey}
-              className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <option value="">全部模板</option>
-              {templateOptions.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-page-size" className="text-xs text-muted-foreground">
-              每页数量
-            </Label>
-            <select
-              id="email-record-page-size"
-              name="pageSize"
-              defaultValue={filters.pageSize.toString()}
-              className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              {pageSizeOptions.map((value) => (
-                <option key={value} value={value}>
-                  {value} 条
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-flow" className="text-xs text-muted-foreground">
-              流程
-            </Label>
-            <select
-              id="email-record-flow"
-              name="flowId"
-              defaultValue={filters.flowId}
-              className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <option value="">全部流程</option>
-              {flowTargets.map((flow) => (
-                <option key={flow.id} value={flow.id}>
-                  {flow.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-creator" className="text-xs text-muted-foreground">
-              创建人 ID
-            </Label>
-            <Input
-              id="email-record-creator"
-              name="creatorId"
-              defaultValue={filters.creatorId}
-              inputMode="numeric"
-              placeholder="Link 用户 ID"
-            />
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-from" className="text-xs text-muted-foreground">
-              开始日期
-            </Label>
-            <Input
-              id="email-record-from"
-              name="from"
-              type="date"
-              defaultValue={filters.from}
-            />
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-to" className="text-xs text-muted-foreground">
-              结束日期
-            </Label>
-            <Input
-              id="email-record-to"
-              name="to"
-              type="date"
-              defaultValue={filters.to}
-            />
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <Label htmlFor="email-record-query" className="text-xs text-muted-foreground">
-              收件人/关键字
-            </Label>
+          <input type="hidden" name="page" value="1" />
+          <input type="hidden" name="pageSize" value={filters.pageSize} />
+
+          <select
+            id="email-record-status"
+            name="status"
+            aria-label="状态"
+            defaultValue={filters.status}
+            className="h-9 rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-28"
+          >
+            <option value="">状态</option>
+            {Object.entries(deliveryStatusText).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            id="email-record-category"
+            name="category"
+            aria-label="类型"
+            defaultValue={filters.category}
+            className="h-9 rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-28"
+          >
+            <option value="">类型</option>
+            {Object.entries(emailCategoryText).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            id="email-record-flow"
+            name="flowId"
+            aria-label="流程"
+            defaultValue={filters.flowId}
+            className="h-9 min-w-0 rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:max-w-[12rem]"
+          >
+            <option value="">流程</option>
+            {flowTargets.map((flow) => (
+              <option key={flow.id} value={flow.id}>
+                {flow.title}
+              </option>
+            ))}
+          </select>
+
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="email-record-query"
               name="query"
               defaultValue={filters.query}
-              placeholder="搜索收件人、主题、模板或失败原因"
+              placeholder="搜索姓名、邮箱、主题"
+              className="h-9 pl-8"
+              aria-label="搜索"
             />
           </div>
-          <div className="flex gap-2 md:col-span-2 xl:col-span-5">
-            <Button type="submit">
-              <Search data-icon="inline-start" />
+
+          <div className="flex gap-2">
+            <Button type="submit" size="sm">
               筛选
             </Button>
-            <Button asChild variant="outline">
-              <Link href="/dashboard/emails?tab=records">
-                <RotateCcw data-icon="inline-start" />
-                重置
-              </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/dashboard/emails?tab=records">重置</Link>
             </Button>
           </div>
         </form>
       </div>
 
-      <div className="flex flex-col gap-3 p-4 lg:p-5">
+      <div className="flex flex-col divide-y">
         {deliveries.length === 0 ? (
-          <div className="rounded-lg border border-dashed bg-background/30 p-10 text-center">
-            <p className="text-sm font-medium">暂无邮件记录</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              发送测试邮件或创建结果通知任务后，这里会显示投递快照和状态。
-            </p>
-          </div>
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            暂无记录
+          </p>
         ) : (
-          deliveries.map((delivery) => (
+          deliveries.map((delivery: EmailDeliveryRecord) => (
             <article
               key={delivery.id}
-              className={cn(
-                "rounded-lg border border-l-4 bg-background/45 p-3 transition-colors hover:bg-background/70 lg:p-4",
-                getRecordAccentClass(delivery.status),
-              )}
+              className="flex flex-col gap-2 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between"
             >
-              <div className="grid gap-4 xl:grid-cols-[minmax(220px,1.2fr)_minmax(220px,1fr)_minmax(200px,0.9fr)_minmax(160px,0.7fr)_auto] xl:items-center">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className={getDeliveryStatusBadgeClass(delivery.status)}
-                    >
-                      {deliveryStatusText[delivery.status] ?? delivery.status}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {emailCategoryText[delivery.category] ?? delivery.category}
-                    </span>
-                  </div>
-                  <p className="mt-2 break-words text-sm font-semibold leading-5">
-                    {delivery.subject}
-                  </p>
-                  <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                    {delivery.templateKey}
-                  </p>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={getDeliveryStatusBadgeClass(delivery.status)}
+                  >
+                    {deliveryStatusText[delivery.status] ?? delivery.status}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {emailCategoryText[delivery.category] ?? delivery.category}
+                    {" · "}
+                    {templateLabel(delivery.templateKey, templateDefinitions)}
+                  </span>
                 </div>
-
-                <RecordInfo label="收件人">
-                  <p className="truncate font-mono text-xs">{delivery.toAddress}</p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {delivery.userName}
-                    {delivery.studentId ? ` · ${delivery.studentId}` : ""}
+                <p className="mt-1 truncate text-sm font-medium">
+                  {delivery.subject}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {delivery.userName || "未知收件人"}
+                  {delivery.flowTitle ? ` · ${delivery.flowTitle}` : ""}
+                  {" · "}
+                  {formatDate(delivery.sentAt ?? delivery.createdAt)}
+                </p>
+                {delivery.errorMessage && (
+                  <p className="mt-1 truncate text-xs text-destructive">
+                    {delivery.errorMessage}
                   </p>
-                </RecordInfo>
-
-                <RecordInfo label="关联对象">
-                  <p className="truncate font-medium">
-                    {getDeliverySource(delivery) || "-"}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {getRelatedObjectText(delivery)}
-                  </p>
-                </RecordInfo>
-
-                <RecordInfo label="时间">
-                  <p className="truncate text-xs text-muted-foreground">
-                    创建 {formatDate(delivery.createdAt)}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    发送 {formatDate(delivery.sentAt)}
-                  </p>
-                  {delivery.attemptCount > 0 && (
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      最近尝试 {formatDate(delivery.lastAttemptAt)}
-                    </p>
-                  )}
-                </RecordInfo>
-
-                <div className="flex flex-col gap-3 xl:items-end">
-                  <p className="text-xs text-muted-foreground">
-                    创建人：{delivery.createdByName ?? "-"}
-                    {delivery.createdById ? ` #${delivery.createdById}` : ""}
-                  </p>
-                  <EmailRecordActions delivery={delivery} compact />
-                </div>
+                )}
               </div>
-              {delivery.errorMessage && (
-                <div className="mt-3 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                  {delivery.errorMessage}
-                </div>
-              )}
+              <div className="shrink-0">
+                <EmailRecordActions delivery={delivery} compact />
+              </div>
             </article>
           ))
         )}
       </div>
 
       {deliveryPage.totalPages > 1 && (
-        <div className="border-t p-4">
+        <div className="border-t p-3">
           <PaginationComponent
             totalItems={deliveryPage.totalCount}
             pageSize={filters.pageSize}

@@ -42,34 +42,39 @@ export default async function EmailDashboardPage({
     interviewSchedulePreviews,
   ] = data;
   const emailCenterConfig = getEmailCenterConfigSummary();
+  const initialFlowId = parseOptionalPositiveInt(
+    getSearchParam(awaitedSearchParams, "flowId"),
+  );
 
   return (
     <>
-      <div className="border-b pb-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="border-b pb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="mt-1 rounded-lg border bg-primary/10 p-2 text-primary">
-              <MailCheck className="size-5" />
+            <div className="mt-0.5 rounded-lg border bg-muted p-2 text-foreground">
+              <MailCheck className="size-4" />
             </div>
             <div className="min-w-0">
               <PageTitle />
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                统一管理系统邮件模板、发送任务和发送记录。招新结果通知、面试通知和测试邮件都从这里追踪。
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                统一管理系统邮件模板、发送任务和发送记录
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-md border bg-card px-2.5 py-1 text-muted-foreground">
-              {emailCenterConfig.realRecipientMode ? "生产真实收件人" : "本地测试重定向"}
+            <span className="rounded-md border bg-card px-2 py-1 text-muted-foreground">
+              {emailCenterConfig.realRecipientMode ? "正式发送" : "测试模式"}
             </span>
-            <span className="rounded-md border bg-card px-2.5 py-1 text-muted-foreground">
-              SMTP {emailCenterConfig.smtpConfigured ? "已配置" : "未配置"}
-            </span>
+            {!emailCenterConfig.smtpConfigured && (
+              <span className="rounded-md border border-destructive/40 px-2 py-1 text-destructive">
+                发信未配置
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <EmailDashboardClient
           batches={batches}
           recordDeliveryPage={recordDeliveryPage}
@@ -80,6 +85,7 @@ export default async function EmailDashboardPage({
           emailCenterConfig={emailCenterConfig}
           templateDefinitions={emailTemplateDefinitions}
           activeTab={getSearchParam(awaitedSearchParams, "tab")}
+          initialFlowId={initialFlowId}
         />
       </div>
     </>
@@ -92,6 +98,13 @@ function getSearchParam(
 ) {
   const value = searchParams[key];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function parseOptionalPositiveInt(value: string | undefined) {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
 }
 
 async function loadEmailDashboardData(

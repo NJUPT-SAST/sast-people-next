@@ -7,7 +7,6 @@ import {
   ClipboardList,
   Library,
   ListChecks,
-  Settings2,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -40,33 +39,11 @@ import type {
   TemplateSetting,
 } from "./emailDashboardTypes";
 
-const tabMeta: Record<
-  EmailCenterTab,
-  {
-    icon: LucideIcon;
-    description: string;
-  }
-> = {
-  overview: {
-    icon: Activity,
-    description: "健康度与失败概览",
-  },
-  tasks: {
-    icon: ListChecks,
-    description: "结果通知批量处理",
-  },
-  records: {
-    icon: ClipboardList,
-    description: "投递、快照和重试",
-  },
-  templates: {
-    icon: Library,
-    description: "文案、预览和测试",
-  },
-  config: {
-    icon: Settings2,
-    description: "运行配置只读状态",
-  },
+const tabIcons: Record<EmailCenterTab, LucideIcon> = {
+  tasks: ListChecks,
+  records: ClipboardList,
+  templates: Library,
+  status: Activity,
 };
 
 function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
@@ -75,10 +52,9 @@ function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
       aria-label="邮件中心导航"
       className={cn("overflow-x-auto", hiddenScrollbar)}
     >
-      <div className="flex min-w-max gap-2 rounded-xl border bg-card/80 p-1.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/70">
+      <div className="inline-flex min-w-max gap-1 rounded-lg border bg-card p-1">
         {emailCenterTabs.map((tab) => {
-          const meta = tabMeta[tab.value];
-          const Icon = meta.icon;
+          const Icon = tabIcons[tab.value];
           const active = activeTab === tab.value;
 
           return (
@@ -88,22 +64,15 @@ function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
               variant={active ? "secondary" : "ghost"}
               size="sm"
               className={cn(
-                "h-auto min-w-[128px] justify-start px-3 py-2 transition-all duration-200 active:scale-[0.99]",
+                "h-9 px-3",
                 active
-                  ? "bg-primary/10 text-foreground shadow-none ring-1 ring-primary/25 hover:bg-primary/15"
-                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                  ? "bg-muted text-foreground shadow-none hover:bg-muted"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               <Link href={`/dashboard/emails?tab=${tab.value}`}>
                 <Icon data-icon="inline-start" />
-                <span className="flex min-w-0 flex-col items-start gap-0.5">
-                  <span className="text-sm font-semibold leading-none">
-                    {tab.label}
-                  </span>
-                  <span className="hidden max-w-28 truncate text-xs font-normal text-muted-foreground lg:block">
-                    {meta.description}
-                  </span>
-                </span>
+                <span className="text-sm font-medium">{tab.label}</span>
               </Link>
             </Button>
           );
@@ -111,6 +80,20 @@ function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
       </div>
     </nav>
   );
+}
+
+function resolveInitialFlowId(
+  flowTargets: FlowTarget[],
+  initialFlowId?: number,
+) {
+  if (
+    typeof initialFlowId === "number" &&
+    Number.isFinite(initialFlowId) &&
+    flowTargets.some((flow) => flow.id === initialFlowId)
+  ) {
+    return initialFlowId;
+  }
+  return flowTargets[0]?.id;
 }
 
 export function EmailDashboardClient({
@@ -123,6 +106,7 @@ export function EmailDashboardClient({
   emailCenterConfig,
   templateDefinitions,
   activeTab,
+  initialFlowId,
 }: {
   batches: EmailBatch[];
   recordDeliveryPage: EmailDeliveryPage;
@@ -133,6 +117,7 @@ export function EmailDashboardClient({
   emailCenterConfig: EmailCenterConfig;
   templateDefinitions: EmailTemplateDefinition[];
   activeTab?: string;
+  initialFlowId?: number;
 }) {
   const router = useRouter();
   const safeBatches = useMemo(() => (Array.isArray(batches) ? batches : []), [batches]);
@@ -151,7 +136,9 @@ export function EmailDashboardClient({
     () => (Array.isArray(templateSettings) ? templateSettings : []),
     [templateSettings],
   );
-  const [selectedFlowId, setSelectedFlowId] = useState(safeFlowTargets[0]?.id);
+  const [selectedFlowId, setSelectedFlowId] = useState(() =>
+    resolveInitialFlowId(safeFlowTargets, initialFlowId),
+  );
   const [flowQuery, setFlowQuery] = useState("");
   const refreshAttemptsRef = useRef(0);
   const resolvedActiveTab = normalizeEmailCenterTab(activeTab);
@@ -204,6 +191,13 @@ export function EmailDashboardClient({
   }, [filteredFlows, flowQuery, safeFlowTargets, selectedFlowId]);
 
   useEffect(() => {
+    const next = resolveInitialFlowId(safeFlowTargets, initialFlowId);
+    if (typeof next === "number") {
+      setSelectedFlowId(next);
+    }
+  }, [initialFlowId, safeFlowTargets]);
+
+  useEffect(() => {
     refreshAttemptsRef.current = 0;
   }, [activeEmailWorkKey]);
 
@@ -243,20 +237,7 @@ export function EmailDashboardClient({
 
   let content;
 
-  if (resolvedActiveTab === "tasks") {
-    content = (
-      <EmailSendingTasksSection
-        batches={safeBatches}
-        filteredFlows={filteredFlows}
-        selectedFlow={selectedFlow}
-        selectedFlowId={selectedFlow?.id}
-        flowQuery={flowQuery}
-        setFlowQuery={setFlowQuery}
-        setSelectedFlowId={setSelectedFlowId}
-        templateDefinitions={templateDefinitions}
-      />
-    );
-  } else if (resolvedActiveTab === "records") {
+  if (resolvedActiveTab === "records") {
     content = (
       <EmailRecordsSection
         deliveryPage={recordDeliveryPage}
@@ -274,22 +255,35 @@ export function EmailDashboardClient({
         templateDefinitions={templateDefinitions}
       />
     );
-  } else if (resolvedActiveTab === "config") {
-    content = <EmailConfigSection emailCenterConfig={emailCenterConfig} />;
+  } else if (resolvedActiveTab === "status") {
+    content = (
+      <div className="flex flex-col gap-5">
+        <EmailOverviewSection
+          deliveries={safeDeliveries}
+          emailCenterConfig={emailCenterConfig}
+        />
+        <EmailConfigSection emailCenterConfig={emailCenterConfig} />
+      </div>
+    );
   } else {
     content = (
-      <EmailOverviewSection
+      <EmailSendingTasksSection
         batches={safeBatches}
-        deliveries={safeDeliveries}
-        emailCenterConfig={emailCenterConfig}
+        filteredFlows={filteredFlows}
+        selectedFlow={selectedFlow}
+        selectedFlowId={selectedFlow?.id}
+        flowQuery={flowQuery}
+        setFlowQuery={setFlowQuery}
+        setSelectedFlowId={setSelectedFlowId}
       />
     );
   }
 
   return (
-    <div className="flex flex-col gap-5 pb-20 md:pb-0">
+    <div className="flex flex-col gap-4 pb-20 md:pb-0">
       <EmailCenterTabNav activeTab={resolvedActiveTab} />
       {content}
     </div>
   );
 }
+
