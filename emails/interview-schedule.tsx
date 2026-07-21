@@ -59,27 +59,28 @@ type InterviewScheduleEmailProps = {
   logoUrl?: string;
 };
 
+/**
+ * Soft coordinated palette for schedule notices.
+ * Intentionally different from result emails (warm green invitation).
+ */
 const statusTone = {
   created: {
     label: "已预约",
-    accent: "#2563eb",
-    accentSoft: "#eff6ff",
-    accentBorder: "#bfdbfe",
-    chipText: "#1d4ed8",
+    accent: "#2f6b73",
+    accentSoft: "#f3f8f8",
+    accentBorder: "#c7dbde",
   },
   rescheduled: {
     label: "已改约",
-    accent: "#d97706",
-    accentSoft: "#fffbeb",
-    accentBorder: "#fde68a",
-    chipText: "#b45309",
+    accent: "#8a6a3d",
+    accentSoft: "#faf7f2",
+    accentBorder: "#e6d8c2",
   },
   cancelled: {
     label: "已取消",
-    accent: "#64748b",
-    accentSoft: "#f8fafc",
-    accentBorder: "#cbd5e1",
-    chipText: "#475569",
+    accent: "#6b7280",
+    accentSoft: "#f6f7f8",
+    accentBorder: "#d7dbe0",
   },
 } as const;
 
@@ -130,24 +131,26 @@ export const InterviewScheduleEmail = ({
       </Preview>
       <Body style={main}>
         <Container style={container}>
-          <Section style={toolbar}>
+          <Section style={header}>
             <table
               role="presentation"
               cellPadding={0}
               cellSpacing={0}
-              style={toolbarTable}
+              style={headerTable}
             >
               <tbody>
                 <tr>
-                  <td style={toolbarBrandCell}>
-                    <Img src={logoUrl} width="28" alt="SAST" style={logo} />
-                    <Text style={brandName}>SAST People · 面试安排</Text>
+                  <td style={headerBrandCell}>
+                    <Img src={logoUrl} width="32" alt="SAST" style={logo} />
+                    <Text style={brandName}>SAST People</Text>
+                    <Text style={brandDivider}>·</Text>
+                    <Text style={brandMeta}>面试安排</Text>
                   </td>
-                  <td style={toolbarChipCell}>
+                  <td style={headerChipCell}>
                     <Text
                       style={{
                         ...statusChip,
-                        color: tone.chipText,
+                        color: tone.accent,
                         backgroundColor: tone.accentSoft,
                         borderColor: tone.accentBorder,
                       }}
@@ -167,6 +170,7 @@ export const InterviewScheduleEmail = ({
             <Section
               style={{
                 ...scheduleCard,
+                borderColor: tone.accentBorder,
                 borderLeftColor: tone.accent,
                 backgroundColor: tone.accentSoft,
               }}
@@ -183,9 +187,7 @@ export const InterviewScheduleEmail = ({
                   role="presentation"
                   cellPadding={0}
                   cellSpacing={0}
-                  style={
-                    index === meta.length - 1 ? metaRowLast : metaRow
-                  }
+                  style={index === meta.length - 1 ? metaRowLast : metaRow}
                 >
                   <tbody>
                     <tr>
@@ -261,36 +263,38 @@ const fontStack =
 
 const main = {
   margin: 0,
-  padding: "20px 12px",
-  backgroundColor: "#f1f5f9",
+  padding: "24px 12px",
+  backgroundColor: "#eef1f4",
   fontFamily: fontStack,
 };
 
 const container = {
   width: "100%",
-  maxWidth: "520px",
+  maxWidth: "528px",
   margin: "0 auto",
   backgroundColor: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: "6px",
+  border: "1px solid #dde3e8",
+  borderRadius: "10px",
   overflow: "hidden" as const,
+  boxShadow: "0 1px 2px rgba(31, 41, 55, 0.04)",
 };
 
-const toolbar = {
-  padding: "12px 16px",
-  backgroundColor: "#0f172a",
+const header = {
+  padding: "14px 20px",
+  backgroundColor: "#f7f9fa",
+  borderBottom: "1px solid #e5eaef",
 };
 
-const toolbarTable = {
+const headerTable = {
   width: "100%",
   borderCollapse: "collapse" as const,
 };
 
-const toolbarBrandCell = {
+const headerBrandCell = {
   verticalAlign: "middle" as const,
 };
 
-const toolbarChipCell = {
+const headerChipCell = {
   verticalAlign: "middle" as const,
   textAlign: "right" as const,
 };
@@ -299,87 +303,103 @@ const logo = {
   display: "inline-block",
   verticalAlign: "middle",
   marginRight: "10px",
-  borderRadius: "4px",
-  backgroundColor: "#ffffff",
 };
 
 const brandName = {
   display: "inline-block",
   margin: 0,
   verticalAlign: "middle",
-  color: "#e2e8f0",
+  color: "#374151",
   fontFamily: fontStack,
   fontSize: "13px",
-  fontWeight: 600,
-  letterSpacing: "0.2px",
+  fontWeight: 700,
+  lineHeight: "20px",
+};
+
+const brandDivider = {
+  display: "inline-block",
+  margin: "0 6px",
+  verticalAlign: "middle",
+  color: "#c0c7cf",
+  fontFamily: fontStack,
+  fontSize: "13px",
+  lineHeight: "20px",
+};
+
+const brandMeta = {
+  display: "inline-block",
+  margin: 0,
+  verticalAlign: "middle",
+  color: "#6b7280",
+  fontFamily: fontStack,
+  fontSize: "13px",
+  fontWeight: 500,
   lineHeight: "20px",
 };
 
 const statusChip = {
   display: "inline-block",
   margin: 0,
-  padding: "4px 8px",
+  padding: "4px 9px",
   border: "1px solid",
-  borderRadius: "4px",
+  borderRadius: "999px",
   fontFamily: fontStack,
-  fontSize: "11px",
+  fontSize: "12px",
   fontWeight: 700,
-  lineHeight: "14px",
-  letterSpacing: "0.3px",
+  lineHeight: "16px",
 };
 
 const bodySection = {
-  padding: "22px 20px 8px",
+  padding: "22px 20px 10px",
 };
 
 const title = {
   margin: "0 0 10px",
-  color: "#0f172a",
+  color: "#1f2937",
   fontFamily: fontStack,
-  fontSize: "22px",
+  fontSize: "21px",
   fontWeight: 700,
   lineHeight: "30px",
 };
 
 const intro = {
   margin: "0 0 18px",
-  color: "#334155",
+  color: "#4b5563",
   fontFamily: fontStack,
   fontSize: "14px",
-  lineHeight: "22px",
+  lineHeight: "23px",
 };
 
 const scheduleCard = {
   margin: "0 0 16px",
   padding: "14px 16px",
-  border: "1px solid #e2e8f0",
-  borderLeft: "4px solid #2563eb",
-  borderRadius: "4px",
+  border: "1px solid",
+  borderLeft: "3px solid",
+  borderRadius: "8px",
 };
 
 const scheduleLabel = {
   margin: "0 0 6px",
-  color: "#64748b",
+  color: "#6b7280",
   fontFamily: fontStack,
-  fontSize: "11px",
+  fontSize: "12px",
   fontWeight: 700,
-  letterSpacing: "0.4px",
+  letterSpacing: "0.2px",
   lineHeight: "16px",
-  textTransform: "uppercase" as const,
 };
 
 const scheduleStart = {
   margin: "0 0 2px",
-  color: "#0f172a",
+  color: "#1f2937",
   fontFamily: fontStack,
-  fontSize: "20px",
+  fontSize: "19px",
   fontWeight: 700,
   lineHeight: "28px",
 };
 
 const scheduleEnd = {
   margin: 0,
-  color: "#475569",
+  color: "#4b5563",
   fontFamily: fontStack,
   fontSize: "14px",
   lineHeight: "20px",
@@ -387,15 +407,16 @@ const scheduleEnd = {
 
 const metaList = {
   margin: "0 0 18px",
-  border: "1px solid #e2e8f0",
-  borderRadius: "4px",
+  border: "1px solid #e5eaef",
+  borderRadius: "8px",
   overflow: "hidden" as const,
+  backgroundColor: "#ffffff",
 };
 
 const metaRow = {
   width: "100%",
   borderCollapse: "collapse" as const,
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid #eef1f4",
 };
 
 const metaRowLast = {
@@ -405,9 +426,9 @@ const metaRowLast = {
 
 const metaLabelCell = {
   width: "72px",
-  padding: "11px 12px",
-  backgroundColor: "#f8fafc",
-  color: "#64748b",
+  padding: "12px 14px",
+  backgroundColor: "#f9fafb",
+  color: "#6b7280",
   fontFamily: fontStack,
   fontSize: "12px",
   fontWeight: 700,
@@ -416,8 +437,8 @@ const metaLabelCell = {
 };
 
 const metaValueCell = {
-  padding: "11px 12px",
-  color: "#0f172a",
+  padding: "12px 14px",
+  color: "#1f2937",
   fontFamily: fontStack,
   fontSize: "14px",
   fontWeight: 500,
@@ -434,10 +455,9 @@ const primaryButton = {
   width: "100%",
   boxSizing: "border-box" as const,
   margin: "0 0 8px",
-  padding: "11px 14px",
-  border: "1px solid #2563eb",
-  borderRadius: "4px",
-  backgroundColor: "#2563eb",
+  padding: "12px 14px",
+  border: "1px solid",
+  borderRadius: "8px",
   color: "#ffffff",
   fontFamily: fontStack,
   fontSize: "14px",
@@ -452,11 +472,11 @@ const secondaryButton = {
   width: "100%",
   boxSizing: "border-box" as const,
   margin: "0 0 10px",
-  padding: "11px 14px",
-  border: "1px solid #cbd5e1",
-  borderRadius: "4px",
+  padding: "12px 14px",
+  border: "1px solid #d1d5db",
+  borderRadius: "8px",
   backgroundColor: "#ffffff",
-  color: "#0f172a",
+  color: "#374151",
   fontFamily: fontStack,
   fontSize: "14px",
   fontWeight: 700,
@@ -467,7 +487,7 @@ const secondaryButton = {
 
 const actionHint = {
   margin: "0 0 8px",
-  color: "#64748b",
+  color: "#6b7280",
   fontFamily: fontStack,
   fontSize: "12px",
   lineHeight: "18px",
@@ -476,14 +496,14 @@ const actionHint = {
 const cancelNotice = {
   margin: "0 0 14px",
   padding: "12px 14px",
-  border: "1px dashed #cbd5e1",
-  borderRadius: "4px",
-  backgroundColor: "#f8fafc",
+  border: "1px solid #e5eaef",
+  borderRadius: "8px",
+  backgroundColor: "#f9fafb",
 };
 
 const cancelNoticeText = {
   margin: 0,
-  color: "#475569",
+  color: "#4b5563",
   fontFamily: fontStack,
   fontSize: "13px",
   lineHeight: "20px",
@@ -491,13 +511,13 @@ const cancelNoticeText = {
 
 const footer = {
   padding: "14px 20px 18px",
-  borderTop: "1px solid #e2e8f0",
-  backgroundColor: "#f8fafc",
+  borderTop: "1px solid #e5eaef",
+  backgroundColor: "#f7f9fa",
 };
 
 const footerTextStyle = {
   margin: "0 0 2px",
-  color: "#64748b",
+  color: "#6b7280",
   fontFamily: fontStack,
   fontSize: "12px",
   lineHeight: "18px",
@@ -505,7 +525,7 @@ const footerTextStyle = {
 
 const footerMeta = {
   margin: 0,
-  color: "#94a3b8",
+  color: "#9ca3af",
   fontFamily: fontStack,
   fontSize: "11px",
   lineHeight: "16px",
