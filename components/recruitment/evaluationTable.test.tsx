@@ -18,6 +18,10 @@ jest.mock("@/action/ai/candidate", () => ({
   generateEvaluationDraft: jest.fn(),
 }));
 
+jest.mock("@/components/feishu-oauth-status", () => ({
+  FeishuOAuthStatus: () => null,
+}));
+
 jest.mock("sonner", () => ({
   toast: {
     error: jest.fn(),

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { externalHref } from "@/lib/link";
 import { generateEvaluationDraft } from "@/action/ai/candidate";
+import { FeishuOAuthStatus } from "@/components/feishu-oauth-status";
 
 type Candidate = {
   userFlowId: number;
@@ -280,6 +281,8 @@ export const EvaluationTable = ({
     to: string;
     html: string;
   } | null>(null);
+  const [feishuBound, setFeishuBound] = useState<boolean | null>(null);
+  const [feishuStatusFailed, setFeishuStatusFailed] = useState(false);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<"pass" | "reopen" | null>(null);
   const [now, setNow] = useState<number | null>(null);
@@ -324,6 +327,8 @@ export const EvaluationTable = ({
     setScheduleLocation("");
     setScheduleNote("");
     setScheduleLoading(false);
+    setFeishuBound(null);
+    setFeishuStatusFailed(false);
   };
 
   const editingCandidate =
@@ -382,6 +387,14 @@ export const EvaluationTable = ({
   const handleCreateSchedule = async (userFlowId: number) => {
     if (!scheduleStartsAt || !scheduleEndsAt) {
       toast.error("请填写面试开始和结束时间");
+      return;
+    }
+    if (feishuBound !== true) {
+      toast.error(
+        feishuStatusFailed
+          ? "飞书授权状态检查失败，请先在上方重新绑定飞书后再发起日程。"
+          : "请先绑定飞书账号后再发起面试日程。",
+      );
       return;
     }
 
@@ -889,6 +902,23 @@ export const EvaluationTable = ({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
+            <FeishuOAuthStatus
+              role={role}
+              onStatusChange={(status, meta) => {
+                setFeishuBound(status?.bound ?? null);
+                setFeishuStatusFailed(meta.failed);
+              }}
+            />
+            {feishuBound === false && (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-900 dark:text-amber-100">
+                发起飞书会议和日程前需要先绑定飞书授权。点击上方「绑定飞书」完成授权后，再填写时间并发起日程。
+              </p>
+            )}
+            {feishuStatusFailed && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-5 text-destructive">
+                飞书授权状态检查失败。可尝试重新绑定，或刷新页面后再试。
+              </p>
+            )}
             {schedulingCandidate?.scheduleMeetingLink && (
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="mb-1 text-xs text-muted-foreground">当前会议</p>
@@ -968,6 +998,12 @@ export const EvaluationTable = ({
                 return handleCreateSchedule(schedulingCandidate.userFlowId);
               }}
               loading={scheduleLoading}
+              disabled={feishuBound !== true}
+              title={
+                feishuBound === true
+                  ? undefined
+                  : "请先绑定飞书账号后再发起面试日程"
+              }
             >
               {schedulingCandidate?.scheduleMeetingLink ? "保存改约" : "发起飞书日程"}
             </Button>
@@ -980,24 +1016,24 @@ export const EvaluationTable = ({
           if (!open) setEmailPreview(null);
         }}
       >
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85dvh] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-4 overflow-hidden sm:max-w-3xl">
+          <DialogHeader className="shrink-0">
             <DialogTitle>预约邮件预览</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="line-clamp-2">
               {emailPreview
                 ? `收件人：${emailPreview.to}；主题：${emailPreview.subject}`
                 : "预览将使用当前填写的时间和备注。"}
             </DialogDescription>
           </DialogHeader>
-          <div className="overflow-hidden rounded-lg border bg-muted/20">
+          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-muted/20">
             <iframe
               title="预约邮件预览"
               srcDoc={emailPreview?.html ?? ""}
               sandbox=""
-              className="h-[620px] w-full bg-white"
+              className="h-[min(55dvh,520px)] w-full bg-white"
             />
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button type="button" variant="outline" onClick={() => setEmailPreview(null)}>
               关闭
             </Button>
