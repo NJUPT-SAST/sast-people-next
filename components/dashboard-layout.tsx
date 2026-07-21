@@ -1,8 +1,13 @@
 'use client';
 
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Separator } from '@/components/ui/separator';
 
 interface DashboardLayoutProps {
   role: number;
@@ -22,7 +27,12 @@ export function DashboardLayout({
       <AppSidebar role={role} userCard={userCard} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
+          <SidebarTrigger
+            className="-ml-1"
+            title="展开或收起侧边导航"
+            aria-label="展开或收起侧边导航"
+          />
+          <Separator orientation="vertical" className="mr-1 h-4" />
           <div className="min-w-0 flex-1">{breadcrumb}</div>
           <ThemeToggle />
         </header>
