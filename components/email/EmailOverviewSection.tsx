@@ -62,7 +62,7 @@ export function EmailOverviewSection({
   const HealthIcon = todayFailedCount > 0 ? AlertTriangle : CheckCircle2;
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
+    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-2.5">
           <HealthIcon
@@ -149,7 +149,7 @@ export function EmailConfigSection({
   );
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
+    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className="border-b px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold">环境</h2>
       </div>

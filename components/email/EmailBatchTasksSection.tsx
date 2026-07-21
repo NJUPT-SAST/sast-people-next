@@ -3,7 +3,6 @@
 import { recoverStaleEmailBatch, sendEmailBatch } from "@/action/email/send";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -80,7 +79,7 @@ function RetryBatchButton({
 
 export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
   return (
-    <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
+    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className="border-b px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold">最近发送</h2>
       </div>
@@ -112,10 +111,7 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
             return (
               <article
                 key={batch.id}
-                className={cn(
-                  "flex flex-col gap-2 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between",
-                  batch.status === "failed" && "bg-destructive/5",
-                )}
+                className="flex flex-col gap-2 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">

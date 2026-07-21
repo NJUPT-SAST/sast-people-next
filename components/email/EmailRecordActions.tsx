@@ -202,7 +202,7 @@ function EmailDeliveryDetailDialog({
         <section className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">发送尝试</h3>
           {delivery.attempts.length === 0 ? (
-            <p className="mt-3 rounded-md border border-dashed bg-background/40 px-3 py-2 text-sm text-muted-foreground">
+            <p className="mt-3 rounded-md border border-dashed bg-muted px-3 py-2 text-sm text-muted-foreground">
               暂无发送尝试记录。
             </p>
           ) : (
@@ -210,7 +210,7 @@ function EmailDeliveryDetailDialog({
               {delivery.attempts.map((attempt) => (
                 <div
                   key={attempt.id}
-                  className="grid gap-3 rounded-md border bg-background/55 px-3 py-3 lg:grid-cols-[minmax(120px,0.8fr)_minmax(140px,1fr)_minmax(120px,0.8fr)_minmax(160px,1.2fr)]"
+                  className="grid gap-3 rounded-md border bg-muted/50 px-3 py-3 lg:grid-cols-[minmax(120px,0.8fr)_minmax(140px,1fr)_minmax(120px,0.8fr)_minmax(160px,1.2fr)]"
                 >
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">状态</p>

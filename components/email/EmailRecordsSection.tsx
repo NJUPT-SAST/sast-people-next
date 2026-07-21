@@ -52,7 +52,7 @@ export function EmailRecordsSection({
   );
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
+    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className="border-b px-4 py-3 sm:px-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold">发送记录</h2>

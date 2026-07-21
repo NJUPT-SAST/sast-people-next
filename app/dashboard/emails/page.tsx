@@ -51,7 +51,7 @@ export default async function EmailDashboardPage({
       <div className="border-b pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 rounded-lg border bg-primary/10 p-2 text-primary">
+            <div className="mt-0.5 rounded-lg border bg-muted p-2 text-foreground">
               <MailCheck className="size-4" />
             </div>
             <div className="min-w-0">
@@ -66,7 +66,7 @@ export default async function EmailDashboardPage({
               {emailCenterConfig.realRecipientMode ? "正式发送" : "测试模式"}
             </span>
             {!emailCenterConfig.smtpConfigured && (
-              <span className="rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-destructive">
+              <span className="rounded-md border border-destructive/40 px-2 py-1 text-destructive">
                 发信未配置
               </span>
             )}

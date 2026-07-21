@@ -124,20 +124,20 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
             );
           }}
         >
-          <div className="rounded-lg border bg-muted/10 p-3 md:col-span-2">
+          <div className="rounded-lg border bg-muted/40 p-3 md:col-span-2">
             <p className="text-xs font-medium text-muted-foreground">邮件标题</p>
             <input
               type="hidden"
               name="subjectTemplate"
               value={setting.subjectTemplate}
             />
-            <div className="mt-2 flex flex-col gap-1 rounded-md bg-background/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-2 flex flex-col gap-1 rounded-md bg-muted px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-sm">流程名称 + 结果通知</span>
               <span className="text-xs text-muted-foreground">自动生成</span>
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-lg border bg-muted/10 p-3 md:col-span-2 md:grid-cols-2">
+          <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 md:col-span-2 md:grid-cols-2">
             <TemplateField
               id={`${setting.templateKey}-contact`}
               label="联系邮箱"
@@ -174,7 +174,7 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
           </div>
 
           {isAcceptedTemplate ? (
-            <div className="grid gap-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
+            <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 md:col-span-2">
               <TemplateField
                 id={`${setting.templateKey}-form-url`}
                 label="成员信息表链接"
@@ -277,7 +277,7 @@ function InterviewTemplateDialog({
             );
           }}
         >
-          <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/10 p-3">
+          <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/40 p-3">
             <p className="text-xs font-medium text-muted-foreground">邮件内容</p>
             <TemplateField
               id="interview-subject-template"
@@ -310,7 +310,7 @@ function InterviewTemplateDialog({
             />
           </div>
 
-          <div className="rounded-lg border bg-muted/10 p-3 text-xs leading-5 text-muted-foreground">
+          <div className="rounded-lg border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
             <p>
               正文建议保留 <span className="font-mono text-foreground">{"{candidateName}"}</span>
               {" "}和 <span className="font-mono text-foreground">{"{flowName}"}</span>。
@@ -483,7 +483,7 @@ export function EmailTemplateManagementSection({
     (definition) => definition.category === "interview",
   );
   const templateCardClassName =
-    "group relative flex min-h-0 flex-col overflow-hidden rounded-xl border bg-background/45 p-4 transition-colors hover:bg-background/70";
+    "group relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card p-4 transition-colors hover:bg-muted";
 
   const resultDefinitionsMissing = templateDefinitions.filter(
     (definition) =>
@@ -501,7 +501,7 @@ export function EmailTemplateManagementSection({
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
+      <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
         <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between lg:p-5">
           <div>
             <h2 className="text-sm font-semibold">模板管理</h2>

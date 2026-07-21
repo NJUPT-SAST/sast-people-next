@@ -52,7 +52,7 @@ function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
       aria-label="邮件中心导航"
       className={cn("overflow-x-auto", hiddenScrollbar)}
     >
-      <div className="inline-flex min-w-max gap-1 rounded-xl border bg-card/80 p-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/70">
+      <div className="inline-flex min-w-max gap-1 rounded-lg border bg-card p-1">
         {emailCenterTabs.map((tab) => {
           const Icon = tabIcons[tab.value];
           const active = activeTab === tab.value;
@@ -64,10 +64,10 @@ function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
               variant={active ? "secondary" : "ghost"}
               size="sm"
               className={cn(
-                "h-9 px-3 transition-all duration-200 active:scale-[0.99]",
+                "h-9 px-3",
                 active
-                  ? "bg-primary/10 text-foreground shadow-none ring-1 ring-primary/25 hover:bg-primary/15"
-                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                  ? "bg-muted text-foreground shadow-none hover:bg-muted"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               <Link href={`/dashboard/emails?tab=${tab.value}`}>

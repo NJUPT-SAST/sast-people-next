@@ -68,10 +68,8 @@ function SendLane({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border p-4",
-        accept
-          ? "border-primary/20 bg-primary/[0.03]"
-          : "border-destructive/15 bg-destructive/[0.03]",
+        "flex flex-col gap-3 rounded-lg border border-l-4 bg-card p-4",
+        accept ? "border-l-primary" : "border-l-destructive",
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
@@ -129,7 +127,7 @@ export function EmailSendingTasksSection({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <section className="overflow-hidden rounded-xl border bg-card/80 shadow-sm">
+      <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
         <div className="border-b p-4 lg:hidden">
           <select
             id="email-flow-picker"
@@ -180,8 +178,8 @@ export function EmailSendingTasksSection({
                     className={cn(
                       "rounded-md px-3 py-2 text-left transition-colors",
                       active
-                        ? "bg-primary/10 text-foreground"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
                     <p className="truncate text-sm font-medium text-foreground">
