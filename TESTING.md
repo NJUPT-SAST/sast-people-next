@@ -1,16 +1,17 @@
 # Testing Guide
 
-This document provides information about the testing setup and how to run tests in this project.
+This document covers unit/integration tests (Jest) and end-to-end tests (Playwright).
 
 ## Testing Stack
 
-- **Test Runner**: Jest 30.x
-- **Testing Library**: @testing-library/react 16.x
-- **Test Environment**: jsdom (simulates browser environment)
-- **Coverage Provider**: V8
-- **CI/CD**: GitHub Actions
+| Layer | Tools |
+| --- | --- |
+| Unit / component | Jest 30.x, Testing Library, jsdom |
+| Coverage | V8 provider, HTML / LCOV / JUnit reports |
+| End-to-end | Playwright (`e2e/`, `pnpm test:e2e`) |
+| CI | GitHub Actions (`quality.yml`, `test.yml`, `ci.yml`) |
 
-## Running Tests
+## Running Unit and Component Tests
 
 ### Run all tests
 
@@ -18,99 +19,128 @@ This document provides information about the testing setup and how to run tests 
 pnpm test
 ```
 
-### Run tests in watch mode
+### Watch mode
 
 ```bash
 pnpm test:watch
 ```
 
-### Run tests with coverage
+### Coverage
 
 ```bash
 pnpm test:coverage
 ```
 
-### Run specific test file
+### Specific file or name pattern
 
 ```bash
 pnpm test path/to/test-file.test.tsx
-```
-
-### Run tests matching a pattern
-
-```bash
 pnpm test --testNamePattern="Button"
+pnpm test -- --runInBand components/recruitment/table.test.tsx
 ```
 
 ## Test File Structure
 
-Test files should be placed next to the files they test with the `.test.ts` or `.test.tsx` extension:
+Colocate unit/component tests next to source with `.test.ts` / `.test.tsx`:
 
-```
+```text
 components/
   ui/
     button.tsx
-    button.test.tsx  ← Test file
+    button.test.tsx
 app/
   page.tsx
-  page.test.tsx      ← Test file
+  page.test.tsx
 lib/
   utils.ts
-  utils.test.ts      ← Test file
+  utils.test.ts
 ```
 
-## Writing Tests
+Playwright specs live under `e2e/`:
 
-### Component Test Example
+```text
+e2e/
+  recruitment-flow.spec.ts
+  email-center.spec.ts
+  email-prelaunch.spec.ts
+  visual-smoke.spec.ts
+```
+
+## Writing Jest Tests
+
+### Component example
 
 ```typescript
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { Button } from './button';
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Button } from "./button";
 
-describe('Button', () => {
-  it('renders a button with text', () => {
+describe("Button", () => {
+  it("renders a button with text", () => {
     render(<Button>Click me</Button>);
-    expect(screen.getByRole('button', { name: /click me/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /click me/i })).toBeInTheDocument();
   });
 
-  it('handles click events', async () => {
+  it("handles click events", async () => {
     const handleClick = jest.fn();
     const user = userEvent.setup();
-    
+
     render(<Button onClick={handleClick}>Click me</Button>);
-    await user.click(screen.getByRole('button'));
-    
+    await user.click(screen.getByRole("button"));
+
     expect(handleClick).toHaveBeenCalledTimes(1);
   });
 });
 ```
 
-### Utility Function Test Example
+### Utility example
 
 ```typescript
-import { cn } from './utils';
+import { cn } from "./utils";
 
-describe('cn utility function', () => {
-  it('merges class names correctly', () => {
-    const result = cn('class1', 'class2');
-    expect(result).toBe('class1 class2');
+describe("cn utility function", () => {
+  it("merges class names correctly", () => {
+    const result = cn("class1", "class2");
+    expect(result).toBe("class1 class2");
   });
 });
 ```
 
+## Playwright End-to-End Tests
+
+`pnpm test:e2e` runs `scripts/run-playwright-e2e.mjs`, which boots a temporary Next.js server and executes Playwright against Chromium.
+
+### Prerequisites
+
+- Local dependencies installed (`pnpm install`)
+- Database available and migrated when the suite exercises real DB paths
+- Optional `.env.local` values are loaded by the runner; missing secrets fall back to safe local defaults for Playwright
+
+### Run
+
+```bash
+pnpm test:e2e
+```
+
+Current suites cover:
+
+- Recruitment registration → persistence → admin grading / pass
+- Administrator interview evaluation final approval
+- Email center admin surfaces and webhook auth
+- Visual smoke checks for desktop / mobile layout overflow
+
+See [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) for the release-oriented e2e acceptance list.
+
 ## Coverage Reports
 
-After running `pnpm test:coverage`, coverage reports are generated in the `coverage/` directory:
+After `pnpm test:coverage`, reports are written to `coverage/`:
 
-- **HTML Report**: `coverage/index.html` - Open in browser for interactive coverage report
-- **LCOV Report**: `coverage/lcov.info` - For CI/CD integration
-- **JUnit XML**: `coverage/junit.xml` - For CI/CD test result reporting
-- **Clover XML**: `coverage/clover.xml` - Alternative coverage format
+- HTML: `coverage/index.html`
+- LCOV: `coverage/lcov.info`
+- JUnit XML: `coverage/junit.xml`
+- Clover XML: `coverage/clover.xml`
 
-### Viewing Coverage Report
-
-Open the HTML coverage report in your browser:
+Open the HTML report:
 
 ```bash
 # Windows
@@ -125,137 +155,101 @@ xdg-open coverage/index.html
 
 ## Jest Configuration
 
-The Jest configuration is in `jest.config.ts` and includes:
+`jest.config.ts` includes:
 
-- **Test Environment**: jsdom for React component testing
-- **Setup File**: `jest.setup.ts` - Configures testing-library/jest-dom and mocks
-- **Module Name Mapper**: Handles path aliases (@/components, @/lib, etc.)
-- **Coverage Collection**: Configured to collect from app/, components/, and lib/ directories
-- **Reporters**: Default console reporter + JUnit XML reporter for CI
+- **Test environment**: jsdom for React component tests
+- **Setup file**: `jest.setup.ts`
+- **Path aliases**: mirrors `@/` from `tsconfig.json`
+- **Coverage collection**: primarily `app/`, `components/`, and `lib/`
+- **Reporters**: console + JUnit for CI
 
 ## Mocked Modules
 
-The following Next.js modules are automatically mocked in `jest.setup.ts`:
+`jest.setup.ts` mocks common Next.js modules such as:
 
-- `next/image` - Mocked to render as standard `<img>` tag
-- `next/navigation` - Mocked router hooks (useRouter, usePathname, useSearchParams)
+- `next/image`
+- `next/navigation` (`useRouter`, `usePathname`, `useSearchParams`)
 
-## CI/CD Integration
+## CI Integration
 
-Tests run automatically on:
+Tests run through GitHub Actions on:
 
-- Push to `master` or `develop` branches via `.github/workflows/ci.yml`
-- Pull requests to `master` or `develop` branches via `.github/workflows/ci.yml`
+- Push / PR to `master` or `develop` via `.github/workflows/ci.yml`
 - Version tags via `.github/workflows/release.yml`
+- Manual debugging via `workflow_dispatch` on reusable workflows
 
-The `test.yml` reusable workflow itself is invoked by `ci.yml`/`release.yml`, and can also be run manually with `workflow_dispatch` when you want to debug test/build steps in isolation.
+Typical pipeline:
 
-The CI pipeline:
+1. Install dependencies
+2. Lint and typecheck
+3. Run Jest with coverage
+4. Upload coverage / test artifacts when configured
+5. Build the Next.js application
+6. Run Playwright e2e when the workflow includes that job
 
-1. Installs dependencies
-2. Runs linting (`pnpm lint`)
-3. Runs tests with coverage (`pnpm test:coverage`)
-4. Uploads coverage to Codecov (if configured)
-5. Uploads test results and coverage as artifacts
-6. Builds the Next.js application (`pnpm build`)
+Details live in [CI_CD.md](CI_CD.md).
 
-### GitHub Actions Workflow
-
-The workflow is defined in `.github/workflows/ci.yml`.
-
-### Setting up Codecov (Optional)
-
-To enable Codecov integration:
+### Optional Codecov
 
 1. Sign up at [codecov.io](https://codecov.io)
-2. Add your repository
-3. Add `CODECOV_TOKEN` to your GitHub repository secrets
-4. Coverage will be automatically uploaded on each CI run
+2. Add the repository
+3. Add `CODECOV_TOKEN` to GitHub repository secrets
 
 ## Best Practices
 
-### 1. Test Behavior, Not Implementation
-
-❌ Bad:
+### 1. Test behavior, not internal state
 
 ```typescript
+// ❌
 expect(component.state.count).toBe(1);
+
+// ✅
+expect(screen.getByText("Count: 1")).toBeInTheDocument();
 ```
 
-✅ Good:
+### 2. Prefer accessible queries
 
-```typescript
-expect(screen.getByText('Count: 1')).toBeInTheDocument();
-```
+1. `getByRole`
+2. `getByLabelText`
+3. `getByPlaceholderText`
+4. `getByText`
+5. `getByTestId` only when no better query exists
 
-### 2. Use Accessible Queries
+### 3. Cover failure paths
 
-Prefer queries that reflect how users interact with your app:
+Prefer tests that include empty states, unauthorized access, invalid input, and external dependency failure over happy-path-only snapshots.
 
-1. `getByRole` - Best for most elements
-2. `getByLabelText` - Good for form fields
-3. `getByPlaceholderText` - For inputs without labels
-4. `getByText` - For non-interactive elements
-5. `getByTestId` - Last resort
+### 4. Keep e2e focused
 
-### 3. Use User Events
-
-Use `@testing-library/user-event` instead of `fireEvent`:
-
-❌ Bad:
-
-```typescript
-fireEvent.click(button);
-```
-
-✅ Good:
-
-```typescript
-const user = userEvent.setup();
-await user.click(button);
-```
-
-### 4. Clean Up After Tests
-
-Jest automatically cleans up after each test, but if you create side effects:
-
-```typescript
-afterEach(() => {
-  // Clean up
-  jest.clearAllMocks();
-});
-```
-
-### 5. Test Accessibility
-
-```typescript
-it('has accessible button', () => {
-  render(<Button>Click me</Button>);
-  const button = screen.getByRole('button', { name: /click me/i });
-  expect(button).toBeInTheDocument();
-});
-```
+Use Playwright for critical user journeys. Keep pure logic and component edge cases in Jest.
 
 ## Troubleshooting
 
 ### Tests are slow
 
-- Use `test.only()` to run a single test during development
-- Use `pnpm test:watch` to run only changed tests
+- Use `test.only()` during local debugging
+- Prefer `pnpm test:watch` for changed files
+- Use `--runInBand` when investigating flaky shared-state suites
 
-### Module not found errors
+### Module not found
 
-- Check that path aliases in `jest.config.ts` match `tsconfig.json`
-- Ensure the module is properly mocked if it's a Next.js-specific module
+- Confirm path aliases match between `jest.config.ts` and `tsconfig.json`
+- Mock Next.js-only modules in `jest.setup.ts` when needed
 
-### Coverage not collected
+### Coverage missing
 
-- Verify the file is in the `collectCoverageFrom` patterns in `jest.config.ts`
-- Check that the file isn't in `coveragePathIgnorePatterns`
+- Confirm the file matches `collectCoverageFrom`
+- Confirm it is not ignored by `coveragePathIgnorePatterns`
+
+### Playwright server / env issues
+
+- Confirm port `3101` is free or set `PLAYWRIGHT_PORT`
+- Confirm `SESSION_SECRET` and database connectivity for DB-backed suites
+- Prefer `LINK_USE_MOCK=true` for isolated local e2e unless intentionally testing real Link
 
 ## Resources
 
 - [Jest Documentation](https://jestjs.io/)
 - [Testing Library Documentation](https://testing-library.com/docs/react-testing-library/intro/)
+- [Playwright Documentation](https://playwright.dev/)
 - [Testing Library Cheatsheet](https://testing-library.com/docs/react-testing-library/cheatsheet)
-- [Common Testing Mistakes](https://kentcdodds.com/blog/common-mistakes-with-react-testing-library)

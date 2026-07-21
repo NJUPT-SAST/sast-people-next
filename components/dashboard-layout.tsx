@@ -1,6 +1,10 @@
 'use client';
 
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -21,12 +25,16 @@ export function DashboardLayout({
     <SidebarProvider>
       <AppSidebar role={role} userCard={userCard} />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
+        <header className="flex h-14 shrink-0 items-center gap-3 px-4">
+          <SidebarTrigger
+            className="-ml-1 text-muted-foreground hover:text-foreground"
+            title="展开或收起侧边导航"
+            aria-label="展开或收起侧边导航"
+          />
           <div className="min-w-0 flex-1">{breadcrumb}</div>
           <ThemeToggle />
         </header>
-        <div className="mx-auto flex min-w-0 w-full max-w-7xl flex-1 flex-col gap-4 p-4 lg:gap-5 lg:p-6">
+        <div className="mx-auto flex min-w-0 w-full max-w-7xl flex-1 flex-col gap-4 border-t border-border/50 p-4 lg:gap-5 lg:p-6">
           {children}
         </div>
       </SidebarInset>
