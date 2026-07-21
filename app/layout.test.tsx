@@ -19,7 +19,8 @@ describe("RootLayout", () => {
   it("exports metadata used by Next.js", () => {
     expect(metadata).toMatchObject({
       title: "SAST People",
-      description: "南京邮电大学大学生科学技术协会People平台",
+      description: "南京邮电大学大学生科学技术协会招新与留任平台",
+      icons: { icon: "/images/sastpeople-logo-black.jpg" },
     });
   });
 

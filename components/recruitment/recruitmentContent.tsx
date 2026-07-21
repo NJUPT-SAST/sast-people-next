@@ -85,7 +85,7 @@ export const RecruitmentContent = ({
         ) / safeScoreData.length;
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="rounded-lg border bg-card">
         <div className="flex flex-col gap-4 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">

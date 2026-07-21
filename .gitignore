@@ -38,6 +38,7 @@ docs/*
 !docs/PEOPLE_DATABASE_SCHEMA.md
 !docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md
 !docs/email-center-design.md
+!docs/RELEASE_CHECKLIST.md
 
 # debug
 npm-debug.log*
