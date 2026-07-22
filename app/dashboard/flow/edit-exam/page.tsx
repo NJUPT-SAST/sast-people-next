@@ -19,15 +19,17 @@ export default async function EditExamPage({
   }
   return (
     <>
-      <div className="flex items-center justify-between">
-        <Link href="/dashboard/flow">
-          <Button variant="ghost">
-            <h1 className="text-lg font-semibold md:text-2xl inline-flex items-center gap-2">
-              <ArrowLeftIcon className="w-5 h-5" /> 编辑考试
+      <div className="flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <Link href="/dashboard/flow" className="min-w-0">
+          <Button variant="ghost" className="h-10 px-2 sm:h-9">
+            <h1 className="inline-flex items-center gap-2 text-lg font-semibold md:text-2xl">
+              <ArrowLeftIcon className="size-5 shrink-0" /> 编辑考试
             </h1>
           </Button>
         </Link>
-        <p className="text-sm text-muted-foreground">{flowInfo.title}</p>
+        <p className="truncate px-2 text-sm text-muted-foreground sm:max-w-[50%] sm:text-right">
+          {flowInfo.title}
+        </p>
       </div>
       <div>
         <Suspense fallback={<Loading />}>

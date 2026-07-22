@@ -20,6 +20,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from './ui/breadcrumb';
+import { cn } from '@/lib/utils';
 import { SENTRY_ISSUES_URL } from '@/lib/sentry';
 
 export type MenuGroupId = 'me' | 'work' | 'manage';
@@ -179,7 +180,7 @@ export const PageBreadcrumb = ({ role }: { role?: number }) => {
           </>
         ) : null}
         <BreadcrumbItem>
-          <BreadcrumbPage className="max-w-[16rem] truncate font-medium text-foreground">
+          <BreadcrumbPage className="max-w-[12rem] truncate font-medium text-foreground sm:max-w-[16rem]">
             {title}
           </BreadcrumbPage>
         </BreadcrumbItem>
@@ -188,12 +189,38 @@ export const PageBreadcrumb = ({ role }: { role?: number }) => {
   );
 };
 
-export const PageTitle = ({ role }: { role?: number }) => {
+export const PageTitle = ({
+  role,
+  className,
+}: {
+  role?: number;
+  className?: string;
+}) => {
   const currentItem = useCurrentMenuItem();
 
   return (
-    <h1 className="text-xl font-bold md:text-2xl">
+    <h1 className={cn('min-w-0 text-xl font-bold md:text-2xl', className)}>
       {currentItem ? getMenuItemTitle(currentItem, role) : '工作台'}
     </h1>
   );
 };
+
+/** Responsive page header: stacks title/actions on small screens. */
+export function PageHeader({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}

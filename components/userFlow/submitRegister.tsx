@@ -87,7 +87,7 @@ const SubmitRegister = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" disabled={!hasOpenFlows}>
+        <Button size="sm" className="h-10 w-full sm:h-8 sm:w-auto" disabled={!hasOpenFlows}>
           {hasFlows && !hasOpenFlows ? "暂无开放报名" : "提交报名"}
         </Button>
       </DialogTrigger>
@@ -166,3 +166,4 @@ const SubmitRegister = ({
 };
 
 export default SubmitRegister;
+

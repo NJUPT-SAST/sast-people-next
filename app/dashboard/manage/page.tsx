@@ -1,4 +1,4 @@
-import { PageTitle } from "@/components/route";
+import { PageHeader, PageTitle } from "@/components/route";
 import { verifySession } from "@/lib/dal";
 import React, { Suspense } from "react";
 import { ManageTableServer } from "./manageTable";
@@ -13,15 +13,15 @@ const Manage = async ({
   const session = await verifySession();
   return (
     <>
-      <div className="flex items-center justify-between">
+      <PageHeader>
         <PageTitle role={session.role} />
-      </div>
+      </PageHeader>
       <div>
         <Suspense
           fallback={
             <div>
-              <Skeleton className="w-[300px] h-[50px]" />
-              <Skeleton className="w-full h-[220px] mt-3" />
+              <Skeleton className="h-[50px] w-[300px]" />
+              <Skeleton className="mt-3 h-[220px] w-full" />
             </div>
           }
         >

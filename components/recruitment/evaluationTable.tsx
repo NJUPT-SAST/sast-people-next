@@ -74,8 +74,7 @@ const evalStatusBadge = (
   return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待评估</Badge>;
 };
 
-const actionTextClass =
-  "whitespace-nowrap text-sm text-foreground/80 underline-offset-4 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50";
+const actionTextClass = "inline-flex min-h-10 items-center rounded-md px-2.5 py-2 text-sm font-medium text-foreground/90 underline-offset-4 touch-manipulation hover:bg-muted hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50";
 
 const getCandidateStatusKey = (candidate: Candidate) => {
   if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
@@ -767,7 +766,7 @@ export const EvaluationTable = ({
                     </ActionTextButton>
                   </div>
                 ) : (
-                  <div className="flex w-fit gap-3">
+                  <div className="flex w-full flex-wrap gap-1 sm:w-fit sm:gap-3">
                     <ActionTextButton onClick={() => startSchedule(c)}>
                       改约
                     </ActionTextButton>
@@ -1043,3 +1042,5 @@ export const EvaluationTable = ({
     </div>
   );
 };
+
+

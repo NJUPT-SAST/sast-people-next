@@ -12,9 +12,9 @@ const sloganFontFamily =
 const Login = async () => {
   return (
     <>
-      <main className="min-h-dvh bg-[#f4f6f2] text-[#18231d]">
+      <main className="min-h-dvh bg-[#f4f6f2] px-safe text-[#18231d]">
         <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.02fr)_minmax(420px,0.98fr)]">
-          <section className="relative flex min-h-[320px] flex-col overflow-hidden bg-[#18A058] px-8 pb-20 pt-10 text-white sm:min-h-[380px] lg:min-h-dvh lg:justify-center lg:p-12">
+          <section className="relative flex min-h-[320px] flex-col overflow-hidden bg-[#18A058] px-8 pb-20 pt-[max(2.5rem,env(safe-area-inset-top))] text-white sm:min-h-[380px] lg:min-h-dvh lg:justify-center lg:p-12 lg:pt-12">
             <div className="relative z-10 mb-10 lg:absolute lg:left-12 lg:top-10 lg:mb-0">
               <Image
                 src="/images/sast-logo-white.png"
@@ -32,7 +32,7 @@ const Login = async () => {
               </div>
               <BlurIn
                 word="开源平等"
-                className="relative text-left text-6xl leading-tight tracking-[0.04em] text-white sm:text-7xl lg:-translate-x-4 lg:text-8xl"
+                className="relative text-left text-5xl leading-tight tracking-[0.04em] text-white sm:text-7xl lg:-translate-x-4 lg:text-8xl"
                 style={{
                   fontFamily: sloganFontFamily,
                   textShadow:
@@ -41,7 +41,7 @@ const Login = async () => {
               />
               <BlurIn
                 word="薪火相传"
-                className="relative text-left text-6xl leading-tight tracking-[0.04em] text-white sm:text-7xl lg:translate-x-14 lg:text-8xl"
+                className="relative text-left text-5xl leading-tight tracking-[0.04em] text-white sm:text-7xl lg:translate-x-14 lg:text-8xl"
                 delay={0.3}
                 style={{
                   fontFamily: sloganFontFamily,
@@ -63,7 +63,7 @@ const Login = async () => {
             </div>
           </section>
 
-          <section className="flex items-center justify-center px-5 py-8 sm:px-8 lg:px-10">
+          <section className="flex items-center justify-center px-5 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-8 lg:px-10">
             <div className="w-full max-w-[420px]">
               <Card className="rounded-3xl border-[#dbe5da] bg-white shadow-[0_24px_70px_rgba(24,33,27,0.08)]">
                 <CardContent className="flex flex-col gap-8 p-6 sm:p-8">
@@ -90,4 +90,6 @@ const Login = async () => {
 };
 
 export default Login;
+
+
 

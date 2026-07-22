@@ -203,7 +203,7 @@ export const ViewUserInfoSheet = ({
   return (
     <Sheet onOpenChange={(open) => void handleOpenChange(open)}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" className="size-10 sm:size-9">
           <User className="h-4 w-4" />
         </Button>
       </SheetTrigger>
@@ -369,3 +369,4 @@ export const ViewUserInfoSheet = ({
     </Sheet>
   );
 };
+

@@ -21,7 +21,7 @@ export function ThemeToggle() {
     <Button
       type="button"
       variant="outline"
-      size="icon"
+      size="icon" className="size-10 sm:size-9"
       aria-label={label}
       title={label}
       onClick={() => setTheme(nextTheme)}
@@ -34,3 +34,4 @@ export function ThemeToggle() {
     </Button>
   );
 }
+

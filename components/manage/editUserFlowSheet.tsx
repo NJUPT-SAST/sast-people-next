@@ -38,7 +38,7 @@ export const EditUserFlowSheet = ({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" className="size-10 sm:size-9">
           <Workflow className="h-4 w-4" />
         </Button>
       </SheetTrigger>
@@ -88,3 +88,4 @@ export const EditUserFlowSheet = ({
     </Sheet>
   );
 };
+

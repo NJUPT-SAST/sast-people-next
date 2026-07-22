@@ -13,7 +13,7 @@ jest.mock("@/components/theme-provider", () => ({
 }));
 
 import { renderToStaticMarkup } from "react-dom/server";
-import RootLayout, { metadata } from "./layout";
+import RootLayout, { metadata, viewport } from "./layout";
 
 describe("RootLayout", () => {
   it("exports metadata used by Next.js", () => {
@@ -21,6 +21,14 @@ describe("RootLayout", () => {
       title: "SAST People",
       description: "南京邮电大学大学生科学技术协会招新与留任平台",
       icons: { icon: "/images/sastpeople-logo-black.jpg" },
+    });
+  });
+
+  it("exports mobile-friendly viewport", () => {
+    expect(viewport).toMatchObject({
+      width: "device-width",
+      initialScale: 1,
+      viewportFit: "cover",
     });
   });
 

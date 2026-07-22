@@ -71,135 +71,152 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
     }
   };
 
+  const statusLabel =
+    safeFlow.status === "not_started"
+      ? "流程未开始"
+      : safeFlow.status === "ongoing"
+        ? "流程进行中"
+        : safeFlow.status === "passed"
+          ? "已通过考核"
+          : "未通过考核";
+
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div className="flex items-center gap-2">
-          <CardTitle className="text-sm font-medium">
-            {safeFlow.title ?? "未命名流程"}
-          </CardTitle>
-          {safeFlow.flowType && (
-            <Badge variant="outline" className="text-xs">
-              {flowTypeLabel[safeFlow.flowType] ?? safeFlow.flowType}
-            </Badge>
-          )}
+      <CardHeader className="space-y-3 pb-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <CardTitle className="text-base font-medium leading-snug sm:text-sm">
+              {safeFlow.title ?? "未命名流程"}
+            </CardTitle>
+            {safeFlow.flowType && (
+              <Badge variant="outline" className="shrink-0 text-xs">
+                {flowTypeLabel[safeFlow.flowType] ?? safeFlow.flowType}
+              </Badge>
+            )}
+          </div>
+          <Badge
+            className="w-fit shrink-0"
+            variant={
+              safeFlow.status === "ongoing" || safeFlow.status === "not_started"
+                ? "secondary"
+                : safeFlow.status === "passed"
+                  ? "default"
+                  : "destructive"
+            }
+          >
+            {statusLabel}
+          </Badge>
         </div>
-        <Badge
-          variant={
-            safeFlow.status === "ongoing" || safeFlow.status === "not_started"
-              ? "secondary"
-              : safeFlow.status === "passed"
-              ? "default"
-              : "destructive"
-          }
-        >
-          {safeFlow.status === "not_started"
-            ? "流程未开始"
-            : safeFlow.status === "ongoing"
-            ? "流程进行中"
-            : safeFlow.status === "passed"
-            ? "已通过考核"
-            : "未通过考核"}
-        </Badge>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center w-full my-4">
-          {steps.map((step, index) => {
-            const status =
-              safeFlow.status === "passed"
-                ? "accepted"
-                : safeFlow.status === "failed"
-                ? step.order < activeStepOrder
-                  ? "accepted"
-                  : step.order === activeStepOrder
-                  ? "rejected"
-                  : "pending"
-                : step.order < activeStepOrder
-                ? "accepted"
-                : step.order === activeStepOrder
-                ? "ongoing"
-                : "pending";
-            const Icon =
-              statusIcons[status as keyof typeof statusIcons] || AlertCircle;
-            const nextStatus =
-              safeFlow.status === "passed"
-                ? "accepted"
-                : safeFlow.status === "failed"
-                ? step.order < activeStepOrder
-                  ? "accepted"
-                  : "pending"
-                : step.order < activeStepOrder
-                ? "accepted"
-                : "pending";
+        {steps.length > 0 ? (
+          <div className="-mx-1 overflow-x-auto px-1">
+            <div className="flex min-w-[16rem] items-center my-4">
+              {steps.map((step, index) => {
+                const status =
+                  safeFlow.status === "passed"
+                    ? "accepted"
+                    : safeFlow.status === "failed"
+                      ? step.order < activeStepOrder
+                        ? "accepted"
+                        : step.order === activeStepOrder
+                          ? "rejected"
+                          : "pending"
+                      : step.order < activeStepOrder
+                        ? "accepted"
+                        : step.order === activeStepOrder
+                          ? "ongoing"
+                          : "pending";
+                const Icon =
+                  statusIcons[status as keyof typeof statusIcons] || AlertCircle;
+                const nextStatus =
+                  safeFlow.status === "passed"
+                    ? "accepted"
+                    : safeFlow.status === "failed"
+                      ? step.order < activeStepOrder
+                        ? "accepted"
+                        : "pending"
+                      : step.order < activeStepOrder
+                        ? "accepted"
+                        : "pending";
 
-            return (
-              <React.Fragment key={`${safeFlow.id ?? "flow"}-${index}-step`}>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className={cn(
-                        "w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm shrink-0 transition-colors",
-                        step.order <= activeStepOrder
-                          ? `${getStatusColor(status || "")} text-white`
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      <Icon className="w-5 h-5 md:w-6 md:h-6" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56">
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-semibold">{step.title}</h4>
-                      <p className="text-sm">{step.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        状态：{statusName[status as keyof typeof statusName]}
-                      </p>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                {index < steps.length - 1 && (
-                  <div
-                    className={cn(
-                      "flex-1 h-0.5 mx-1",
-                      getStatusColor(nextStatus || "")
+                return (
+                  <React.Fragment key={`${safeFlow.id ?? "flow"}-${index}-step`}>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={`${step.title}，${statusName[status as keyof typeof statusName] ?? status}。点击查看详情`}
+                          className={cn(
+                            "flex size-11 shrink-0 items-center justify-center rounded-full text-sm transition-colors touch-manipulation md:size-12",
+                            step.order <= activeStepOrder
+                              ? `${getStatusColor(status || "")} text-white`
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          <Icon className="size-5 md:size-6" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56">
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold">{step.title}</h4>
+                          <p className="text-sm">{step.description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            状态：{statusName[status as keyof typeof statusName]}
+                          </p>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    {index < steps.length - 1 && (
+                      <div
+                        className={cn(
+                          "mx-1 h-0.5 min-w-4 flex-1",
+                          getStatusColor(nextStatus || ""),
+                        )}
+                      />
                     )}
-                  />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-        <div className="mt-4 flex items-end justify-between">
-          <div>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            <p className="mb-2 text-center text-[11px] text-muted-foreground sm:hidden">
+              点按步骤圆点可查看详情
+            </p>
+          </div>
+        ) : null}
+        <div className="mt-2 flex flex-col gap-3 sm:mt-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
             <p className="text-sm text-muted-foreground">
               当前步骤：{activeStep?.title || "（流程未开始）"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {activeStep?.description ||
-                "前面的区域以后再来探索吧"}
+              {activeStep?.description || "前面的区域以后再来探索吧"}
             </p>
           </div>
           {typeof safeFlow.id === "number" &&
-            (safeFlow.status === "not_started" || safeFlow.status === "ongoing") && (
-            <CancelRegistration userFlowId={safeFlow.id} />
-          )}
+            (safeFlow.status === "not_started" ||
+              safeFlow.status === "ongoing") && (
+              <div className="shrink-0 self-stretch sm:self-auto">
+                <CancelRegistration userFlowId={safeFlow.id} />
+              </div>
+            )}
         </div>
         {typeof safeFlow.id === "number" &&
           safeFlow.flowType &&
           safeFlow.flowType !== "recruitment" && (
-          <div className="mt-4">
-            <PortfolioLinkEditor
-              userFlowId={safeFlow.id}
-              initialValue={safeFlow.portfolioLink}
-              editable={
-                safeFlow.status === "not_started" ||
-                safeFlow.status === "ongoing"
-              }
-            />
-          </div>
-        )}
+            <div className="mt-4">
+              <PortfolioLinkEditor
+                userFlowId={safeFlow.id}
+                initialValue={safeFlow.portfolioLink}
+                editable={
+                  safeFlow.status === "not_started" ||
+                  safeFlow.status === "ongoing"
+                }
+              />
+            </div>
+          )}
       </CardContent>
     </Card>
   );
 };
+

@@ -1,5 +1,5 @@
 import { AuditLogTable } from "@/components/audit/audit-log-table";
-import { PageTitle } from "@/components/route";
+import { PageHeader, PageTitle } from "@/components/route";
 import { Skeleton } from "@/components/ui/skeleton";
 import { verifyRole } from "@/lib/dal";
 import { listOperationAudit } from "@/lib/operation-audit-list";
@@ -24,9 +24,9 @@ const AuditPage = async ({
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <PageHeader>
         <PageTitle role={session.role} />
-      </div>
+      </PageHeader>
       <Suspense
         fallback={
           <div className="space-y-4">
@@ -47,11 +47,7 @@ const AuditLogContent = async (
   const { logs, totalCount, filters } = await listOperationAudit(props);
 
   return (
-    <AuditLogTable
-      logs={logs}
-      totalCount={totalCount}
-      filters={filters}
-    />
+    <AuditLogTable logs={logs} totalCount={totalCount} filters={filters} />
   );
 };
 

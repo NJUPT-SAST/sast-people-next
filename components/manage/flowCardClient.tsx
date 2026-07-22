@@ -12,10 +12,10 @@ import {
 } from 'lucide-react';
 import { displayUserFlow } from '@/types/userflow';
 import {
-  HoverCard,
-  HoverCardTrigger,
-  HoverCardContent,
-} from '../ui/hover-card';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../ui/popover';
 import { Badge } from '../ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -125,28 +125,31 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
   );
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">
-          {flow.title}
-        </CardTitle>
-        <Badge
-          variant={
-            flow.status === 'ongoing' || flow.status === 'not_started'
-              ? 'secondary'
+      <CardHeader className="space-y-3 pb-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <CardTitle className="min-w-0 text-base font-medium leading-snug sm:text-sm">
+            {flow.title}
+          </CardTitle>
+          <Badge
+            className="w-fit shrink-0"
+            variant={
+              flow.status === 'ongoing' || flow.status === 'not_started'
+                ? 'secondary'
+                : flow.status === 'passed'
+                  ? 'default'
+                  : 'destructive'
+            }
+          >
+            {flow.status === 'ongoing' || flow.status === 'not_started'
+              ? '流程进行中'
               : flow.status === 'passed'
-                ? 'default'
-                : 'destructive'
-          }
-        >
-          {flow.status === 'ongoing' || flow.status === 'not_started'
-            ? '流程进行中'
-            : flow.status === 'passed'
-              ? '已通过考核'
-              : '未通过考核'}
-        </Badge>
+                ? '已通过考核'
+                : '未通过考核'}
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center justify-between relative my-5">
+        <div className="relative my-5 flex min-w-0 items-center justify-between overflow-x-auto">
           {/* 背景横线 */}
           <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted z-10"></div>
           {steps.map((step, index) => {
@@ -169,20 +172,22 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
 
             return (
               <React.Fragment key={`${flow.id}-${index}-step`}>
-                <HoverCard openDelay={100}>
-                  <HoverCardTrigger className="z-30">
-                    <div
-                      className={`w-14 h-14 rounded-full flex items-center justify-center text-sm
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`${step.title}，${statusName[stepStatus] || stepStatus}。点击查看详情`}
+                      className={`z-30 flex size-11 shrink-0 items-center justify-center rounded-full text-sm touch-manipulation sm:size-14
                         ${
                           index <= currentStepIndex
                             ? getStatusColor(stepStatus) + ' text-white'
                             : 'bg-muted text-muted-foreground'
                         }`}
                     >
-                      <Icon className="w-6 h-6" />
-                    </div>
-                  </HoverCardTrigger>
-                  <HoverCardContent>
+                      <Icon className="size-5 sm:size-6" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56">
                     <div className="space-y-2">
                       <h4 className="text-sm font-semibold">{step.title}</h4>
                       <p className="text-sm">{step.description}</p>
@@ -190,8 +195,8 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                         状态: {statusName[stepStatus] || stepStatus}
                       </p>
                     </div>
-                  </HoverCardContent>
-                </HoverCard>
+                  </PopoverContent>
+                </Popover>
                 {index < steps.length - 1 && (
                   <div
                     className={`absolute top-1/2 h-0.5 z-20 ${getStatusColor(
@@ -232,7 +237,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                   <Button
                     disabled={loading}
                     variant="secondary"
-                    size="icon-sm"
+                    size="icon" className="size-10 sm:size-8"
                     onClick={handleBackward}
                   >
                     <ArrowLeft />
@@ -241,7 +246,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                 <Button
                   disabled={loading}
                   variant="destructive"
-                  size="icon-sm"
+                  size="icon" className="size-10 sm:size-8"
                   onClick={handleReject}
                 >
                   <X />
@@ -249,7 +254,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                 <Button
                   disabled={loading}
                   variant="secondary"
-                  size="icon-sm"
+                  size="icon" className="size-10 sm:size-8"
                   onClick={isLastStep ? handleLastStep : handleForward}
                 >
                   <ArrowRight />
@@ -262,3 +267,6 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
     </Card>
   );
 };
+
+
+
