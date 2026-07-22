@@ -17,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/user-flow/evaluation";
 import {
   cancelInterviewSchedule,
@@ -58,34 +57,55 @@ type Candidate = {
   scheduleStatus: string | null;
 };
 
-const badgeBase =
-  "rounded-full px-2 py-0.5 text-[11px] font-medium leading-4";
-
-const evalStatusBadge = (
+const evalStatusLabel = (
   evalStatus: string | null,
   flowStatus: string | null,
   scheduleMeetingLink: string | null,
   scheduleEnded: boolean,
 ) => {
   if (evalStatus === "approved" || flowStatus === "passed") {
-    return <Badge variant="outline" className={`${badgeBase} border-primary/30 bg-primary/10 text-primary`}>已通过</Badge>;
+    return { text: "已通过", className: "text-primary" };
   }
   if (evalStatus === "rejected") {
-    return <Badge variant="outline" className={`${badgeBase} border-destructive/30 bg-destructive/10 text-destructive`}>面评驳回</Badge>;
+    return { text: "面评驳回", className: "text-destructive" };
   }
   if (evalStatus === "submitted") {
-    return <Badge variant="outline" className={`${badgeBase} border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400`}>待审核</Badge>;
+    return { text: "待审核", className: "text-foreground" };
   }
   if (flowStatus === "failed") {
-    return <Badge variant="outline" className={`${badgeBase} border-destructive/30 bg-destructive/10 text-destructive`}>不通过</Badge>;
+    return { text: "不通过", className: "text-destructive" };
   }
   if (!scheduleMeetingLink) {
-    return <Badge variant="outline" className={`${badgeBase} border-border bg-muted/50 text-muted-foreground`}>待预约</Badge>;
+    return { text: "待预约", className: "text-muted-foreground" };
   }
   if (!scheduleEnded) {
-    return <Badge variant="outline" className={`${badgeBase} border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400`}>待面试</Badge>;
+    return { text: "待面试", className: "text-muted-foreground" };
   }
-  return <Badge variant="outline" className={`${badgeBase} border-border bg-muted/50 text-muted-foreground`}>待评估</Badge>;
+  return { text: "待评估", className: "text-muted-foreground" };
+};
+
+const EvalStatusText = ({
+  evalStatus,
+  flowStatus,
+  scheduleMeetingLink,
+  scheduleEnded,
+}: {
+  evalStatus: string | null;
+  flowStatus: string | null;
+  scheduleMeetingLink: string | null;
+  scheduleEnded: boolean;
+}) => {
+  const status = evalStatusLabel(
+    evalStatus,
+    flowStatus,
+    scheduleMeetingLink,
+    scheduleEnded,
+  );
+  return (
+    <span className={`text-sm ${status.className}`}>
+      {status.text}
+    </span>
+  );
 };
 
 
@@ -156,21 +176,6 @@ const getTime = (value: Date | string | null) => {
   return Number.isNaN(time) ? null : time;
 };
 
-function StatusCountPill({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground">
-      <span>{label}</span>
-      <span className="font-semibold tabular-nums text-foreground">{value}</span>
-    </div>
-  );
-}
-
 function CandidateIdentity({
   name,
   studentId,
@@ -203,7 +208,7 @@ function CandidateIdentity({
 
 const PortfolioLink = ({ value }: { value: string | null }) => {
   if (!value) {
-    return <span className="text-xs text-muted-foreground">未填写</span>;
+    return <span className="text-sm text-muted-foreground">—</span>;
   }
 
   return (
@@ -211,17 +216,17 @@ const PortfolioLink = ({ value }: { value: string | null }) => {
       href={externalHref(value)}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex max-w-full items-center gap-1 rounded-md border border-border/70 bg-background px-2 py-1 text-xs font-medium text-foreground/85 transition-colors hover:border-primary/40 hover:text-primary"
+      className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
     >
-      <span className="truncate">作品</span>
-      <ExternalLink className="size-3.5 shrink-0 opacity-70" />
+      作品
+      <ExternalLink className="size-3.5 shrink-0 opacity-50" />
     </a>
   );
 };
 
 const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
   if (!candidate.scheduleMeetingLink) {
-    return <span className="text-xs text-muted-foreground">未预约</span>;
+    return <span className="text-sm text-muted-foreground">未预约</span>;
   }
 
   const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
@@ -234,36 +239,37 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
     candidate.scheduleLink !== candidate.scheduleMeetingLink;
 
   return (
-    <div className="min-w-0 space-y-1">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+    <div className="min-w-0 space-y-0.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
         <a
           href={externalHref(candidate.scheduleMeetingLink)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background px-2 py-1 text-xs font-medium text-foreground/85 transition-colors hover:border-primary/40 hover:text-primary"
+          className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
         >
           会议
-          <ExternalLink className="size-3.5 shrink-0 opacity-70" />
+          <ExternalLink className="size-3.5 shrink-0 opacity-50" />
         </a>
         {hasDistinctScheduleLink && candidate.scheduleLink && (
           <a
             href={externalHref(candidate.scheduleLink)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background px-2 py-1 text-xs font-medium text-foreground/75 transition-colors hover:border-primary/40 hover:text-primary"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
             日程
-            <ExternalLink className="size-3.5 shrink-0 opacity-70" />
+            <ExternalLink className="size-3.5 shrink-0 opacity-50" />
           </a>
         )}
       </div>
       {timeRange && (
-        <p className="text-[11px] tabular-nums leading-4 text-muted-foreground">
-          {timeRange}
-        </p>
+        <p className="text-xs tabular-nums text-muted-foreground">{timeRange}</p>
       )}
       {candidate.scheduleLocation && (
-        <p className="truncate text-[11px] leading-4 text-muted-foreground" title={candidate.scheduleLocation}>
+        <p
+          className="truncate text-xs text-muted-foreground"
+          title={candidate.scheduleLocation}
+        >
           {candidate.scheduleLocation}
         </p>
       )}
@@ -284,19 +290,19 @@ function ActionButton({
 }) {
   const toneClass =
     tone === "primary"
-      ? "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+      ? "text-primary hover:text-primary"
       : tone === "danger"
-        ? "border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-        : "text-foreground/80";
+        ? "text-destructive hover:text-destructive"
+        : "text-muted-foreground hover:text-foreground";
 
   return (
     <Button
       type="button"
       size="sm"
-      variant="outline"
+      variant="ghost"
       disabled={disabled}
       onClick={onClick}
-      className={`h-8 rounded-md px-2.5 text-xs shadow-none ${toneClass}`}
+      className={`h-8 px-2 text-sm font-normal shadow-none ${toneClass}`}
     >
       {children}
     </Button>
@@ -577,22 +583,21 @@ export const EvaluationTable = ({
 
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
-      <div className="flex flex-col gap-3 border-b px-4 py-3.5 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="space-y-1">
-          <p className="text-sm font-medium tracking-tight">面评候选人</p>
-          <p className="text-xs leading-5 text-muted-foreground">
-            先预约面试会议，面试结束后再提交面评结果。
+          <p className="text-sm font-medium">面评候选人</p>
+          <p className="text-xs text-muted-foreground">
+            预约面试后提交面评结果
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {summaryItems.map((item) => (
-            <StatusCountPill
-              key={item.key}
-              label={item.label}
-              value={statusCounts.get(item.key) ?? 0}
-            />
-          ))}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          {summaryItems
+            .map(
+              (item) =>
+                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
+            )
+            .join(" · ")}
+        </p>
       </div>
       <div className="hidden min-w-0 lg:block">
         <Table className="w-full table-fixed" containerClassName="overflow-x-visible">
@@ -613,7 +618,7 @@ export const EvaluationTable = ({
             </colgroup>
           )}
           <TableHeader>
-            <TableRow className="border-b bg-muted/20 hover:bg-muted/20">
+            <TableRow className="border-b border-border/60 hover:bg-transparent">
               <TableHead className="h-10 px-4 text-xs font-medium text-muted-foreground">候选人</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">会议</TableHead>
@@ -644,7 +649,7 @@ export const EvaluationTable = ({
                   }
                   className={
                     isTargetCandidate(c)
-                      ? "scroll-mt-24 bg-primary/10 ring-1 ring-primary/30 hover:bg-primary/10"
+                      ? "scroll-mt-24 bg-muted/40 hover:bg-muted/40"
                       : "border-b border-border/40 last:border-0 hover:bg-muted/15"
                   }
                 >
@@ -663,7 +668,7 @@ export const EvaluationTable = ({
                     <ScheduleInfo candidate={c} />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
-                    {evalStatusBadge(c.evalStatus, c.status, c.scheduleMeetingLink, scheduleEnded)}
+                    <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
                   </TableCell>
                   {role >= 2 && (
                     <TableCell className="px-4 py-3 align-middle text-right">
@@ -745,7 +750,7 @@ export const EvaluationTable = ({
               }
               className={
                 isTargetCandidate(c)
-                  ? "flex scroll-mt-24 flex-col gap-3 bg-primary/10 p-4 ring-1 ring-primary/30"
+                  ? "flex scroll-mt-24 flex-col gap-3 bg-muted/30 p-4"
                   : "flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40"
               }
             >
@@ -756,7 +761,7 @@ export const EvaluationTable = ({
                   phoneNumber={c.phoneNumber}
                   showPhone={role >= 3}
                 />
-                {evalStatusBadge(c.evalStatus, c.status, c.scheduleMeetingLink, scheduleEnded)}
+                <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <PortfolioLink value={c.portfolioLink} />
