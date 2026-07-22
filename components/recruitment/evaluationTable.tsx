@@ -74,7 +74,7 @@ const evalStatusBadge = (
   return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待评估</Badge>;
 };
 
-const actionTextClass = "inline-flex min-h-10 items-center rounded-md px-2.5 py-2 text-sm font-medium text-foreground/90 underline-offset-4 touch-manipulation hover:bg-muted hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50";
+const actionTextClass = "inline-flex min-h-9 items-center rounded-md px-2 py-1.5 text-sm font-medium text-foreground/90 underline-offset-4 touch-manipulation hover:bg-muted hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50 sm:min-h-8 sm:px-1.5";
 
 const getCandidateStatusKey = (candidate: Candidate) => {
   if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
@@ -216,7 +216,7 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
         )}
       </div>
       {timeRange && (
-        <span className="block whitespace-nowrap text-xs tabular-nums leading-4 text-foreground/65">
+        <span className="block text-xs tabular-nums leading-4 text-foreground/65">
           {timeRange}
         </span>
       )}
@@ -541,40 +541,40 @@ export const EvaluationTable = ({
           ))}
         </div>
       </div>
-      <div className="hidden min-w-0 md:block overflow-x-auto">
-        <Table className="table-fixed min-w-[980px]">
+      <div className="hidden min-w-0 lg:block">
+        <Table className="w-full table-fixed" containerClassName="overflow-x-visible">
           {role >= 3 ? (
             <colgroup>
-              <col className="w-[11%]" />
-              <col className="w-[14%]" />
-              <col className="w-[14%]" />
-              <col className="w-[11%]" />
-              <col className="w-[25%]" />
               <col className="w-[12%]" />
-              <col className="w-[13%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
+              <col className="w-[20%]" />
+              <col className="w-[12%]" />
+              <col className="w-[22%]" />
             </colgroup>
           ) : (
             <colgroup>
-              <col className="w-[15%]" />
-              <col className="w-[20%]" />
+              <col className="w-[14%]" />
               <col className="w-[16%]" />
-              <col className="w-[22%]" />
               <col className="w-[12%]" />
-              <col className="w-[15%]" />
+              <col className="w-[22%]" />
+              <col className="w-[14%]" />
+              <col className="w-[22%]" />
             </colgroup>
           )}
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">学号</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">姓名</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-medium text-muted-foreground">学号</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-medium text-muted-foreground">姓名</TableHead>
               {role >= 3 && (
-                <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">手机号</TableHead>
+                <TableHead className="px-3 py-2.5 text-xs font-medium text-muted-foreground">手机号</TableHead>
               )}
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">作品</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">会议</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">状态</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-medium text-muted-foreground">作品</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-medium text-muted-foreground">会议</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-medium text-muted-foreground">状态</TableHead>
               {role >= 2 && (
-                <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">操作</TableHead>
+                <TableHead className="px-3 py-2.5 text-xs font-medium text-muted-foreground">操作</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -603,30 +603,30 @@ export const EvaluationTable = ({
                       : "hover:bg-muted/30"
                   }
                 >
-                  <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums">
+                  <TableCell className="truncate px-3 py-2.5 text-sm tabular-nums">
                     {c.studentId}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm font-medium">
+                  <TableCell className="truncate px-3 py-2.5 text-sm font-medium">
                     {c.name}
                   </TableCell>
                   {role >= 3 && (
-                    <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-foreground/80">
+                    <TableCell className="truncate px-3 py-2.5 text-sm tabular-nums text-foreground/80">
                       {c.phoneNumber || "-"}
                     </TableCell>
                   )}
-                  <TableCell className="whitespace-nowrap px-4 py-2.5">
+                  <TableCell className="min-w-0 px-3 py-2.5">
                     <PortfolioLink value={c.portfolioLink} />
                   </TableCell>
-                  <TableCell className="px-4 py-2.5">
+                  <TableCell className="min-w-0 px-3 py-2.5">
                     <ScheduleInfo candidate={c} />
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-4 py-2.5">
+                  <TableCell className="min-w-0 px-3 py-2.5">
                     {evalStatusBadge(c.evalStatus, c.status, c.scheduleMeetingLink, scheduleEnded)}
                   </TableCell>
                   {role >= 2 && (
-                    <TableCell className="whitespace-nowrap px-4 py-2.5">
+                    <TableCell className="min-w-0 px-3 py-2.5">
                       {!canEvaluate ? (
-                        <div className="flex flex-nowrap items-center gap-3">
+                        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                           <ActionTextButton onClick={() => startSchedule(c)}>
                             {c.scheduleMeetingLink ? "改约" : "预约"}
                           </ActionTextButton>
@@ -644,7 +644,7 @@ export const EvaluationTable = ({
                           正在编辑面评
                         </div>
                       ) : c.evalStatus === "submitted" ? (
-                        <div className="flex flex-nowrap items-center gap-3">
+                        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                           <ActionTextButton onClick={() => startEdit(c, "pass")}>
                             修改
                           </ActionTextButton>
@@ -658,7 +658,7 @@ export const EvaluationTable = ({
                           改为通过
                         </ActionTextButton>
                       ) : (
-                        <div className="flex flex-nowrap items-center gap-3">
+                        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                           <ActionTextButton onClick={() => startSchedule(c)}>
                             改约
                           </ActionTextButton>
@@ -683,7 +683,7 @@ export const EvaluationTable = ({
       </div>
 
       {/* Mobile card view */}
-      <div className="md:hidden flex flex-col divide-y divide-border">
+      <div className="flex flex-col divide-y divide-border lg:hidden">
         {safeCandidates.map((c) => {
           const isEditing = evaluatingId === c.userFlowId;
           const isRejected = c.status === "failed";
@@ -766,7 +766,7 @@ export const EvaluationTable = ({
                     </ActionTextButton>
                   </div>
                 ) : (
-                  <div className="flex w-full flex-wrap gap-1 sm:w-fit sm:gap-3">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <ActionTextButton onClick={() => startSchedule(c)}>
                       改约
                     </ActionTextButton>
