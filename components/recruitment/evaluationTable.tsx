@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ExternalLink,
   Sparkles,
@@ -17,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/user-flow/evaluation";
 import {
   cancelInterviewSchedule,
@@ -58,23 +57,58 @@ type Candidate = {
   scheduleStatus: string | null;
 };
 
-const evalStatusBadge = (
+const evalStatusLabel = (
   evalStatus: string | null,
   flowStatus: string | null,
   scheduleMeetingLink: string | null,
   scheduleEnded: boolean,
 ) => {
-  if (evalStatus === "approved") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
-  if (evalStatus === "rejected") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">面评已驳回</Badge>;
-  if (evalStatus === "submitted") return <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-chart-3">待审核</Badge>;
-  if (flowStatus === "failed") return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">不通过</Badge>;
-  if (flowStatus === "passed") return <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">已通过</Badge>;
-  if (!scheduleMeetingLink) return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待预约</Badge>;
-  if (!scheduleEnded) return <Badge variant="outline" className="border-chart-2/30 bg-chart-2/10 text-chart-2">待面试</Badge>;
-  return <Badge variant="outline" className="border-muted-foreground/30 bg-muted text-muted-foreground">待评估</Badge>;
+  if (evalStatus === "approved" || flowStatus === "passed") {
+    return { text: "已通过", className: "text-primary" };
+  }
+  if (evalStatus === "rejected") {
+    return { text: "面评驳回", className: "text-destructive" };
+  }
+  if (evalStatus === "submitted") {
+    return { text: "待审核", className: "text-foreground" };
+  }
+  if (flowStatus === "failed") {
+    return { text: "不通过", className: "text-destructive" };
+  }
+  if (!scheduleMeetingLink) {
+    return { text: "待预约", className: "text-muted-foreground" };
+  }
+  if (!scheduleEnded) {
+    return { text: "待面试", className: "text-muted-foreground" };
+  }
+  return { text: "待评估", className: "text-muted-foreground" };
 };
 
-const actionTextClass = "inline-flex min-h-10 items-center rounded-md px-2.5 py-2 text-sm font-medium text-foreground/90 underline-offset-4 touch-manipulation hover:bg-muted hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50";
+const EvalStatusText = ({
+  evalStatus,
+  flowStatus,
+  scheduleMeetingLink,
+  scheduleEnded,
+}: {
+  evalStatus: string | null;
+  flowStatus: string | null;
+  scheduleMeetingLink: string | null;
+  scheduleEnded: boolean;
+}) => {
+  const status = evalStatusLabel(
+    evalStatus,
+    flowStatus,
+    scheduleMeetingLink,
+    scheduleEnded,
+  );
+  return (
+    <span className={`text-sm ${status.className}`}>
+      {status.text}
+    </span>
+  );
+};
+
+
 
 const getCandidateStatusKey = (candidate: Candidate) => {
   if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
@@ -142,111 +176,136 @@ const getTime = (value: Date | string | null) => {
   return Number.isNaN(time) ? null : time;
 };
 
-function StatusCountPill({
-  label,
-  value,
+function CandidateIdentity({
+  name,
+  studentId,
+  phoneNumber,
+  showPhone,
 }: {
-  label: string;
-  value: number;
+  name: string;
+  studentId: string | null;
+  phoneNumber: string | null;
+  showPhone?: boolean;
 }) {
+  const meta = [
+    studentId || null,
+    showPhone ? phoneNumber || null : null,
+  ].filter(Boolean);
+
   return (
-    <div
-      className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 py-1 text-xs text-muted-foreground"
-    >
-      <span>{label}</span>
-      <span className="font-semibold tabular-nums text-foreground">{value}</span>
+    <div className="min-w-0 space-y-0.5">
+      <p className="truncate text-sm font-medium leading-5 text-foreground" title={name}>
+        {name}
+      </p>
+      {meta.length > 0 && (
+        <p className="truncate text-xs tabular-nums text-muted-foreground" title={meta.join(" · ")}>
+          {meta.join(" · ")}
+        </p>
+      )}
     </div>
   );
 }
 
 const PortfolioLink = ({ value }: { value: string | null }) => {
-  if (!value) return <span className="text-xs text-muted-foreground">未填写</span>;
+  if (!value) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
 
   return (
     <a
       href={externalHref(value)}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex max-w-full items-center gap-1 text-sm text-foreground/80 hover:text-primary hover:underline"
+      className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
     >
-      <span className="truncate">查看作品</span>
-      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+      作品
+      <ExternalLink className="size-3.5 shrink-0 opacity-50" />
     </a>
   );
 };
 
 const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
   if (!candidate.scheduleMeetingLink) {
-    return (
-      <span className="text-xs text-muted-foreground">
-        未预约
-      </span>
-    );
+    return <span className="text-sm text-muted-foreground">未预约</span>;
   }
 
   const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
   const endsAt = formatScheduleTime(candidate.scheduleEndsAt);
-  const timeRange = startsAt ? `${startsAt}${endsAt ? ` - ${endsAt}` : ""}` : endsAt;
+  const timeRange = startsAt
+    ? `${startsAt}${endsAt ? ` – ${endsAt}` : ""}`
+    : endsAt;
   const hasDistinctScheduleLink =
     Boolean(candidate.scheduleLink) &&
     candidate.scheduleLink !== candidate.scheduleMeetingLink;
 
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+    <div className="min-w-0 space-y-0.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
         <a
           href={externalHref(candidate.scheduleMeetingLink)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex max-w-full items-center gap-1 text-sm font-medium text-foreground hover:text-primary hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
         >
-          <span className="truncate">会议</span>
-          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+          会议
+          <ExternalLink className="size-3.5 shrink-0 opacity-50" />
         </a>
         {hasDistinctScheduleLink && candidate.scheduleLink && (
           <a
             href={externalHref(candidate.scheduleLink)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex max-w-full items-center gap-1 text-sm text-foreground/80 hover:text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
-            <span className="truncate">日程</span>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+            日程
+            <ExternalLink className="size-3.5 shrink-0 opacity-50" />
           </a>
         )}
       </div>
       {timeRange && (
-        <span className="block whitespace-nowrap text-xs tabular-nums leading-4 text-foreground/65">
-          {timeRange}
-        </span>
+        <p className="text-xs tabular-nums text-muted-foreground">{timeRange}</p>
       )}
       {candidate.scheduleLocation && (
-        <span className="block text-xs leading-4 text-foreground/65">
+        <p
+          className="truncate text-xs text-muted-foreground"
+          title={candidate.scheduleLocation}
+        >
           {candidate.scheduleLocation}
-        </span>
+        </p>
       )}
     </div>
   );
 };
 
-function ActionTextButton({
+function ActionButton({
   children,
   disabled,
   onClick,
+  tone = "default",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   disabled?: boolean;
   onClick: () => void;
+  tone?: "default" | "primary" | "danger";
 }) {
+  const toneClass =
+    tone === "primary"
+      ? "text-primary hover:text-primary"
+      : tone === "danger"
+        ? "text-destructive hover:text-destructive"
+        : "text-muted-foreground hover:text-foreground";
+
   return (
-    <button
+    <Button
       type="button"
-      className={actionTextClass}
+      size="sm"
+      variant="ghost"
       disabled={disabled}
       onClick={onClick}
+      className={`h-8 px-2 text-sm font-normal shadow-none ${toneClass}`}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -524,57 +583,48 @@ export const EvaluationTable = ({
 
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
-      <div className="flex flex-col gap-3 border-b bg-muted/10 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium">面评候选人</p>
           <p className="text-xs text-muted-foreground">
-            先为报名同学预约面试会议，面试结束后再提交面评结果。
+            预约面试后提交面评结果
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {summaryItems.map((item) => (
-            <StatusCountPill
-              key={item.key}
-              label={item.label}
-              value={statusCounts.get(item.key) ?? 0}
-            />
-          ))}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          {summaryItems
+            .map(
+              (item) =>
+                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
+            )
+            .join(" · ")}
+        </p>
       </div>
-      <div className="hidden min-w-0 md:block overflow-x-auto">
-        <Table className="table-fixed min-w-[980px]">
-          {role >= 3 ? (
+      <div className="hidden min-w-0 lg:block">
+        <Table className="w-full table-fixed" containerClassName="overflow-x-visible">
+          {role >= 2 ? (
             <colgroup>
-              <col className="w-[11%]" />
-              <col className="w-[14%]" />
-              <col className="w-[14%]" />
-              <col className="w-[11%]" />
-              <col className="w-[25%]" />
+              <col className="w-[26%]" />
+              <col className="w-[10%]" />
+              <col className="w-[22%]" />
               <col className="w-[12%]" />
-              <col className="w-[13%]" />
+              <col className="w-[30%]" />
             </colgroup>
           ) : (
             <colgroup>
-              <col className="w-[15%]" />
-              <col className="w-[20%]" />
-              <col className="w-[16%]" />
-              <col className="w-[22%]" />
-              <col className="w-[12%]" />
-              <col className="w-[15%]" />
+              <col className="w-[32%]" />
+              <col className="w-[14%]" />
+              <col className="w-[30%]" />
+              <col className="w-[24%]" />
             </colgroup>
           )}
           <TableHeader>
-            <TableRow className="bg-muted/30 hover:bg-muted/30">
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">学号</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">姓名</TableHead>
-              {role >= 3 && (
-                <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">手机号</TableHead>
-              )}
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">作品</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">会议</TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">状态</TableHead>
+            <TableRow className="border-b border-border/60 hover:bg-transparent">
+              <TableHead className="h-10 px-4 text-xs font-medium text-muted-foreground">候选人</TableHead>
+              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
+              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">会议</TableHead>
+              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">状态</TableHead>
               {role >= 2 && (
-                <TableHead className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground">操作</TableHead>
+                <TableHead className="h-10 px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -599,78 +649,74 @@ export const EvaluationTable = ({
                   }
                   className={
                     isTargetCandidate(c)
-                      ? "scroll-mt-24 bg-primary/10 ring-1 ring-primary/30 hover:bg-primary/10"
-                      : "hover:bg-muted/30"
+                      ? "scroll-mt-24 bg-muted/40 hover:bg-muted/40"
+                      : "border-b border-border/40 last:border-0 hover:bg-muted/15"
                   }
                 >
-                  <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums">
-                    {c.studentId}
+                  <TableCell className="px-4 py-3 align-middle">
+                    <CandidateIdentity
+                      name={c.name}
+                      studentId={c.studentId}
+                      phoneNumber={c.phoneNumber}
+                      showPhone={role >= 3}
+                    />
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm font-medium">
-                    {c.name}
-                  </TableCell>
-                  {role >= 3 && (
-                    <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-foreground/80">
-                      {c.phoneNumber || "-"}
-                    </TableCell>
-                  )}
-                  <TableCell className="whitespace-nowrap px-4 py-2.5">
+                  <TableCell className="px-3 py-3 align-middle">
                     <PortfolioLink value={c.portfolioLink} />
                   </TableCell>
-                  <TableCell className="px-4 py-2.5">
+                  <TableCell className="px-3 py-3 align-middle">
                     <ScheduleInfo candidate={c} />
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-4 py-2.5">
-                    {evalStatusBadge(c.evalStatus, c.status, c.scheduleMeetingLink, scheduleEnded)}
+                  <TableCell className="px-3 py-3 align-middle">
+                    <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
                   </TableCell>
                   {role >= 2 && (
-                    <TableCell className="whitespace-nowrap px-4 py-2.5">
+                    <TableCell className="px-4 py-3 align-middle text-right">
                       {!canEvaluate ? (
-                        <div className="flex flex-nowrap items-center gap-3">
-                          <ActionTextButton onClick={() => startSchedule(c)}>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <ActionButton onClick={() => startSchedule(c)}>
                             {c.scheduleMeetingLink ? "改约" : "预约"}
-                          </ActionTextButton>
+                          </ActionButton>
                           {c.scheduleMeetingLink && (
-                            <ActionTextButton
+                            <ActionButton
                               disabled={busy}
                               onClick={() => handleCancelSchedule(c)}
                             >
                               {busy ? "处理中" : "取消"}
-                            </ActionTextButton>
+                            </ActionButton>
                           )}
                         </div>
                       ) : isEditing ? (
-                        <div className="text-sm text-muted-foreground">
-                          正在编辑面评
-                        </div>
+                        <span className="text-xs text-muted-foreground">正在编辑…</span>
                       ) : c.evalStatus === "submitted" ? (
-                        <div className="flex flex-nowrap items-center gap-3">
-                          <ActionTextButton onClick={() => startEdit(c, "pass")}>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <ActionButton onClick={() => startEdit(c, "pass")}>
                             修改
-                          </ActionTextButton>
+                          </ActionButton>
                         </div>
-                      ) : c.evalStatus === "approved" ? (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      ) : c.evalStatus === "rejected" ? (
-                        <span className="text-sm text-muted-foreground">-</span>
+                      ) : c.evalStatus === "approved" || c.evalStatus === "rejected" ? (
+                        <span className="text-xs text-muted-foreground">—</span>
                       ) : isRejected ? (
-                        <ActionTextButton onClick={() => startEdit(c, "reopen")}>
-                          改为通过
-                        </ActionTextButton>
+                        <div className="flex justify-end">
+                          <ActionButton tone="primary" onClick={() => startEdit(c, "reopen")}>
+                            改为通过
+                          </ActionButton>
+                        </div>
                       ) : (
-                        <div className="flex flex-nowrap items-center gap-3">
-                          <ActionTextButton onClick={() => startSchedule(c)}>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <ActionButton onClick={() => startSchedule(c)}>
                             改约
-                          </ActionTextButton>
-                          <ActionTextButton onClick={() => startEdit(c, "pass")}>
+                          </ActionButton>
+                          <ActionButton tone="primary" onClick={() => startEdit(c, "pass")}>
                             通过
-                          </ActionTextButton>
-                          <ActionTextButton
+                          </ActionButton>
+                          <ActionButton
+                            tone="danger"
                             disabled={busy}
                             onClick={() => handleReject(c.userFlowId)}
                           >
                             {busy ? "处理中" : "不通过"}
-                          </ActionTextButton>
+                          </ActionButton>
                         </div>
                       )}
                     </TableCell>
@@ -683,7 +729,7 @@ export const EvaluationTable = ({
       </div>
 
       {/* Mobile card view */}
-      <div className="md:hidden flex flex-col divide-y divide-border">
+      <div className="flex flex-col divide-y divide-border lg:hidden">
         {safeCandidates.map((c) => {
           const isEditing = evaluatingId === c.userFlowId;
           const isRejected = c.status === "failed";
@@ -704,45 +750,36 @@ export const EvaluationTable = ({
               }
               className={
                 isTargetCandidate(c)
-                  ? "flex scroll-mt-24 flex-col gap-3 bg-primary/10 p-4 ring-1 ring-primary/30"
+                  ? "flex scroll-mt-24 flex-col gap-3 bg-muted/30 p-4"
                   : "flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40"
               }
             >
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <span className="font-semibold">{c.name}</span>
-                  <span className="ml-2 text-sm">
-                    {c.studentId}
-                  </span>
-                </div>
-                {evalStatusBadge(c.evalStatus, c.status, c.scheduleMeetingLink, scheduleEnded)}
+              <div className="flex items-start justify-between gap-3">
+                <CandidateIdentity
+                  name={c.name}
+                  studentId={c.studentId}
+                  phoneNumber={c.phoneNumber}
+                  showPhone={role >= 3}
+                />
+                <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
               </div>
-              {role >= 3 && (
-                <div className="text-sm">
-                  手机: {c.phoneNumber || "-"}
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>作品</span>
+              <div className="flex flex-wrap items-center gap-2">
                 <PortfolioLink value={c.portfolioLink} />
               </div>
-              <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                <span className="pt-0.5">会议</span>
-                <ScheduleInfo candidate={c} />
-              </div>
+              <ScheduleInfo candidate={c} />
               {role >= 2 && (
                 !canEvaluate ? (
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <ActionTextButton onClick={() => startSchedule(c)}>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <ActionButton onClick={() => startSchedule(c)}>
                       {c.scheduleMeetingLink ? "改约" : "预约"}
-                    </ActionTextButton>
+                    </ActionButton>
                     {c.scheduleMeetingLink && (
-                      <ActionTextButton
+                      <ActionButton
                         disabled={busy}
                         onClick={() => handleCancelSchedule(c)}
                       >
                         {busy ? "处理中" : "取消"}
-                      </ActionTextButton>
+                      </ActionButton>
                     )}
                   </div>
                 ) : isEditing ? (
@@ -750,10 +787,10 @@ export const EvaluationTable = ({
                     正在编辑面评
                   </div>
                 ) : c.evalStatus === "submitted" ? (
-                  <div className="flex items-center gap-2 pt-1">
-                    <ActionTextButton onClick={() => startEdit(c, "pass")}>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <ActionButton onClick={() => startEdit(c, "pass")}>
                       修改
-                    </ActionTextButton>
+                    </ActionButton>
                   </div>
                 ) : c.evalStatus === "approved" ? (
                   <div className="pt-1 text-sm text-muted-foreground">已完成</div>
@@ -761,24 +798,25 @@ export const EvaluationTable = ({
                   <div className="pt-1 text-sm text-muted-foreground">已驳回</div>
                 ) : isRejected ? (
                   <div className="pt-1">
-                    <ActionTextButton onClick={() => startEdit(c, "reopen")}>
+                    <ActionButton tone="primary" onClick={() => startEdit(c, "reopen")}>
                       改为通过
-                    </ActionTextButton>
+                    </ActionButton>
                   </div>
                 ) : (
-                  <div className="flex w-full flex-wrap gap-1 sm:w-fit sm:gap-3">
-                    <ActionTextButton onClick={() => startSchedule(c)}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <ActionButton onClick={() => startSchedule(c)}>
                       改约
-                    </ActionTextButton>
-                    <ActionTextButton onClick={() => startEdit(c, "pass")}>
+                    </ActionButton>
+                    <ActionButton tone="primary" onClick={() => startEdit(c, "pass")}>
                       通过
-                    </ActionTextButton>
-                    <ActionTextButton
+                    </ActionButton>
+                    <ActionButton
+                      tone="danger"
                       disabled={busy}
                       onClick={() => handleReject(c.userFlowId)}
                     >
                       {busy ? "处理中" : "不通过"}
-                    </ActionTextButton>
+                    </ActionButton>
                   </div>
                 )
               )}
@@ -1042,5 +1080,6 @@ export const EvaluationTable = ({
     </div>
   );
 };
+
 
 
