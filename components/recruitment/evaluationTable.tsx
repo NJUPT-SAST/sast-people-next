@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ExternalLink,
   Sparkles,
@@ -277,7 +277,7 @@ function ActionButton({
   onClick,
   tone = "default",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   disabled?: boolean;
   onClick: () => void;
   tone?: "default" | "primary" | "danger";
@@ -1075,5 +1075,6 @@ export const EvaluationTable = ({
     </div>
   );
 };
+
 
 
