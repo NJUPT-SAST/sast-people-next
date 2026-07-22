@@ -39,17 +39,18 @@ export const SearchInput: React.FC<SearchInputProps> = ({ defaultValue }) => {
   }, [deferredSearchTerm, defaultValue, router, pathname, searchParams]);
 
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex w-full min-w-0 items-center gap-2">
       <Input
         type="text"
         placeholder="搜索用户..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-64"
+        className="h-10 min-w-0 flex-1 sm:h-9 sm:w-64 sm:flex-none"
       />
-      <Button disabled={isPending} variant="default" size="icon">
+      <Button disabled={isPending} variant="default" size="icon" className="size-10 shrink-0 sm:size-9">
         <Search className="h-4 w-4" />
       </Button>
     </div>
   );
 };
+

@@ -108,7 +108,7 @@ export const AddFlow = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">添加流程</Button>
+        <Button size="sm" className="h-10 w-full sm:h-8 sm:w-auto">添加流程</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -234,3 +234,4 @@ export const AddFlow = () => {
     </Dialog>
   );
 };
+

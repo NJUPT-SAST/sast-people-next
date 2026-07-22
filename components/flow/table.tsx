@@ -83,8 +83,8 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
   {
     accessorKey: 'operations',
     header: () => (
-      <div className="grid w-full grid-cols-[4.5rem_4.5rem_4.5rem_3.5rem] items-center justify-end gap-1">
-        <span className="col-span-4 text-center">操作</span>
+      <div className="flex w-full items-center justify-end">
+        <span className="text-center">操作</span>
       </div>
     ),
     cell({ row }) {
@@ -207,7 +207,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
                   <span className="text-foreground text-xs font-mono">{originalDayjs(row.original.endedAt).format('YYYY-MM-DD HH:mm')}</span>
                 </div>
               </div>
-              <div className="pt-3 flex justify-end gap-3 border-t">
+              <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
                 <Operations data={row.original} />
               </div>
             </div>
@@ -219,3 +219,5 @@ export function FlowTable<TData extends displayFlow, TValue>({
     </div>
   );
 }
+
+

@@ -1,4 +1,4 @@
-import { PageTitle } from "@/components/route";
+import { PageHeader, PageTitle } from "@/components/route";
 import SubmitRegister from "@/components/userFlow/submitRegister";
 import React, { Suspense } from "react";
 import { useFlowList as getFlowList } from "@/hooks/useFlowList";
@@ -12,17 +12,19 @@ const Flows = async () => {
   const allFlowList = Array.isArray(allFlowListResult) ? allFlowListResult : [];
   return (
     <>
-      <div className="flex items-center justify-between">
+      <PageHeader>
         <PageTitle />
-        <SubmitRegister flowList={allFlowList} uid={uid} />
-      </div>
-      <div className="space-y-4 mt-4">
+        <div className="w-full sm:w-auto">
+          <SubmitRegister flowList={allFlowList} uid={uid} />
+        </div>
+      </PageHeader>
+      <div className="mt-4 space-y-4">
         <Suspense
           fallback={
             <div className="flex flex-col gap-3">
-              <Skeleton className="w-full h-[220px]" />
-              <Skeleton className="w-full h-[220px]" />
-              <Skeleton className="w-full h-[220px]" />
+              <Skeleton className="h-[220px] w-full" />
+              <Skeleton className="h-[220px] w-full" />
+              <Skeleton className="h-[220px] w-full" />
             </div>
           }
         >

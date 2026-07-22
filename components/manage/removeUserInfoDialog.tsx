@@ -18,8 +18,10 @@ import { toast } from "sonner";
 export const RemoveUserInfoDialog = ({ uid }: { uid: number }) => {
 	return (
 		<Dialog>
-			<DialogTrigger>
-				<Trash2 className="mr-2 h-4 w-4 text-destructive" />
+			<DialogTrigger asChild>
+				<Button variant="ghost" size="icon" className="size-10 text-destructive sm:size-9" aria-label="封号">
+					<Trash2 className="h-4 w-4" />
+				</Button>
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
@@ -49,3 +51,4 @@ export const RemoveUserInfoDialog = ({ uid }: { uid: number }) => {
 		</Dialog>
 	);
 };
+

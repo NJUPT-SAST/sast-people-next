@@ -22,7 +22,7 @@ export function ReviewSheet({ children }: { children: React.ReactNode }) {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto">
           设置阅卷范围
         </Button>
       </SheetTrigger>
@@ -35,3 +35,4 @@ export function ReviewSheet({ children }: { children: React.ReactNode }) {
     </Sheet>
   );
 }
+

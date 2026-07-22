@@ -100,11 +100,11 @@ export const ManageTable = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div className="flex space-x-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex w-full min-w-0 space-x-2 sm:w-auto">
           <SearchInput defaultValue={search} />
         </div>
-        <div className="flex space-x-2">
+        <div className="flex w-full min-w-0 space-x-2 sm:w-auto">
           {/* <Button>导入</Button>
           <Button>导出</Button>
           <Button variant="default">+ 添加用户</Button> */}
@@ -188,14 +188,14 @@ export const ManageTable = ({
                   )}
                   <div className="flex justify-between items-center text-muted-foreground">
                     <span>邮箱</span>
-                    <span className="truncate max-w-[200px] text-right text-foreground">{row.original.email || '-'}</span>
+                    <span className="max-w-[60%] truncate text-right text-foreground sm:max-w-[200px]">{row.original.email || '-'}</span>
                   </div>
                   <div className="flex justify-between items-center text-muted-foreground">
                     <span>创建时间</span>
                     <span className="text-foreground">{originalDayjs(row.original.createdAt).format('YYYY-MM-DD')}</span>
                   </div>
                 </div>
-                <div className="pt-3 flex justify-end gap-3 border-t">
+                <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
                   <ViewUserInfoSheet userInfo={row.original} currentUserRole={role} />
                   {role >= 3 && <EditUserFlowSheet userInfo={row.original} role={role} />}
                   {role >= 3 && <RemoveUserInfoDialog uid={row.original.id} />}
@@ -224,3 +224,4 @@ export const ManageTable = ({
     </div>
   );
 };
+

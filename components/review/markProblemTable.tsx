@@ -290,24 +290,30 @@ export const MarkProblemTable = ({
           </div>
         </CardContent>
       </Card>
-      <div className="sticky bottom-4 flex flex-col gap-3 rounded-2xl border bg-background/95 p-4 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between">
+      <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex flex-col gap-3 rounded-2xl border bg-background/95 p-4 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium">完成当前考生阅卷</p>
           <p className="text-xs text-muted-foreground">
             提交后会保存所有题目分数，并自动返回扫码页继续下一位。
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <Button
             type="button"
             variant="outline"
+            className="h-11 w-full sm:h-9 sm:w-auto"
             onClick={handleBackToReview}
             disabled={isSubmitting}
           >
             <ArrowLeft data-icon="inline-start" />
             返回扫码页
           </Button>
-          <Button type="button" onClick={() => void handleSubmit()} loading={isSubmitting}>
+          <Button
+            type="button"
+            className="h-11 w-full sm:h-9 sm:w-auto"
+            onClick={() => void handleSubmit()}
+            loading={isSubmitting}
+          >
             <CheckCircle2 data-icon="inline-start" />
             确认评分并返回扫码页
           </Button>
@@ -316,3 +322,5 @@ export const MarkProblemTable = ({
     </div>
   );
 };
+
+

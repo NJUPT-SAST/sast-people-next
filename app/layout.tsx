@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { VConsole } from "@/components/vconsole";
@@ -8,6 +8,16 @@ export const metadata: Metadata = {
   title: "SAST People",
   description: "南京邮电大学大学生科学技术协会招新与留任平台",
   icons: { icon: "/images/sastpeople-logo-black.jpg" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#252525" },
+  ],
 };
 
 export default function RootLayout({

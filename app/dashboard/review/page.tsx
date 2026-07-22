@@ -1,4 +1,4 @@
-import { PageTitle } from "@/components/route";
+import { PageHeader, PageTitle } from "@/components/route";
 import React from "react";
 import QRCodeScanner from "@/components/review/qrcodeScanner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -14,12 +14,14 @@ const Review: React.FC = async () => {
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <PageHeader>
         <PageTitle />
-        <ReviewSheet>
-          <SelectProblemServer flowList={flowList} />
-        </ReviewSheet>
-      </div>
+        <div className="w-full sm:w-auto">
+          <ReviewSheet>
+            <SelectProblemServer flowList={flowList} />
+          </ReviewSheet>
+        </div>
+      </PageHeader>
       <div className="flex flex-col gap-4">
         <Card>
           <CardHeader>
@@ -37,7 +39,7 @@ const Review: React.FC = async () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="flex flex-col">
-              <div className="mx-4 mt-3 mb-5 lg:mx-6 lg:mt-4 lg:mb-6 rounded-md border bg-amber-50 px-4 py-3 text-center dark:bg-amber-950/20">
+              <div className="mx-4 mb-5 mt-3 rounded-md border bg-amber-50 px-4 py-3 text-center dark:bg-amber-950/20 lg:mx-6 lg:mb-6 lg:mt-4">
                 <p className="text-xs text-amber-700 dark:text-amber-400">
                   请先设置上方【阅卷范围】，再开始阅卷。
                 </p>

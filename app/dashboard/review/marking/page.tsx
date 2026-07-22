@@ -15,16 +15,15 @@ const Marking = async ({
   const awaitedSearchParams = await searchParams;
   return (
     <>
-      <div className="flex items-center justify-between">
-        <Link href="/dashboard/review">
-          <Button variant="ghost">
-            <h1 className="text-lg font-semibold md:text-2xl inline-flex items-center gap-2">
-              <ArrowLeftIcon className="w-5 h-5" /> 准备阅卷
+      <div className="flex items-center justify-between gap-3 pb-2">
+        <Link href="/dashboard/review" className="min-w-0">
+          <Button variant="ghost" className="h-10 px-2 sm:h-9">
+            <h1 className="inline-flex items-center gap-2 text-lg font-semibold md:text-2xl">
+              <ArrowLeftIcon className="size-5 shrink-0" /> 准备阅卷
             </h1>
           </Button>
         </Link>
       </div>
-      {/* map problems to a list of points */}
       <div>
         <Suspense fallback={<Loading />}>
           <MarkProblemTableServer user={awaitedSearchParams.user} />
