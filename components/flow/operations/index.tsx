@@ -5,15 +5,16 @@ import { Delete } from "./delete";
 import { Duplicate } from "./duplicate";
 import Link from "next/link";
 
-const operationButtonClass =
-  "h-10 min-w-10 rounded-lg px-3 text-sm shadow-none sm:h-8 sm:min-w-0 sm:px-2.5";
+/** Compact on desktop table; larger touch targets on mobile card view. */
+export const operationButtonClass =
+  "h-10 shrink-0 rounded-lg px-3 text-sm shadow-none xl:h-8 xl:px-2";
 
 export const Operations = ({ data }: { data: displayFlow }) => {
   return (
-    <div className="flex w-full flex-wrap items-center justify-end gap-1.5">
+    <div className="inline-grid w-full grid-cols-4 items-center justify-items-end gap-x-1">
       <EditSteps data={data} />
       <Duplicate data={data} />
-      {data.type === "recruitment" && (
+      {data.type === "recruitment" ? (
         <Link href={`/dashboard/flow/edit-exam?id=${data.id}`}>
           <Button
             size="sm"
@@ -23,10 +24,15 @@ export const Operations = ({ data }: { data: displayFlow }) => {
             编辑笔试
           </Button>
         </Link>
+      ) : (
+        <span
+          aria-hidden="true"
+          className="invisible select-none px-2 text-sm"
+        >
+          编辑笔试
+        </span>
       )}
       <Delete data={data} />
     </div>
   );
 };
-
-export { operationButtonClass };

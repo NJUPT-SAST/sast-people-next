@@ -26,7 +26,7 @@ export function Duplicate({ data }: { data: displayFlow }) {
         <Button
           size="sm"
           variant="ghost"
-          className="h-10 min-w-10 rounded-lg px-3 text-sm shadow-none text-foreground hover:bg-muted sm:h-8 sm:min-w-0 sm:px-2.5"
+          className="h-10 shrink-0 rounded-lg px-3 text-sm shadow-none text-foreground hover:bg-muted xl:h-8 xl:px-2"
         >
           <Copy data-icon="inline-start" />
           复制
@@ -60,4 +60,5 @@ export function Duplicate({ data }: { data: displayFlow }) {
     </Dialog>
   );
 }
+
 

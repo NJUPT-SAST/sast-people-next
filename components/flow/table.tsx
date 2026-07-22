@@ -83,8 +83,8 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
   {
     accessorKey: 'operations',
     header: () => (
-      <div className="flex w-full items-center justify-end">
-        <span className="text-center">操作</span>
+      <div className="inline-grid w-full grid-cols-4 items-center justify-items-end gap-x-1">
+        <span className="col-span-4 text-right">操作</span>
       </div>
     ),
     cell({ row }) {
@@ -117,11 +117,11 @@ export function FlowTable<TData extends displayFlow, TValue>({
       <div className="hidden xl:block">
         <Table className="table-fixed" containerClassName="overflow-x-visible">
           <colgroup>
+            <col className="w-[30%]" />
+            <col className="w-[10%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
             <col className="w-[32%]" />
-            <col className="w-[11%]" />
-            <col className="w-[15%]" />
-            <col className="w-[15%]" />
-            <col className="w-[27%]" />
           </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -219,5 +219,6 @@ export function FlowTable<TData extends displayFlow, TValue>({
     </div>
   );
 }
+
 
 
