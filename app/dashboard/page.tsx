@@ -53,7 +53,7 @@ export default async function Home({
             <div className="flex flex-col items-center gap-3 text-center max-w-sm">
               <Rocket className="h-12 w-12 text-muted-foreground/50" />
               <h3 className="text-2xl font-bold tracking-tight">
-                Welcome to SAST Pass
+                Welcome to SAST People
               </h3>
               <p className="text-sm text-muted-foreground">
                 看起来是新同学呢，在报名之前介绍一下你自己吧！
@@ -70,7 +70,7 @@ export default async function Home({
             <div className="flex flex-col items-center gap-3 text-center max-w-sm">
               <Rocket className="h-12 w-12 text-muted-foreground/50" />
               <h3 className="text-2xl font-bold tracking-tight">
-                Welcome to SAST Pass
+                Welcome to SAST People
               </h3>
               <p className="text-sm text-muted-foreground">
                 如果需要编辑资料，请在此处绑定 SAST Link 账号。
