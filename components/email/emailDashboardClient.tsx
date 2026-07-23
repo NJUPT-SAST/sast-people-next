@@ -36,6 +36,7 @@ import type {
   FlowTarget,
   InterviewSchedulePreviews,
   InterviewScheduleTemplates,
+  ResultEmailPreviews,
   TemplateSetting,
 } from "./emailDashboardTypes";
 
