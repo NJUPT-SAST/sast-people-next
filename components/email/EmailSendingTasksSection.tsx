@@ -92,6 +92,7 @@ function SendLane({
           title={`${flow.title} · ${resultLabel}`}
           html={previewHtml}
           triggerLabel="预览"
+          triggerSize="sm"
         />
         <div className="min-w-[5.5rem] flex-1">
           <SendConfirmDialog

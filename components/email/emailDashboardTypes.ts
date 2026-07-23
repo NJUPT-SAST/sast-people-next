@@ -30,6 +30,10 @@ export type InterviewSchedulePreviews = Awaited<
   ReturnType<typeof import("@/action/email/interview-template").getInterviewScheduleEmailPreviews>
 >;
 
+export type ResultEmailPreviews = Awaited<
+  ReturnType<typeof import("@/action/email/template").getResultEmailPreviews>
+>;
+
 export type EmailTemplateDefinition =
   import("@/lib/email-center/types").EmailTemplateDefinition;
 
