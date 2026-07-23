@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { CalendarCheck, RefreshCw } from "lucide-react";
+import Image from "next/image";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +31,34 @@ const formatExpiresAt = (value: Date | string | null | undefined) => {
   if (Number.isNaN(date.getTime())) return null;
   return statusFormatter.format(date).replace(/\//g, "-");
 };
+
+const formatExpiresAtShort = (value: Date | string | null | undefined) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+};
+
+function FeishuLogo({ className }: { className?: string }) {
+  return (
+    <Image
+      src="/images/feishu-logo.png"
+      alt=""
+      width={36}
+      height={36}
+      className={cn("object-contain", className)}
+    />
+  );
+}
 
 export function FeishuOAuthStatus({
   role,
@@ -83,100 +112,89 @@ export function FeishuOAuthStatus({
   if (role < 2) return null;
 
   const expiresAt = formatExpiresAt(status?.authorizationExpiresAt);
+  const expiresAtShort = formatExpiresAtShort(status?.authorizationExpiresAt);
   const isBound = Boolean(status?.bound);
-  const description = failed
-    ? "状态检查失败"
-    : status === null
-      ? "正在检查授权"
+  const isLoading = status === null && !failed;
+  const title = failed
+    ? "飞书检查失败"
+    : isLoading
+      ? "飞书检查中"
       : isBound
-        ? "已绑定，日程会以当前讲师身份发起"
+        ? "飞书已授权"
+        : "飞书未授权";
+  const description = failed
+    ? "状态检查失败，可重试绑定"
+    : isLoading
+      ? "正在检查授权状态"
+      : isBound
+        ? "日程会以当前身份发起"
         : "发起面试日程前需要绑定";
+  const actionLabel = failed ? "重试" : isBound ? "重绑" : "绑定";
+  const fullActionLabel = failed ? "重新检查" : isBound ? "重新绑定" : "绑定飞书";
+
+  const startOAuth = () => {
+    startTransition(() => {
+      redirectFeishuOAuth();
+    });
+  };
 
   if (compact) {
     return (
-      <div
-        className={cn(
-          "group-data-[collapsible=icon]:hidden",
-          className,
-        )}
-      >
-        <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/35 px-2 py-2 text-sidebar-foreground">
-          <div className="rounded-md bg-background/70 p-1 text-muted-foreground">
-            <CalendarCheck className="h-3.5 w-3.5" />
-          </div>
+      <div className={cn("group-data-[collapsible=icon]:hidden", className)}>
+        <div className="flex items-center gap-2 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
+          <FeishuLogo
+            className={cn("size-5 shrink-0 rounded-md", isLoading && "opacity-60")}
+          />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-              <p className="truncate text-xs font-medium leading-4">
-                飞书{isBound ? "已授权" : failed ? "检查失败" : status === null ? "检查中" : "未授权"}
-              </p>
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  isBound ? "bg-primary" : failed ? "bg-destructive" : "bg-muted-foreground/50",
-                )}
-                aria-hidden="true"
-              />
-            </div>
-            {expiresAt && (
-              <p className="truncate text-[11px] leading-4 text-muted-foreground">
-                授权至 {expiresAt}
-              </p>
-            )}
+            <p className="truncate text-xs text-sidebar-foreground">
+              {title}
+              {expiresAtShort ? (
+                <span className="text-muted-foreground"> · {expiresAtShort}</span>
+              ) : null}
+            </p>
           </div>
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="xs"
-            className="h-7 shrink-0 px-2 text-[11px]"
-            disabled={status === null && !failed}
-            loading={isPending}
-            onClick={() => {
-              startTransition(() => {
-                redirectFeishuOAuth();
-              });
-            }}
+            className="shrink-0 text-[11px] text-muted-foreground transition-colors hover:text-sidebar-foreground disabled:opacity-50"
+            disabled={isLoading || isPending}
+            onClick={startOAuth}
           >
-            {failed && <RefreshCw className="h-3 w-3" />}
-            {isBound ? "重绑" : "绑定"}
-          </Button>
+            {isPending ? "…" : actionLabel}
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={cn("flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between", className)}>
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="mt-0.5 rounded-md border bg-background p-1.5 text-muted-foreground">
-          <CalendarCheck className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 space-y-1">
-          <p className="text-sm font-medium">飞书授权</p>
-          <p className="text-xs leading-5 text-muted-foreground">
-            {description}
+    <div
+      className={cn(
+        "flex flex-col gap-3 rounded-lg border border-border/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between",
+        className,
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2.5">
+        <FeishuLogo
+          className={cn("size-7 shrink-0 rounded-md", isLoading && "opacity-60")}
+        />
+        <div className="min-w-0">
+          <p className="text-sm text-foreground">{title}</p>
+          <p className="text-xs text-muted-foreground">
+            {expiresAt ? `有效期至 ${expiresAt}` : description}
           </p>
-          {expiresAt && (
-            <p className="text-xs text-muted-foreground">
-              授权有效期至 {expiresAt}
-            </p>
-          )}
         </div>
       </div>
       <Button
         type="button"
-        variant={isBound ? "outline" : "default"}
+        variant={isBound ? "ghost" : "default"}
         size="sm"
         className="w-full sm:w-auto"
-        disabled={status === null && !failed}
+        disabled={isLoading}
         loading={isPending}
-        onClick={() => {
-          startTransition(() => {
-            redirectFeishuOAuth();
-          });
-        }}
+        onClick={startOAuth}
       >
-        {failed && <RefreshCw className="h-4 w-4" />}
-        {isBound ? "重新绑定" : "绑定飞书"}
+        {failed && !isPending && <RefreshCw className="size-4" />}
+        {fullActionLabel}
       </Button>
     </div>
   );

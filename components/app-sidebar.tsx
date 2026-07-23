@@ -128,30 +128,24 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild tooltip="回到工作台">
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              tooltip="回到工作台"
+              className="h-16 gap-2.5 px-2.5 data-[size=lg]:h-16"
+            >
               <Link href="/dashboard" aria-label="回到工作台 · 我的资料">
-                <div className="flex items-center justify-center">
-                  <Image
-                    src="/images/sastpeople-logo-white.jpg"
-                    alt=""
-                    width={32}
-                    height={32}
-                    className="size-8 rounded-md object-cover dark:hidden"
-                  />
-                  <Image
-                    src="/images/sastpeople-logo-black.jpg"
-                    alt=""
-                    width={32}
-                    height={32}
-                    className="hidden size-8 rounded-md object-cover dark:block"
-                  />
-                </div>
-                <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">SAST People</span>
-                  <span className="text-xs text-muted-foreground">
-                    招新与留任管理
-                  </span>
-                </div>
+                <Image
+                  src="/images/crocodile-transparent.png"
+                  alt=""
+                  width={48}
+                  height={48}
+                  priority
+                  className="size-12 shrink-0 object-contain"
+                />
+                <span className="truncate text-[15px] font-semibold tracking-tight">
+                  SAST People
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
