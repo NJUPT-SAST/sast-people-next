@@ -101,6 +101,7 @@ export function EmailDashboardClient({
   recordDeliveryPage,
   flowTargets,
   templateSettings,
+  resultEmailPreviews,
   interviewScheduleTemplates,
   interviewSchedulePreviews,
   emailCenterConfig,
@@ -112,6 +113,7 @@ export function EmailDashboardClient({
   recordDeliveryPage: EmailDeliveryPage;
   flowTargets: FlowTarget[];
   templateSettings: TemplateSetting[];
+  resultEmailPreviews: ResultEmailPreviews;
   interviewScheduleTemplates: InterviewScheduleTemplates;
   interviewSchedulePreviews: InterviewSchedulePreviews;
   emailCenterConfig: EmailCenterConfig;
@@ -249,6 +251,7 @@ export function EmailDashboardClient({
     content = (
       <EmailTemplateManagementSection
         templateSettings={safeTemplateSettings}
+        resultEmailPreviews={resultEmailPreviews}
         interviewScheduleTemplates={interviewScheduleTemplates}
         interviewSchedulePreviews={interviewSchedulePreviews}
         selectedFlowTitle={selectedFlow?.title}

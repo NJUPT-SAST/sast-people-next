@@ -138,6 +138,7 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
                     title={batch.flowTitle}
                     html={preview}
                     triggerLabel="预览"
+                    triggerSize="sm"
                   />
                   <EmailBatchStatusDialog batch={batch} />
                   {canRecover && <RecoverStaleBatchButton batchId={batch.id} />}

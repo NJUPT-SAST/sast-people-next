@@ -6,7 +6,10 @@ import {
   getInterviewScheduleEmailPreviews,
   listInterviewScheduleEmailTemplates,
 } from "@/action/email/interview-template";
-import { listEmailTemplateSettings } from "@/action/email/template";
+import {
+  getResultEmailPreviews,
+  listEmailTemplateSettings,
+} from "@/action/email/template";
 import { listEmailFlowTargets } from "@/action/email/workspace";
 import { EmailDashboardClient } from "@/components/email/emailDashboardClient";
 import { PageTitle } from "@/components/route";
@@ -38,6 +41,7 @@ export default async function EmailDashboardPage({
     recordDeliveryPage,
     flowTargets,
     templateSettings,
+    resultEmailPreviews,
     interviewScheduleTemplates,
     interviewSchedulePreviews,
   ] = data;
@@ -80,6 +84,7 @@ export default async function EmailDashboardPage({
           recordDeliveryPage={recordDeliveryPage}
           flowTargets={flowTargets}
           templateSettings={templateSettings}
+          resultEmailPreviews={resultEmailPreviews}
           interviewScheduleTemplates={interviewScheduleTemplates}
           interviewSchedulePreviews={interviewSchedulePreviews}
           emailCenterConfig={emailCenterConfig}
@@ -131,6 +136,7 @@ async function loadEmailDashboardData(
     }),
     listEmailFlowTargets(),
     listEmailTemplateSettings(),
+    getResultEmailPreviews(),
     listInterviewScheduleEmailTemplates(),
     getInterviewScheduleEmailPreviews(),
   ]);

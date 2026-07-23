@@ -9,6 +9,7 @@ import {
   defaultResultEmailTemplateSettings,
   type ResultEmailTemplateSetting,
 } from "@/lib/email/template-settings";
+import { renderEmailTemplate } from "@/lib/email-center/render";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -96,6 +97,29 @@ export async function listEmailTemplateSettings() {
       ...saved,
     };
   });
+}
+
+export async function getResultEmailPreviews() {
+  await verifyRole(3);
+  const settings = await listEmailTemplateSettings();
+  const entries = await Promise.all(
+    settings.map(async (setting) => {
+      const accept = setting.templateKey.endsWith("accepted");
+      const rendered = await renderEmailTemplate({
+        templateKey: accept
+          ? "recruitment.result.accepted"
+          : "recruitment.result.rejected",
+        variables: {
+          name: "同学",
+          flowName: "示例流程",
+          setting,
+          genericGreeting: true,
+        },
+      });
+      return [setting.templateKey, rendered.html] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as Record<string, string>;
 }
 
 export async function getEmailTemplateSetting(templateKey: string) {

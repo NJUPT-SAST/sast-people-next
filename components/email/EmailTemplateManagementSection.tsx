@@ -34,6 +34,7 @@ import type {
   EmailTemplateDefinition,
   InterviewSchedulePreviews,
   InterviewScheduleTemplates,
+  ResultEmailPreviews,
   TemplateSetting,
 } from "./emailDashboardTypes";
 
@@ -79,7 +80,13 @@ function TemplateField({
   );
 }
 
-function TemplateDialog({ setting }: { setting: TemplateSetting }) {
+function TemplateDialog({
+  setting,
+  previewHtml,
+}: {
+  setting: TemplateSetting;
+  previewHtml: string | null;
+}) {
   const router = useRouter();
   const isAcceptedTemplate = setting.templateKey.endsWith("accepted");
 
@@ -205,8 +212,14 @@ function TemplateDialog({ setting }: { setting: TemplateSetting }) {
               />
             </>
           )}
-          <div className="flex justify-end md:col-span-2">
-            <Button type="submit" className="w-full lg:w-auto">
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end md:col-span-2">
+            <PreviewDialog
+              title={`${getSettingLabel(setting.templateKey)}样张`}
+              html={previewHtml}
+              triggerLabel="预览"
+              description="样张使用固定示例数据；保存后刷新页面可看到最新链接与文案。"
+            />
+            <Button type="submit" className="w-full sm:w-auto">
               <Save data-icon="inline-start" />
               保存模板
             </Button>
@@ -461,12 +474,14 @@ export function TestEmailButton({
 
 export function EmailTemplateManagementSection({
   templateSettings,
+  resultEmailPreviews,
   interviewScheduleTemplates,
   interviewSchedulePreviews,
   selectedFlowTitle,
   templateDefinitions,
 }: {
   templateSettings: TemplateSetting[];
+  resultEmailPreviews: ResultEmailPreviews;
   interviewScheduleTemplates: InterviewScheduleTemplates;
   interviewSchedulePreviews: InterviewSchedulePreviews;
   selectedFlowTitle?: string;
@@ -533,7 +548,10 @@ export function EmailTemplateManagementSection({
                   </div>
                   
                   <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
-                    <TemplateDialog setting={setting} />
+                    <TemplateDialog
+                      setting={setting}
+                      previewHtml={resultEmailPreviews[setting.templateKey] ?? null}
+                    />
                     <TestEmailButton
                       flowName={selectedFlowTitle}
                       templateDefinitions={templateDefinitions}

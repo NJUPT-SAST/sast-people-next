@@ -186,6 +186,7 @@ export function SendConfirmDialog({
               title={`${flow.title} · ${resultLabel}`}
               html={previewHtml}
               triggerLabel="预览"
+              triggerSize="sm"
             />
           </div>
 

@@ -3,6 +3,7 @@
 import { Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { ComponentProps } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,17 +22,24 @@ export function PreviewDialog({
   triggerLabel = "模板样张",
   description = "样张使用占位称呼；真实发送时会替换为收件人姓名。",
   triggerClassName,
+  triggerSize = "default",
 }: {
   title: string;
   html: string | null;
   triggerLabel?: string;
   description?: string;
   triggerClassName?: string;
+  triggerSize?: ComponentProps<typeof Button>["size"];
 }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" disabled={!html} className={triggerClassName}>
+        <Button
+          variant="outline"
+          size={triggerSize}
+          disabled={!html}
+          className={triggerClassName}
+        >
           <Eye data-icon="inline-start" />
           {triggerLabel}
         </Button>
