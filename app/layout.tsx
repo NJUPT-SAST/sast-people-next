@@ -6,8 +6,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: "SAST People",
-  description: "南京邮电大学大学生科学技术协会招新与留任平台",
-  icons: { icon: "/images/sastpeople-logo-black.jpg" },
+  description: "南京邮电大学大学生科学技术协会成员与组织平台",
+  icons: { icon: "/images/crocodile-favicon.png" },
 };
 
 export const viewport: Viewport = {
