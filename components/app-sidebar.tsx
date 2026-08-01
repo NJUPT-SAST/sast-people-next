@@ -143,8 +143,13 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
                   priority
                   className="size-12 shrink-0 object-contain"
                 />
-                <span className="truncate text-[15px] font-semibold tracking-tight">
-                  SAST People
+                <span className="flex min-w-0 flex-col leading-tight">
+                  <span className="truncate text-[15px] font-semibold tracking-tight">
+                    SAST People
+                  </span>
+                  <span className="truncate text-[11px] text-muted-foreground">
+                    成员与组织平台
+                  </span>
                 </span>
               </Link>
             </SidebarMenuButton>

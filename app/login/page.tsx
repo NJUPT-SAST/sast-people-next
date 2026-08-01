@@ -82,7 +82,7 @@ const Login = async () => {
                 <p className="text-sm font-semibold tracking-tight text-[#18231d]">
                   SAST People
                 </p>
-                <p className="text-[11px] text-[#7a877f]">人事平台</p>
+                <p className="text-[11px] text-[#7a877f]">成员与组织平台</p>
               </div>
             </div>
 

@@ -8,7 +8,7 @@ import { PageBreadcrumb } from '@/components/route';
 
 export const metadata: Metadata = {
   title: 'SAST People',
-  description: '南京邮电大学大学生科学技术协会People平台',
+  description: '南京邮电大学大学生科学技术协会成员与组织平台',
 };
 
 export const dynamic = 'force-dynamic';
