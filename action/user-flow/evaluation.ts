@@ -64,23 +64,28 @@ async function findEvaluationStepIdInTx(
 }
 
 async function findActiveEvaluationInTx(tx: Tx, userFlowId: number) {
-  const [active] = await tx
-    .select({
-      id: interviewEvaluation.id,
-      status: interviewEvaluation.status,
-      meetingLink: interviewEvaluation.meetingLink,
-    })
-    .from(interviewEvaluation)
-    .where(
-      and(
-        eq(interviewEvaluation.fkUserFlowId, userFlowId),
-        inArray(interviewEvaluation.status, ACTIVE_STATUSES),
-      ),
-    )
-    .orderBy(desc(interviewEvaluation.id))
-    .limit(1);
+  const selectByStatus = (status: "approved" | "submitted") =>
+    tx
+      .select({
+        id: interviewEvaluation.id,
+        status: interviewEvaluation.status,
+        meetingLink: interviewEvaluation.meetingLink,
+      })
+      .from(interviewEvaluation)
+      .where(
+        and(
+          eq(interviewEvaluation.fkUserFlowId, userFlowId),
+          eq(interviewEvaluation.status, status),
+        ),
+      )
+      .orderBy(desc(interviewEvaluation.id))
+      .limit(1);
 
-  return active ?? null;
+  const [approved] = await selectByStatus("approved");
+  if (approved) return approved;
+
+  const [submitted] = await selectByStatus("submitted");
+  return submitted ?? null;
 }
 
 async function moveUserFlowInTx(
