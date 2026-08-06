@@ -477,7 +477,7 @@ export async function createInterviewSchedule(
           startsAt,
           endsAt,
           timezone: DEFAULT_TIMEZONE,
-          idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}-recreate`,
+          idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}-${endsAt.getTime()}-recreate`,
         });
       }
     } else {
@@ -490,7 +490,7 @@ export async function createInterviewSchedule(
         startsAt,
         endsAt,
         timezone: DEFAULT_TIMEZONE,
-        idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}`,
+        idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}-${endsAt.getTime()}`,
       });
     }
 

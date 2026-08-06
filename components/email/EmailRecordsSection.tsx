@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,12 @@ export function EmailRecordsSection({
   const [status, setStatus] = useState(filters.status || "all");
   const [category, setCategory] = useState(filters.category || "all");
   const [flowId, setFlowId] = useState(filters.flowId || "all");
+
+  useEffect(() => {
+    setStatus(filters.status || "all");
+    setCategory(filters.category || "all");
+    setFlowId(filters.flowId || "all");
+  }, [filters.status, filters.category, filters.flowId]);
   const start =
     deliveryPage.totalCount === 0
       ? 0

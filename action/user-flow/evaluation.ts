@@ -239,6 +239,32 @@ export const createEvaluation = async (
             },
           };
         }
+
+        const [activeSchedule] = await tx
+          .select({ meetingStatus: interviewSchedule.meetingStatus })
+          .from(interviewSchedule)
+          .where(
+            and(
+              eq(interviewSchedule.fkUserFlowId, userFlowId),
+              eq(interviewSchedule.status, "created"),
+            ),
+          )
+          .orderBy(desc(interviewSchedule.startsAt))
+          .limit(1);
+
+        if (!activeSchedule) {
+          return {
+            success: false as const,
+            error: { message: "请先创建面试日程并确认结束后再提交面评" },
+          };
+        }
+
+        if (activeSchedule.meetingStatus !== "ended") {
+          return {
+            success: false as const,
+            error: { message: "请先确认面试结束后再提交面评" },
+          };
+        }
       }
 
       await moveUserFlowInTx(
