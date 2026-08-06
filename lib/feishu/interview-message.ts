@@ -100,7 +100,7 @@ export type InterviewScheduleCardInput = {
   flowName: string;
   candidateName: string;
   candidateStudentId?: string | null;
-  candidatePhone?: string | null;
+  candidateQq?: string | null;
   startsAt: Date;
   endsAt: Date;
   location?: string | null;
@@ -118,7 +118,7 @@ export async function sendInterviewScheduleCard({
   flowName,
   candidateName,
   candidateStudentId,
-  candidatePhone,
+  candidateQq,
   startsAt,
   endsAt,
   location,
@@ -130,7 +130,7 @@ export async function sendInterviewScheduleCard({
 }: InterviewScheduleCardInput) {
   const peopleUrl = getPeopleUrl("/dashboard/recruitment");
   const actions = [
-    meetingLink ? button("进入会议", meetingLink, "primary") : null,
+    meetingLink ? button("打开留档会议", meetingLink, "primary") : null,
     scheduleLink ? button("查看日程", scheduleLink) : null,
     button("打开 People 面评", peopleUrl),
   ].filter((item): item is Record<string, unknown> => Boolean(item));
@@ -141,16 +141,17 @@ export async function sendInterviewScheduleCard({
     uuid: `people-interview-schedule-${scheduleId}-${uuidSuffix}`,
     card: createCard({
       title,
-      subtitle: "People 面试日程",
+      subtitle: "People 线下面试留档",
       lines: [
         line("流程", flowName),
         line("面试同学", candidateName),
         line("学号", candidateStudentId),
-        line("手机号", candidatePhone),
+        line("QQ", candidateQq),
         line("开始", formatDateTime(startsAt)),
         line("结束", formatDateTime(endsAt)),
         line("地点", location),
-        "面试结束后请回到 People 提交面评；飞书妙记生成后会自动同步。",
+        "飞书会议仅用于录制与妙记留档，候选人不通过此链接参会。",
+        "面试结束后请回到 People 提交面评；飞书妙记生成后会自动同步到归档。",
       ],
       actions,
     }),
@@ -186,7 +187,7 @@ export async function sendInterviewCancelledCard({
     uuid: `people-interview-schedule-cancel-${scheduleId}-${Date.now()}`,
     card: createCard({
       title,
-      subtitle: "People 面试日程",
+      subtitle: "People 线下面试留档",
       template: "red",
       lines: [
         line("流程", flowName),

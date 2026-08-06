@@ -73,7 +73,6 @@ describe("renderEmailTemplate", () => {
         organizerName: "讲师",
         startsAt,
         endsAt,
-        meetingLink: "",
       },
     });
 

@@ -23,14 +23,6 @@ import {
   FormMessage,
 } from "../ui/form";
 import { Input } from "../ui/input";
-import { useCollegeList } from "@/hooks/useCollegeList";
-import {
-  Select,
-  SelectItem,
-  SelectValue,
-  SelectTrigger,
-  SelectContent,
-} from "../ui/select";
 
 export const fullUserSchema = createInsertSchema(user, {
   name: z
@@ -66,7 +58,6 @@ export const basicInfoSchema = fullUserSchema.pick({
   qq: true,
 });
 export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
-  const collegeList = useCollegeList();
   const linkProfileUrl =
     process.env.NEXT_PUBLIC_LINK_PROFILE_URL || "https://link.sast.fun";
   const basicInfoForm = useForm<z.infer<typeof basicInfoSchema>>({
@@ -184,24 +175,11 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
                 <FormItem>
                   <FormLabel>学院</FormLabel>
                   <FormControl>
-                    <Select
+                    <Input
+                      {...field}
+                      placeholder="请填写你所在的学院"
                       value={field.value || ""}
-                      onValueChange={field.onChange}
-                      disabled
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="请选择你的学院" />
-                      </SelectTrigger>
-                      {collegeList.length > 0 && (
-                        <SelectContent position="popper">
-                          {collegeList.map((college) => (
-                            <SelectItem key={college} value={college}>
-                              {college}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      )}
-                    </Select>
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -403,9 +403,12 @@ test.describe("recruitment evaluation approval", () => {
     ).toBeVisible();
 
     const evaluationCard = page.locator('[data-slot="card"]', {
-      hasText: "E2E 面评内容：表达清晰，建议通过。",
+      hasText: flowTitle,
     });
-    await evaluationCard.getByRole("button", { name: "通过" }).click();
+    await evaluationCard
+      .filter({ hasText: "E2E 面评内容：表达清晰，建议通过。" })
+      .getByRole("button", { name: "通过", exact: true })
+      .click();
 
     await expect(page.getByText("面评已通过")).toBeVisible();
 

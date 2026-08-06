@@ -63,7 +63,7 @@ export const ManageTable = ({
       accessorKey: 'email',
       header: '邮箱',
     },
-    ...(role >= 3 ? [{
+    ...(role >= 2 ? [{
       accessorKey: 'qq' as const,
       header: 'QQ',
     }] : []),
@@ -180,7 +180,7 @@ export const ManageTable = ({
                       <span className="text-foreground">{row.original.phone || '-'}</span>
                     </div>
                   )}
-                  {role >= 3 && (
+                  {role >= 2 && (
                     <div className="flex justify-between items-center text-muted-foreground">
                       <span>QQ</span>
                       <span className="text-foreground">{row.original.qq || '-'}</span>
@@ -224,4 +224,3 @@ export const ManageTable = ({
     </div>
   );
 };
-

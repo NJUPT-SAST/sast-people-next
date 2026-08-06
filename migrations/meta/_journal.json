@@ -190,6 +190,27 @@
       "when": 1770000000018,
       "tag": "0026_email_center_production_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1770000000019,
+      "tag": "0027_interview_schedule_event_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1770000000020,
+      "tag": "0028_offline_interview_email_copy",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1770000000021,
+      "tag": "0029_interview_evaluation_recommendation",
+      "breakpoints": true
     }
   ]
 }

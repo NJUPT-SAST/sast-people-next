@@ -134,7 +134,7 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
           </p>
         </div>
       </div>
-      <div className="relative h-[300px] overflow-hidden rounded-xl border bg-muted/40 shadow-inner sm:h-[320px]">
+      <div className="relative h-[300px] overflow-hidden rounded-lg border bg-muted/40 shadow-inner sm:h-[320px]">
         {!paused && (
           <video
             ref={ref as React.RefObject<HTMLVideoElement>}
@@ -143,7 +143,7 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
         )}
         {paused && (
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl p-5">
+            <div className="flex w-full max-w-sm flex-col gap-4 p-5">
               <div className="flex flex-col items-center gap-2 text-center">
                 <div className="rounded-full bg-primary/10 p-2.5 text-primary">
                   <QrCode className="size-5" />

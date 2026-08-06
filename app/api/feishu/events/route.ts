@@ -1,42 +1,24 @@
 import { db } from "@/db/drizzle";
-import { interviewSchedule } from "@/db/schema";
+import { interviewEvaluation, interviewSchedule } from "@/db/schema";
 import { getFeishuMinuteInfo } from "@/lib/feishu/interview-schedule";
+import {
+  getMeetingCalendarEventId,
+  getMeetingEndedAt,
+  getMeetingId,
+  getMinuteSourceEntityId,
+  getMinuteTitle,
+  getMinuteToken,
+  getMinuteUrl,
+  type FeishuMeetingEndedEvent,
+  type FeishuMinuteGeneratedEvent,
+} from "@/lib/feishu/interview-event";
 import { sendInterviewMinuteCard } from "@/lib/feishu/interview-message";
 import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import * as lark from "@larksuiteoapi/node-sdk";
-import { and, eq, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-
-type FeishuMeetingEndedEvent = {
-  event_id?: string;
-  event_type?: string;
-  meeting?: {
-    calendar_event_id?: string;
-  };
-};
-
-type FeishuMinuteGeneratedEvent = {
-  event_id?: string;
-  event_type?: string;
-  minute_token?: string;
-  title?: string;
-  url?: string;
-  minute?: {
-    token?: string;
-    minute_token?: string;
-    title?: string;
-    url?: string;
-    minute_source?: {
-      source_entity_id?: string;
-    };
-    source_entity_id?: string;
-  };
-  minute_source?: {
-    source_entity_id?: string;
-  };
-};
 
 type FeishuUrlVerificationPayload = {
   type?: string;
@@ -56,6 +38,7 @@ function getEventDispatcher() {
     dispatcher.register({
       "vc.meeting.meeting_ended_v1": handleMeetingEnded,
       "vc.meeting.all_meeting_ended_v1": handleMeetingEnded,
+      "vc.meeting.participant_meeting_ended_v1": handleMeetingEnded,
       "minutes.minute.generated_v1": handleMinuteGenerated,
     } as lark.EventHandles);
   }
@@ -63,30 +46,19 @@ function getEventDispatcher() {
   return dispatcher;
 }
 
-function getMinuteToken(event: FeishuMinuteGeneratedEvent) {
-  return event.minute_token ?? event.minute?.minute_token ?? event.minute?.token ?? null;
-}
-
-function getMinuteTitle(event: FeishuMinuteGeneratedEvent) {
-  return event.title ?? event.minute?.title ?? null;
-}
-
-function getMinuteUrl(event: FeishuMinuteGeneratedEvent) {
-  return event.url ?? event.minute?.url ?? null;
-}
-
-function getMinuteSourceEntityId(event: FeishuMinuteGeneratedEvent) {
-  return (
-    event.minute_source?.source_entity_id ??
-    event.minute?.minute_source?.source_entity_id ??
-    event.minute?.source_entity_id ??
-    null
-  );
-}
-
 async function handleMeetingEnded(event: FeishuMeetingEndedEvent) {
-  const calendarEventId = event.meeting?.calendar_event_id;
-  if (!calendarEventId) return;
+  const calendarEventId = getMeetingCalendarEventId(event);
+  const meetingId = getMeetingId(event);
+  if (!calendarEventId && !meetingId) return;
+
+  const scheduleMatch = calendarEventId && meetingId
+    ? or(
+        eq(interviewSchedule.providerEventId, calendarEventId),
+        eq(interviewSchedule.providerMeetingId, meetingId),
+      )
+    : calendarEventId
+      ? eq(interviewSchedule.providerEventId, calendarEventId)
+      : eq(interviewSchedule.providerMeetingId, meetingId as string);
 
   const [schedule] = await db
     .select({
@@ -94,17 +66,35 @@ async function handleMeetingEnded(event: FeishuMeetingEndedEvent) {
       userFlowId: interviewSchedule.fkUserFlowId,
       organizerId: interviewSchedule.fkOrganizerId,
       providerEventId: interviewSchedule.providerEventId,
+      providerMeetingId: interviewSchedule.providerMeetingId,
     })
     .from(interviewSchedule)
     .where(
       and(
-        eq(interviewSchedule.providerEventId, calendarEventId),
+        scheduleMatch,
         eq(interviewSchedule.status, "created"),
       ),
     )
     .limit(1);
 
   if (!schedule) return;
+
+  const [updatedSchedule] = await db
+    .update(interviewSchedule)
+    .set({
+      meetingStatus: "ended",
+      meetingEndedAt: getMeetingEndedAt(event),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(interviewSchedule.id, schedule.id),
+        eq(interviewSchedule.meetingStatus, "scheduled"),
+      ),
+    )
+    .returning({ id: interviewSchedule.id });
+
+  if (!updatedSchedule) return;
 
   await writeOperationAudit({
     actorId: schedule.organizerId,
@@ -114,7 +104,8 @@ async function handleMeetingEnded(event: FeishuMeetingEndedEvent) {
     metadata: {
       userFlowId: schedule.userFlowId,
       provider: "feishu",
-      providerEventId: calendarEventId,
+      providerEventId: schedule.providerEventId,
+      providerMeetingId: schedule.providerMeetingId,
       feishuEventId: event.event_id,
       feishuEventType: event.event_type,
     },
@@ -132,7 +123,9 @@ async function handleMinuteGenerated(event: FeishuMinuteGeneratedEvent) {
       organizerId: interviewSchedule.fkOrganizerId,
       providerEventId: interviewSchedule.providerEventId,
       providerReserveId: interviewSchedule.providerReserveId,
+      providerMeetingId: interviewSchedule.providerMeetingId,
       providerMeetingNo: interviewSchedule.providerMeetingNo,
+      evaluationId: interviewSchedule.fkEvaluationId,
     })
     .from(interviewSchedule)
     .where(
@@ -141,6 +134,7 @@ async function handleMinuteGenerated(event: FeishuMinuteGeneratedEvent) {
         or(
           eq(interviewSchedule.providerEventId, sourceEntityId),
           eq(interviewSchedule.providerReserveId, sourceEntityId),
+          eq(interviewSchedule.providerMeetingId, sourceEntityId),
           eq(interviewSchedule.providerMeetingNo, sourceEntityId),
         ),
       ),
@@ -175,13 +169,49 @@ async function handleMinuteGenerated(event: FeishuMinuteGeneratedEvent) {
     return;
   }
 
-  await db
+  const [updatedSchedule] = await db
     .update(interviewSchedule)
     .set({
       meetingMinuteLink: minuteUrl,
       updatedAt: new Date(),
     })
-    .where(eq(interviewSchedule.id, schedule.id));
+    .where(
+      and(
+        eq(interviewSchedule.id, schedule.id),
+        isNull(interviewSchedule.meetingMinuteLink),
+      ),
+    )
+    .returning({ id: interviewSchedule.id });
+
+  if (!updatedSchedule) return;
+
+  let evaluationId = schedule.evaluationId;
+  if (!evaluationId) {
+    const [evaluation] = await db
+      .select({ id: interviewEvaluation.id })
+      .from(interviewEvaluation)
+      .where(
+        and(
+          eq(interviewEvaluation.fkUserFlowId, schedule.userFlowId),
+          isNull(interviewEvaluation.meetingLink),
+          inArray(interviewEvaluation.status, ["submitted", "approved"]),
+        ),
+      )
+      .orderBy(desc(interviewEvaluation.id))
+      .limit(1);
+    evaluationId = evaluation?.id ?? null;
+  }
+  if (evaluationId) {
+    await db
+      .update(interviewEvaluation)
+      .set({ meetingLink: minuteUrl, updatedAt: new Date() })
+      .where(
+        and(
+          eq(interviewEvaluation.id, evaluationId),
+          isNull(interviewEvaluation.meetingLink),
+        ),
+      );
+  }
 
   await writeOperationAudit({
     actorId: schedule.organizerId,
@@ -193,12 +223,14 @@ async function handleMinuteGenerated(event: FeishuMinuteGeneratedEvent) {
       provider: "feishu",
       providerEventId: schedule.providerEventId,
       providerReserveId: schedule.providerReserveId,
+      providerMeetingId: schedule.providerMeetingId,
       providerMeetingNo: schedule.providerMeetingNo,
       sourceEntityId,
       feishuEventId: event.event_id,
       feishuEventType: event.event_type,
       minuteToken,
       minuteTitle,
+      evaluationId,
     },
   });
 
@@ -223,11 +255,18 @@ async function handleMinuteGenerated(event: FeishuMinuteGeneratedEvent) {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as FeishuUrlVerificationPayload;
+    const verificationToken = process.env.FEISHU_EVENT_VERIFICATION_TOKEN;
+    if (!verificationToken) {
+      logServerError(
+        "api:feishu:events",
+        new Error("FEISHU_EVENT_VERIFICATION_TOKEN is required"),
+        { path: request.nextUrl.pathname, method: request.method },
+      );
+      return NextResponse.json({ message: "feishu event verification is not configured" }, { status: 503 });
+    }
+
     if (payload.type === "url_verification") {
-      if (
-        process.env.FEISHU_EVENT_VERIFICATION_TOKEN &&
-        payload.token !== process.env.FEISHU_EVENT_VERIFICATION_TOKEN
-      ) {
+      if (payload.token !== verificationToken) {
         return NextResponse.json({ message: "invalid token" }, { status: 401 });
       }
 

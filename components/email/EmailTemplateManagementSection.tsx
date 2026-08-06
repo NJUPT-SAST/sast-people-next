@@ -268,7 +268,7 @@ function InterviewTemplateDialog({
         <DialogHeader className="pr-8">
           <DialogTitle>{definition.name}</DialogTitle>
           <DialogDescription>
-            编辑邮件开头的提示语。预约时间、地点、讲师和参会入口会自动生成在邮件信息卡片里。
+            编辑邮件开头的提示语。预约时间、地点和讲师会自动生成在邮件信息卡片里；候选人邮件不包含飞书会议入口。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -498,7 +498,7 @@ export function EmailTemplateManagementSection({
     (definition) => definition.category === "interview",
   );
   const templateCardClassName =
-    "group relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card p-4 transition-colors hover:bg-muted";
+    "group relative flex min-h-0 flex-col overflow-hidden border bg-card p-4 transition-colors hover:bg-muted";
 
   const resultDefinitionsMissing = templateDefinitions.filter(
     (definition) =>
@@ -516,7 +516,7 @@ export function EmailTemplateManagementSection({
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+      <section className="overflow-hidden rounded-lg border bg-card">
         <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between lg:p-5">
           <div>
             <h2 className="text-sm font-semibold">模板管理</h2>
@@ -630,5 +630,3 @@ export function EmailTemplateManagementSection({
     </div>
   );
 }
-
-

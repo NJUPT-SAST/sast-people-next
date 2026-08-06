@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 import { ManageTable } from "./manageTable";
 
@@ -79,5 +79,33 @@ describe("ManageTable", () => {
     );
 
     expect(screen.getAllByText("暂时没有用户数据")[0]).toBeInTheDocument();
+  });
+
+  it("shows QQ but not phone numbers to lecturers", () => {
+    const { container } = render(
+      <ManageTable
+        users={[
+          {
+            id: 2,
+            name: "李四",
+            studentId: "2026002",
+            phone: "13800138001",
+            email: "ls@example.com",
+            qq: "200000",
+            createdAt: new Date("2026-03-22T00:00:00.000Z"),
+          },
+        ] as never}
+        totalCount={1}
+        totalPages={1}
+        search=""
+        currentPage={1}
+        role={2}
+      />,
+    );
+
+    expect(within(container).getAllByText("QQ").length).toBeGreaterThan(0);
+    expect(within(container).getAllByText("200000").length).toBeGreaterThan(0);
+    expect(within(container).queryByText("手机号码")).not.toBeInTheDocument();
+    expect(within(container).queryByText("13800138001")).not.toBeInTheDocument();
   });
 });

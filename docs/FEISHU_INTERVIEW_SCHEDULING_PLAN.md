@@ -12,9 +12,9 @@
 People 的非笔试流程需要支持面试日程预约，包括：
 
 - 讲师在 People 中预约面试；
-- People 创建飞书日程和飞书会议；
+- People 为线下面试创建内部飞书日程和留档会议；
 - People 保存飞书日程 ID、日程链接、会议链接和面试时间；
-- 面试同学收到邮件，邮件中展示面试时间、流程信息、讲师信息、飞书会议链接和飞书日程链接；
+- 面试同学收到邮件，邮件中展示线下面试时间、地点、流程信息和讲师信息，不展示飞书会议或日程链接；
 - 后续接入飞书应用事件时，可以复用同一套身份绑定和日程记录。
 
 该功能需要支持两种打开入口，但登录入口只有一种：
@@ -39,16 +39,16 @@ People 的业务身份必须统一使用 SAST Link 用户 ID，登录流程必�
 - 登录流程统一走 SAST Link；讲师及以上进入 dashboard 后在侧边栏底部展示飞书授权状态和绑定入口；
 - 预约时使用讲师个人 `user_access_token` 创建飞书会议和主日历日程；
 - 创建前调用飞书 Calendar v4 `freebusy.list` 检查讲师主日历忙闲状态，只有确认时间冲突时阻断预约；
-- 创建日程后写入 `interview_schedule`，飞书会议链接和飞书日程链接分别保存；
-- 面试通知邮件使用独立 `interview.schedule` 模板，支持邮件管理页编辑、预约前预览、改约/取消状态展示；
+- 创建日程后写入 `interview_schedule`，并保存飞书日程 ID、会议唯一 ID、会议链接和日程链接；
+- 面试通知邮件使用独立 `interview.schedule` 模板，支持邮件管理页编辑、预约前预览、改约/取消状态展示；候选人邮件只表达线下到场安排；
 - 非生产环境邮件会重定向到 `EMAIL_TEST_RECIPIENT`，默认 `b24150524@njupt.edu.cn`；
 - 飞书授权成功、预约成功、改约、取消、面试前提醒、面评待提交和妙记同步后会通过飞书 IM v1 给讲师发送机器人卡片提醒，提醒失败不影响主流程；
 - 如果配置 `FEISHU_INTERVIEW_CHAT_ID`，预约、改约和取消会同步发送隐私收敛后的群卡片，不包含手机号和备注；
 - People 内改约会同步更新飞书会议预约和飞书日程，并重发候选人邮件；
 - People 内取消预约会同步删除飞书日程和飞书会议预约，并把本地日程标记为 `cancelled`；
-- 妙记由飞书自动生成，People 通过飞书 `minutes.minute.generated_v1` 事件回调写入日程，不要求讲师手动填写；
-- 飞书事件回调 `/api/feishu/events` 已接入会议结束事件和妙记生成事件，收到 `minutes.minute.generated_v1` 后会按事件来源 ID 找到面试日程，并优先通过 `minutes.v1.minute.get` 获取飞书妙记 URL 后回填；
-- 面评 UI 按“先预约、日程结束后再写面评”的流程展示。
+- 妙记由飞书自动生成，People 通过飞书 `minutes.minute.generated_v1` 事件回调回填日程和对应面评档案，不要求讲师手动填写；
+- 飞书事件回调 `/api/feishu/events` 已接入会议结束事件和妙记生成事件；会议结束会更新日程的真实结束状态，妙记会按会议唯一 ID 回填链接，重复事件不会重复通知；
+- 面评 UI 按“先预约线下面试、确认结束后由讲师提交面评与建议、管理员终审”的流程展示；讲师可在事件回调缺失时手动确认已结束。面评正文为必填项，讲师建议通过和建议不通过都会留档；管理员归档页仅保留有完整面评的管理员决策，并支持筛选检索。归档后的最终决定不可撤销或改判。通过后的权限调整走成员管理，不通过后须重新报名并完整走流程。
 
 仍需外部配合：
 
@@ -83,7 +83,7 @@ People 的业务身份必须统一使用 SAST Link 用户 ID，登录流程必�
 - 开通视频会议预约权限，用于创建飞书会议；
 - 开启机器人能力，并开通发送消息权限，用于向讲师发送预约提醒；
 - 配置事件订阅回调地址，例如 `https://<people-host>/api/feishu/events`；
-- 订阅 `vc.meeting.meeting_ended_v1` 或 `vc.meeting.all_meeting_ended_v1`；
+- 订阅项目应用可用的会议结束事件和 `minutes.minute.generated_v1`；发布前需用飞书事件调试确认实际 event key 与 payload 字段，并覆盖 `vc.meeting.participant_meeting_ended_v1` 兼容路径；
 - 配置 `FEISHU_EVENT_VERIFICATION_TOKEN` 和可选的 `FEISHU_EVENT_ENCRYPT_KEY`；
 - 配置 `PEOPLE_PUBLIC_BASE_URL`，用于飞书卡片中的 People 直达按钮；
 - 可选配置 `FEISHU_INTERVIEW_CHAT_ID`，用于向指定群发送面试日程概览；
@@ -160,17 +160,20 @@ People 的业务身份必须统一使用 SAST Link 用户 ID，登录流程必�
 | `timezone` | varchar | 默认 `Asia/Shanghai` |
 | `feishu_calendar_id` | varchar | 飞书 calendar ID |
 | `feishu_event_id` | varchar | 飞书 event ID |
+| `provider_meeting_id` | varchar nullable | 飞书会议唯一 ID，用于关联会议结束和妙记事件 |
 | `meeting_link` | text | 飞书会议链接 |
 | `schedule_link` | text nullable | 飞书日程详情链接 |
 | `meeting_minute_link` | text nullable | 飞书妙记/日程妙记链接 |
 | `status` | varchar | `created`、`cancelled`、`failed` |
+| `meeting_status` | varchar | `scheduled`、`ended` |
+| `meeting_ended_at` | timestamp nullable | 飞书会议实际结束时间或讲师手动确认时间 |
 | `email_sent_at` | timestamp nullable | 面试通知邮件发送时间 |
 | `created_at` | timestamp | 默认当前时间 |
 | `updated_at` | timestamp | 默认当前时间 |
 
 建议约束：
 
-- 每个 `fk_user_flow_id` 同一时间只允许一个 active schedule；
+- 每个 `fk_user_flow_id` 同一时间只允许一个 active schedule（数据库部分唯一索引）；
 - 为 `fk_organizer_id` 建索引；
 - 为 `(feishu_calendar_id, feishu_event_id)` 建索引。
 
@@ -257,7 +260,7 @@ export async function createFeishuInterviewEvent(params: {
 
 实现要点：
 
-- 使用飞书 Calendar v4 `calendarEvent.create` 创建主日历日程，并从日程 `vchat` 取得会议链接；
+- 使用飞书 Calendar v4 `calendarEvent.create` 创建主日历日程，并从日程 `vchat` 取得留档会议链接；候选人不是飞书日程参与人；
 - 飞书 VC v1 `reserve.apply` 在当前租户可能返回不支持时，不作为唯一会议创建路径；
 - 使用 Calendar v4 `freebusy.list` 在创建前检查讲师主日历忙闲状态；
 - 使用 Calendar v4 `calendarEventAttendee.create` 添加讲师本人作为参与者；候选人可能没有组织内飞书账号，因此候选人通知以 People 邮件为准。
@@ -337,8 +340,6 @@ export async function scheduleInterview(params: {
 - 面试开始时间；
 - 面试结束时间；
 - 时区；
-- 会议链接；
-- 日程链接；
 - 可选备注；
 - 联系邮箱。
 
@@ -380,13 +381,13 @@ export async function renderInterviewInviteEmail(params: {
 - 在邮件管理页新增“面试预约通知”模板入口；
 - 支持预览真实渲染效果；
 - 支持编辑标题、正文说明、备注提示和落款等非结构化文案；
-- 保留系统变量占位符，例如候选人姓名、流程名称、讲师姓名、开始时间、结束时间和会议链接；
-- 保存模板配置时校验必需变量，避免误删会议链接或时间信息；
+- 保留系统变量占位符，例如候选人姓名、流程名称、讲师姓名、开始时间、结束时间和地点；
+- 保存模板配置时校验必需变量，避免误删时间或地点信息；
 - 支持发送测试邮件到指定南邮邮箱。
 
 该能力不应复用结果邮件的 `accept/rejected` 语义。推荐新增独立的 `interview.schedule` 模板 key，或先扩展 `email_template_setting` 支持更多模板类型。
 
-当前实现已经新增 `email_template_content`，邮件管理页可以编辑和预览 `interview.schedule` 的标题、主标题、正文说明和落款。保存时会校验必需变量，避免误删候选人、流程、讲师、时间、会议链接和日程链接等信息。讲师在预约弹窗提交前也可以预览本次实际邮件；改约和取消会发送对应状态邮件。
+当前实现已经新增 `email_template_content`，邮件管理页可以编辑和预览 `interview.schedule` 的标题、主标题、正文说明和落款。保存时会校验候选人、流程、讲师、时间和地点等必需变量。讲师在预约弹窗提交前也可以预览本次实际邮件；改约和取消会发送对应状态邮件。
 
 ## 9. 前端改动
 
@@ -395,9 +396,9 @@ export async function renderInterviewInviteEmail(params: {
 修改 `components/recruitment/evaluationTable.tsx`：
 
 - 在候选人行上新增“预约面试”按钮，打开开始时间、结束时间和备注输入；
-- 创建成功后在候选人行展示飞书会议链接、日程链接和面试时间；
-- 预约日程结束前，不展示“通过”“不通过”面评操作；
-- 预约日程结束后，展示“通过”“不通过”；提交待审批面评后展示“修改”；
+- 创建成功后在候选人行展示内部留档会议、日程链接和线下面试时间；
+- 预约日程结束前，不展示面评操作；
+- 预约日程结束后，讲师填写并提交面评；管理员在审批页决定通过或驳回；
 - 面评弹窗只保留面评内容输入，妙记链接由飞书事件自动同步后展示；
 - 飞书授权状态展示在 dashboard 侧边栏底部，只对讲师及以上可见。
 
@@ -488,6 +489,6 @@ export async function renderInterviewInviteEmail(params: {
 - 飞书网页应用可以打开 People dashboard；当前不通过飞书入口自动创建 People session，未登录时仍回到 SAST Link 登录；
 - 使用用户 OAuth 创建日程时，飞书日程组织者是讲师本人；
 - People 保存 `calendar_id`、`event_id`、会议链接、开始/结束时间和创建讲师 Link 用户 ID；
-- 面试同学收到包含会议链接、日程链接和面试时间的邮件；
+- 面试同学收到包含线下面试时间、地点和备注的邮件，不包含会议或日程链接；
 - 预约失败时，讲师能看到明确错误，服务端有日志；
 - 飞书 token 不会出现在客户端代码、页面数据或日志中。

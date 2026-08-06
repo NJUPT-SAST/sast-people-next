@@ -45,7 +45,7 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
 
   if (!safeProbList.length) {
     return (
-      <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+      <div className="border-y border-dashed px-4 py-4 text-sm text-muted-foreground">
         当前流程下没有可用于阅卷的题目。
       </div>
     );
@@ -53,7 +53,7 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
 
   return (
     <div className="mt-5 flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y bg-muted/20 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">已选 {safeSelectedProbs.length} 题</Badge>
           <Badge variant="outline">总分 {totalScore} 分</Badge>
@@ -85,7 +85,7 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
           return (
             <label
               key={problem.id}
-              className="flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors hover:bg-muted/20"
+              className="flex cursor-pointer items-start gap-3 rounded-md border bg-background p-4 transition-colors hover:bg-muted/20"
             >
               <Checkbox
                 checked={checked}

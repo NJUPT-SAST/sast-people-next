@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { act } from "react";
 
-import { SelectedRangeDisplay } from "./selectedRangeDisplay";
+import { ReviewRangeNotice, SelectedRangeDisplay } from "./selectedRangeDisplay";
 
 describe("SelectedRangeDisplay", () => {
   beforeEach(() => {
@@ -12,6 +12,30 @@ describe("SelectedRangeDisplay", () => {
     render(<SelectedRangeDisplay />);
 
     expect(screen.getByText("未设置阅卷范围")).toBeInTheDocument();
+  });
+
+  it("shows the notice only when a review range is missing", () => {
+    render(<ReviewRangeNotice />);
+
+    expect(
+      screen.getByText("请先设置上方【阅卷范围】，再开始阅卷。"),
+    ).toBeInTheDocument();
+
+    act(() => {
+      window.localStorage.setItem(
+        "people_selectedProbs",
+        JSON.stringify({
+          flowTypeId: 1,
+          stepId: 2,
+          problemList: [{ id: 3, name: "算法题", maxPoint: 100 }],
+        }),
+      );
+      window.dispatchEvent(new Event("reviewRangeUpdated"));
+    });
+
+    expect(
+      screen.queryByText("请先设置上方【阅卷范围】，再开始阅卷。"),
+    ).not.toBeInTheDocument();
   });
 
   it("reads valid localStorage data and reacts to update events", async () => {

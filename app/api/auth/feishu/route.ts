@@ -24,13 +24,16 @@ export async function GET(request: NextRequest) {
 
   const cookieStore = await cookies();
   const expectedState = cookieStore.get(FEISHU_OAUTH_STATE)?.value;
-  if (expectedState && (!state || state !== expectedState)) {
+  if (!expectedState || !state || state !== expectedState) {
     return NextResponse.json({ message: "invalid oauth state" }, { status: 400 });
   }
 
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
   try {
     session = await verifySession();
+    if (session.role < 2) {
+      return NextResponse.json({ message: "forbidden" }, { status: 403 });
+    }
     const token = await exchangeFeishuOAuthCode(code);
     await assertFeishuUnionMatchesLinkIdentity(token.unionId);
     await upsertFeishuOAuthAccount(session.uid, token);

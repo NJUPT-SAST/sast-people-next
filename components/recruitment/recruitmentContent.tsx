@@ -86,7 +86,7 @@ export const RecruitmentContent = ({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="rounded-lg border bg-card">
+      <section className="border-y bg-muted/20">
         <div className="flex flex-col gap-4 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">选择流程</p>
@@ -128,7 +128,7 @@ export const RecruitmentContent = ({
             </div>
           </div>
         )}
-      </div>
+      </section>
 
       {flowId ? (
         loading ? (

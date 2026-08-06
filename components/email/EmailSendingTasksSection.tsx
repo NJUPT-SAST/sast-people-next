@@ -128,7 +128,7 @@ export function EmailSendingTasksSection({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+      <section className="overflow-hidden rounded-lg border bg-card">
         <div className="border-b p-4 lg:hidden">
           <select
             id="email-flow-picker"

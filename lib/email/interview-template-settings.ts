@@ -35,7 +35,7 @@ export const defaultInterviewScheduleTemplateSettings: Record<
     subjectTemplate: "{flowName} 面试预约通知",
     titleTemplate: "面试预约已确认",
     bodyTemplate:
-      "{candidateName} 同学，你好。{flowName} 的面试安排已确认，请查看下方时间、地点和参会入口，并按时参加。",
+      "{candidateName} 同学，你好。{flowName} 的线下面试安排已确认，请按时到达下方地点参加。",
     footerText: "南京邮电大学大学生科学技术协会",
   },
   "interview.schedule.rescheduled": {
@@ -66,8 +66,6 @@ export const interviewScheduleTemplateVariables = [
   "startsAt",
   "endsAt",
   "location",
-  "meetingLink",
-  "scheduleLink",
 ] as const;
 
 function getTemplateKeyByKind(kind: InterviewScheduleEmailKind) {

@@ -22,6 +22,7 @@ export type CreateFeishuInterviewScheduleInput = {
 export type CreatedFeishuInterviewSchedule = {
   eventId: string;
   reserveId?: string;
+  meetingId?: string;
   meetingNo?: string;
   meetingLink: string;
   scheduleLink?: string;
@@ -339,6 +340,7 @@ export async function createFeishuInterviewSchedule({
 
   return {
     eventId: event.event_id,
+    meetingId: event.vchat?.vc_info?.unique_id,
     meetingNo: event.vchat?.vc_info?.meeting_no,
     meetingLink,
     scheduleLink: event.app_link,
@@ -470,6 +472,7 @@ export async function updateFeishuInterviewSchedule({
   return {
     eventId,
     reserveId: reserveId ?? undefined,
+    meetingId: eventRes.data?.event?.vchat?.vc_info?.unique_id,
     meetingNo: meetingNo ?? eventRes.data?.event?.vchat?.vc_info?.meeting_no,
     meetingLink,
     scheduleLink: eventRes.data?.event?.app_link,

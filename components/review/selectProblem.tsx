@@ -152,7 +152,7 @@ const SelectProblem = ({
 
   return (
     <div className="mt-3 flex flex-col gap-4">
-      <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-4">
+      <div className="flex flex-col gap-3 border-b bg-muted/20 px-4 pb-4 pt-3">
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium">选择评卷流程</p>
           <p className="text-xs text-muted-foreground">

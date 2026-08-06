@@ -136,8 +136,6 @@ async function createTestRenderRequest({
       startsAt,
       endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
       location: "仙林校区大学生活动中心 101",
-      meetingLink: "https://vc.feishu.cn/j/123456789",
-      scheduleLink: "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
       note: "请提前准备作品介绍。",
     },
   };

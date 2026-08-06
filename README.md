@@ -28,7 +28,6 @@ SAST People owns the recruitment and review process. User identity, profile data
 - Result email center with templates, batches, retries, rate limiting, provider webhooks, and attempt history.
 - Link role synchronization from accepted workflow results.
 - Link user lookup, read-only profile viewing, role editing, and account banning for workflow administration.
-- Optional server-side AI drafts for candidate summaries and interview evaluations (`OPENAI_*`).
 - Local PostgreSQL development database with seed data for repeatable demos.
 - Jest unit/integration tests and Playwright end-to-end coverage for critical admin and student paths.
 
@@ -72,7 +71,7 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 | Data fetching | Server Components, Server Actions, SWR |
 | Background jobs | Inngest |
 | Email | react-email, nodemailer, Feishu SMTP |
-| Integrations | Feishu / Lark Open API, SAST Link, optional OpenAI-compatible API |
+| Integrations | Feishu / Lark Open API, SAST Link |
 | Observability | Sentry |
 | Testing | Jest, Testing Library, Playwright |
 
@@ -199,11 +198,8 @@ Keep secrets in `.env.local`. Do not commit real `.env*` files.
 | `FEISHU_INTERVIEW_CHAT_ID` | Optional group chat for privacy-safe interview schedule cards |
 | `APP_ID` / `APP_SECRET` / `NONCESTR` | Feishu app credentials used by interview scheduling |
 | `EMAIL_*` | SMTP, retries, rate limits, webhook secret, non-production recipient guard |
-| `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` | Server-side AI drafts only |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Runtime error reporting |
 | `SENTRY_BUILD_PLUGIN` | Enable Sentry build plugin only when intentionally needed |
-
-AI-assisted candidate summaries and interview evaluation drafts are server-side only. Do not expose OpenAI credentials with `NEXT_PUBLIC_*`.
 
 ### Production runtime env
 

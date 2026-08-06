@@ -2,47 +2,17 @@
 
 import { useEffect, useState } from 'react';
 
-import { selectProbSchema, selectProbType } from '@/types/problem';
+import { readReviewRangeFromStorage } from '@/lib/review/review-range-storage';
+import { selectProbType } from '@/types/problem';
 
 import { Badge } from '@/components/ui/badge';
 
-const readSelectedRange = (activeFlowIds?: number[]): selectProbType | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const selectedProbs = localStorage.getItem('people_selectedProbs');
-
-  if (!selectedProbs) {
-    return null;
-  }
-
-  try {
-    const result = selectProbSchema.safeParse(JSON.parse(selectedProbs));
-    if (!result.success) {
-      localStorage.removeItem('people_selectedProbs');
-      return null;
-    }
-    if (activeFlowIds && !activeFlowIds.includes(result.data.flowTypeId)) {
-      localStorage.removeItem('people_selectedProbs');
-      return null;
-    }
-    return result.data;
-  } catch {
-    localStorage.removeItem('people_selectedProbs');
-    return null;
-  }
-};
-
-export const SelectedRangeDisplay = ({
-  activeFlowIds,
-}: {
-  activeFlowIds?: number[];
-}) => {
+function useSelectedRange(activeFlowIds?: number[]) {
   const [selectedRange, setSelectedRange] = useState<selectProbType | null>(null);
 
   useEffect(() => {
     const handleRangeUpdate = () => {
-      setSelectedRange(readSelectedRange(activeFlowIds));
+      setSelectedRange(readReviewRangeFromStorage(activeFlowIds).range);
     };
 
     handleRangeUpdate();
@@ -52,6 +22,36 @@ export const SelectedRangeDisplay = ({
       window.removeEventListener('reviewRangeUpdated', handleRangeUpdate);
     };
   }, [activeFlowIds]);
+
+  return selectedRange;
+}
+
+export function ReviewRangeNotice({
+  activeFlowIds,
+}: {
+  activeFlowIds?: number[];
+}) {
+  const selectedRange = useSelectedRange(activeFlowIds);
+
+  if (selectedRange?.problemList.length) {
+    return null;
+  }
+
+  return (
+    <div className="mx-4 mb-5 mt-3 rounded-md border bg-amber-50 px-4 py-3 text-center dark:bg-amber-950/20 lg:mx-6 lg:mb-6 lg:mt-4">
+      <p className="text-xs text-amber-700 dark:text-amber-400">
+        请先设置上方【阅卷范围】，再开始阅卷。
+      </p>
+    </div>
+  );
+}
+
+export const SelectedRangeDisplay = ({
+  activeFlowIds,
+}: {
+  activeFlowIds?: number[];
+}) => {
+  const selectedRange = useSelectedRange(activeFlowIds);
 
   if (!selectedRange || selectedRange.problemList.length === 0) {
     return (

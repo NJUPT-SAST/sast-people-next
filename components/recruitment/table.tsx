@@ -139,7 +139,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border bg-card px-4 py-3">
+      <div className="border-y bg-muted/20 px-4 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">批量处理</p>
@@ -281,7 +281,7 @@ export function DataTable<TData, TValue>({
         )}
       </div>
       
-      <div className="min-w-0 overflow-hidden rounded-xl border bg-card">
+      <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
         {role >= 3 && (
           <div className="border-b bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">

@@ -13,13 +13,19 @@ import { eq } from 'drizzle-orm';
 
 export const useUserInfoById = async (id: number) => {
   const session = await verifyRole(2);
+  const canViewPhone = session.role >= 3;
+  const canViewQq = session.role >= 2;
+
   try {
     const accessToken = await getLinkAccessTokenFromSession();
     const userInfo = await getLinkUserDetail(accessToken, id);
     if (!userInfo) {
       throw new Error('User not found');
     }
-    return toPeopleUserFromLinkProfile(userInfo, session.role >= 3);
+    return {
+      ...toPeopleUserFromLinkProfile(userInfo, canViewPhone),
+      qq: canViewQq ? userInfo.qq_number ?? null : null,
+    };
   } catch (err) {
     if (
       err instanceof MissingLinkAccessTokenError &&
@@ -33,9 +39,11 @@ export const useUserInfoById = async (id: number) => {
       if (userInfo.length === 0) {
         throw new Error('User not found');
       }
-      return session.role >= 3
-        ? userInfo[0]
-        : { ...userInfo[0], phone: null, qq: null };
+      return {
+        ...userInfo[0],
+        phone: canViewPhone ? userInfo[0].phone : null,
+        qq: canViewQq ? userInfo[0].qq : null,
+      };
     }
     throw err;
   }

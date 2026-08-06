@@ -3,10 +3,6 @@ import userEvent from "@testing-library/user-event";
 
 import { BasicInfo } from "./basic";
 
-jest.mock("@/hooks/useCollegeList", () => ({
-  useCollegeList: () => ["计算机学院", "软件学院"],
-}));
-
 describe("BasicInfo", () => {
   const initialInfo = {
     id: 1,
@@ -26,6 +22,8 @@ describe("BasicInfo", () => {
     expect(screen.getByDisplayValue("b001")).toBeDisabled();
     expect(screen.getByDisplayValue("13800138000")).toBeInTheDocument();
     expect(screen.getByDisplayValue("123456")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("计算机学院")).toBeDisabled();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "前往 Link 修改" }),
     ).toBeInTheDocument();

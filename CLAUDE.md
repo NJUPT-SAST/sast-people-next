@@ -6,7 +6,7 @@ Identity and profile data come from **SAST Link**. People owns workflows, gradin
 
 ## Stack
 
-Next.js 16 App Router, React 19, TypeScript strict, Tailwind CSS v4, shadcn/ui, lucide-react, Jest 30, Playwright, Drizzle ORM with PostgreSQL, Inngest, React Email, Feishu/Lark SDK, Sentry, optional OpenAI-compatible server-side AI drafts.
+Next.js 16 App Router, React 19, TypeScript strict, Tailwind CSS v4, shadcn/ui, lucide-react, Jest 30, Playwright, Drizzle ORM with PostgreSQL, Inngest, React Email, Feishu/Lark SDK, and Sentry.
 
 ## Commands
 
