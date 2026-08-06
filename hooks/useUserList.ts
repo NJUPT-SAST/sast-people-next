@@ -26,6 +26,9 @@ export const useUserList = async ({
   sortOrder = "desc",
 }: UserListParams) => {
   const session = await verifyRole(2);
+  const canViewPhone = session.role >= 3;
+  const canViewQq = session.role >= 2;
+
   try {
     const accessToken = await getLinkAccessTokenFromSession();
     const result = await listLinkUsers(accessToken, {
@@ -35,9 +38,10 @@ export const useUserList = async ({
     });
 
     return {
-      users: result.users.map((item) =>
-        toPeopleUserFromLinkAdminItem(item, session.role >= 3),
-      ),
+      users: result.users.map((item) => ({
+        ...toPeopleUserFromLinkAdminItem(item, canViewPhone),
+        qq: canViewQq ? item.qq_number ?? null : null,
+      })),
       totalCount: result.total,
       totalPages: Math.ceil(result.total / pageSize),
     };
@@ -52,7 +56,8 @@ export const useUserList = async ({
         search,
         sortBy,
         sortOrder,
-        canViewSensitiveInfo: session.role >= 3,
+        canViewPhone,
+        canViewQq,
       });
     }
     throw err;
@@ -65,10 +70,12 @@ const getLegacyUserList = async ({
   search,
   sortBy,
   sortOrder,
-  canViewSensitiveInfo,
+  canViewPhone,
+  canViewQq,
 }: Required<Pick<UserListParams, "page" | "pageSize" | "sortBy" | "sortOrder">> & {
   search?: string;
-  canViewSensitiveInfo: boolean;
+  canViewPhone: boolean;
+  canViewQq: boolean;
 }) => {
   const offset = (page - 1) * pageSize;
   let whereConditions: SQL<unknown> | undefined = eq(user.isDeleted, false);
@@ -79,8 +86,8 @@ const getLegacyUserList = async ({
       or(
         ilike(user.name, `%${search}%`),
         ilike(user.studentId, `%${search}%`),
-        ...(canViewSensitiveInfo ? [ilike(user.phone, `%${search}%`)] : []),
-        ...(canViewSensitiveInfo ? [ilike(user.qq, `%${search}%`)] : []),
+        ...(canViewPhone ? [ilike(user.phone, `%${search}%`)] : []),
+        ...(canViewQq ? [ilike(user.qq, `%${search}%`)] : []),
         ilike(user.email, `%${search}%`),
       ),
     );
@@ -107,9 +114,11 @@ const getLegacyUserList = async ({
     .execute();
 
   return {
-    users: users.map((item) =>
-      canViewSensitiveInfo ? item : { ...item, phone: null, qq: null },
-    ),
+    users: users.map((item) => ({
+      ...item,
+      phone: canViewPhone ? item.phone : null,
+      qq: canViewQq ? item.qq : null,
+    })),
     totalCount,
     totalPages: Math.ceil(totalCount / pageSize),
   };
