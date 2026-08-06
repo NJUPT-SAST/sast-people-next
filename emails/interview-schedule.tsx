@@ -22,9 +22,6 @@ const Heading = ({ children, ...props }: ElementProps<"h1">) => (
 const Text = ({ children, ...props }: ElementProps<"p">) => (
   <p {...props}>{children}</p>
 );
-const Link = ({ children, ...props }: ElementProps<"a">) => (
-  <a {...props}>{children}</a>
-);
 const Preview = ({ children }: { children: React.ReactNode }) => (
   <div
     style={{
@@ -52,8 +49,6 @@ type InterviewScheduleEmailProps = {
   startsAtText: string;
   endsAtText: string;
   location?: string;
-  meetingLink: string;
-  scheduleLink?: string;
   note?: string;
   footerText?: string;
   logoUrl?: string;
@@ -85,8 +80,6 @@ export const InterviewScheduleEmail = ({
   startsAtText,
   endsAtText,
   location,
-  meetingLink,
-  scheduleLink,
   note,
   footerText = "南京邮电大学大学生科学技术协会",
   logoUrl = "https://storage.sast.fun/sast-logo.png",
@@ -108,7 +101,7 @@ export const InterviewScheduleEmail = ({
       ? `${candidateName} 同学，你好。你的 ${flowName} 面试预约已取消，后续安排请关注新的通知。`
       : kind === "rescheduled"
         ? `${candidateName} 同学，你好。你的 ${flowName} 面试时间已调整，请以本邮件中的新时间为准。`
-        : `${candidateName} 同学，你好。${flowName} 的面试安排已确认，请查看下方时间与参会入口。`;
+        : `${candidateName} 同学，你好。${flowName} 的线下面试安排已确认，请查看下方时间和地点并按时到达。`;
 
   return (
     <Html>
@@ -179,27 +172,13 @@ export const InterviewScheduleEmail = ({
               ))}
             </Section>
 
-            {kind !== "cancelled" ? (
-              <Section style={actionSection}>
-                <Link href={meetingLink} style={primaryButton}>
-                  进入飞书会议
-                </Link>
-                {scheduleLink ? (
-                  <Link href={scheduleLink} style={secondaryButton}>
-                    打开飞书日程
-                  </Link>
-                ) : null}
-                <Text style={actionHint}>
-                  建议提前几分钟进入，并确认设备与网络正常。
-                </Text>
-              </Section>
-            ) : (
-              <Section style={cancelNotice}>
-                <Text style={cancelNoticeText}>
-                  原会议与日程入口已失效。如需重新安排，请等待后续通知。
-                </Text>
-              </Section>
-            )}
+            <Section style={offlineNotice}>
+              <Text style={offlineNoticeText}>
+                {kind === "cancelled"
+                  ? "原线下面试安排已取消。如需重新安排，请等待后续通知。"
+                  : "本次为线下面试，请按时到达上述地点。飞书日程与会议仅用于工作人员录制和妙记留档，无需通过会议链接参会。"}
+              </Text>
+            </Section>
           </Section>
 
           <Section style={footer}>
@@ -221,9 +200,6 @@ InterviewScheduleEmail.PreviewProps = {
   startsAtText: "2026-06-04 19:00",
   endsAtText: "2026-06-04 19:30",
   location: "仙林校区大学生活动中心 101",
-  meetingLink: "https://vc.feishu.cn/j/123456789",
-  scheduleLink:
-    "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
   note: "请提前准备作品介绍。",
   footerText: "南京邮电大学大学生科学技术协会",
   logoUrl: "https://storage.sast.fun/sast-logo.png",
@@ -430,56 +406,7 @@ const metaValue = {
   lineHeight: "22px",
 };
 
-const actionSection = {
-  margin: "0 0 8px",
-};
-
-const primaryButton = {
-  display: "block",
-  width: "100%",
-  boxSizing: "border-box" as const,
-  margin: "0 0 10px",
-  padding: "13px 16px",
-  border: "1px solid #1e293b",
-  borderRadius: "10px",
-  backgroundColor: "#1e293b",
-  color: "#ffffff",
-  fontFamily: fontStack,
-  fontSize: "14px",
-  fontWeight: 600,
-  lineHeight: "20px",
-  textAlign: "center" as const,
-  textDecoration: "none",
-};
-
-const secondaryButton = {
-  display: "block",
-  width: "100%",
-  boxSizing: "border-box" as const,
-  margin: "0 0 12px",
-  padding: "12px 16px",
-  border: "1px solid #cbd5e1",
-  borderRadius: "10px",
-  backgroundColor: "#ffffff",
-  color: "#334155",
-  fontFamily: fontStack,
-  fontSize: "14px",
-  fontWeight: 600,
-  lineHeight: "20px",
-  textAlign: "center" as const,
-  textDecoration: "none",
-};
-
-const actionHint = {
-  margin: "0 0 10px",
-  color: "#94a3b8",
-  fontFamily: fontStack,
-  fontSize: "12px",
-  lineHeight: "18px",
-  textAlign: "center" as const,
-};
-
-const cancelNotice = {
+const offlineNotice = {
   margin: "0 0 14px",
   padding: "14px 16px",
   border: "1px solid #e2e8f0",
@@ -487,7 +414,7 @@ const cancelNotice = {
   backgroundColor: "#f8fafc",
 };
 
-const cancelNoticeText = {
+const offlineNoticeText = {
   margin: 0,
   color: "#64748b",
   fontFamily: fontStack,

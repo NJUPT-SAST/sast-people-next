@@ -42,6 +42,11 @@ export const evaluationStatusEnum = pgEnum("evaluation_status_enum", [
   "rejected",
 ]);
 
+export const evaluationRecommendationEnum = pgEnum(
+  "evaluation_recommendation_enum",
+  ["passed", "failed"],
+);
+
 export const emailBatchStatusEnum = pgEnum("email_batch_status_enum", [
   "draft",
   "queued",
@@ -329,6 +334,8 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .notNull(),
   content: text("content").notNull(),
   meetingLink: text("meeting_link"),
+  /* 讲师建议，不等同于管理员最终决定。历史记录允许为空。 */
+  recommendation: evaluationRecommendationEnum("recommendation"),
   status: evaluationStatusEnum("status").notNull().default("submitted"),
   /* Link 用户 ID — 审批人 */
   fkReviewedBy: integer("fk_reviewed_by"),
@@ -375,6 +382,7 @@ export const interviewSchedule = pgTable("interview_schedule", {
   providerEventId: varchar("provider_event_id", { length: 255 }),
   providerReserveId: varchar("provider_reserve_id", { length: 255 }),
   providerMeetingNo: varchar("provider_meeting_no", { length: 255 }),
+  providerMeetingId: varchar("provider_meeting_id", { length: 255 }),
   meetingLink: text("meeting_link").notNull(),
   scheduleLink: text("schedule_link"),
   meetingMinuteLink: text("meeting_minute_link"),
@@ -386,6 +394,8 @@ export const interviewSchedule = pgTable("interview_schedule", {
   endsAt: timestamp("ends_at").notNull(),
   timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
   status: interviewScheduleStatusEnum("status").notNull().default("created"),
+  meetingStatus: varchar("meeting_status", { length: 32 }).notNull().default("scheduled"),
+  meetingEndedAt: timestamp("meeting_ended_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()
@@ -394,6 +404,9 @@ export const interviewSchedule = pgTable("interview_schedule", {
 }, (table) => ({
   userFlowIdx: index("interview_schedule_user_flow_idx").on(table.fkUserFlowId),
   organizerIdx: index("interview_schedule_organizer_idx").on(table.fkOrganizerId),
+  activeUserFlowUnique: uniqueIndex("interview_schedule_active_user_flow_uidx")
+    .on(table.fkUserFlowId)
+    .where(sql`${table.status} = 'created'`),
   providerEventUnique: uniqueIndex("interview_schedule_provider_event_uidx")
     .on(table.provider, table.providerEventId),
 }));

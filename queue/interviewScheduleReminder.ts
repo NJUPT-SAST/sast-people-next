@@ -50,7 +50,7 @@ async function loadScheduleContext(scheduleId: number) {
     ...row,
     candidateName: candidate?.name ?? "同学",
     candidateStudentId: candidate?.studentId ?? null,
-    candidatePhone: candidate?.phone ?? null,
+    candidateQq: candidate?.qq ?? null,
   };
 }
 
@@ -73,11 +73,11 @@ async function sendBeforeStartReminder(eventData: ReminderEventData) {
   const credential = await getValidFeishuUserCredential(schedule.organizerId);
   await sendInterviewScheduleCard({
     openId: credential.openId,
-    title: "面试即将开始",
+    title: "线下面试即将开始",
     flowName: schedule.flowName,
     candidateName: schedule.candidateName,
     candidateStudentId: schedule.candidateStudentId,
-    candidatePhone: schedule.candidatePhone,
+    candidateQq: schedule.candidateQq,
     startsAt: schedule.startsAt,
     endsAt: schedule.endsAt,
     meetingLink: schedule.meetingLink,
@@ -115,7 +115,7 @@ async function sendPendingEvaluationReminder(eventData: ReminderEventData) {
     flowName: schedule.flowName,
     candidateName: schedule.candidateName,
     candidateStudentId: schedule.candidateStudentId,
-    candidatePhone: schedule.candidatePhone,
+    candidateQq: schedule.candidateQq,
     startsAt: schedule.startsAt,
     endsAt: schedule.endsAt,
     meetingLink: schedule.meetingLink,

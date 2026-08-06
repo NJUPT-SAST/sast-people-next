@@ -89,6 +89,15 @@ type CancelInterviewScheduleResult =
       };
     };
 
+type ConfirmInterviewScheduleEndedResult =
+  | { success: true }
+  | {
+      success: false;
+      error: {
+        message: string;
+      };
+    };
+
 function parseDate(value: string, fieldName: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -121,8 +130,6 @@ async function sendInterviewEmailDelivery({
     startsAt: Date;
     endsAt: Date;
     location?: string | null;
-    meetingLink: string;
-    scheduleLink?: string | null;
     note?: string;
   };
 }): Promise<{ ok: true } | { ok: false; message: string }> {
@@ -160,10 +167,10 @@ async function sendInterviewEmailDelivery({
 }
 
 async function notifyOrganizerByFeishu({
-  title = "面试日程已创建",
+  title = "线下面试日程已创建",
   organizerOpenId,
   candidateName,
-  candidatePhone,
+  candidateQq,
   candidateStudentId,
   flowName,
   startsAt,
@@ -177,7 +184,7 @@ async function notifyOrganizerByFeishu({
   title?: string;
   organizerOpenId: string;
   candidateName: string;
-  candidatePhone?: string | null;
+  candidateQq?: string | null;
   candidateStudentId?: string | null;
   flowName: string;
   startsAt: Date;
@@ -193,7 +200,7 @@ async function notifyOrganizerByFeishu({
       openId: organizerOpenId,
       title,
       candidateName,
-      candidatePhone,
+      candidateQq,
       candidateStudentId,
       flowName,
       startsAt,
@@ -222,6 +229,7 @@ async function notifyInterviewGroupByFeishu({
   title,
   candidateName,
   candidateStudentId,
+  candidateQq,
   flowName,
   startsAt,
   endsAt,
@@ -234,6 +242,7 @@ async function notifyInterviewGroupByFeishu({
   title: string;
   candidateName: string;
   candidateStudentId?: string | null;
+  candidateQq?: string | null;
   flowName: string;
   startsAt: Date;
   endsAt: Date;
@@ -253,6 +262,7 @@ async function notifyInterviewGroupByFeishu({
       title,
       candidateName,
       candidateStudentId,
+      candidateQq,
       flowName,
       startsAt,
       endsAt,
@@ -328,8 +338,6 @@ export async function previewInterviewScheduleEmail(
       startsAt,
       endsAt,
       location,
-      meetingLink: "https://vc.feishu.cn/j/123456789",
-      scheduleLink: "https://applink.feishu.cn/client/calendar/event/detail?calendarId=primary&eventId=demo",
       note,
     },
   });
@@ -387,13 +395,14 @@ export async function createInterviewSchedule(
     const attendeeEmail = getEducationEmail(candidate?.studentId);
     const organizerName = organizer?.name ?? session.name;
     const candidateName = candidate?.name ?? "同学";
-    const summary = `${target.flowTitle} 面试 - ${candidateName}`;
+    const summary = `${target.flowTitle} 线下面试 - ${candidateName}`;
     const location = input.location?.trim() || undefined;
     const note = input.note?.trim() || undefined;
     const description = [
       `面试同学：${candidateName}`,
       candidate?.studentId ? `学号：${candidate.studentId}` : null,
-      candidate?.phone ? `手机号：${candidate.phone}` : null,
+      candidate?.qq ? `QQ：${candidate.qq}` : null,
+      "本次为线下面试；飞书会议仅用于录制与妙记留档。",
     ].filter(Boolean).join("\n");
 
     const credential = await getValidFeishuUserCredential(session.uid);
@@ -420,6 +429,12 @@ export async function createInterviewSchedule(
       return {
         success: false,
         error: { message: "该预约缺少飞书日程 ID，无法改约，请先取消后重新预约。" },
+      };
+    }
+    if (existingSchedule?.meetingStatus === "ended") {
+      return {
+        success: false,
+        error: { message: "该面试已经结束，不能再改约。" },
       };
     }
 
@@ -462,7 +477,7 @@ export async function createInterviewSchedule(
           startsAt,
           endsAt,
           timezone: DEFAULT_TIMEZONE,
-          idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}-recreate-${Date.now()}`,
+          idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}-recreate`,
         });
       }
     } else {
@@ -475,7 +490,7 @@ export async function createInterviewSchedule(
         startsAt,
         endsAt,
         timezone: DEFAULT_TIMEZONE,
-        idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}-${Date.now()}`,
+        idempotencyKey: `people-interview-${input.userFlowId}-${startsAt.getTime()}`,
       });
     }
 
@@ -485,6 +500,8 @@ export async function createInterviewSchedule(
           .set({
             providerEventId: feishuSchedule.eventId,
             providerReserveId: feishuSchedule.reserveId,
+            providerMeetingId:
+              feishuSchedule.meetingId ?? existingSchedule.providerMeetingId,
             providerMeetingNo: feishuSchedule.meetingNo ?? existingSchedule.providerMeetingNo,
             meetingLink: feishuSchedule.meetingLink,
             scheduleLink: feishuSchedule.scheduleLink,
@@ -506,6 +523,7 @@ export async function createInterviewSchedule(
             fkOrganizerId: session.uid,
             providerEventId: feishuSchedule.eventId,
             providerReserveId: feishuSchedule.reserveId,
+            providerMeetingId: feishuSchedule.meetingId,
             providerMeetingNo: feishuSchedule.meetingNo,
             meetingLink: feishuSchedule.meetingLink,
             scheduleLink: feishuSchedule.scheduleLink,
@@ -536,17 +554,15 @@ export async function createInterviewSchedule(
         startsAt,
         endsAt,
         location,
-        meetingLink: feishuSchedule.meetingLink,
-        scheduleLink: feishuSchedule.scheduleLink,
         note,
       },
     });
 
     await notifyOrganizerByFeishu({
-      title: existingSchedule ? "面试日程已改约" : "面试日程已创建",
+      title: existingSchedule ? "线下面试日程已改约" : "线下面试日程已创建",
       organizerOpenId: credential.openId,
       candidateName,
-      candidatePhone: candidate?.phone ?? null,
+      candidateQq: candidate?.qq ?? null,
       candidateStudentId: candidate?.studentId ?? null,
       flowName: target.flowTitle,
       startsAt,
@@ -558,9 +574,10 @@ export async function createInterviewSchedule(
       scheduleId: schedule.id,
     });
     await notifyInterviewGroupByFeishu({
-      title: existingSchedule ? "面试日程已改约" : "面试日程已创建",
+      title: existingSchedule ? "线下面试日程已改约" : "线下面试日程已创建",
       candidateName,
       candidateStudentId: candidate?.studentId ?? null,
+      candidateQq: candidate?.qq ?? null,
       flowName: target.flowTitle,
       startsAt,
       endsAt,
@@ -634,6 +651,7 @@ export async function cancelInterviewSchedule(
         startsAt: interviewSchedule.startsAt,
         endsAt: interviewSchedule.endsAt,
         status: interviewSchedule.status,
+        meetingStatus: interviewSchedule.meetingStatus,
       })
       .from(interviewSchedule)
       .where(eq(interviewSchedule.id, scheduleId))
@@ -644,6 +662,9 @@ export async function cancelInterviewSchedule(
     }
     if (schedule.status !== "created") {
       return { success: false, error: { message: "该预约已经不是可取消状态。" } };
+    }
+    if (schedule.meetingStatus === "ended") {
+      return { success: false, error: { message: "该面试已经结束，不能取消。" } };
     }
     if (schedule.organizerId !== session.uid) {
       return { success: false, error: { message: "只能由原预约讲师取消该面试。" } };
@@ -702,7 +723,6 @@ export async function cancelInterviewSchedule(
           startsAt: schedule.startsAt,
           endsAt: schedule.endsAt,
           location: schedule.location,
-          meetingLink: "",
         },
       });
       if (!emailResult.ok) {
@@ -767,6 +787,64 @@ export async function cancelInterviewSchedule(
     });
     throw error;
   }
+}
+
+export async function confirmInterviewScheduleEnded(
+  scheduleId: number,
+): Promise<ConfirmInterviewScheduleEndedResult> {
+  const session = await verifyRole(2);
+  const [schedule] = await db
+    .select({
+      id: interviewSchedule.id,
+      userFlowId: interviewSchedule.fkUserFlowId,
+      organizerId: interviewSchedule.fkOrganizerId,
+      startsAt: interviewSchedule.startsAt,
+      status: interviewSchedule.status,
+      meetingStatus: interviewSchedule.meetingStatus,
+    })
+    .from(interviewSchedule)
+    .where(eq(interviewSchedule.id, scheduleId))
+    .limit(1);
+
+  if (!schedule || schedule.status !== "created") {
+    return { success: false, error: { message: "该面试日程不可确认结束。" } };
+  }
+  if (schedule.organizerId !== session.uid) {
+    return { success: false, error: { message: "只能由原预约讲师确认面试结束。" } };
+  }
+  if (schedule.startsAt.getTime() > Date.now()) {
+    return { success: false, error: { message: "面试尚未开始，不能确认结束。" } };
+  }
+
+  const [updatedSchedule] = await db
+    .update(interviewSchedule)
+    .set({
+      meetingStatus: "ended",
+      meetingEndedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(interviewSchedule.id, schedule.id),
+        eq(interviewSchedule.meetingStatus, "scheduled"),
+      ),
+    )
+    .returning({ id: interviewSchedule.id });
+
+  if (!updatedSchedule) {
+    return { success: false, error: { message: "该面试已经确认结束。" } };
+  }
+
+  await writeOperationAudit({
+    actorId: session.uid,
+    action: "interview_schedule.meeting.ended_manual",
+    resourceType: "interview_schedule",
+    resourceId: schedule.id,
+    metadata: { userFlowId: schedule.userFlowId, provider: "feishu" },
+  });
+  revalidatePath("/dashboard/recruitment");
+
+  return { success: true };
 }
 
 async function enqueueInterviewScheduleReminder({
