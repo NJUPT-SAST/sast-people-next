@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PaginationComponent } from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Search } from "lucide-react";
 
 import {
@@ -42,6 +50,9 @@ export function EmailRecordsSection({
     ? deliveryPage.deliveries
     : [];
   const filters = deliveryPage.filters;
+  const [status, setStatus] = useState(filters.status || "all");
+  const [category, setCategory] = useState(filters.category || "all");
+  const [flowId, setFlowId] = useState(filters.flowId || "all");
   const start =
     deliveryPage.totalCount === 0
       ? 0
@@ -52,7 +63,7 @@ export function EmailRecordsSection({
   );
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+    <section className="overflow-hidden rounded-lg border bg-card">
       <div className="border-b px-4 py-3 sm:px-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold">发送记录</h2>
@@ -68,51 +79,63 @@ export function EmailRecordsSection({
           <input type="hidden" name="tab" value="records" />
           <input type="hidden" name="page" value="1" />
           <input type="hidden" name="pageSize" value={filters.pageSize} />
+          <input type="hidden" name="status" value={status === "all" ? "" : status} />
+          <input type="hidden" name="category" value={category === "all" ? "" : category} />
+          <input type="hidden" name="flowId" value={flowId === "all" ? "" : flowId} />
 
-          <select
-            id="email-record-status"
-            name="status"
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger
+              id="email-record-status"
             aria-label="状态"
-            defaultValue={filters.status}
-            className="h-9 rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-28"
-          >
-            <option value="">状态</option>
+              className="h-9 sm:w-28"
+            >
+              <SelectValue placeholder="状态" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">状态</SelectItem>
             {Object.entries(deliveryStatusText).map(([value, label]) => (
-              <option key={value} value={value}>
+                <SelectItem key={value} value={value}>
                 {label}
-              </option>
+                </SelectItem>
             ))}
-          </select>
+            </SelectContent>
+          </Select>
 
-          <select
-            id="email-record-category"
-            name="category"
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger
+              id="email-record-category"
             aria-label="类型"
-            defaultValue={filters.category}
-            className="h-9 rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-28"
-          >
-            <option value="">类型</option>
+              className="h-9 sm:w-28"
+            >
+              <SelectValue placeholder="类型" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">类型</SelectItem>
             {Object.entries(emailCategoryText).map(([value, label]) => (
-              <option key={value} value={value}>
+                <SelectItem key={value} value={value}>
                 {label}
-              </option>
+                </SelectItem>
             ))}
-          </select>
+            </SelectContent>
+          </Select>
 
-          <select
-            id="email-record-flow"
-            name="flowId"
+          <Select value={flowId} onValueChange={setFlowId}>
+            <SelectTrigger
+              id="email-record-flow"
             aria-label="流程"
-            defaultValue={filters.flowId}
-            className="h-9 min-w-0 rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:max-w-[12rem]"
-          >
-            <option value="">流程</option>
+              className="h-9 min-w-0 sm:max-w-[12rem]"
+            >
+              <SelectValue placeholder="流程" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">流程</SelectItem>
             {flowTargets.map((flow) => (
-              <option key={flow.id} value={flow.id}>
+                <SelectItem key={flow.id} value={String(flow.id)}>
                 {flow.title}
-              </option>
+                </SelectItem>
             ))}
-          </select>
+            </SelectContent>
+          </Select>
 
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />

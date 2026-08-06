@@ -112,7 +112,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
   });
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
+    <div className="overflow-hidden rounded-lg border bg-card">
       {/* PC 端表格视图 */}
       <div className="hidden xl:block">
         <Table className="table-fixed" containerClassName="overflow-x-visible">
@@ -219,6 +219,5 @@ export function FlowTable<TData extends displayFlow, TValue>({
     </div>
   );
 }
-
 
 

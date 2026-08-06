@@ -62,7 +62,7 @@ export function EmailOverviewSection({
   const HealthIcon = todayFailedCount > 0 ? AlertTriangle : CheckCircle2;
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+    <section className="overflow-hidden rounded-lg border bg-card">
       <div className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-2.5">
           <HealthIcon
@@ -103,7 +103,7 @@ export function EmailOverviewSection({
             没有失败记录
           </p>
         ) : (
-          <div className="flex flex-col divide-y rounded-lg border">
+          <div className="flex flex-col divide-y">
             {recentFailures.map((delivery) => (
               <div
                 key={delivery.id}
@@ -149,7 +149,7 @@ export function EmailConfigSection({
   );
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+    <section className="overflow-hidden rounded-lg border bg-card">
       <div className="border-b px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold">环境</h2>
       </div>

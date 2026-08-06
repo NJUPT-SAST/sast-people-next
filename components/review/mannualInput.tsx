@@ -134,11 +134,6 @@ export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) =>
           开始阅卷
         </Button>
       </div>
-      {!hasReviewRange && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          请先设置阅卷范围，再开始阅卷。
-        </p>
-      )}
     </div>
   );
 };
