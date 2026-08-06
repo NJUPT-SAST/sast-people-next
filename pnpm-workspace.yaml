@@ -17,7 +17,7 @@ overrides:
 allowBuilds:
   '@sentry/cli': false
   esbuild: false
-  inngest-cli: false
+  inngest-cli: true
   msw: false
   protobufjs: false
   sharp: false

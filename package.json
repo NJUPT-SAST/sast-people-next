@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "next dev",
     "dev:db": "next dev",
-    "dev:full": "concurrently \"next dev -p 3001\" \"inngest-cli dev --no-discovery -u http://localhost:3001/api/inngest\" \"email dev --dir=emails --port=3002\"",
+    "dev:local": "sh scripts/dev-local.sh",
+    "dev:full": "concurrently \"cross-env INNGEST_DEV=1 next dev -p 3001\" \"inngest-cli dev --no-discovery -u http://localhost:3001/api/inngest\" \"email dev --dir=emails --port=3002\"",
     "db:dev:up": "docker compose -f docker-compose.dev.yml up -d",
     "db:dev:down": "docker compose -f docker-compose.dev.yml down",
     "db:dev:logs": "docker compose -f docker-compose.dev.yml logs -f postgres-dev",
