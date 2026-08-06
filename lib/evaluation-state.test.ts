@@ -1,8 +1,6 @@
 import {
   canApproveEvaluation,
   canRejectEvaluation,
-  canReopenEvaluation,
-  canUnapproveEvaluation,
   dedupeEvaluationCandidateRows,
   evaluationStepTypeForAction,
   isActiveEvaluationStatus,
@@ -19,12 +17,6 @@ describe("evaluation-state", () => {
     expect(canRejectEvaluation("approved")).toBe(false);
     expect(canRejectEvaluation("rejected")).toBe(false);
 
-    expect(canUnapproveEvaluation("approved")).toBe(true);
-    expect(canUnapproveEvaluation("submitted")).toBe(false);
-    expect(canUnapproveEvaluation("rejected")).toBe(false);
-
-    expect(canReopenEvaluation("rejected")).toBe(true);
-    expect(canReopenEvaluation("submitted")).toBe(false);
   });
 
   it("prefers active evaluation rows over rejected history", () => {
@@ -54,7 +46,6 @@ describe("evaluation-state", () => {
   });
 
   it("maps actions to flow step types", () => {
-    expect(evaluationStepTypeForAction("lecturer_reject")).toBe("checking");
     expect(evaluationStepTypeForAction("submit_for_review")).toBe("finished");
     expect(evaluationStepTypeForAction("admin_decision")).toBe("finished");
   });

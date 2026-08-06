@@ -19,7 +19,7 @@ type Evaluation = InferSelectModel<typeof interviewEvaluation>;
 const statusLabel: Record<string, string> = {
   submitted: "待终审",
   approved: "已通过",
-  rejected: "已驳回",
+  rejected: "不通过",
 };
 
 export const InterviewEvaluation = ({
@@ -34,12 +34,17 @@ export const InterviewEvaluation = ({
   role: number;
 }) => {
   const [content, setContent] = useState("");
+  const [recommendation, setRecommendation] = useState<"passed" | "failed">("passed");
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
+    if (!content.trim()) {
+      toast.error("面评内容不能为空");
+      return;
+    }
     setLoading(true);
     try {
-      const result = await createEvaluation(userFlowId, content);
+      const result = await createEvaluation(userFlowId, content, recommendation);
       if (!result.success) {
         toast.error(result.error?.message ?? "提交失败");
         return;
@@ -71,7 +76,7 @@ export const InterviewEvaluation = ({
     setLoading(true);
     try {
       await rejectEvaluation(evaluation.id);
-      toast.success("面评已驳回");
+      toast.success("面评已判定不通过");
     } catch {
       toast.error("操作失败");
     } finally {
@@ -116,7 +121,7 @@ export const InterviewEvaluation = ({
                 onClick={handleReject}
                 loading={loading}
               >
-                驳回
+                不通过
               </Button>
             </div>
           )}
@@ -132,12 +137,36 @@ export const InterviewEvaluation = ({
           <CardTitle className="text-sm">写面评</CardTitle>
         </CardHeader>
         <CardContent>
+          <p className="mb-2 text-xs text-muted-foreground">
+            面评内容必填，讲师建议不能替代面评正文。
+          </p>
           <Textarea
             placeholder="请输入面评内容..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
+            required
             className="mb-3"
           />
+          <div className="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="讲师建议">
+            <Button
+              type="button"
+              size="sm"
+              variant={recommendation === "passed" ? "default" : "outline"}
+              aria-pressed={recommendation === "passed"}
+              onClick={() => setRecommendation("passed")}
+            >
+              建议通过
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={recommendation === "failed" ? "destructive" : "outline"}
+              aria-pressed={recommendation === "failed"}
+              onClick={() => setRecommendation("failed")}
+            >
+              建议不通过
+            </Button>
+          </div>
           <Button size="sm" onClick={handleCreate} loading={loading}>
             提交面评
           </Button>

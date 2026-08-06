@@ -9,11 +9,8 @@ import {
   userFlow,
 } from "@/db/schema";
 import {
-  ACTIVE_STATUSES,
   canApproveEvaluation,
   canRejectEvaluation,
-  canReopenEvaluation,
-  canUnapproveEvaluation,
   dedupeEvaluationCandidateRows,
   evaluationStepTypeForAction,
   type EvaluationFlowStepType,
@@ -27,6 +24,13 @@ import { revalidatePath } from "next/cache";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type EvaluationRecommendation = "passed" | "failed";
+
+function isEvaluationRecommendation(
+  value: string,
+): value is EvaluationRecommendation {
+  return value === "passed" || value === "failed";
+}
 
 /** Prefer step type; fall back to historical order for older customized flows. */
 async function findEvaluationStepIdInTx(
@@ -116,6 +120,22 @@ async function moveUserFlowInTx(
   return uf?.flowId ?? null;
 }
 
+async function linkEvaluationToActiveScheduleInTx(
+  tx: Tx,
+  userFlowId: number,
+  evaluationId: number,
+) {
+  await tx
+    .update(interviewSchedule)
+    .set({ fkEvaluationId: evaluationId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(interviewSchedule.fkUserFlowId, userFlowId),
+        eq(interviewSchedule.status, "created"),
+      ),
+    );
+}
+
 async function safeSyncUserRole(uid: number, context: {
   action: string;
   path: string;
@@ -139,6 +159,7 @@ async function safeSyncUserRole(uid: number, context: {
 export const createEvaluation = async (
   userFlowId: number,
   content: string,
+  recommendation: EvaluationRecommendation,
   meetingLink?: string,
 ) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
@@ -149,20 +170,75 @@ export const createEvaluation = async (
     if (!content.trim()) {
       return { success: false, error: { message: "面评内容不能为空" } };
     }
+    if (!isEvaluationRecommendation(recommendation)) {
+      return { success: false, error: { message: "请选择讲师建议" } };
+    }
 
     const hasMeetingLinkArg = meetingLink !== undefined;
     const link = hasMeetingLinkArg ? meetingLink.trim() || null : undefined;
 
     const result = await db.transaction(async (tx) => {
+      const [currentFlow] = await tx
+        .select({ progressStatus: userFlow.progressStatus })
+        .from(userFlow)
+        .where(eq(userFlow.id, userFlowId))
+        .limit(1);
+
+      if (!currentFlow) {
+        return {
+          success: false as const,
+          error: { message: "报名流程不存在" },
+        };
+      }
+      if (currentFlow.progressStatus === "passed") {
+        return {
+          success: false as const,
+          error: {
+            message: "该候选人流程已结束；如需调整成员权限，请在成员管理中操作",
+          },
+        };
+      }
+      if (currentFlow.progressStatus === "failed") {
+        return {
+          success: false as const,
+          error: {
+            message: "该候选人流程已结束；如需重新评估，请重新报名并完整走流程",
+          },
+        };
+      }
+
       const active = await findActiveEvaluationInTx(tx, userFlowId);
 
       if (active?.status === "approved") {
         return {
           success: false as const,
           error: {
-            message: "该候选人面评已通过，请先由管理员撤销通过后再修改",
+            message: "该候选人面评已归档；如需调整成员权限，请在成员管理中操作",
           },
         };
+      }
+
+      if (!active) {
+        const [rejected] = await tx
+          .select({ id: interviewEvaluation.id })
+          .from(interviewEvaluation)
+          .where(
+            and(
+              eq(interviewEvaluation.fkUserFlowId, userFlowId),
+              eq(interviewEvaluation.status, "rejected"),
+            ),
+          )
+          .orderBy(desc(interviewEvaluation.id))
+          .limit(1);
+
+        if (rejected) {
+          return {
+            success: false as const,
+            error: {
+              message: "该候选人面评已归档；如需重新评估，请重新报名并完整走流程",
+            },
+          };
+        }
       }
 
       await moveUserFlowInTx(
@@ -177,10 +253,13 @@ export const createEvaluation = async (
           .update(interviewEvaluation)
           .set({
             content: content.trim(),
+            recommendation,
             ...(hasMeetingLinkArg ? { meetingLink: link ?? null } : {}),
             updatedAt: new Date(),
           })
           .where(eq(interviewEvaluation.id, active.id));
+
+        await linkEvaluationToActiveScheduleInTx(tx, userFlowId, active.id);
 
         return {
           success: true as const,
@@ -197,9 +276,12 @@ export const createEvaluation = async (
           fkUserId: session!.uid,
           content: content.trim(),
           meetingLink: link ?? null,
+          recommendation,
           status: "submitted",
         })
         .returning();
+
+      await linkEvaluationToActiveScheduleInTx(tx, userFlowId, evaluation.id);
 
       return {
         success: true as const,
@@ -225,6 +307,7 @@ export const createEvaluation = async (
         hasMeetingLink: hasMeetingLinkArg
           ? Boolean(link)
           : undefined,
+        recommendation,
       },
     });
     return { success: true, data: result.data };
@@ -235,158 +318,7 @@ export const createEvaluation = async (
       role: session?.role ?? null,
       action: "create-evaluation",
       userFlowId,
-      metadata: { hasMeetingLink: Boolean(meetingLink?.trim()) },
-    });
-    throw error;
-  }
-};
-
-export const rejectCandidate = async (userFlowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
-
-  try {
-    session = await verifyRole(2);
-
-    await db.transaction(async (tx) => {
-      const active = await findActiveEvaluationInTx(tx, userFlowId);
-      if (active?.status === "approved") {
-        throw new Error("该候选人面评已通过，请先由管理员撤销通过后再操作");
-      }
-
-      await moveUserFlowInTx(
-        tx,
-        userFlowId,
-        "failed",
-        evaluationStepTypeForAction("lecturer_reject"),
-      );
-
-      await tx
-        .delete(interviewEvaluation)
-        .where(
-          and(
-            eq(interviewEvaluation.fkUserFlowId, userFlowId),
-            eq(interviewEvaluation.status, "submitted"),
-          ),
-        );
-    });
-
-    revalidatePath("/dashboard/recruitment");
-    revalidatePath("/dashboard/approvals");
-    await writeOperationAudit({
-      actorId: session.uid,
-      action: "evaluation.reject_candidate",
-      resourceType: "user_flow",
-      resourceId: userFlowId,
-    });
-  } catch (error) {
-    logServerError("evaluation:rejectCandidate", error, {
-      path: "/dashboard/recruitment",
-      userId: session?.uid ?? null,
-      role: session?.role ?? null,
-      action: "reject-candidate-before-evaluation",
-      userFlowId,
-    });
-    throw error;
-  }
-};
-
-export const reopenAndEvaluate = async (
-  userFlowId: number,
-  content: string,
-  meetingLink?: string,
-) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
-
-  try {
-    session = await verifyRole(2);
-
-    if (!content.trim()) {
-      return { success: false, error: { message: "面评内容不能为空" } };
-    }
-
-    const hasMeetingLinkArg = meetingLink !== undefined;
-    const link = hasMeetingLinkArg ? meetingLink.trim() || null : undefined;
-
-    const result = await db.transaction(async (tx) => {
-      const active = await findActiveEvaluationInTx(tx, userFlowId);
-
-      if (active?.status === "approved") {
-        return {
-          success: false as const,
-          error: {
-            message: "该候选人面评已通过，请先由管理员撤销通过后再操作",
-          },
-        };
-      }
-
-      await moveUserFlowInTx(
-        tx,
-        userFlowId,
-        "ongoing",
-        evaluationStepTypeForAction("submit_for_review"),
-      );
-
-      if (active?.status === "submitted") {
-        await tx
-          .update(interviewEvaluation)
-          .set({
-            content: content.trim(),
-            ...(hasMeetingLinkArg ? { meetingLink: link ?? null } : {}),
-            fkUserId: session!.uid,
-            updatedAt: new Date(),
-          })
-          .where(eq(interviewEvaluation.id, active.id));
-
-        return {
-          success: true as const,
-          evaluationId: active.id,
-          auditAction: "evaluation.reopen_and_create" as const,
-        };
-      }
-
-      const [evaluation] = await tx
-        .insert(interviewEvaluation)
-        .values({
-          fkUserFlowId: userFlowId,
-          fkUserId: session!.uid,
-          content: content.trim(),
-          meetingLink: link ?? null,
-          status: "submitted",
-        })
-        .returning({ id: interviewEvaluation.id });
-
-      return {
-        success: true as const,
-        evaluationId: evaluation.id,
-        auditAction: "evaluation.reopen_and_create" as const,
-      };
-    });
-
-    if (!result.success) {
-      return result;
-    }
-
-    revalidatePath("/dashboard/recruitment");
-    revalidatePath("/dashboard/approvals");
-    await writeOperationAudit({
-      actorId: session.uid,
-      action: result.auditAction,
-      resourceType: "user_flow",
-      resourceId: userFlowId,
-      metadata: {
-        evaluationId: result.evaluationId,
-        hasMeetingLink: hasMeetingLinkArg ? Boolean(link) : undefined,
-      },
-    });
-    return { success: true };
-  } catch (error) {
-    logServerError("evaluation:reopenAndEvaluate", error, {
-      path: "/dashboard/recruitment",
-      userId: session?.uid ?? null,
-      role: session?.role ?? null,
-      action: "reopen-and-evaluate",
-      userFlowId,
-      metadata: { hasMeetingLink: Boolean(meetingLink?.trim()) },
+      metadata: { hasMeetingLink: Boolean(meetingLink?.trim()), recommendation },
     });
     throw error;
   }
@@ -529,148 +461,6 @@ export const rejectEvaluation = async (evaluationId: number) => {
   }
 };
 
-/** Revoke a previous approval and send the evaluation back to pending review. */
-export const unapproveEvaluation = async (evaluationId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
-  let affectedUserId: number | null = null;
-
-  try {
-    session = await verifyRole(3);
-
-    await db.transaction(async (tx) => {
-      const [evalRecord] = await tx
-        .select({
-          fkUserFlowId: interviewEvaluation.fkUserFlowId,
-          status: interviewEvaluation.status,
-        })
-        .from(interviewEvaluation)
-        .where(eq(interviewEvaluation.id, evaluationId))
-        .limit(1);
-
-      if (!evalRecord) throw new Error("面评不存在");
-      if (!canUnapproveEvaluation(evalRecord.status)) {
-        throw new Error("只能撤销已通过的面评");
-      }
-
-      await tx
-        .update(interviewEvaluation)
-        .set({
-          status: "submitted",
-          fkReviewedBy: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(interviewEvaluation.id, evaluationId));
-
-      const [uf] = await tx
-        .select({ fkUserId: userFlow.fkUserId })
-        .from(userFlow)
-        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
-        .limit(1);
-
-      if (uf) {
-        affectedUserId = uf.fkUserId;
-        await moveUserFlowInTx(
-          tx,
-          evalRecord.fkUserFlowId,
-          "ongoing",
-          evaluationStepTypeForAction("submit_for_review"),
-        );
-      }
-    });
-
-    if (affectedUserId !== null) {
-      await safeSyncUserRole(affectedUserId, {
-        action: "evaluation:unapprove:role-sync",
-        path: "/dashboard/approvals",
-        actorId: session.uid,
-        actorRole: session.role,
-        metadata: { evaluationId, affectedUserId },
-      });
-    }
-
-    revalidatePath("/dashboard/approvals");
-    revalidatePath("/dashboard/recruitment");
-    await writeOperationAudit({
-      actorId: session.uid,
-      action: "evaluation.unapprove",
-      resourceType: "interview_evaluation",
-      resourceId: evaluationId,
-      metadata: { affectedUserId },
-    });
-  } catch (error) {
-    logServerError("evaluation:unapprove", error, {
-      path: "/dashboard/approvals",
-      userId: session?.uid ?? null,
-      role: session?.role ?? null,
-      action: "unapprove-evaluation",
-      metadata: { evaluationId, affectedUserId },
-    });
-    throw error;
-  }
-};
-
-export const reopenEvaluation = async (evaluationId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
-
-  try {
-    session = await verifyRole(3);
-
-    await db.transaction(async (tx) => {
-      const [evalRecord] = await tx
-        .select({
-          status: interviewEvaluation.status,
-          fkUserFlowId: interviewEvaluation.fkUserFlowId,
-        })
-        .from(interviewEvaluation)
-        .where(eq(interviewEvaluation.id, evaluationId))
-        .limit(1);
-
-      if (!evalRecord) throw new Error("面评不存在");
-      if (!canReopenEvaluation(evalRecord.status)) {
-        throw new Error("只能撤销已驳回的面评");
-      }
-
-      const active = await findActiveEvaluationInTx(tx, evalRecord.fkUserFlowId);
-      if (active) {
-        throw new Error("该候选人已有待审或已通过的面评，无法重新打开旧记录");
-      }
-
-      await tx
-        .update(interviewEvaluation)
-        .set({
-          status: "submitted",
-          fkReviewedBy: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(interviewEvaluation.id, evaluationId));
-
-      await moveUserFlowInTx(
-        tx,
-        evalRecord.fkUserFlowId,
-        "ongoing",
-        evaluationStepTypeForAction("submit_for_review"),
-      );
-    });
-
-    revalidatePath("/dashboard/approvals");
-    revalidatePath("/dashboard/recruitment");
-    await writeOperationAudit({
-      actorId: session.uid,
-      action: "evaluation.reopen",
-      resourceType: "interview_evaluation",
-      resourceId: evaluationId,
-    });
-  } catch (error) {
-    logServerError("evaluation:reopen", error, {
-      path: "/dashboard/approvals",
-      userId: session?.uid ?? null,
-      role: session?.role ?? null,
-      action: "reopen-evaluation",
-      metadata: { evaluationId },
-    });
-    throw error;
-  }
-};
 
 export const getAllEvaluations = async () => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
@@ -691,7 +481,34 @@ export const getAllEvaluations = async () => {
       .from(interviewEvaluation)
       .leftJoin(userFlow, eq(interviewEvaluation.fkUserFlowId, userFlow.id))
       .leftJoin(flow, eq(userFlow.fkFlowId, flow.id))
-      .orderBy(interviewEvaluation.createdAt);
+      .orderBy(desc(interviewEvaluation.createdAt));
+
+    const userFlowIds = rows
+      .map((row) => row.evaluation.fkUserFlowId)
+      .filter((id): id is number => id !== null);
+    const schedules = userFlowIds.length === 0
+      ? []
+      : await db
+          .select({
+            evaluationId: interviewSchedule.fkEvaluationId,
+            userFlowId: interviewSchedule.fkUserFlowId,
+            minuteLink: interviewSchedule.meetingMinuteLink,
+            updatedAt: interviewSchedule.updatedAt,
+          })
+          .from(interviewSchedule)
+          .where(inArray(interviewSchedule.fkUserFlowId, userFlowIds))
+          .orderBy(desc(interviewSchedule.updatedAt));
+    const minuteByEvaluation = new Map<number, string>();
+    const minuteByUserFlow = new Map<number, string>();
+    for (const schedule of schedules) {
+      if (!schedule.minuteLink) continue;
+      if (schedule.evaluationId && !minuteByEvaluation.has(schedule.evaluationId)) {
+        minuteByEvaluation.set(schedule.evaluationId, schedule.minuteLink);
+      }
+      if (!minuteByUserFlow.has(schedule.userFlowId)) {
+        minuteByUserFlow.set(schedule.userFlowId, schedule.minuteLink);
+      }
+    }
 
     const userMap = await listPeopleUsersByLinkIds(
       rows
@@ -701,6 +518,11 @@ export const getAllEvaluations = async () => {
 
     return rows.map((row) => ({
       ...row,
+      meetingLink:
+        row.meetingLink ??
+        minuteByEvaluation.get(row.evaluation.id) ??
+        minuteByUserFlow.get(row.evaluation.fkUserFlowId) ??
+        null,
       authorName: userMap.get(row.authorId)?.name ?? null,
       candidateName: row.candidateId
         ? (userMap.get(row.candidateId)?.name ?? null)
@@ -735,6 +557,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
         evalId: interviewEvaluation.id,
         evalContent: interviewEvaluation.content,
         evalMeetingLink: interviewEvaluation.meetingLink,
+        evalRecommendation: interviewEvaluation.recommendation,
         evalStatus: interviewEvaluation.status,
       })
       .from(userFlow)
@@ -763,6 +586,8 @@ export const getEvaluationCandidates = async (flowId: number) => {
               startsAt: interviewSchedule.startsAt,
               endsAt: interviewSchedule.endsAt,
               status: interviewSchedule.status,
+              meetingStatus: interviewSchedule.meetingStatus,
+              meetingEndedAt: interviewSchedule.meetingEndedAt,
             })
             .from(interviewSchedule)
             .where(
@@ -782,7 +607,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
 
     const userMap = await listPeopleUsersByLinkIds(
       dedupedCandidates.map((candidate) => candidate.uid),
-      { canViewSensitiveInfo: session.role >= 3 },
+      { canViewSensitiveInfo: true },
     );
 
     return dedupedCandidates
@@ -790,10 +615,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
         ...candidate,
         name: userMap.get(candidate.uid)?.name ?? "未知用户",
         studentId: userMap.get(candidate.uid)?.studentId ?? null,
-        phoneNumber:
-          session!.role >= 3
-            ? (userMap.get(candidate.uid)?.phone ?? null)
-            : null,
+        qq: userMap.get(candidate.uid)?.qq ?? null,
         scheduleId: latestScheduleMap.get(candidate.userFlowId)?.id ?? null,
         scheduleMeetingLink:
           latestScheduleMap.get(candidate.userFlowId)?.meetingLink ?? null,
@@ -810,6 +632,10 @@ export const getEvaluationCandidates = async (flowId: number) => {
           latestScheduleMap.get(candidate.userFlowId)?.endsAt ?? null,
         scheduleStatus:
           latestScheduleMap.get(candidate.userFlowId)?.status ?? null,
+        scheduleMeetingStatus:
+          latestScheduleMap.get(candidate.userFlowId)?.meetingStatus ?? null,
+        scheduleMeetingEndedAt:
+          latestScheduleMap.get(candidate.userFlowId)?.meetingEndedAt ?? null,
       }))
       .sort((a, b) => (a.studentId ?? "").localeCompare(b.studentId ?? ""));
   } catch (error) {

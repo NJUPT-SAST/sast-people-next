@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  ExternalLink,
-  Sparkles,
-} from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -17,9 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createEvaluation, rejectCandidate, reopenAndEvaluate } from "@/action/user-flow/evaluation";
+import { createEvaluation } from "@/action/user-flow/evaluation";
 import {
   cancelInterviewSchedule,
+  confirmInterviewScheduleEnded,
   createInterviewSchedule,
   previewInterviewScheduleEmail,
 } from "@/action/user-flow/interviewSchedule";
@@ -32,7 +30,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { externalHref } from "@/lib/link";
-import { generateEvaluationDraft } from "@/action/ai/candidate";
 import { FeishuOAuthStatus } from "@/components/feishu-oauth-status";
 
 type Candidate = {
@@ -40,12 +37,13 @@ type Candidate = {
   uid: number;
   name: string;
   studentId: string | null;
-  phoneNumber: string | null;
+  qq: string | null;
   status: string | null;
   portfolioLink: string | null;
   evalId: number | null;
   evalContent: string | null;
   evalMeetingLink: string | null;
+  evalRecommendation: "passed" | "failed" | null;
   evalStatus: string | null;
   scheduleId: number | null;
   scheduleMeetingLink: string | null;
@@ -55,6 +53,8 @@ type Candidate = {
   scheduleStartsAt: Date | string | null;
   scheduleEndsAt: Date | string | null;
   scheduleStatus: string | null;
+  scheduleMeetingStatus: string | null;
+  scheduleMeetingEndedAt: Date | string | null;
 };
 
 const evalStatusLabel = (
@@ -67,7 +67,7 @@ const evalStatusLabel = (
     return { text: "已通过", className: "text-primary" };
   }
   if (evalStatus === "rejected") {
-    return { text: "面评驳回", className: "text-destructive" };
+    return { text: "不通过", className: "text-destructive" };
   }
   if (evalStatus === "submitted") {
     return { text: "待审核", className: "text-foreground" };
@@ -122,7 +122,7 @@ const summaryItems = [
   { key: "waiting", label: "待评估" },
   { key: "pending", label: "待审核" },
   { key: "accepted", label: "已通过" },
-  { key: "evalRejected", label: "面评驳回" },
+  { key: "evalRejected", label: "不通过" },
   { key: "rejected", label: "不通过" },
 ];
 
@@ -179,17 +179,15 @@ const getTime = (value: Date | string | null) => {
 function CandidateIdentity({
   name,
   studentId,
-  phoneNumber,
-  showPhone,
+  qq,
 }: {
   name: string;
   studentId: string | null;
-  phoneNumber: string | null;
-  showPhone?: boolean;
+  qq: string | null;
 }) {
   const meta = [
     studentId || null,
-    showPhone ? phoneNumber || null : null,
+    qq ? `QQ ${qq}` : null,
   ].filter(Boolean);
 
   return (
@@ -247,7 +245,7 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
         >
-          会议
+          留档会议
           <ExternalLink className="size-3.5 shrink-0 opacity-50" />
         </a>
         {hasDistinctScheduleLink && candidate.scheduleLink && (
@@ -327,13 +325,13 @@ export const EvaluationTable = ({
   const [schedulingId, setSchedulingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
+  const [recommendation, setRecommendation] = useState<"passed" | "failed">("passed");
   const [scheduleStartsAt, setScheduleStartsAt] = useState("");
   const [scheduleEndsAt, setScheduleEndsAt] = useState("");
   const [scheduleLocation, setScheduleLocation] = useState("");
   const [scheduleNote, setScheduleNote] = useState("");
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [emailPreviewLoading, setEmailPreviewLoading] = useState(false);
-  const [aiDraftLoading, setAiDraftLoading] = useState(false);
   const [emailPreview, setEmailPreview] = useState<{
     subject: string;
     to: string;
@@ -342,18 +340,19 @@ export const EvaluationTable = ({
   const [feishuBound, setFeishuBound] = useState<boolean | null>(null);
   const [feishuStatusFailed, setFeishuStatusFailed] = useState(false);
   const [loadingId, setLoadingId] = useState<number | null>(null);
-  const [editMode, setEditMode] = useState<"pass" | "reopen" | null>(null);
+  const [evaluationError, setEvaluationError] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
     setNow(Date.now());
   }, []);
 
-  const startEdit = (c: Candidate, mode: "pass" | "reopen") => {
+  const startEdit = (c: Candidate) => {
     setEvaluatingId(c.userFlowId);
-    setEditMode(mode);
     setContent(c.evalContent ?? "");
     setMeetingLink(c.scheduleMeetingMinuteLink ?? c.evalMeetingLink ?? "");
+    setRecommendation(c.evalRecommendation ?? "passed");
+    setEvaluationError(null);
   };
 
   const startSchedule = (c: Candidate) => {
@@ -375,7 +374,8 @@ export const EvaluationTable = ({
     setEvaluatingId(null);
     setContent("");
     setMeetingLink("");
-    setEditMode(null);
+    setRecommendation("passed");
+    setEvaluationError(null);
   };
 
   const cancelSchedule = () => {
@@ -395,12 +395,22 @@ export const EvaluationTable = ({
     safeCandidates.find((c) => c.userFlowId === schedulingId) ?? null;
 
   const handlePass = async (userFlowId: number) => {
-    if (!content.trim()) return;
+    if (!content.trim()) {
+      setEvaluationError("请填写面评内容后再提交。");
+      return;
+    }
     setLoadingId(userFlowId);
     try {
-      const result = await createEvaluation(userFlowId, content, meetingLink);
+      const result = await createEvaluation(
+        userFlowId,
+        content,
+        recommendation,
+        meetingLink,
+      );
       if (!result.success) {
-        toast.error(result.error?.message ?? "提交失败");
+        const message = result.error?.message ?? "提交失败";
+        setEvaluationError(message);
+        toast.error(message);
         return;
       }
       toast.success("面评已提交，等待管理员审核");
@@ -413,34 +423,19 @@ export const EvaluationTable = ({
     }
   };
 
-  const handleReopen = async (userFlowId: number) => {
-    if (!content.trim()) return;
-    setLoadingId(userFlowId);
+  const handleConfirmScheduleEnded = async (candidate: Candidate) => {
+    if (!candidate.scheduleId) return;
+    setLoadingId(candidate.userFlowId);
     try {
-      const result = await reopenAndEvaluate(userFlowId, content, meetingLink);
+      const result = await confirmInterviewScheduleEnded(candidate.scheduleId);
       if (!result.success) {
-        toast.error(result.error?.message ?? "操作失败");
+        toast.error(result.error?.message ?? "确认面试结束失败");
         return;
       }
-      toast.success("面评已提交，等待管理员审核");
-      cancelEdit();
+      toast.success("已确认面试结束，可以提交面评");
       onRefresh();
     } catch {
-      toast.error("操作失败");
-    } finally {
-      setLoadingId(null);
-    }
-  };
-
-  const handleReject = async (userFlowId: number) => {
-    setLoadingId(userFlowId);
-    try {
-      await rejectCandidate(userFlowId);
-      toast.success("已设为不通过");
-      cancelEdit();
-      onRefresh();
-    } catch {
-      toast.error("操作失败");
+      toast.error("确认面试结束失败");
     } finally {
       setLoadingId(null);
     }
@@ -476,7 +471,7 @@ export const EvaluationTable = ({
       if (result.data.emailWarning) {
         toast.warning(result.data.emailWarning);
       } else {
-        toast.success("飞书会议和日程已创建，预约邮件已发送");
+        toast.success("线下面试日程已创建，预约邮件已发送");
       }
       cancelSchedule();
       onRefresh();
@@ -538,28 +533,6 @@ export const EvaluationTable = ({
       toast.error(error instanceof Error ? error.message : "取消预约失败");
     } finally {
       setLoadingId(null);
-    }
-  };
-
-  const handleGenerateEvaluationDraft = async () => {
-    if (!editingCandidate) return;
-
-    setAiDraftLoading(true);
-    try {
-      const result = await generateEvaluationDraft(
-        editingCandidate.userFlowId,
-        content,
-      );
-      if (!result.success) {
-        toast.error(result.error.message);
-        return;
-      }
-      setContent(result.data.text);
-      toast.success(content.trim() ? "面评内容已润色" : "面评草稿已生成");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "AI 面评生成失败");
-    } finally {
-      setAiDraftLoading(false);
     }
   };
 
@@ -637,10 +610,12 @@ export const EvaluationTable = ({
               const isEditing = evaluatingId === c.userFlowId;
               const isRejected = c.status === "failed";
               const busy = loadingId === c.userFlowId;
-              const scheduleEnded =
+              const scheduleEnded = c.scheduleMeetingStatus === "ended";
+              const canConfirmScheduleEnded =
                 now !== null &&
                 Boolean(c.scheduleMeetingLink) &&
-                (getTime(c.scheduleEndsAt) ?? Number.POSITIVE_INFINITY) <= now;
+                !scheduleEnded &&
+                (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
               const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
 
               return (
@@ -661,8 +636,7 @@ export const EvaluationTable = ({
                     <CandidateIdentity
                       name={c.name}
                       studentId={c.studentId}
-                      phoneNumber={c.phoneNumber}
-                      showPhone={role >= 3}
+                      qq={c.qq}
                     />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
@@ -689,37 +663,34 @@ export const EvaluationTable = ({
                               {busy ? "处理中" : "取消"}
                             </ActionButton>
                           )}
+                          {canConfirmScheduleEnded && (
+                            <ActionButton
+                              disabled={busy}
+                              onClick={() => handleConfirmScheduleEnded(c)}
+                            >
+                              {busy ? "处理中" : "确认结束"}
+                            </ActionButton>
+                          )}
                         </div>
                       ) : isEditing ? (
                         <span className="text-xs text-muted-foreground">正在编辑…</span>
                       ) : c.evalStatus === "submitted" ? (
                         <div className="flex flex-wrap items-center justify-end gap-1.5">
-                          <ActionButton onClick={() => startEdit(c, "pass")}>
+                          <ActionButton onClick={() => startEdit(c)}>
                             修改
                           </ActionButton>
                         </div>
                       ) : c.evalStatus === "approved" || c.evalStatus === "rejected" ? (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-xs text-muted-foreground">已归档</span>
                       ) : isRejected ? (
-                        <div className="flex justify-end">
-                          <ActionButton tone="primary" onClick={() => startEdit(c, "reopen")}>
-                            改为通过
-                          </ActionButton>
-                        </div>
+                        <span className="text-xs text-muted-foreground">已结束</span>
                       ) : (
                         <div className="flex flex-wrap items-center justify-end gap-1.5">
                           <ActionButton onClick={() => startSchedule(c)}>
                             改约
                           </ActionButton>
-                          <ActionButton tone="primary" onClick={() => startEdit(c, "pass")}>
-                            通过
-                          </ActionButton>
-                          <ActionButton
-                            tone="danger"
-                            disabled={busy}
-                            onClick={() => handleReject(c.userFlowId)}
-                          >
-                            {busy ? "处理中" : "不通过"}
+                          <ActionButton tone="primary" onClick={() => startEdit(c)}>
+                            填写面评
                           </ActionButton>
                         </div>
                       )}
@@ -738,10 +709,12 @@ export const EvaluationTable = ({
           const isEditing = evaluatingId === c.userFlowId;
           const isRejected = c.status === "failed";
           const busy = loadingId === c.userFlowId;
-          const scheduleEnded =
+          const scheduleEnded = c.scheduleMeetingStatus === "ended";
+          const canConfirmScheduleEnded =
             now !== null &&
             Boolean(c.scheduleMeetingLink) &&
-            (getTime(c.scheduleEndsAt) ?? Number.POSITIVE_INFINITY) <= now;
+            !scheduleEnded &&
+            (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
           const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
 
           return (
@@ -762,8 +735,7 @@ export const EvaluationTable = ({
                 <CandidateIdentity
                   name={c.name}
                   studentId={c.studentId}
-                  phoneNumber={c.phoneNumber}
-                  showPhone={role >= 3}
+                  qq={c.qq}
                 />
                 <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
               </div>
@@ -785,6 +757,14 @@ export const EvaluationTable = ({
                         {busy ? "处理中" : "取消"}
                       </ActionButton>
                     )}
+                    {canConfirmScheduleEnded && (
+                      <ActionButton
+                        disabled={busy}
+                        onClick={() => handleConfirmScheduleEnded(c)}
+                      >
+                        {busy ? "处理中" : "确认结束"}
+                      </ActionButton>
+                    )}
                   </div>
                 ) : isEditing ? (
                   <div className="pt-1 text-sm text-muted-foreground">
@@ -792,34 +772,21 @@ export const EvaluationTable = ({
                   </div>
                 ) : c.evalStatus === "submitted" ? (
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <ActionButton onClick={() => startEdit(c, "pass")}>
+                    <ActionButton onClick={() => startEdit(c)}>
                       修改
                     </ActionButton>
                   </div>
-                ) : c.evalStatus === "approved" ? (
-                  <div className="pt-1 text-sm text-muted-foreground">已完成</div>
-                ) : c.evalStatus === "rejected" ? (
-                  <div className="pt-1 text-sm text-muted-foreground">已驳回</div>
+                ) : c.evalStatus === "approved" || c.evalStatus === "rejected" ? (
+                  <div className="pt-1 text-sm text-muted-foreground">已归档</div>
                 ) : isRejected ? (
-                  <div className="pt-1">
-                    <ActionButton tone="primary" onClick={() => startEdit(c, "reopen")}>
-                      改为通过
-                    </ActionButton>
-                  </div>
+                  <div className="pt-1 text-sm text-muted-foreground">已结束</div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <ActionButton onClick={() => startSchedule(c)}>
                       改约
                     </ActionButton>
-                    <ActionButton tone="primary" onClick={() => startEdit(c, "pass")}>
-                      通过
-                    </ActionButton>
-                    <ActionButton
-                      tone="danger"
-                      disabled={busy}
-                      onClick={() => handleReject(c.userFlowId)}
-                    >
-                      {busy ? "处理中" : "不通过"}
+                    <ActionButton tone="primary" onClick={() => startEdit(c)}>
+                      填写面评
                     </ActionButton>
                   </div>
                 )
@@ -851,25 +818,56 @@ export const EvaluationTable = ({
               </div>
             )}
             <div className="space-y-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <label className="text-sm font-medium">面评内容</label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerateEvaluationDraft}
-                  loading={aiDraftLoading}
-                >
-                  <Sparkles data-icon="inline-start" />
-                  {content.trim() ? "润色内容" : "生成草稿"}
-                </Button>
-              </div>
+              <label htmlFor="evaluation-content" className="text-sm font-medium">
+                面评内容 <span className="text-destructive">*</span>
+              </label>
+              <p className="text-xs leading-5 text-muted-foreground">
+                面评内容必填，讲师建议不能替代面评正文。
+              </p>
               <Textarea
+                id="evaluation-content"
                 placeholder="请输入面评内容..."
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  if (evaluationError) setEvaluationError(null);
+                }}
+                aria-invalid={Boolean(evaluationError)}
+                aria-describedby={
+                  evaluationError ? "evaluation-content-error" : undefined
+                }
+                required
                 className="min-h-[160px] resize-y"
               />
+              {evaluationError && (
+                <p id="evaluation-content-error" role="alert" className="text-sm text-destructive">
+                  {evaluationError}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">讲师建议</label>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="讲师建议">
+                <Button
+                  type="button"
+                  variant={recommendation === "passed" ? "default" : "outline"}
+                  aria-pressed={recommendation === "passed"}
+                  onClick={() => setRecommendation("passed")}
+                >
+                  建议通过
+                </Button>
+                <Button
+                  type="button"
+                  variant={recommendation === "failed" ? "destructive" : "outline"}
+                  aria-pressed={recommendation === "failed"}
+                  onClick={() => setRecommendation("failed")}
+                >
+                  建议不通过
+                </Button>
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                此为讲师意见，最终结果由管理员结合面评审核决定。
+              </p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">妙记链接</label>
@@ -892,16 +890,6 @@ export const EvaluationTable = ({
           </div>
           <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">
             <div className="min-h-9">
-              {editingCandidate && editingCandidate.status !== "failed" && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleReject(editingCandidate.userFlowId)}
-                  loading={loadingId === editingCandidate.userFlowId}
-                >
-                  不通过
-                </Button>
-              )}
             </div>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={cancelEdit}>
@@ -911,9 +899,7 @@ export const EvaluationTable = ({
                 type="button"
                 onClick={() => {
                   if (!editingCandidate) return;
-                  return editMode === "reopen"
-                    ? handleReopen(editingCandidate.userFlowId)
-                    : handlePass(editingCandidate.userFlowId);
+                  return handlePass(editingCandidate.userFlowId);
                 }}
                 loading={
                   editingCandidate
@@ -935,11 +921,11 @@ export const EvaluationTable = ({
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>预约面试会议</DialogTitle>
+            <DialogTitle>安排线下面试</DialogTitle>
             <DialogDescription>
               {schedulingCandidate
                 ? `${schedulingCandidate.name}（${schedulingCandidate.studentId ?? "无学号"}）`
-                : "创建飞书会议和日程，并发送预约邮件。"}
+                : "创建内部飞书日程和留档会议，并发送线下面试预约邮件。"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
@@ -955,6 +941,9 @@ export const EvaluationTable = ({
                 发起飞书会议和日程前需要先绑定飞书授权。点击上方「绑定飞书」完成授权后，再填写时间并发起日程。
               </p>
             )}
+            <p className="text-xs leading-5 text-muted-foreground">
+              飞书会议仅用于录制与妙记留档；候选人邮件只包含线下面试时间、地点和备注。
+            </p>
             {feishuStatusFailed && (
               <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-5 text-destructive">
                 飞书授权状态检查失败。可尝试重新绑定，或刷新页面后再试。
@@ -962,7 +951,7 @@ export const EvaluationTable = ({
             )}
             {schedulingCandidate?.scheduleMeetingLink && (
               <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="mb-1 text-xs text-muted-foreground">当前会议</p>
+                <p className="mb-1 text-xs text-muted-foreground">当前留档会议</p>
                 <ScheduleInfo candidate={schedulingCandidate} />
               </div>
             )}
@@ -1046,7 +1035,7 @@ export const EvaluationTable = ({
                   : "请先绑定飞书账号后再发起面试日程"
               }
             >
-              {schedulingCandidate?.scheduleMeetingLink ? "保存改约" : "发起飞书日程"}
+              {schedulingCandidate?.scheduleMeetingLink ? "保存改约" : "创建线下面试日程"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1084,6 +1073,3 @@ export const EvaluationTable = ({
     </div>
   );
 };
-
-
-

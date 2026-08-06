@@ -19,15 +19,6 @@ export function canRejectEvaluation(status: string | null | undefined) {
   return status === "submitted";
 }
 
-/** Admin may revoke approval and send the evaluation back to pending review. */
-export function canUnapproveEvaluation(status: string | null | undefined) {
-  return status === "approved";
-}
-
-export function canReopenEvaluation(status: string | null | undefined) {
-  return status === "rejected";
-}
-
 /**
  * Prefer the actionable/active evaluation for a candidate list row.
  * Active statuses win over rejected history; newer ids break ties.
@@ -69,12 +60,10 @@ export function dedupeEvaluationCandidateRows<
 }
 
 export function evaluationStepTypeForAction(
-  action:
+  _action:
     | "submit_for_review"
-    | "admin_decision"
-    | "lecturer_reject",
+    | "admin_decision",
 ): EvaluationFlowStepType {
-  if (action === "lecturer_reject") return "checking";
   return "finished";
 }
 
