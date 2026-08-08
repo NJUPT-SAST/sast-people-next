@@ -220,7 +220,7 @@ docker compose up -d --force-recreate
 
 This does not require rebuilding or copying a new image. Build-time public variables such as `NEXT_PUBLIC_SENTRY_DSN` are still passed through GitHub Actions because Next.js inlines `NEXT_PUBLIC_*` values during `pnpm build`.
 
-`PEOPLE_PUBLIC_BASE_URL` must be set in production so Feishu bot cards can link back to People. `FEISHU_OAUTH_REDIRECT_URI` must match the exact URL allowlisted in the Feishu developer console, for example `https://nextpeople.sast.fun/api/auth/feishu`.
+`PEOPLE_PUBLIC_BASE_URL` must be set in production so Feishu bot cards can link back to People. `FEISHU_OAUTH_REDIRECT_URI` must match the exact URL allowlisted in the Feishu developer console, for example `https://people.sast.fun/api/auth/feishu`.
 
 ## Documentation
 

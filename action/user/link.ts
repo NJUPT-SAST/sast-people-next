@@ -12,6 +12,7 @@ import { logServerError } from "@/lib/server-error-log";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import crypto from "node:crypto";
+import { getPublicBaseUrl } from "@/lib/app-url";
 
 export async function redirectSASTLink(isBinding: boolean) {
   const { codeChallenge, state } = await createCodeChallenge(isBinding);
@@ -22,7 +23,7 @@ export async function redirectSASTLink(isBinding: boolean) {
   url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("redirect_uri", redirect_uri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scopes", getLinkOAuthScopes());
+  url.searchParams.set("scope", getLinkOAuthScopes());
   url.searchParams.set("state", state);
   return redirect(url.toString());
 }
@@ -87,7 +88,7 @@ export async function getCurrentRedirectUri() {
   return (
     (process.env.NODE_ENV === "development"
       ? "http://localhost:3001"
-      : "https://nextpeople.sast.fun") + "/api/auth/link"
+      : getPublicBaseUrl()) + "/api/auth/link"
   );
 }
 

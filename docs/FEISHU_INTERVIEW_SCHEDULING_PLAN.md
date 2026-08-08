@@ -77,8 +77,8 @@ People 的业务身份必须统一使用 SAST Link 用户 ID，登录流程必�
 当前实现依赖同一个飞书自建应用，需要在开发者平台完成：
 
 - 配置 `APP_ID`、`APP_SECRET`；
-- OAuth 重定向地址精确加入白名单，例如本地开发为 `http://localhost:3000/api/auth/feishu`，线上为 `https://nextpeople.sast.fun/api/auth/feishu`；
-- 网页应用能力的桌面端主页和移动端主页配置为 People dashboard，例如 `https://nextpeople.sast.fun/dashboard`；
+- OAuth 重定向地址精确加入白名单，例如本地开发为 `http://localhost:3000/api/auth/feishu`，线上为 `https://people.sast.fun/api/auth/feishu`；
+- 网页应用能力的桌面端主页和移动端主页配置为 People dashboard，例如 `https://people.sast.fun/dashboard`；
 - 开通日历权限，用于创建日程、添加参与人、查询忙闲；
 - 开通视频会议预约权限，用于创建飞书会议；
 - 开启机器人能力，并开通发送消息权限，用于向讲师发送预约提醒；

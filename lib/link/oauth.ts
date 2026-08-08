@@ -5,7 +5,8 @@ export type LinkOAuthTokenResponse = {
   refresh_token?: string;
   token_type: "Bearer";
   expires_in: number;
-  scopes?: string;
+  scope?: string;
+  id_token?: string;
 };
 
 export const getLinkOAuthBaseUrl = () => {
@@ -25,13 +26,14 @@ export const createLinkOAuthUrl = (path: string) => {
 };
 
 const requestLinkOAuthToken = async (body: Record<string, string>) => {
+  const form = new URLSearchParams(body);
   const response = await fetch(createLinkOAuthUrl("/oauth/token"), {
     method: "POST",
     headers: {
       Accept: "application/json",
-      "Content-Type": "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: JSON.stringify(body),
+    body: form.toString(),
     cache: "no-store",
   });
 

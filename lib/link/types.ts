@@ -82,7 +82,6 @@ export type LinkListUsersParams = {
   role?: LinkRole;
   state?: LinkUserState;
   department?: LinkDepartment;
-  college?: string;
-  major?: string;
+  studentId?: string;
   keyword?: string;
 };

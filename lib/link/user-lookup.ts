@@ -75,9 +75,9 @@ export const findPeopleUserByStudentId = async (
     }
 
     const result = await listLinkUsers(accessToken, {
-      keyword: normalizedStudentId,
       page: 1,
       pageSize: 100,
+      studentId: normalizedStudentId,
     });
     const matchedUser = result.users.find(
       (item) =>

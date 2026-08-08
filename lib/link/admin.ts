@@ -30,8 +30,7 @@ export const listLinkUsers = async (
       role: params.role,
       state: params.state,
       department: params.department,
-      college: params.college,
-      major: params.major,
+      student_id: params.studentId,
       keyword: params.keyword,
     },
   });

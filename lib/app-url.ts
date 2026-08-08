@@ -1,6 +1,6 @@
 import "server-only";
 
-const DEFAULT_PUBLIC_BASE_URL = "https://nextpeople.sast.fun";
+const DEFAULT_PUBLIC_BASE_URL = "https://people.sast.fun";
 
 export function getPublicBaseUrl() {
   return (

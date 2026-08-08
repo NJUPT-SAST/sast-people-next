@@ -6,6 +6,7 @@ import { getFeishuOAuthAccountStatus } from "@/lib/feishu/oauth-account";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getPublicBaseUrl } from "@/lib/app-url";
 
 function base64URLEncode(value: Buffer) {
   return value
@@ -57,6 +58,6 @@ function getFeishuRedirectUri() {
     process.env.FEISHU_OAUTH_REDIRECT_URI ??
     ((process.env.NODE_ENV === "development"
       ? "http://localhost:3000"
-      : "https://nextpeople.sast.fun") + "/api/auth/feishu")
+      : getPublicBaseUrl()) + "/api/auth/feishu")
   );
 }

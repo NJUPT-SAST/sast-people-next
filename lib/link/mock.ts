@@ -207,8 +207,7 @@ export const listMockUsers = async ({
   role,
   state,
   department,
-  college,
-  major,
+  studentId,
   keyword,
 }: LinkListUsersParams = {}): Promise<LinkUsersList> => {
   const normalizedKeyword = keyword?.trim().toLowerCase();
@@ -216,8 +215,7 @@ export const listMockUsers = async ({
     if (role && user.role !== role) return false;
     if (state && user.state !== state) return false;
     if (department && user.profile?.department !== department) return false;
-    if (college && user.college !== college) return false;
-    if (major && user.major !== major) return false;
+    if (studentId && user.student_id !== studentId) return false;
     if (!normalizedKeyword) return true;
     return [user.name, user.student_id, user.login_email]
       .filter(Boolean)
