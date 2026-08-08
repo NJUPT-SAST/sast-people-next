@@ -273,7 +273,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ challenge: payload.challenge });
     }
 
-    const result = await getEventDispatcher().invoke(payload);
+    const eventData = {
+      ...payload,
+      headers: Object.fromEntries(request.headers.entries()),
+    };
+    const { isChallenge, challenge } = lark.generateChallenge(eventData, {
+      encryptKey: process.env.FEISHU_EVENT_ENCRYPT_KEY ?? "",
+    });
+    if (isChallenge) {
+      return NextResponse.json(challenge);
+    }
+
+    const result = await getEventDispatcher().invoke(eventData);
     return NextResponse.json(result ?? { ok: true });
   } catch (error) {
     logServerError("api:feishu:events", error, {
