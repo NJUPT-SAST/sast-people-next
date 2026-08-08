@@ -103,7 +103,7 @@ export function DataTable<TData, TValue>({
             return (
               col.id !== 'select' &&
               col.accessorKey !== 'phoneNumber' &&
-              col.accessorKey !== 'problemScores'
+              (col.accessorKey !== 'problemScores' || role >= 2)
             );
           }),
     [safeColumns, role],
@@ -415,7 +415,7 @@ export function DataTable<TData, TValue>({
                       </div>
                     )}
                     <div className="flex items-center justify-between gap-3 pt-1">
-                      {role >= 3 && problemScoresCell ? (
+                      {role >= 2 && problemScoresCell ? (
                         <div className="text-sm text-muted-foreground">
                           {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
                         </div>
