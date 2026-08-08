@@ -15,6 +15,7 @@ describe("Link admin client", () => {
 
     global.fetch = fetchMock as typeof fetch;
     process.env.LINK_API_BASE_URL = "https://link.example/v2";
+    process.env.LINK_USE_MOCK = "false";
     await listLinkUsers("access-token", {
       page: 2,
       pageSize: 20,
