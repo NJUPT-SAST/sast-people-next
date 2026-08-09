@@ -194,13 +194,11 @@ const response = await fetch("https://open.feishu.cn/open-apis/im/v1/messages?re
   }),
 });
 
-if (!response.ok) {
-  throw new Error(`Feishu message request failed with HTTP ${response.status}.`);
-}
-
 const result = await response.json();
-if (result.code !== 0) {
-  throw new Error(`Feishu rejected the message: ${result.msg ?? "unknown error"}`);
+if (!response.ok || result.code !== 0) {
+  throw new Error(
+    `Feishu message request failed (HTTP ${response.status}, code ${result.code ?? "unknown"}): ${result.msg ?? "unknown error"}`,
+  );
 }
 
 console.log(`Sent ${message.title}.`);
