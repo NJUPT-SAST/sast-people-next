@@ -142,20 +142,28 @@ if (!message) {
 }
 
 const card = {
-  schema: "2.0",
   config: { wide_screen_mode: true },
   header: {
     title: { tag: "plain_text", content: message.title },
     template: message.template,
   },
-  body: {
-    elements: [
-      {
-        tag: "markdown",
-        content: `${message.details.map((detail) => `- ${detail}`).join("\n")}\n\n[打开 GitHub](${message.url})`,
-      },
-    ],
-  },
+  elements: [
+    {
+      tag: "div",
+      text: { tag: "lark_md", content: message.details.map((detail) => `- ${detail}`).join("\n") },
+    },
+    {
+      tag: "action",
+      actions: [
+        {
+          tag: "button",
+          type: "primary",
+          text: { tag: "plain_text", content: "打开 GitHub" },
+          url: message.url,
+        },
+      ],
+    },
+  ],
 };
 
 const tokenResponse = await fetch("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", {
