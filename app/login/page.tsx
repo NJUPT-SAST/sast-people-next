@@ -4,7 +4,7 @@ import FlickeringGrid from "@/components/magicui/flickering-grid";
 import { TestLogin } from "@/components/testLogin";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
-import "@fontsource/ma-shan-zheng/chinese-simplified.css";
+import "./login-font.css";
 
 const sloganFontFamily =
   '"Ma Shan Zheng", "STXingkai", "华文行楷", "FZYaoti", cursive';
@@ -21,12 +21,12 @@ const Login = async () => {
 
           <div className="relative z-10 mb-10 lg:absolute lg:left-12 lg:top-10 lg:mb-0">
             <Image
-              src="/images/sast-logo-white.png"
+              src="/images/sast-logo-login.webp"
               alt="SAST Logo"
               width={120}
-              height={60}
+              height={76}
               priority
-              className="w-24 lg:w-[120px]"
+              className="h-auto w-24 lg:w-[120px]"
             />
           </div>
 
@@ -67,32 +67,32 @@ const Login = async () => {
           </div>
         </section>
 
-        <section className="flex items-center justify-center px-5 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-8 lg:px-10">
-          <div className="w-full max-w-[400px]">
-            <div className="mb-6 flex items-center gap-2.5 px-1">
+        <section className="flex items-center justify-center px-5 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-8 lg:px-12">
+          <div className="w-full max-w-[480px]">
+            <div className="mb-7 flex items-center gap-3 px-1">
               <Image
-                src="/images/crocodile-transparent.png"
+                src="/images/crocodile-login.webp"
                 alt=""
-                width={32}
-                height={32}
-                className="size-8 object-contain"
+                width={40}
+                height={40}
+                className="size-10 object-contain"
                 priority
               />
               <div className="leading-tight">
-                <p className="text-sm font-semibold tracking-tight text-[#18231d]">
+                <p className="text-base font-semibold tracking-tight text-[#18231d]">
                   SAST People
                 </p>
-                <p className="text-[11px] text-[#7a877f]">成员与组织平台</p>
+                <p className="text-xs text-[#7a877f]">成员与组织平台</p>
               </div>
             </div>
 
             <Card className="rounded-[1.5rem] border-[#e2e8df] bg-white shadow-[0_18px_50px_rgba(24,33,27,0.07)]">
-              <CardContent className="flex flex-col gap-7 p-6 sm:p-8">
+              <CardContent className="flex flex-col gap-8 p-7 sm:p-9">
                 <div className="space-y-2">
                   <p className="text-xs font-medium tracking-wide text-[#18A058]">
                     欢迎回来
                   </p>
-                  <h1 className="text-2xl font-semibold tracking-tight text-[#18231d]">
+                  <h1 className="text-3xl font-semibold tracking-tight text-[#18231d]">
                     登录 SAST People
                   </h1>
                   <p className="text-sm leading-6 text-[#66756c]">

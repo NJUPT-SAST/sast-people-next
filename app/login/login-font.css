@@ -1,0 +1,35 @@
+@font-face {
+  font-family: "Ma Shan Zheng";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ma-shan-zheng-109.woff2") format("woff2");
+  unicode-range: U+85AA;
+}
+
+@font-face {
+  font-family: "Ma Shan Zheng";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ma-shan-zheng-116.woff2") format("woff2");
+  unicode-range: U+706B;
+}
+
+@font-face {
+  font-family: "Ma Shan Zheng";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ma-shan-zheng-117.woff2") format("woff2");
+  unicode-range: U+4F20, U+6E90;
+}
+
+@font-face {
+  font-family: "Ma Shan Zheng";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ma-shan-zheng-118.woff2") format("woff2");
+  unicode-range: U+5E73, U+5F00, U+76F8, U+7B49;
+}
