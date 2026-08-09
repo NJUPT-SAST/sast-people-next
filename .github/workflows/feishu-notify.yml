@@ -1,0 +1,37 @@
+name: Development Notifications
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, review_requested, closed]
+  pull_request_review:
+    types: [submitted]
+  workflow_run:
+    workflows: ["CI/CD Pipeline", "Deploy"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Send Feishu Notification
+    runs-on: ubuntu-latest
+    # workflow_run is intentionally not checked out at its triggering commit.
+    # The script executes only from the default branch, so a fork PR cannot
+    # use this workflow's repository secrets to run untrusted code.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.name == 'Deploy' ||
+      (github.event.workflow_run.name == 'CI/CD Pipeline' && github.event.workflow_run.conclusion == 'failure')
+
+    steps:
+      - name: Checkout notification script
+        uses: actions/checkout@v7
+
+      - name: Send notification
+        env:
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_NOTIFY_CHAT_ID: ${{ secrets.FEISHU_NOTIFY_CHAT_ID }}
+        run: node scripts/send-feishu-notification.mjs
