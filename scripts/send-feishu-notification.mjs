@@ -25,6 +25,10 @@ if (!eventName || !eventPath || !repository) {
 const event = JSON.parse(await readFile(eventPath, "utf8"));
 const eventUrl = `${serverUrl}/${repository}/actions`;
 
+function line(label, value) {
+  return `**${label}**：${value}`;
+}
+
 function workflowNotification() {
   const run = event.workflow_run;
 
@@ -37,10 +41,12 @@ function workflowNotification() {
       title: "CI 检查失败",
       template: "red",
       url: run.html_url,
+      buttonLabel: "查看 CI 运行",
+      subtitle: "GitHub Actions",
       details: [
-        `仓库：${repository}`,
-        `分支：${run.head_branch ?? "未知"}`,
-        `提交：${run.head_sha?.slice(0, 7) ?? "未知"}`,
+        line("仓库", repository),
+        line("分支", run.head_branch ?? "未知"),
+        line("提交", run.head_sha?.slice(0, 7) ?? "未知"),
       ],
     };
   }
@@ -51,10 +57,12 @@ function workflowNotification() {
       title: succeeded ? "People 部署成功" : "People 部署失败",
       template: succeeded ? "green" : "red",
       url: run.html_url,
+      buttonLabel: "查看部署运行",
+      subtitle: "GitHub Actions",
       details: [
-        `仓库：${repository}`,
-        `分支：${run.head_branch ?? "未知"}`,
-        `提交：${run.head_sha?.slice(0, 7) ?? "未知"}`,
+        line("仓库", repository),
+        line("分支", run.head_branch ?? "未知"),
+        line("提交", run.head_sha?.slice(0, 7) ?? "未知"),
       ],
     };
   }
@@ -83,9 +91,12 @@ function pullRequestNotification() {
     title: `${label[0]} · #${pullRequest.number}`,
     template: label[1],
     url: pullRequest.html_url,
+    buttonLabel: "查看 PR",
+    subtitle: "GitHub Pull Request",
     details: [
-      pullRequest.title,
-      `${pullRequest.user.login} · ${pullRequest.head.ref} -> ${pullRequest.base.ref}`,
+      line("标题", pullRequest.title),
+      line("发起人", pullRequest.user.login),
+      line("分支", `${pullRequest.head.ref} -> ${pullRequest.base.ref}`),
     ],
   };
 }
@@ -107,9 +118,11 @@ function reviewNotification() {
     title: `${label[0]} · #${pullRequest.number}`,
     template: label[1],
     url: pullRequest.html_url,
+    buttonLabel: "查看 PR",
+    subtitle: "GitHub Pull Request",
     details: [
-      pullRequest.title,
-      `审阅人：${review.user.login}`,
+      line("标题", pullRequest.title),
+      line("审阅人", review.user.login),
     ],
   };
 }
@@ -127,7 +140,9 @@ function notification() {
         title: "People 通知连通性测试",
         template: "blue",
         url: eventUrl,
-        details: [`仓库：${repository}`, "GitHub Actions 已成功发送飞书通知。"],
+        buttonLabel: "查看 GitHub Actions",
+        subtitle: "SAST People GitHub",
+        details: [line("仓库", repository), line("状态", "通知通道已就绪")],
       };
     default:
       return null;
@@ -150,18 +165,23 @@ const card = {
   elements: [
     {
       tag: "div",
-      text: { tag: "lark_md", content: message.details.map((detail) => `- ${detail}`).join("\n") },
+      text: { tag: "lark_md", content: [`**${message.subtitle}**`, ...message.details].join("\n") },
     },
+    { tag: "hr" },
     {
       tag: "action",
       actions: [
         {
           tag: "button",
           type: "primary",
-          text: { tag: "plain_text", content: "打开 GitHub" },
+          text: { tag: "plain_text", content: message.buttonLabel },
           url: message.url,
         },
       ],
+    },
+    {
+      tag: "note",
+      elements: [{ tag: "plain_text", content: "由 SAST People GitHub 推送" }],
     },
   ],
 };
