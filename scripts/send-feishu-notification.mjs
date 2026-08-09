@@ -150,17 +150,9 @@ const card = {
   },
   body: {
     elements: [
-      { tag: "markdown", content: message.details.map((detail) => `- ${detail}`).join("\n") },
       {
-        tag: "action",
-        actions: [
-          {
-            tag: "button",
-            type: "primary",
-            text: { tag: "plain_text", content: "打开 GitHub" },
-            url: message.url,
-          },
-        ],
+        tag: "markdown",
+        content: `${message.details.map((detail) => `- ${detail}`).join("\n")}\n\n[打开 GitHub](${message.url})`,
       },
     ],
   },
