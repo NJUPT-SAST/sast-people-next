@@ -1,0 +1,61 @@
+name: Auto-merge Dependabot patch updates
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+# This workflow never checks out or executes pull-request content. Its write
+# permissions are used only to enable GitHub auto-merge for verified updates.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-automerge:
+    name: Enable auto-merge for eligible updates
+    runs-on: ubuntu-latest
+    # Dependabot metadata is trusted only for internal Dependabot PRs targeting
+    # the protected default branch in this repository.
+    if: >-
+      github.repository == 'NJUPT-SAST/sast-people-next' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'v3.1' &&
+      github.event.pull_request.draft == false
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify npm patch-only update
+        id: eligible
+        env:
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          UPDATED_DEPENDENCIES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+        run: |
+          set -euo pipefail
+
+          # Dependabot groups minor and patch updates together in this repo.
+          # The aggregate type and every individual update must be patch-level.
+          jq -e \
+            --arg ecosystem "$PACKAGE_ECOSYSTEM" \
+            --arg update_type "$UPDATE_TYPE" \
+            '($ecosystem == "npm") and
+             ($update_type == "version-update:semver-patch") and
+             (type == "array") and
+             (length > 0) and
+             all(.[]; .packageEcosystem == "npm" and .updateType == "version-update:semver-patch")' \
+            <<<"$UPDATED_DEPENDENCIES"
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge
+        if: steps.eligible.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --merge "$PR_URL"
