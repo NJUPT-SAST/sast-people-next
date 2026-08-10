@@ -118,7 +118,6 @@
 | --- | --- |
 | `email-center-design.md` | 平台边界、类型、数据、不变量（仍有效） |
 | 本文 | **面向管理员的主链路与 IA**；覆盖旧文档 §5 的五 tab 平台控制台布局 |
-| `email-center-implementation-status.md` | 实现完成度（发送/重试/hardening） |
 
 若冲突：用户可见 IA 以本文为准；发送内核与不变量以 design + 现网代码为准。
 

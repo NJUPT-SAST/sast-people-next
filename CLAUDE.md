@@ -12,7 +12,7 @@ Next.js 16 App Router, React 19, TypeScript strict, Tailwind CSS v4, shadcn/ui, 
 
 Use `pnpm`.
 
-- Dev/build/test: `pnpm dev`, `pnpm dev:full`, `pnpm build`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, `pnpm exec tsc --noEmit`
+- Dev/build/test: `pnpm dev`, `pnpm dev:local`, `pnpm dev:full`, `pnpm build`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, `pnpm exec tsc --noEmit`
 - DB: `pnpm db:dev:up`, `pnpm db:dev:down`, `pnpm db:generate`, `pnpm db:migrate`, `pnpm db:push`, `pnpm db:studio`, `pnpm db:seed:local`, `pnpm db:seed:demo`
 
 `pnpm dev:full` runs Next.js on 3001, Inngest Dev Server, and React Email preview on 3002.

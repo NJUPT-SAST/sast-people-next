@@ -229,13 +229,11 @@ This does not require rebuilding or copying a new image. Build-time public varia
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution and PR checklist |
 | [TESTING.md](TESTING.md) | Jest and Playwright testing guide |
 | [CI_CD.md](CI_CD.md) | Quality, test, deploy, and release workflows |
-| [docs/PRD.md](docs/PRD.md) | Product requirements |
 | [docs/SAST_PEOPLE_V3_LINK_DEV.md](docs/SAST_PEOPLE_V3_LINK_DEV.md) | v3 Link integration plan |
 | [docs/PEOPLE_DATABASE_SCHEMA.md](docs/PEOPLE_DATABASE_SCHEMA.md) | People schema source of truth |
-| [docs/LINK_DATABASE_SCHEMA.md](docs/LINK_DATABASE_SCHEMA.md) | Link schema reference used by People |
 | [docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md](docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md) | Interview scheduling design |
-| [docs/email-center-design.md](docs/email-center-design.md) | Email center design |
-| [docs/email-center-implementation-status.md](docs/email-center-implementation-status.md) | Email center implementation status |
+| [docs/email-center-design.md](docs/email-center-design.md) | Email center platform design |
+| [docs/email-center-flow-redesign.md](docs/email-center-flow-redesign.md) | Email center administrator workflow and information architecture |
 | [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) | Pre-release and staging checklist |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 
@@ -245,6 +243,7 @@ This does not require rebuilding or copying a new image. Build-time public varia
 | --- | --- |
 | `pnpm dev` | Start the Next.js development server on port `3000` |
 | `pnpm dev:db` | Alias of `pnpm dev` |
+| `pnpm dev:local` | Start local PostgreSQL, Inngest, and Next.js on port `3000`; shut down PostgreSQL and Inngest when Next.js stops |
 | `pnpm dev:full` | Start Next.js (`3001`), Inngest, and email preview (`3002`) |
 | `pnpm db:dev:up` | Start local Docker PostgreSQL on port `55432` |
 | `pnpm db:dev:down` | Stop local Docker PostgreSQL |

@@ -174,7 +174,7 @@ xdg-open coverage/index.html
 
 Tests run through GitHub Actions on:
 
-- Push / PR to `master` or `develop` via `.github/workflows/ci.yml`
+- All pushes and pull requests via `.github/workflows/ci.yml`
 - Version tags via `.github/workflows/release.yml`
 - Manual debugging via `workflow_dispatch` on reusable workflows
 
@@ -182,10 +182,9 @@ Typical pipeline:
 
 1. Install dependencies
 2. Lint and typecheck
-3. Run Jest with coverage
-4. Upload coverage / test artifacts when configured
-5. Build the Next.js application
-6. Run Playwright e2e when the workflow includes that job
+3. Run Jest
+4. Build the Next.js application
+5. Run Playwright end-to-end tests
 
 Details live in [CI_CD.md](CI_CD.md).
 
