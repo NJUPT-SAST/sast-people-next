@@ -13,16 +13,14 @@
 
 当前 `/dashboard/emails` 实际承担的是“招新结果邮件发送”页面，但同时塞入了“面试通知模板”配置。页面名称、功能边界和实际能力不一致，导致用户会误以为它能管理所有邮件。
 
-现有实现还有几个结构性问题：
+现有实现已统一经由邮件中心：
 
 - 结果通知邮件通过 `email_batch` / `email_delivery` 留存批次和投递记录。
-- 面试预约、改约、取消邮件在 `action/user-flow/interviewSchedule.ts` 中直接渲染并调用 `sendRawEmail`，没有进入统一邮件记录。
-- 测试邮件、结果通知、面试通知的调用方式不统一。
-- 模板配置分散在页面弹窗中，缺少统一的模板列表、预览、测试发送入口。
-- 发送记录只能覆盖结果通知批次，不能回答“某个同学是否收到过面试通知”。
-- 业务模块知道过多邮件细节，例如 subject、HTML 渲染、SMTP 发送方式。
+- 面试预约、改约、取消邮件由 `action/user-flow/interviewSchedule.ts` 创建邮件中心投递记录，并使用已注册的独立模板 key。
+- 测试邮件、结果通知和面试通知均通过邮件中心完成模板渲染、快照、发送与状态记录。
+- 业务模块不再自行处理 subject、HTML 渲染或 SMTP 发送。
 
-邮件中心必须成为平台级能力：所有涉及邮件的业务都只提交邮件请求，由邮件中心完成模板、渲染、快照、入队、发送、记录和重试。
+邮件中心作为平台级能力：所有涉及邮件的业务都只提交邮件请求，由邮件中心完成模板、渲染、快照、入队、发送、记录和重试。
 
 ## 2. 设计原则
 
@@ -91,7 +89,7 @@
 | `interview` | `interview.schedule.cancelled` | 面试取消 | 单封 |
 | `test` | 任意模板 + `.test` 标记 | 管理员测试发送 | 单封 |
 
-当前已有的 `interview.schedule` 可以作为兼容 key，但新设计建议拆成三个明确模板 key。三种状态可以共享 React Email 组件，但模板注册层需要暴露独立条目，方便预览、测试和文案管理。
+面试预约、改约与取消已分别使用 `interview.schedule.created`、`interview.schedule.rescheduled` 和 `interview.schedule.cancelled` 三个模板 key。三种状态可以共享 React Email 组件，但模板注册层保留独立条目，以便预览、测试和管理文案。
 
 ## 5. UI 信息架构
 
@@ -436,17 +434,19 @@ await retryEmailBatch(batchId);
 
 `sendEmailDelivery` 是唯一允许调用 SMTP 的地方。
 
-## 9. 调用改造点
+## 9. 实施迁移记录
 
-### 9.1 必须迁移
+以下内容记录邮件中心落地时的迁移范围；其中列出的迁移均已完成或由当前邮件中心实现替代。
 
-| 当前位置 | 当前行为 | 新行为 |
-| --- | --- | --- |
-| `action/user/sendEmail.ts` | 创建结果邮件批次和投递 | 改为 `emailCenter.createBatch` |
-| `action/email/send.ts` | 发送结果邮件批次 | 改为 `emailCenter.retryBatch/sendBatch` |
-| `queue/sendEmail.tsx` | SMTP 实际发送 | 保留为底层 delivery sender，但移动到邮件中心 |
-| `action/user-flow/interviewSchedule.ts` | 直接 render + `sendRawEmail` | 改为 `emailCenter.createDelivery` |
-| `action/email/test-send.ts` | 发送测试邮件 | 改为 `emailCenter.createDelivery(category: "test")` |
+### 9.1 已迁移调用点
+
+| 原位置 | 迁移目标 |
+| --- | --- |
+| `action/user/sendEmail.ts` | 结果通知邮件批次和投递记录由邮件中心管理 |
+| `action/email/send.ts` | 结果通知批次发送由邮件中心发送服务处理 |
+| `queue/sendEmail.tsx` | 作为底层 delivery sender 由邮件中心调用 |
+| `action/user-flow/interviewSchedule.ts` | 通过邮件中心创建面试投递记录 |
+| `action/email/test-send.ts` | 通过邮件中心创建 `test` 类别投递记录 |
 
 ### 9.2 禁止新增
 
@@ -519,7 +519,9 @@ createTransport(...)
 
 失败时顶部显示失败原因和“重试”按钮。
 
-## 12. 迁移计划
+## 12. 实施阶段（历史记录）
+
+以下分期描述邮件中心的原始实施计划，保留用于说明架构演进；当前行为以本文件前述边界、`email-center-flow-redesign.md` 与现网代码为准。
 
 ### Phase 0：停止继续扩大旧页面
 
@@ -572,9 +574,9 @@ createTransport(...)
 | 测试邮件污染正式记录 | 使用 category `test` 和 metadata 标记 |
 | 敏感信息泄露 | 邮件中心不展示 SMTP 密码，不在日志输出 HTML 全文 |
 
-## 14. 第一批实现清单
+## 14. 初始实施清单（历史记录）
 
-建议最先实现：
+以下清单记录初始实施范围；核心项目已在当前邮件中心中落地。
 
 1. 新增 `lib/email-center/types.ts` 和 `registry.ts`。
 2. 新增 `createEmailDelivery`，支持单封邮件记录。
