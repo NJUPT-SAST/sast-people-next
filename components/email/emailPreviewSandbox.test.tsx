@@ -56,6 +56,7 @@ const delivery: EmailDeliveryRecord = {
 describe("email preview iframes", () => {
   beforeEach(() => {
     mockUseRouter.mockReturnValue({
+      bfcacheId: "0",
       back: jest.fn(),
       forward: jest.fn(),
       refresh: jest.fn(),

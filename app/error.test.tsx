@@ -20,6 +20,7 @@ describe("app error boundary", () => {
     const reset = jest.fn();
 
     mockUseRouter.mockReturnValue({
+      bfcacheId: "0",
       back: jest.fn(),
       forward: jest.fn(),
       refresh: jest.fn(),
