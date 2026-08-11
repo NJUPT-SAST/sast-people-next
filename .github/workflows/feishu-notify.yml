@@ -4,7 +4,15 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review, review_requested, closed]
   pull_request_review:
-    types: [submitted]
+    types: [submitted, dismissed]
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened, reopened, closed, assigned]
+  release:
+    types: [published]
   workflow_run:
     workflows: ["CI/CD Pipeline", "Deploy"]
     types: [completed]
