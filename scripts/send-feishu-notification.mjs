@@ -101,14 +101,106 @@ function pullRequestNotification() {
   };
 }
 
+function issueNotification() {
+  const issue = event.issue;
+  const action = event.action;
+  const labels = {
+    opened: ["Issue 已创建", "blue"],
+    reopened: ["Issue 已重新打开", "blue"],
+    closed: ["Issue 已关闭", "grey"],
+    assigned: ["Issue 已分配", "orange"],
+  };
+  const label = labels[action];
+
+  if (!label) {
+    return null;
+  }
+
+  return {
+    title: `${label[0]} · #${issue.number}`,
+    template: label[1],
+    url: issue.html_url,
+    buttonLabel: "查看 Issue",
+    subtitle: "GitHub Issue",
+    details: [
+      line("标题", issue.title),
+      line("操作者", event.sender?.login ?? issue.user.login),
+      ...(issue.assignee
+        ? [line("负责人", issue.assignee.login)]
+        : []),
+    ],
+  };
+}
+
+function commentNotification() {
+  const issue = event.issue;
+  const comment = event.comment;
+
+  // Automated comments are useful in GitHub but too noisy for the team chat.
+  if (comment.user?.type === "Bot") {
+    return null;
+  }
+
+  if (issue.pull_request) {
+    return {
+      title: `PR 有新讨论 · #${issue.number}`,
+      template: "blue",
+      url: comment.html_url ?? issue.html_url,
+      buttonLabel: "查看评论",
+      subtitle: "GitHub Pull Request",
+      details: [
+        line("标题", issue.title),
+        line("评论人", comment.user?.login ?? "未知"),
+      ],
+    };
+  }
+
+  return {
+    title: `Issue 有新评论 · #${issue.number}`,
+    template: "blue",
+    url: comment.html_url ?? issue.html_url,
+    buttonLabel: "查看评论",
+    subtitle: "GitHub Issue",
+    details: [
+      line("标题", issue.title),
+      line("评论人", comment.user?.login ?? "未知"),
+    ],
+  };
+}
+
+function reviewCommentNotification() {
+  const pullRequest = event.pull_request;
+  const comment = event.comment;
+
+  if (comment.user?.type === "Bot") {
+    return null;
+  }
+
+  return {
+    title: `PR 有行内评论 · #${pullRequest.number}`,
+    template: "orange",
+    url: comment.html_url ?? pullRequest.html_url,
+    buttonLabel: "查看评论",
+    subtitle: "GitHub Pull Request",
+    details: [
+      line("标题", pullRequest.title),
+      line("评论人", comment.user?.login ?? "未知"),
+      ...(comment.path ? [line("文件", comment.path)] : []),
+    ],
+  };
+}
+
 function reviewNotification() {
   const review = event.review;
   const pullRequest = event.pull_request;
   const labels = {
     approved: ["PR 已批准", "green"],
     changes_requested: ["PR 请求修改", "red"],
+    commented: ["PR 审查已提交", "blue"],
   };
-  const label = labels[review.state];
+  const label = event.action === "dismissed"
+    ? ["PR 审查已撤销", "grey"]
+    : labels[review.state];
 
   if (!label) {
     return null;
@@ -127,12 +219,36 @@ function reviewNotification() {
   };
 }
 
+function releaseNotification() {
+  const release = event.release;
+
+  return {
+    title: `版本已发布 · ${release.tag_name}`,
+    template: "green",
+    url: release.html_url,
+    buttonLabel: "查看 Release",
+    subtitle: "GitHub Release",
+    details: [
+      line("版本", release.name || release.tag_name),
+      line("发布人", release.author?.login ?? "未知"),
+    ],
+  };
+}
+
 function notification() {
   switch (eventName) {
     case "pull_request":
       return pullRequestNotification();
     case "pull_request_review":
       return reviewNotification();
+    case "pull_request_review_comment":
+      return reviewCommentNotification();
+    case "issue_comment":
+      return commentNotification();
+    case "issues":
+      return issueNotification();
+    case "release":
+      return releaseNotification();
     case "workflow_run":
       return workflowNotification();
     case "workflow_dispatch":
