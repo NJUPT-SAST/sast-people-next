@@ -33,6 +33,7 @@ const env = {
   EMAIL_WEBHOOK_SECRET:
     process.env.EMAIL_WEBHOOK_SECRET ?? "playwright-webhook-secret",
   LINK_USE_MOCK: process.env.LINK_USE_MOCK ?? "true",
+  PLAYWRIGHT_TEST_MODE: "1",
   NEXT_TELEMETRY_DISABLED: "1",
 };
 

@@ -1,49 +1,12 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { Client } from "pg";
-import { SignJWT } from "jose";
-
-const sessionSecret = process.env.SESSION_SECRET ?? "playwright-session-secret";
+import { signInAs } from "./session";
 
 const users = {
   admin: { uid: 1, role: 3, name: "Local Admin" },
   candidate: { uid: 8, role: 0, name: "Demo Freshman E" },
   outcomeCandidate: { uid: 4, role: 0, name: "Demo Freshman A" },
 } as const;
-
-async function createSessionCookie(user: {
-  uid: number;
-  role: number;
-  name: string;
-}) {
-  const encodedKey = new TextEncoder().encode(sessionSecret);
-  return new SignJWT({
-    uid: user.uid,
-    role: user.role,
-    name: user.name,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("1h")
-    .sign(encodedKey);
-}
-
-async function signInAs(
-  context: BrowserContext,
-  user: { uid: number; role: number; name: string },
-) {
-  await context.addCookies([
-    {
-      name: "session",
-      value: await createSessionCookie(user),
-      domain: "127.0.0.1",
-      path: "/",
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: false,
-    },
-  ]);
-}
 
 async function connectDatabase() {
   const databaseUrl = process.env.DATABASE_URL;

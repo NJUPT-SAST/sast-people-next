@@ -18,6 +18,7 @@ jobs:
       EMAIL_WEBHOOK_SECRET: ci-email-webhook-secret
       LINK_USE_MOCK: "true"
       LINK_LOGIN_FEISHU_TEST_MOCK: "true"
+      PLAYWRIGHT_TEST_MODE: "1"
       NEXT_TELEMETRY_DISABLED: "1"
 
     services:

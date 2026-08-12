@@ -1,49 +1,11 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
-import { SignJWT } from "jose";
-
-const sessionSecret = process.env.SESSION_SECRET ?? "playwright-session-secret";
+import { expect, test } from "@playwright/test";
+import { signInAs } from "./session";
 
 const users = {
   admin: { uid: 1, role: 3, name: "Local Admin" },
   lecturer: { uid: 2, role: 2, name: "Demo Lecturer" },
   candidate: { uid: 8, role: 0, name: "Demo Freshman E" },
 } as const;
-
-async function createSessionCookie(user: {
-  uid: number;
-  role: number;
-  name: string;
-}) {
-  const encodedKey = new TextEncoder().encode(sessionSecret);
-  return new SignJWT({
-    uid: user.uid,
-    role: user.role,
-    name: user.name,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("1h")
-    .sign(encodedKey);
-}
-
-async function signInAs(
-  context: BrowserContext,
-  user: { uid: number; role: number; name: string },
-) {
-  await context.clearCookies();
-  await context.addCookies([
-    {
-      name: "session",
-      value: await createSessionCookie(user),
-      domain: "127.0.0.1",
-      path: "/",
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: false,
-    },
-  ]);
-}
 
 async function expectNoHorizontalOverflow(
   page: import("@playwright/test").Page,

@@ -1,41 +1,12 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
-import { SignJWT } from "jose";
+import { expect, test } from "@playwright/test";
+import { signInAs } from "./session";
 
-const sessionSecret = process.env.SESSION_SECRET ?? "playwright-session-secret";
 const webhookSecret =
   process.env.EMAIL_WEBHOOK_SECRET ?? "playwright-webhook-secret";
 
-async function createAdminSessionCookie() {
-  const encodedKey = new TextEncoder().encode(sessionSecret);
-  return new SignJWT({
-    uid: 900001,
-    role: 3,
-    name: "Playwright Admin",
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("1h")
-    .sign(encodedKey);
-}
-
-async function signInAsAdmin(context: BrowserContext) {
-  await context.addCookies([
-    {
-      name: "session",
-      value: await createAdminSessionCookie(),
-      domain: "127.0.0.1",
-      path: "/",
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: false,
-    },
-  ]);
-}
-
 test.describe("email center", () => {
   test("renders the dashboard for an admin session", async ({ page, context }) => {
-    await signInAsAdmin(context);
+    await signInAs(context, { uid: 900001, role: 3, name: "Playwright Admin" });
 
     await page.goto("/dashboard/emails");
 
