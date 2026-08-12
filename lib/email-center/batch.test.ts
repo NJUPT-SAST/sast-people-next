@@ -349,7 +349,12 @@ describe("email batch service", () => {
     await expect(sendEmailBatchById(10)).resolves.toEqual({ queuedCount: 6 });
 
     expect(mockSyncUserRoleFromAcceptedFlows).toHaveBeenCalledTimes(5);
-    expect(mockSyncUserRoleFromAcceptedFlows).toHaveBeenCalledWith(501);
+    const syncedUserIds = mockSyncUserRoleFromAcceptedFlows.mock.calls.map(
+      ([userId]) => userId,
+    );
+    expect(new Set(syncedUserIds)).toEqual(
+      new Set([501, 502, 503, 504, 505]),
+    );
     expect(maxActive).toBeLessThanOrEqual(5);
   });
 });
