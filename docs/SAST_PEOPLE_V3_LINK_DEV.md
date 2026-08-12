@@ -95,7 +95,7 @@ People 业务表中的用户字段保存 Link 用户 ID。
 3. Link 完成授权后回调 People `/api/auth/link`。
 4. People 调用 Link `/oauth/token` 换取 token。
 5. People 调用 Link `/user/profile` 获取当前用户资料。
-6. People 创建本地 session，session 中保存：
+6. People 创建服务端 session，浏览器 cookie 只保存随机、不透明的 session ID。服务端数据库保存：
    - `uid`: Link 用户 ID
    - `role`: People 内部角色数字
    - `name`: 用户姓名
@@ -103,14 +103,23 @@ People 业务表中的用户字段保存 Link 用户 ID。
    - `linkRefreshToken`
    - `linkAccessTokenExpiresAt`
 
+Link OAuth 凭据在写入服务端 session 前使用 AES-GCM 加密，绝不写入 cookie。
+`session/expired.cleanup` Inngest 定时任务每天清理已过期的服务端会话记录。
+
+管理页面首次打开时，讲师或管理员会单独进行一次管理授权。该 OAuth
+流程申请 `admin:read`、`admin:write`，并把令牌保存为
+`linkAdminAccessToken`、`linkAdminRefreshToken` 和
+`linkAdminAccessTokenExpiresAt`。普通登录令牌只用于读取当前用户资料，
+不会用于 `/admin/*` 接口。
+
 ### 6.2 用户资料读取
 
 | 场景 | Link 接口 |
 | --- | --- |
 | 当前登录用户资料 | `GET /user/profile` |
-| 管理端用户列表 | `GET /admin/users` |
-| 管理端用户详情 | `GET /admin/users/{id}` |
-| 根据学号查用户 | `GET /admin/users?keyword={student_id}` 后由 People 精确匹配 |
+| 管理端用户列表 | `GET /admin/users`，管理令牌 |
+| 管理端用户详情 | `GET /admin/users/{id}`，管理令牌 |
+| 根据学号查用户 | `GET /admin/users?keyword={student_id}`，管理令牌后由 People 精确匹配 |
 
 People 读取 Link 返回后，会转换为现有 People UI 使用的 `userType` 视图模型。
 
@@ -158,11 +167,11 @@ People v3 当前依赖以下 Link API：
 | --- | --- | --- | --- |
 | OAuth 授权 | `GET` | `/oauth/authorize` | 已登录 Link 用户 |
 | OAuth token | `POST` | `/oauth/token` | OAuth client |
-| 当前用户资料 | `GET` | `/user/profile` | 当前用户 |
-| 用户列表 | `GET` | `/admin/users` | `admin` 或 `lecturer` |
-| 用户详情 | `GET` | `/admin/users/{id}` | `admin` 或 `lecturer` |
-| 更新用户 | `PUT` | `/admin/users/{id}` | `admin` |
-| 封禁用户 | `DELETE` | `/admin/users/{id}` | `admin` |
+| 当前用户资料 | `GET` | `/user/profile` | `user:read` |
+| 用户列表 | `GET` | `/admin/users` | `admin:read` |
+| 用户详情 | `GET` | `/admin/users/{id}` | `admin:read` |
+| 更新用户 | `PUT` | `/admin/users/{id}` | `admin:write` |
+| 封禁用户 | `DELETE` | `/admin/users/{id}` | `admin:write` |
 
 ### 7.1 People 需要的用户字段
 
@@ -232,9 +241,13 @@ v3.1 已确认补齐 People 依赖字段：
 ```env
 LINK_CLIENT_ID=
 LINK_CLIENT_SECRET=
+# Optional dedicated client for admin OAuth. When empty, Link uses LINK_CLIENT_*.
+LINK_ADMIN_CLIENT_ID=
+LINK_ADMIN_CLIENT_SECRET=
 LINK_API_BASE_URL=
 LINK_AUTH_BASE_URL=
-LINK_OAUTH_SCOPES=openid profile
+LINK_OAUTH_SCOPES=openid profile email user:read
+LINK_ADMIN_OAUTH_SCOPES=openid profile email user:read admin:read admin:write
 LINK_USE_MOCK=false
 LINK_ALLOW_LEGACY_FALLBACK=false
 PEOPLE_ALLOW_LEGACY_AUTH=false

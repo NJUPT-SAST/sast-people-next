@@ -2,7 +2,7 @@
 
 import { verifyRole } from "@/lib/dal"
 import { banLinkUser } from "@/lib/link/admin"
-import { getLinkAccessTokenFromSession } from "@/lib/link/session"
+import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session"
 import { writeOperationAudit } from "@/lib/operation-audit"
 import { logServerError } from "@/lib/server-error-log"
 
@@ -11,7 +11,7 @@ export const banUser = async (uid: number)=>{
 
     try {
         session = await verifyRole(3)
-        const accessToken = await getLinkAccessTokenFromSession()
+        const accessToken = await getLinkAdminAccessTokenFromSession()
         await banLinkUser(accessToken, uid)
         await writeOperationAudit({
             actorId: session.uid,

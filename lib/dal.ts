@@ -1,17 +1,13 @@
 import "server-only";
 
-import { cookies } from "next/headers";
-import { decrypt } from "@/lib/session";
+import { getSession } from "@/lib/session";
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { SESSION } from "@/const/cookie";
 import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 
 export const verifySession = cache(async () => {
   try {
-    const cookieStore = await cookies();
-    const cookie = cookieStore.get(SESSION)?.value;
-    const session = await decrypt(cookie);
+    const session = await getSession();
 
     if (!session?.uid) {
       redirect("/login");

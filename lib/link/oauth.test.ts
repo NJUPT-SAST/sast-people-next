@@ -1,5 +1,7 @@
 import {
   exchangeLinkOAuthCode,
+  getLinkAdminOAuthScopes,
+  getLinkOAuthScopes,
   refreshLinkOAuthToken,
 } from "@/lib/link/oauth";
 
@@ -22,6 +24,18 @@ describe("Link OAuth token client", () => {
     fetchMock.mockClear();
     process.env.LINK_CLIENT_ID = "client-id";
     process.env.LINK_AUTH_BASE_URL = "https://link.example/v2";
+    delete process.env.LINK_CLIENT_SECRET;
+    delete process.env.LINK_ADMIN_CLIENT_ID;
+    delete process.env.LINK_ADMIN_CLIENT_SECRET;
+    delete process.env.LINK_OAUTH_SCOPES;
+    delete process.env.LINK_ADMIN_OAUTH_SCOPES;
+  });
+
+  it("uses user-read scopes for login and adds admin scopes only for management", () => {
+    expect(getLinkOAuthScopes()).toBe("openid profile email user:read");
+    expect(getLinkAdminOAuthScopes()).toBe(
+      "openid profile email user:read admin:read admin:write",
+    );
   });
 
   it("uses the RFC 6749 form encoding for authorization-code exchange", async () => {
@@ -41,6 +55,28 @@ describe("Link OAuth token client", () => {
     const [, init] = fetchMock.mock.calls[0];
     expect(init?.body).toBe(
       "grant_type=refresh_token&refresh_token=refresh-token&client_id=client-id",
+    );
+  });
+
+  it("uses the admin client for admin authorization-code exchange and refresh", async () => {
+    process.env.LINK_ADMIN_CLIENT_ID = "admin-client-id";
+    process.env.LINK_ADMIN_CLIENT_SECRET = "admin-client-secret";
+
+    await exchangeLinkOAuthCode(
+      "admin code",
+      "verifier",
+      "https://people.example/cb",
+      "admin",
+    );
+    await refreshLinkOAuthToken("admin-refresh-token", "admin");
+
+    expect(fetchMock.mock.calls[0][1]?.body).toContain("client_id=admin-client-id");
+    expect(fetchMock.mock.calls[0][1]?.body).toContain(
+      "client_secret=admin-client-secret",
+    );
+    expect(fetchMock.mock.calls[1][1]?.body).toContain("client_id=admin-client-id");
+    expect(fetchMock.mock.calls[1][1]?.body).toContain(
+      "client_secret=admin-client-secret",
     );
   });
 });

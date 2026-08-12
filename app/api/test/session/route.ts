@@ -1,0 +1,27 @@
+import { createSession } from "@/lib/session";
+import { NextRequest, NextResponse } from "next/server";
+
+type TestSessionRequest = {
+  uid?: unknown;
+  role?: unknown;
+  name?: unknown;
+};
+
+export async function POST(request: NextRequest) {
+  if (process.env.PLAYWRIGHT_TEST_MODE !== "1") {
+    return NextResponse.json({ message: "not found" }, { status: 404 });
+  }
+
+  const body = (await request.json()) as TestSessionRequest;
+  if (
+    !Number.isInteger(body.uid) ||
+    !Number.isInteger(body.role) ||
+    typeof body.name !== "string" ||
+    body.name.length === 0
+  ) {
+    return NextResponse.json({ message: "invalid test session" }, { status: 400 });
+  }
+
+  await createSession(body.uid as number, body.name, body.role as number);
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+}

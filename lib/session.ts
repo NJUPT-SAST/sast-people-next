@@ -1,99 +1,203 @@
-import { SESSION } from "@/const/cookie";
-import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
 import "server-only";
 
-function getEncodedKey() {
-  const secretKey = process.env.SESSION_SECRET;
-  if (!secretKey) {
-    throw new Error("SESSION_SECRET environment variable is not set");
-  }
-  return new TextEncoder().encode(secretKey);
-}
+import { SESSION, SESSION_ID_PATTERN } from "@/const/cookie";
+import { db } from "@/db/drizzle";
+import { peopleSession } from "@/db/schema";
+import { decryptSecret, encryptSecret } from "@/lib/secret";
+import { and, eq, gt, lt } from "drizzle-orm";
+import { cookies } from "next/headers";
+import crypto from "node:crypto";
 
-const httpOnly = process.env.NODE_ENV === "production" ? true : false;
+export type LinkSessionTokens = {
+  accessToken?: string;
+  refreshToken?: string;
+  accessTokenExpiresAt?: number;
+};
 
-export async function encrypt(payload: {
-  role: number;
+export type SessionData = {
+  id: string;
   uid: number;
   name: string;
+  role: number;
   expiresAt: Date;
-  linkAccessToken?: string;
-  linkRefreshToken?: string;
-  linkAccessTokenExpiresAt?: number;
-}) {
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d")
-    .sign(getEncodedKey());
-}
+  linkAccessToken?: string | null;
+  linkRefreshToken?: string | null;
+  linkAccessTokenExpiresAt?: Date | null;
+  linkAdminAccessToken?: string | null;
+  linkAdminRefreshToken?: string | null;
+  linkAdminAccessTokenExpiresAt?: Date | null;
+};
 
-export async function decrypt(session: string | undefined = "") {
+type SessionRecord = typeof peopleSession.$inferSelect;
+
+const sessionLifetimeMs = (role: number) =>
+  (role === 0 ? 12 : 7 * 24) * 60 * 60 * 1000;
+
+const sessionCookieOptions = (expiresAt: Date) => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  expires: expiresAt,
+  sameSite: "lax" as const,
+  path: "/",
+});
+
+const decryptStoredToken = (value: string | null) => {
+  if (!value) return null;
   try {
-    const { payload } = await jwtVerify(session, getEncodedKey(), {
-      algorithms: ["HS256"],
-    });
-    return payload;
+    return decryptSecret(value);
   } catch {
     return null;
   }
-}
+};
+
+const toSessionData = (
+  record: SessionRecord,
+  includeLinkTokens: boolean,
+): SessionData => ({
+  id: record.id,
+  uid: record.uid,
+  name: record.name,
+  role: record.role,
+  expiresAt: record.expiresAt,
+  linkAccessToken: includeLinkTokens && record.linkAccessToken
+    ? decryptStoredToken(record.linkAccessToken)
+    : null,
+  linkRefreshToken: includeLinkTokens && record.linkRefreshToken
+    ? decryptStoredToken(record.linkRefreshToken)
+    : null,
+  linkAccessTokenExpiresAt: includeLinkTokens
+    ? record.linkAccessTokenExpiresAt
+    : null,
+  linkAdminAccessToken: includeLinkTokens && record.linkAdminAccessToken
+    ? decryptStoredToken(record.linkAdminAccessToken)
+    : null,
+  linkAdminRefreshToken: includeLinkTokens && record.linkAdminRefreshToken
+    ? decryptStoredToken(record.linkAdminRefreshToken)
+    : null,
+  linkAdminAccessTokenExpiresAt: includeLinkTokens
+    ? record.linkAdminAccessTokenExpiresAt
+    : null,
+});
+
+const getSessionIdFromCookie = async () => {
+  const cookieStore = await cookies();
+  return cookieStore.get(SESSION)?.value;
+};
+
+export const getSessionById = async (
+  id: string | undefined,
+  { includeLinkTokens = false }: { includeLinkTokens?: boolean } = {},
+) => {
+  if (!id || !SESSION_ID_PATTERN.test(id)) {
+    return null;
+  }
+
+  const [record] = await db
+    .select()
+    .from(peopleSession)
+    .where(and(eq(peopleSession.id, id), gt(peopleSession.expiresAt, new Date())))
+    .limit(1);
+
+  return record ? toSessionData(record, includeLinkTokens) : null;
+};
+
+export const getSession = async (
+  options?: { includeLinkTokens?: boolean },
+) => getSessionById(await getSessionIdFromCookie(), options);
 
 export async function createSession(
   uid: number,
   name: string,
   role: number,
-  linkTokens?: {
-    accessToken?: string;
-    refreshToken?: string;
-    accessTokenExpiresAt?: number;
-  },
+  linkTokens?: LinkSessionTokens,
 ) {
-  let expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  if (role === 0) {
-    expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + sessionLifetimeMs(role));
+  const id = crypto.randomBytes(32).toString("base64url");
+
+  const previousSessionId = await getSessionIdFromCookie();
+  if (previousSessionId) {
+    await db.delete(peopleSession).where(eq(peopleSession.id, previousSessionId));
   }
-  const session = await encrypt({
+
+  await db.insert(peopleSession).values({
+    id,
     uid,
-    expiresAt,
     name,
     role,
-    linkAccessToken: linkTokens?.accessToken,
-    linkRefreshToken: linkTokens?.refreshToken,
-    linkAccessTokenExpiresAt: linkTokens?.accessTokenExpiresAt,
+    expiresAt,
+    linkAccessToken: linkTokens?.accessToken
+      ? encryptSecret(linkTokens.accessToken)
+      : null,
+    linkRefreshToken: linkTokens?.refreshToken
+      ? encryptSecret(linkTokens.refreshToken)
+      : null,
+    linkAccessTokenExpiresAt: linkTokens?.accessTokenExpiresAt
+      ? new Date(linkTokens.accessTokenExpiresAt)
+      : null,
   });
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION, session, {
-    httpOnly: httpOnly,
-    secure: true,
-    expires: expiresAt,
-    sameSite: "lax",
-    path: "/",
-  });
+  cookieStore.set(SESSION, id, sessionCookieOptions(expiresAt));
+}
+
+export async function updateLinkSessionTokens(
+  sessionId: string,
+  purpose: "session" | "admin",
+  linkTokens: Required<Pick<LinkSessionTokens, "accessToken" | "accessTokenExpiresAt">> &
+    Pick<LinkSessionTokens, "refreshToken">,
+) {
+  const values =
+    purpose === "admin"
+      ? {
+          linkAdminAccessToken: encryptSecret(linkTokens.accessToken),
+          linkAdminAccessTokenExpiresAt: new Date(linkTokens.accessTokenExpiresAt),
+          ...(linkTokens.refreshToken
+            ? { linkAdminRefreshToken: encryptSecret(linkTokens.refreshToken) }
+            : {}),
+        }
+      : {
+          linkAccessToken: encryptSecret(linkTokens.accessToken),
+          linkAccessTokenExpiresAt: new Date(linkTokens.accessTokenExpiresAt),
+          ...(linkTokens.refreshToken
+            ? { linkRefreshToken: encryptSecret(linkTokens.refreshToken) }
+            : {}),
+        };
+
+  await db
+    .update(peopleSession)
+    .set(values)
+    .where(eq(peopleSession.id, sessionId));
 }
 
 export async function deleteSession() {
+  const id = await getSessionIdFromCookie();
+  if (id) {
+    await db.delete(peopleSession).where(eq(peopleSession.id, id));
+  }
+
   const cookieStore = await cookies();
   cookieStore.delete(SESSION);
 }
 
 export async function updateSession() {
+  const session = await getSession();
+  if (!session) return null;
+
+  const expiresAt = new Date(Date.now() + sessionLifetimeMs(session.role));
+  await db
+    .update(peopleSession)
+    .set({ expiresAt })
+    .where(eq(peopleSession.id, session.id));
+
   const cookieStore = await cookies();
-  const session = cookieStore.get(SESSION)?.value;
-  const payload = await decrypt(session);
+  cookieStore.set(SESSION, session.id, sessionCookieOptions(expiresAt));
+  return { ...session, expiresAt };
+}
 
-  if (!session || !payload) {
-    return null;
-  }
-
-  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  cookieStore.set(SESSION, session, {
-    httpOnly: true,
-    secure: true,
-    expires: expires,
-    sameSite: "lax",
-    path: "/",
-  });
+export async function deleteExpiredSessions(now = new Date()) {
+  const deletedRows = await db
+    .delete(peopleSession)
+    .where(lt(peopleSession.expiresAt, now))
+    .returning({ id: peopleSession.id });
+  return deletedRows.length;
 }

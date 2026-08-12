@@ -1,28 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decrypt } from "@/lib/session";
-import { SESSION } from "@/const/cookie";
+import { SESSION, SESSION_ID_PATTERN } from "@/const/cookie";
 
 const protectedRoutes = ["/dashboard"];
-const publicRoutes = ["/login", "/signup", "/"];
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const isProtectedRoute = protectedRoutes.some((route) => path.startsWith(route));
-  const isPublicRoute = publicRoutes.includes(path);
-
   const cookie = req.cookies.get(SESSION)?.value;
-  const session = await decrypt(cookie);
+  const hasSessionCookie = Boolean(cookie && SESSION_ID_PATTERN.test(cookie));
 
-  if (isProtectedRoute && !session?.uid) {
+  if (isProtectedRoute && !hasSessionCookie) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
-  }
-
-  if (path === "/login" && session?.uid) {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
-  }
-
-  if (isPublicRoute && session?.uid && !path.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
   }
 
   return NextResponse.next();

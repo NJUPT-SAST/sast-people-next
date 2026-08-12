@@ -2,6 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
+    branches:
+      - v3.0
+      - v3.1
   pull_request:
 
 permissions:

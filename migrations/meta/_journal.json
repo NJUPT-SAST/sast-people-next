@@ -211,6 +211,13 @@
       "when": 1770000000021,
       "tag": "0029_interview_evaluation_recommendation",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786525800000,
+      "tag": "0030_people_session_credentials",
+      "breakpoints": true
     }
   ]
 }

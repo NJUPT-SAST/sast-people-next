@@ -1,37 +1,11 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
-import { SignJWT } from "jose";
+import { expect, test } from "@playwright/test";
+import { signInAs } from "./session";
 
-const sessionSecret = process.env.SESSION_SECRET ?? "playwright-session-secret";
 const webhookSecret =
   process.env.EMAIL_WEBHOOK_SECRET ?? "playwright-webhook-secret";
 
-async function createAdminSessionCookie(uid = 1) {
-  const encodedKey = new TextEncoder().encode(sessionSecret);
-  return new SignJWT({
-    uid,
-    role: 3,
-    name: "Local Admin",
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("1h")
-    .sign(encodedKey);
-}
-
-async function signInAsLocalAdmin(context: BrowserContext) {
-  await context.addCookies([
-    {
-      name: "session",
-      value: await createAdminSessionCookie(1),
-      domain: "127.0.0.1",
-      path: "/",
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: false,
-    },
-  ]);
-}
+const signInAsLocalAdmin = (context: Parameters<typeof signInAs>[0]) =>
+  signInAs(context, { uid: 1, role: 3, name: "Local Admin" });
 
 test.describe("email center prelaunch", () => {
   test.describe.configure({ timeout: 90_000 });

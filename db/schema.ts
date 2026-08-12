@@ -369,6 +369,31 @@ export const userOAuthAccount = pgTable("user_oauth_account", {
   providerUserUnique: unique().on(table.provider, table.providerUserId),
 }));
 
+export const peopleSession = pgTable("people_session", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  /* Link 用户 ID */
+  uid: integer("uid").notNull(),
+  name: varchar("name", { length: 30 }).notNull(),
+  role: integer("role").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  linkAccessToken: text("link_access_token"),
+  linkRefreshToken: text("link_refresh_token"),
+  linkAccessTokenExpiresAt: timestamp("link_access_token_expires_at"),
+  linkAdminAccessToken: text("link_admin_access_token"),
+  linkAdminRefreshToken: text("link_admin_refresh_token"),
+  linkAdminAccessTokenExpiresAt: timestamp(
+    "link_admin_access_token_expires_at",
+  ),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  expiresAtIdx: index("people_session_expires_at_idx").on(table.expiresAt),
+  uidIdx: index("people_session_uid_idx").on(table.uid),
+}));
+
 export const interviewSchedule = pgTable("interview_schedule", {
   id: serial("id").primaryKey(),
   fkUserFlowId: integer("fk_user_flow_id")
