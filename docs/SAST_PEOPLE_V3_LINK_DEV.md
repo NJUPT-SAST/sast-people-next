@@ -95,13 +95,15 @@ People 业务表中的用户字段保存 Link 用户 ID。
 3. Link 完成授权后回调 People `/api/auth/link`。
 4. People 调用 Link `/oauth/token` 换取 token。
 5. People 调用 Link `/user/profile` 获取当前用户资料。
-6. People 创建本地 session，session 中保存：
+6. People 创建服务端 session，浏览器 cookie 只保存随机、不透明的 session ID。服务端数据库保存：
    - `uid`: Link 用户 ID
    - `role`: People 内部角色数字
    - `name`: 用户姓名
    - `linkAccessToken`
    - `linkRefreshToken`
    - `linkAccessTokenExpiresAt`
+
+Link OAuth 凭据在写入服务端 session 前使用 AES-GCM 加密，绝不写入 cookie。
 
 管理页面首次打开时，讲师或管理员会单独进行一次管理授权。该 OAuth
 流程申请 `admin:read`、`admin:write`，并把令牌保存为
