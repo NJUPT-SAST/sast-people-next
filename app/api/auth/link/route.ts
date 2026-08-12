@@ -1,4 +1,3 @@
-import { getCurrentRedirectUri } from "@/action/user/link";
 import {
   IS_BINDING,
   LINK_OAUTH_PURPOSE,
@@ -6,6 +5,11 @@ import {
 } from "@/const/cookie";
 import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { getCurrentUserProfile } from "@/lib/link/user";
+import {
+  createLinkOAuthAuthorizationUrl,
+  getLinkOAuthRedirectUri,
+  requiresLinkAdminAuthorization,
+} from "@/lib/link/oauth-flow";
 import {
   exchangeLinkOAuthCode,
   type LinkOAuthPurpose,
@@ -51,7 +55,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "invalid oauth purpose" }, { status: 400 });
     }
 
-    const redirectUri = await getCurrentRedirectUri();
+    const redirectUri = getLinkOAuthRedirectUri();
     const token = await exchangeLinkOAuthCode(
       code,
       code_verifier,
@@ -93,6 +97,9 @@ export async function GET(request: NextRequest) {
         ? 2
         : linkRoleToPeopleRole(profile.role);
       await createSession(profile.id, profile.name, peopleRole, linkTokens);
+      if (requiresLinkAdminAuthorization(peopleRole)) {
+        return redirect(await createLinkOAuthAuthorizationUrl("admin"));
+      }
     }
 
     return redirect("/dashboard");
@@ -120,16 +127,7 @@ export async function GET(request: NextRequest) {
         subErrors,
       },
     });
-    return NextResponse.json(
-      {
-        message: "link auth failed",
-        error: String(err),
-        name: err instanceof Error ? err.name : typeof err,
-        stack: err instanceof Error ? err.stack?.split("\n")[0] : undefined,
-        subErrors,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "link auth failed" }, { status: 500 });
   }
 }
 
