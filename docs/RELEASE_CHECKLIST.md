@@ -45,6 +45,7 @@
 - [ ] `DATABASE_URL`
 - [ ] `SESSION_SECRET`（足够强度的随机值）
 - [ ] `LINK_CLIENT_ID` / `LINK_CLIENT_SECRET`
+- [ ] `LINK_ADMIN_CLIENT_ID` / `LINK_ADMIN_CLIENT_SECRET`（若 Link 为管理员授权配置了独立 OAuth 客户端）
 - [ ] `LINK_API_BASE_URL` / `LINK_AUTH_BASE_URL`
 - [ ] `EMAIL_SMTP_HOST` / `EMAIL_SMTP_PORT` / `EMAIL_SMTP_USER` / `EMAIL_PASSWORD` / `EMAIL_FROM`
 - [ ] `EMAIL_WEBHOOK_SECRET`
@@ -192,5 +193,4 @@ pnpm test:e2e
 | 2026-07-21 | GitHub Actions on PR #121 (commit f29b7ca) | Quality + Test/E2E/Build + GitGuardian passed |
 
 说明：上述结果仅证明本地可自动化路径可用，不能替代目标预发环境的迁移、密钥、外部服务联调和业务走查。
-
 

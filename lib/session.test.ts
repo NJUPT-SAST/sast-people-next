@@ -36,6 +36,7 @@ const mockDelete = jest.mocked(db.delete);
 const mockDeleteWhere = jest.fn(() => ({ returning: jest.fn() }));
 const mockSelect = jest.mocked(db.select);
 const mockSelectLimit = jest.fn();
+const mockSelectWhere = jest.fn(() => ({ limit: mockSelectLimit }));
 
 describe("server sessions", () => {
   beforeEach(() => {
@@ -52,6 +53,8 @@ describe("server sessions", () => {
     mockDelete.mockReturnValue({ where: mockDeleteWhere } as never);
     mockDeleteWhere.mockClear();
     mockSelect.mockReset();
+    mockSelectWhere.mockClear();
+    mockSelectLimit.mockReset();
   });
 
   it("stores Link credentials encrypted on the server and sets only an opaque ID cookie", async () => {
@@ -93,11 +96,27 @@ describe("server sessions", () => {
 
   it("does not load expired session records", async () => {
     mockSelect.mockReturnValue({
-      from: jest.fn(() => ({ where: jest.fn(() => ({ limit: mockSelectLimit })) })),
+      from: jest.fn(() => ({ where: mockSelectWhere })),
     } as never);
     mockSelectLimit.mockResolvedValue([]);
 
     await expect(getSessionById("a".repeat(43))).resolves.toBeNull();
+    const selectWhere = (mockSelectWhere.mock.calls as unknown[][])[0]?.[0] as {
+      queryChunks?: unknown[];
+    };
+    expect(selectWhere.queryChunks).toHaveLength(3);
+    const combinedConditions = (selectWhere.queryChunks?.[1] as {
+      queryChunks?: unknown[];
+    })?.queryChunks;
+    const expirationCondition = combinedConditions?.[2] as {
+      queryChunks?: Array<{ name?: string; value?: string[] }>;
+    };
+    expect(expirationCondition.queryChunks?.[1]).toMatchObject({
+      name: "expires_at",
+    });
+    expect(expirationCondition.queryChunks?.[2]).toMatchObject({
+      value: [" > "],
+    });
     expect(mockSelectLimit).toHaveBeenCalledWith(1);
   });
 
@@ -106,5 +125,14 @@ describe("server sessions", () => {
     mockDeleteWhere.mockReturnValue({ returning: mockReturning });
 
     await expect(deleteExpiredSessions(new Date("2026-08-12T00:00:00.000Z"))).resolves.toBe(1);
+    const deleteWhere = (mockDeleteWhere.mock.calls as unknown[][])[0]?.[0] as {
+      queryChunks?: unknown[];
+    };
+    const deleteCondition = deleteWhere.queryChunks as Array<{
+      name?: string;
+      value?: string[];
+    }>;
+    expect(deleteCondition[1]).toMatchObject({ name: "expires_at" });
+    expect(deleteCondition[2]).toMatchObject({ value: [" < "] });
   });
 });

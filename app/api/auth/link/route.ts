@@ -6,7 +6,10 @@ import {
 } from "@/const/cookie";
 import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { getCurrentUserProfile } from "@/lib/link/user";
-import { exchangeLinkOAuthCode } from "@/lib/link/oauth";
+import {
+  exchangeLinkOAuthCode,
+  type LinkOAuthPurpose,
+} from "@/lib/link/oauth";
 import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
 import {
   createSession,
@@ -49,7 +52,12 @@ export async function GET(request: NextRequest) {
     }
 
     const redirectUri = await getCurrentRedirectUri();
-    const token = await exchangeLinkOAuthCode(code, code_verifier, redirectUri);
+    const token = await exchangeLinkOAuthCode(
+      code,
+      code_verifier,
+      redirectUri,
+      purpose as LinkOAuthPurpose,
+    );
     if (!token.access_token) {
       return NextResponse.json(
         { message: "get user access token failed" },

@@ -50,7 +50,7 @@ const getLinkTokenFromSession = async (
   if (!shouldRefreshLinkToken(expiresAt)) return token;
   if (!refreshToken) return throwMissingTokenError(purpose);
 
-  const refreshed = await refreshLinkOAuthToken(refreshToken);
+  const refreshed = await refreshLinkOAuthToken(refreshToken, purpose);
   await updateLinkSessionTokens(session.id, purpose, {
     accessToken: refreshed.access_token,
     refreshToken: refreshed.refresh_token ?? refreshToken,

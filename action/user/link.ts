@@ -11,7 +11,9 @@ import {
   createLinkOAuthUrl,
   exchangeLinkOAuthCode,
   getLinkAdminOAuthScopes,
+  getLinkOAuthClientId,
   getLinkOAuthScopes,
+  type LinkOAuthPurpose,
 } from "@/lib/link/oauth";
 import { logServerError } from "@/lib/server-error-log";
 import { cookies } from "next/headers";
@@ -19,7 +21,7 @@ import { redirect } from "next/navigation";
 import crypto from "node:crypto";
 import { getPublicBaseUrl } from "@/lib/app-url";
 
-export type LinkOAuthPurpose = "session" | "admin";
+export type { LinkOAuthPurpose } from "@/lib/link/oauth";
 
 export async function redirectSASTLink(
   isBinding: boolean,
@@ -31,7 +33,7 @@ export async function redirectSASTLink(
   const { codeChallenge, state } = await createCodeChallenge(isBinding, purpose);
   const redirect_uri = await getCurrentRedirectUri();
   const url = createLinkOAuthUrl("/oauth/authorize");
-  url.searchParams.set("client_id", process.env.LINK_CLIENT_ID!);
+  url.searchParams.set("client_id", getLinkOAuthClientId(purpose));
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("redirect_uri", redirect_uri);
@@ -49,7 +51,12 @@ export const get_user_access_token = async (
   code_verifier: string
 ) => {
   const redirect_uri = await getCurrentRedirectUri();
-  const token = await exchangeLinkOAuthCode(code, code_verifier, redirect_uri);
+  const token = await exchangeLinkOAuthCode(
+    code,
+    code_verifier,
+    redirect_uri,
+    "session",
+  );
   return token.access_token;
 };
 

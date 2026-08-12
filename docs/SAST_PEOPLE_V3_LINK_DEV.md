@@ -241,6 +241,9 @@ v3.1 已确认补齐 People 依赖字段：
 ```env
 LINK_CLIENT_ID=
 LINK_CLIENT_SECRET=
+# Optional dedicated client for admin OAuth. When empty, Link uses LINK_CLIENT_*.
+LINK_ADMIN_CLIENT_ID=
+LINK_ADMIN_CLIENT_SECRET=
 LINK_API_BASE_URL=
 LINK_AUTH_BASE_URL=
 LINK_OAUTH_SCOPES=openid profile email user:read
