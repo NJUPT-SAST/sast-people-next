@@ -396,9 +396,15 @@ export async function getEmailStatusOverview() {
         .select({ value: count() })
         .from(emailDelivery)
         .where(
-          and(
-            inArray(emailDelivery.status, ["failed", "dead"]),
-            gte(emailDelivery.createdAt, todayStart),
+          or(
+            and(
+              eq(emailDelivery.status, "failed"),
+              gte(emailDelivery.lastAttemptAt, todayStart),
+            ),
+            and(
+              eq(emailDelivery.status, "dead"),
+              gte(emailDelivery.deadLetteredAt, todayStart),
+            ),
           ),
         ),
       db

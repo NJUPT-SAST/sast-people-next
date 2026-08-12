@@ -1,6 +1,9 @@
 import { getQueueableEmailRecipients } from "@/components/email/emailDashboardUtils";
 
-import type { FlowTarget, ResultEmailDeliveryState } from "./emailDashboardTypes";
+import type {
+  FlowTarget,
+  ResultEmailDeliveryState,
+} from "@/components/email/emailDashboardTypes";
 
 type LaneDelivery = {
   userFlowId: number | null;

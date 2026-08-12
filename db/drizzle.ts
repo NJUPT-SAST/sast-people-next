@@ -1,18 +1,20 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from '@/db/schema';
+import {
+  readNonNegativeIntegerEnv,
+  readPositiveIntegerEnv,
+} from '@/db/pool-config';
 import { logServerError } from '@/lib/server-error-log';
-
-const readPositiveIntegerEnv = (name: string, fallback: number) => {
-  const value = Number(process.env[name]);
-  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
-};
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: readPositiveIntegerEnv('DATABASE_POOL_MAX', 20),
-  idleTimeoutMillis: readPositiveIntegerEnv('DATABASE_POOL_IDLE_TIMEOUT_MS', 30000),
-  connectionTimeoutMillis: readPositiveIntegerEnv(
+  idleTimeoutMillis: readNonNegativeIntegerEnv(
+    'DATABASE_POOL_IDLE_TIMEOUT_MS',
+    30000,
+  ),
+  connectionTimeoutMillis: readNonNegativeIntegerEnv(
     'DATABASE_POOL_CONNECTION_TIMEOUT_MS',
     10000,
   ),

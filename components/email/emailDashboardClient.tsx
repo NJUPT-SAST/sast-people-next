@@ -192,8 +192,9 @@ export function EmailDashboardClient({
       ) ||
       safeDeliveries.some(
         (delivery) => delivery.status === "pending" || delivery.status === "sending",
-      ),
-    [safeBatches, safeDeliveries],
+      ) ||
+      (statusOverview?.pendingOrSendingCount ?? 0) > 0,
+    [safeBatches, safeDeliveries, statusOverview?.pendingOrSendingCount],
   );
   const activeEmailWorkKey = useMemo(() => {
     const batchKey = safeBatches
@@ -204,8 +205,8 @@ export function EmailDashboardClient({
     const deliveryKey = safeDeliveries
       .map((delivery) => `${delivery.id}:${delivery.status}:${delivery.attemptCount}`)
       .join(";");
-    return `${batchKey}::${deliveryKey}`;
-  }, [safeBatches, safeDeliveries]);
+    return `${batchKey}::${deliveryKey}::${statusOverview?.pendingOrSendingCount ?? 0}`;
+  }, [safeBatches, safeDeliveries, statusOverview?.pendingOrSendingCount]);
   const filteredFlows = useMemo(() => {
     const query = flowQuery.trim().toLowerCase();
     if (!query) return safeFlowTargets;

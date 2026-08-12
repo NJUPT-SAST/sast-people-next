@@ -1,5 +1,7 @@
--- Support the high-frequency dashboard lookups that join People business data
--- to Link identities without scanning the full related table.
+-- Support high-frequency dashboard lookups. These ordinary CREATE INDEX
+-- statements take a write lock; run this migration in a low-traffic maintenance
+-- window. Do not replace them with CREATE INDEX CONCURRENTLY here: Drizzle runs
+-- migrations in a transaction, where concurrent index creation is invalid.
 CREATE INDEX IF NOT EXISTS "user_flow_fk_user_id_idx"
   ON "user_flow" ("fk_user_id");
 

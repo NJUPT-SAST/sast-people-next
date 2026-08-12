@@ -6,6 +6,7 @@ import { verifyRole } from "@/lib/dal";
 import { listLinkUsers } from "@/lib/link/admin";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
+import { logServerError } from "@/lib/server-error-log";
 import {
   and,
   count,
@@ -22,6 +23,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 const LINK_ACTOR_SEARCH_PAGE_SIZE = 100;
 const LINK_ACTOR_SEARCH_CONCURRENCY = 4;
+const MAX_LINK_ACTOR_SEARCH_RESULTS = 1000;
 
 export type OperationAuditListParams = {
   page?: string | number;
@@ -189,6 +191,9 @@ const findLinkActorIds = async (keyword: string) => {
     pageSize: LINK_ACTOR_SEARCH_PAGE_SIZE,
     keyword,
   });
+  if (firstPage.total > MAX_LINK_ACTOR_SEARCH_RESULTS) {
+    throw new Error("匹配的 Link 用户过多，请缩小姓名或学号筛选范围");
+  }
   const totalPages = Math.ceil(firstPage.total / LINK_ACTOR_SEARCH_PAGE_SIZE);
   if (totalPages <= 1) return firstPage.users.map((item) => item.id);
 
@@ -212,9 +217,9 @@ const findLinkActorIds = async (keyword: string) => {
       )),
     );
   }
-  return [firstPage, ...remainingPages].flatMap((page) =>
+  return Array.from(new Set([firstPage, ...remainingPages].flatMap((page) =>
     page.users.map((item) => item.id),
-  );
+  )));
 };
 
 export async function listOperationAudit(params: OperationAuditListParams) {
@@ -249,9 +254,15 @@ export async function listOperationAudit(params: OperationAuditListParams) {
   ]);
   const totalCount = Number(totalCountResult[0]?.count) || 0;
 
-  const actorMap = await listPeopleUsersByLinkIds(
-    rawLogs.map((log) => log.actorId),
-  );
+  let actorMap: Awaited<ReturnType<typeof listPeopleUsersByLinkIds>> = new Map();
+  try {
+    actorMap = await listPeopleUsersByLinkIds(rawLogs.map((log) => log.actorId));
+  } catch (error) {
+    logServerError("operation-audit:actor-lookup", error, {
+      action: "list-operation-audit-actors",
+      metadata: { actorCount: rawLogs.length },
+    });
+  }
   const logs = rawLogs.map((log) => ({
     ...log,
     actorName: actorMap.get(log.actorId)?.name ?? null,

@@ -30,7 +30,10 @@ import { toast } from "sonner";
 
 import { hiddenScrollbar } from "./emailDashboardConstants";
 import { PreviewDialog } from "./emailDashboardDialogs";
-import type { FlowTarget, ResultEmailDeliveryState } from "./emailDashboardTypes";
+import type {
+  FlowTarget,
+  ResultEmailDeliveryState,
+} from "@/components/email/emailDashboardTypes";
 
 export function RecipientsDialog({
   recipients,

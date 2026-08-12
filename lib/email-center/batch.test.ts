@@ -322,4 +322,34 @@ describe("email batch service", () => {
       ]),
     );
   });
+
+  it("deduplicates role syncs and limits their concurrency for a batch", async () => {
+    mockSelectResults.push(
+      [{ id: 10, category: "result", accept: true, status: "queued" }],
+      [],
+      [
+        { id: 201, userFlowId: 401, userId: 501, status: "pending" },
+        { id: 202, userFlowId: 402, userId: 502, status: "pending" },
+        { id: 203, userFlowId: 403, userId: 503, status: "pending" },
+        { id: 204, userFlowId: 404, userId: 504, status: "pending" },
+        { id: 205, userFlowId: 405, userId: 505, status: "pending" },
+        { id: 206, userFlowId: 406, userId: 501, status: "pending" },
+      ],
+    );
+    mockOffer.mockResolvedValue(undefined);
+    let active = 0;
+    let maxActive = 0;
+    mockSyncUserRoleFromAcceptedFlows.mockImplementation(async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+    });
+
+    await expect(sendEmailBatchById(10)).resolves.toEqual({ queuedCount: 6 });
+
+    expect(mockSyncUserRoleFromAcceptedFlows).toHaveBeenCalledTimes(5);
+    expect(mockSyncUserRoleFromAcceptedFlows).toHaveBeenCalledWith(501);
+    expect(maxActive).toBeLessThanOrEqual(5);
+  });
 });
