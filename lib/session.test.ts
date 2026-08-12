@@ -11,7 +11,7 @@ jest.mock("next/headers", () => ({
 }));
 
 jest.mock("@/db/drizzle", () => ({
-  db: { insert: jest.fn() },
+  db: { insert: jest.fn(), update: jest.fn(), delete: jest.fn(), select: jest.fn() },
 }));
 
 jest.mock("@/lib/secret", () => ({
@@ -19,11 +19,23 @@ jest.mock("@/lib/secret", () => ({
   decryptSecret: jest.fn(),
 }));
 
-import { createSession } from "./session";
+import {
+  createSession,
+  deleteExpiredSessions,
+  getSessionById,
+  updateLinkSessionTokens,
+} from "./session";
 import { db } from "@/db/drizzle";
+import { SESSION } from "@/const/cookie";
 
 const mockInsert = jest.mocked(db.insert);
 const mockValues = jest.fn();
+const mockUpdate = jest.mocked(db.update);
+const mockUpdateSet = jest.fn(() => ({ where: jest.fn() }));
+const mockDelete = jest.mocked(db.delete);
+const mockDeleteWhere = jest.fn(() => ({ returning: jest.fn() }));
+const mockSelect = jest.mocked(db.select);
+const mockSelectLimit = jest.fn();
 
 describe("server sessions", () => {
   beforeEach(() => {
@@ -33,6 +45,13 @@ describe("server sessions", () => {
     mockInsert.mockReset();
     mockInsert.mockReturnValue({ values: mockValues } as never);
     mockValues.mockReset();
+    mockUpdate.mockReset();
+    mockUpdate.mockReturnValue({ set: mockUpdateSet } as never);
+    mockUpdateSet.mockClear();
+    mockDelete.mockReset();
+    mockDelete.mockReturnValue({ where: mockDeleteWhere } as never);
+    mockDeleteWhere.mockClear();
+    mockSelect.mockReset();
   });
 
   it("stores Link credentials encrypted on the server and sets only an opaque ID cookie", async () => {
@@ -50,9 +69,42 @@ describe("server sessions", () => {
     });
 
     const [cookieName, sessionId] = mockCookieStore.set.mock.calls[0];
-    expect(cookieName).toBe("session");
+    expect(cookieName).toBe(SESSION);
     expect(sessionId).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(sessionId).not.toContain("access-token");
     expect(sessionId).not.toContain("refresh-token");
+  });
+
+  it("updates only admin credentials when refreshing an admin token", async () => {
+    await updateLinkSessionTokens("a".repeat(43), "admin", {
+      accessToken: "admin-access",
+      accessTokenExpiresAt: Date.now() + 3600_000,
+    });
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        linkAdminAccessToken: "encrypted:admin-access",
+      }),
+    );
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.not.objectContaining({ linkAccessToken: expect.anything() }),
+    );
+  });
+
+  it("does not load expired session records", async () => {
+    mockSelect.mockReturnValue({
+      from: jest.fn(() => ({ where: jest.fn(() => ({ limit: mockSelectLimit })) })),
+    } as never);
+    mockSelectLimit.mockResolvedValue([]);
+
+    await expect(getSessionById("a".repeat(43))).resolves.toBeNull();
+    expect(mockSelectLimit).toHaveBeenCalledWith(1);
+  });
+
+  it("deletes expired session records", async () => {
+    const mockReturning = jest.fn().mockResolvedValue([{ id: "old" }]);
+    mockDeleteWhere.mockReturnValue({ returning: mockReturning });
+
+    await expect(deleteExpiredSessions(new Date("2026-08-12T00:00:00.000Z"))).resolves.toBe(1);
   });
 });

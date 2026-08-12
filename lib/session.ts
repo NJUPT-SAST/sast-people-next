@@ -4,7 +4,7 @@ import { SESSION, SESSION_ID_PATTERN } from "@/const/cookie";
 import { db } from "@/db/drizzle";
 import { peopleSession } from "@/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secret";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
@@ -30,6 +30,9 @@ export type SessionData = {
 
 type SessionRecord = typeof peopleSession.$inferSelect;
 
+const sessionLifetimeMs = (role: number) =>
+  (role === 0 ? 12 : 7 * 24) * 60 * 60 * 1000;
+
 const sessionCookieOptions = (expiresAt: Date) => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
@@ -37,6 +40,15 @@ const sessionCookieOptions = (expiresAt: Date) => ({
   sameSite: "lax" as const,
   path: "/",
 });
+
+const decryptStoredToken = (value: string | null) => {
+  if (!value) return null;
+  try {
+    return decryptSecret(value);
+  } catch {
+    return null;
+  }
+};
 
 const toSessionData = (
   record: SessionRecord,
@@ -48,19 +60,19 @@ const toSessionData = (
   role: record.role,
   expiresAt: record.expiresAt,
   linkAccessToken: includeLinkTokens && record.linkAccessToken
-    ? decryptSecret(record.linkAccessToken)
+    ? decryptStoredToken(record.linkAccessToken)
     : null,
   linkRefreshToken: includeLinkTokens && record.linkRefreshToken
-    ? decryptSecret(record.linkRefreshToken)
+    ? decryptStoredToken(record.linkRefreshToken)
     : null,
   linkAccessTokenExpiresAt: includeLinkTokens
     ? record.linkAccessTokenExpiresAt
     : null,
   linkAdminAccessToken: includeLinkTokens && record.linkAdminAccessToken
-    ? decryptSecret(record.linkAdminAccessToken)
+    ? decryptStoredToken(record.linkAdminAccessToken)
     : null,
   linkAdminRefreshToken: includeLinkTokens && record.linkAdminRefreshToken
-    ? decryptSecret(record.linkAdminRefreshToken)
+    ? decryptStoredToken(record.linkAdminRefreshToken)
     : null,
   linkAdminAccessTokenExpiresAt: includeLinkTokens
     ? record.linkAdminAccessTokenExpiresAt
@@ -99,10 +111,13 @@ export async function createSession(
   role: number,
   linkTokens?: LinkSessionTokens,
 ) {
-  const expiresAt = new Date(
-    Date.now() + (role === 0 ? 12 : 7 * 24) * 60 * 60 * 1000,
-  );
+  const expiresAt = new Date(Date.now() + sessionLifetimeMs(role));
   const id = crypto.randomBytes(32).toString("base64url");
+
+  const previousSessionId = await getSessionIdFromCookie();
+  if (previousSessionId) {
+    await db.delete(peopleSession).where(eq(peopleSession.id, previousSessionId));
+  }
 
   await db.insert(peopleSession).values({
     id,
@@ -135,17 +150,17 @@ export async function updateLinkSessionTokens(
     purpose === "admin"
       ? {
           linkAdminAccessToken: encryptSecret(linkTokens.accessToken),
-          linkAdminRefreshToken: linkTokens.refreshToken
-            ? encryptSecret(linkTokens.refreshToken)
-            : null,
           linkAdminAccessTokenExpiresAt: new Date(linkTokens.accessTokenExpiresAt),
+          ...(linkTokens.refreshToken
+            ? { linkAdminRefreshToken: encryptSecret(linkTokens.refreshToken) }
+            : {}),
         }
       : {
           linkAccessToken: encryptSecret(linkTokens.accessToken),
-          linkRefreshToken: linkTokens.refreshToken
-            ? encryptSecret(linkTokens.refreshToken)
-            : null,
           linkAccessTokenExpiresAt: new Date(linkTokens.accessTokenExpiresAt),
+          ...(linkTokens.refreshToken
+            ? { linkRefreshToken: encryptSecret(linkTokens.refreshToken) }
+            : {}),
         };
 
   await db
@@ -168,7 +183,7 @@ export async function updateSession() {
   const session = await getSession();
   if (!session) return null;
 
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + sessionLifetimeMs(session.role));
   await db
     .update(peopleSession)
     .set({ expiresAt })
@@ -177,4 +192,12 @@ export async function updateSession() {
   const cookieStore = await cookies();
   cookieStore.set(SESSION, session.id, sessionCookieOptions(expiresAt));
   return { ...session, expiresAt };
+}
+
+export async function deleteExpiredSessions(now = new Date()) {
+  const deletedRows = await db
+    .delete(peopleSession)
+    .where(lt(peopleSession.expiresAt, now))
+    .returning({ id: peopleSession.id });
+  return deletedRows.length;
 }

@@ -104,6 +104,7 @@ People 业务表中的用户字段保存 Link 用户 ID。
    - `linkAccessTokenExpiresAt`
 
 Link OAuth 凭据在写入服务端 session 前使用 AES-GCM 加密，绝不写入 cookie。
+`session/expired.cleanup` Inngest 定时任务每天清理已过期的服务端会话记录。
 
 管理页面首次打开时，讲师或管理员会单独进行一次管理授权。该 OAuth
 流程申请 `admin:read`、`admin:write`，并把令牌保存为

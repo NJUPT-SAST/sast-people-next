@@ -28,6 +28,13 @@ describe("proxy", () => {
     expect(log).not.toHaveBeenCalled();
   });
 
+  it("redirects protected routes when the session cookie is malformed", async () => {
+    const response = await proxy(createRequest("/dashboard", "not-a-valid-id"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost/login");
+  });
+
   it("does not treat an opaque ID as an authenticated identity on public routes", async () => {
     const response = await proxy(createRequest("/login", validSessionId));
 

@@ -65,4 +65,4 @@ const throwMissingTokenError = (purpose: "session" | "admin"): never => {
 };
 
 const shouldRefreshLinkToken = (expiresAt: Date | null | undefined) =>
-  Boolean(expiresAt && expiresAt.getTime() <= Date.now() + 60 * 1000);
+  !expiresAt || expiresAt.getTime() <= Date.now() + 60 * 1000;
