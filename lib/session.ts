@@ -13,6 +13,12 @@ function getEncodedKey() {
 
 const httpOnly = process.env.NODE_ENV === "production" ? true : false;
 
+/**
+ * Creates a signed JWT containing session data.
+ *
+ * @param payload - Session identity, role, expiration, and optional linked access-token details
+ * @returns The signed session token
+ */
 export async function encrypt(payload: {
   role: number;
   uid: number;

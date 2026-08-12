@@ -21,6 +21,13 @@ import { getPublicBaseUrl } from "@/lib/app-url";
 
 export type LinkOAuthPurpose = "session" | "admin";
 
+/**
+ * Redirects the user to the Link OAuth authorization flow.
+ *
+ * @param isBinding - Whether the OAuth flow is for binding a Link account
+ * @param purpose - The OAuth purpose, either `session` or `admin`
+ * @returns The redirect response to the Link authorization URL
+ */
 export async function redirectSASTLink(
   isBinding: boolean,
   purpose: LinkOAuthPurpose = "session",
@@ -65,10 +72,23 @@ function base64URLEncode(str: Buffer) {
     .replace(/=/g, "");
 }
 
+/**
+ * Computes a SHA-256 digest for the provided data.
+ *
+ * @param buffer - The data to hash.
+ * @returns The resulting SHA-256 digest as a buffer.
+ */
 function sha256(buffer: Buffer | string) {
   return crypto.createHash("sha256").update(buffer).digest();
 }
 
+/**
+ * Prepares PKCE credentials and OAuth state for a Link authorization flow.
+ *
+ * @param isBinding - Whether to mark the flow as an account-binding flow
+ * @param purpose - The OAuth flow purpose
+ * @returns The PKCE code challenge and OAuth state
+ */
 export async function createCodeChallenge(
   isBinding: boolean,
   purpose: LinkOAuthPurpose = "session",

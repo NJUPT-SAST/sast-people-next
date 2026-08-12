@@ -17,6 +17,11 @@ import { NextRequest, NextResponse } from "next/server";
 import "server-only";
 import { logServerError } from "@/lib/server-error-log";
 
+/**
+ * Handles the Link OAuth callback for session creation or administrator authorization.
+ *
+ * @returns A redirect to the dashboard after successful authorization, or an error response when validation or authorization fails.
+ */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
