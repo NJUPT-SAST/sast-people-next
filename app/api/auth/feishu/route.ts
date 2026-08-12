@@ -13,6 +13,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
 
+type FeishuOAuthFailure =
+  | "link_identity_missing"
+  | "identity_mismatch"
+  | "link_session_invalid"
+  | "account_conflict"
+  | "authorization_failed";
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
@@ -29,14 +36,19 @@ export async function GET(request: NextRequest) {
   }
 
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
+  let stage = "verify-session";
   try {
     session = await verifySession();
     if (session.role < 2) {
       return NextResponse.json({ message: "forbidden" }, { status: 403 });
     }
+    stage = "exchange-feishu-code";
     const token = await exchangeFeishuOAuthCode(code);
+    stage = "verify-link-identity";
     await assertFeishuUnionMatchesLinkIdentity(token.unionId);
+    stage = "save-oauth-account";
     await upsertFeishuOAuthAccount(session.uid, token);
+    stage = "notify-bound-account";
     await notifyFeishuOAuthBound(token.openId, request);
     cookieStore.delete(FEISHU_OAUTH_STATE);
   } catch (error) {
@@ -49,9 +61,10 @@ export async function GET(request: NextRequest) {
       metadata: {
         hasCode: Boolean(code),
         hasState: Boolean(state),
+        stage,
       },
     });
-    throw error;
+    return redirectAfterFeishuOAuthFailure(request, cookieStore, error);
   }
 
   redirect("/dashboard");
@@ -76,6 +89,38 @@ const assertFeishuUnionMatchesLinkIdentity = async (unionId: string) => {
     throw new Error("飞书账号与当前 Link 账号不匹配，请使用同一个飞书身份。");
   }
 };
+
+function redirectAfterFeishuOAuthFailure(
+  request: NextRequest,
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+  error: unknown,
+) {
+  cookieStore.delete(FEISHU_OAUTH_STATE);
+  const url = new URL("/dashboard", request.url);
+  url.searchParams.set("feishuOAuth", getFeishuOAuthFailure(error));
+  return NextResponse.redirect(url);
+}
+
+function getFeishuOAuthFailure(error: unknown): FeishuOAuthFailure {
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("未绑定飞书身份")) return "link_identity_missing";
+  if (message.includes("飞书账号与当前 Link 账号不匹配")) {
+    return "identity_mismatch";
+  }
+  if (
+    message.includes("Link access token is missing") ||
+    message.includes("Link API request failed")
+  ) {
+    return "link_session_invalid";
+  }
+  if (
+    message.includes("user_oauth_account_provider_provider_user_id_unique") ||
+    message.includes("duplicate key")
+  ) {
+    return "account_conflict";
+  }
+  return "authorization_failed";
+}
 
 const notifyFeishuOAuthBound = async (openId: string, request: NextRequest) => {
   try {

@@ -218,6 +218,20 @@
       "when": 1786525800000,
       "tag": "0030_people_session_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786525800001,
+      "tag": "0031_grant_people_runtime_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786525800002,
+      "tag": "0032_default_people_runtime_permissions",
+      "breakpoints": true
     }
   ]
 }

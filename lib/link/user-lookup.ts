@@ -17,6 +17,7 @@ import {
 } from "@/lib/link/session";
 import type { userType } from "@/types/user";
 import { eq, inArray } from "drizzle-orm";
+import { cache } from "react";
 
 type LookupOptions = {
   canViewSensitiveInfo?: boolean;
@@ -115,7 +116,19 @@ export const listPeopleUsersByLinkIds = async (
   ids: number[],
   { canViewSensitiveInfo = false }: LookupOptions = {},
 ): Promise<Map<number, userType>> => {
-  const uniqueIds = Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
+  const idsKey = Array.from(new Set(ids.filter((id) => Number.isFinite(id))))
+    .sort((a, b) => a - b)
+    .join(",");
+  return listPeopleUsersByLinkIdsCached(idsKey, canViewSensitiveInfo);
+};
+
+const listPeopleUsersByLinkIdsCached = cache(async (
+  idsKey: string,
+  canViewSensitiveInfo: boolean,
+): Promise<Map<number, userType>> => {
+  const uniqueIds = idsKey
+    ? idsKey.split(",").map(Number)
+    : [];
   if (uniqueIds.length === 0) {
     return new Map();
   }
@@ -146,7 +159,7 @@ export const listPeopleUsersByLinkIds = async (
     }
     throw err;
   }
-};
+});
 
 const tryGetCurrentUserProfile = async (accessToken: string) => {
   try {

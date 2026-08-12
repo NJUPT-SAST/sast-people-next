@@ -1,5 +1,5 @@
 'use client';
-import { displayFlow } from '@/types/flow';
+import { flowSelection } from '@/types/flow';
 import React from 'react';
 import {
   Select,
@@ -14,7 +14,7 @@ export const SelectFlow = ({
   defaultFlowTypeId,
   onChange,
 }: {
-  flowTypes: displayFlow[];
+  flowTypes: flowSelection[];
   defaultFlowTypeId?: string;
   onChange?: (value: string) => void;
 }) => {

@@ -27,6 +27,9 @@
 ## 2. 数据库
 
 - [ ] 目标环境执行 `pnpm db:migrate`
+- [ ] 应用账号 `sastpeople` 对 `public` schema 的业务表、序列和枚举类型具备所需权限
+- [ ] 迁移连接使用数据库对象所有者（或具备等效 `GRANT` 权限的发布账号），而非仅供应用运行的 `sastpeople` 账号
+- [ ] 已应用 `0031_grant_people_runtime_permissions` 与 `0032_default_people_runtime_permissions`
 - [ ] 确认邮件中心相关迁移已应用，至少到 `0026_email_center_production_hardening`
 - [ ] 确认关键表与字段存在：
   - `email_delivery.fk_flow_id`（nullable）
@@ -193,4 +196,3 @@ pnpm test:e2e
 | 2026-07-21 | GitHub Actions on PR #121 (commit f29b7ca) | Quality + Test/E2E/Build + GitGuardian passed |
 
 说明：上述结果仅证明本地可自动化路径可用，不能替代目标预发环境的迁移、密钥、外部服务联调和业务走查。
-

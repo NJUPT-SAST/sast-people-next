@@ -32,6 +32,7 @@ import type {
   EmailBatch,
   EmailCenterConfig,
   EmailDeliveryPage,
+  EmailFlowOption,
   EmailTemplateDefinition,
   FlowTarget,
   InterviewSchedulePreviews,
@@ -97,26 +98,46 @@ function resolveInitialFlowId(
   return flowTargets[0]?.id;
 }
 
+const emptyDeliveryPage: EmailDeliveryPage = {
+  deliveries: [],
+  filters: {
+    page: 1,
+    pageSize: 50,
+    category: "",
+    status: "",
+    templateKey: "",
+    flowId: "",
+    creatorId: "",
+    from: "",
+    to: "",
+    query: "",
+  },
+  totalCount: 0,
+  totalPages: 0,
+};
+
 export function EmailDashboardClient({
-  batches,
-  recordDeliveryPage,
-  flowTargets,
-  templateSettings,
-  resultEmailPreviews,
-  interviewScheduleTemplates,
-  interviewSchedulePreviews,
+  batches = [],
+  recordDeliveryPage = emptyDeliveryPage,
+  flowTargets = [],
+  flowOptions = [],
+  templateSettings = [],
+  resultEmailPreviews = {} as ResultEmailPreviews,
+  interviewScheduleTemplates = [],
+  interviewSchedulePreviews = {} as InterviewSchedulePreviews,
   emailCenterConfig,
   templateDefinitions,
   activeTab,
   initialFlowId,
 }: {
-  batches: EmailBatch[];
-  recordDeliveryPage: EmailDeliveryPage;
-  flowTargets: FlowTarget[];
-  templateSettings: TemplateSetting[];
-  resultEmailPreviews: ResultEmailPreviews;
-  interviewScheduleTemplates: InterviewScheduleTemplates;
-  interviewSchedulePreviews: InterviewSchedulePreviews;
+  batches?: EmailBatch[];
+  recordDeliveryPage?: EmailDeliveryPage;
+  flowTargets?: FlowTarget[];
+  flowOptions?: EmailFlowOption[];
+  templateSettings?: TemplateSetting[];
+  resultEmailPreviews?: ResultEmailPreviews;
+  interviewScheduleTemplates?: InterviewScheduleTemplates;
+  interviewSchedulePreviews?: InterviewSchedulePreviews;
   emailCenterConfig: EmailCenterConfig;
   templateDefinitions: EmailTemplateDefinition[];
   activeTab?: string;
@@ -134,6 +155,10 @@ export function EmailDashboardClient({
   const safeFlowTargets = useMemo(
     () => (Array.isArray(flowTargets) ? flowTargets : []),
     [flowTargets],
+  );
+  const safeFlowOptions = useMemo(
+    () => (Array.isArray(flowOptions) ? flowOptions : []),
+    [flowOptions],
   );
   const safeTemplateSettings = useMemo(
     () => (Array.isArray(templateSettings) ? templateSettings : []),
@@ -244,7 +269,7 @@ export function EmailDashboardClient({
     content = (
       <EmailRecordsSection
         deliveryPage={recordDeliveryPage}
-        flowTargets={safeFlowTargets}
+        flowTargets={safeFlowOptions}
         templateDefinitions={templateDefinitions}
       />
     );
@@ -255,7 +280,9 @@ export function EmailDashboardClient({
         resultEmailPreviews={resultEmailPreviews}
         interviewScheduleTemplates={interviewScheduleTemplates}
         interviewSchedulePreviews={interviewSchedulePreviews}
-        selectedFlowTitle={selectedFlow?.title}
+        selectedFlowTitle={
+          selectedFlow?.title ?? safeFlowOptions[0]?.title
+        }
         templateDefinitions={templateDefinitions}
       />
     );
@@ -290,5 +317,3 @@ export function EmailDashboardClient({
     </div>
   );
 }
-
-

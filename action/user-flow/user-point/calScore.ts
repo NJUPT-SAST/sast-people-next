@@ -13,40 +13,40 @@ export const calScore = async (flowId: number) => {
   try {
     session = await verifyRole(2);
     const totalScore = sql<string>`coalesce(sum(${userPoint.points}), 0)`;
-    const examResult = await db.select({
-        uid: userFlow.fkUserId,
-        stepId: flowStep.order,
-        status: userFlow.progressStatus,
-        totalScore,
-      })
-      .from(userFlow)
-      .leftJoin(flowStep, eq(userFlow.fkCurrentStepId, flowStep.id))
-      .leftJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
-      .where(eq(userFlow.fkFlowId, flowId))
-      .groupBy(userFlow.fkUserId, flowStep.order, userFlow.progressStatus)
-      .orderBy(desc(totalScore));
-
-    const problems = await db
-      .select({
-        id: problem.id,
-        title: problem.title,
-        score: problem.score,
-      })
-      .from(problem)
-      .innerJoin(flowStep, eq(problem.fkFlowStepId, flowStep.id))
-      .where(eq(flowStep.fkFlowId, flowId))
-      .orderBy(asc(flowStep.order), asc(problem.id));
-
-    const pointRows = await db
-      .select({
-        uid: userFlow.fkUserId,
-        problemId: userPoint.fkProblemId,
-        points: userPoint.points,
-        judgerId: userPoint.fkJudgerId,
-      })
-      .from(userFlow)
-      .innerJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
-      .where(eq(userFlow.fkFlowId, flowId));
+    const [examResult, problems, pointRows] = await Promise.all([
+      db.select({
+          uid: userFlow.fkUserId,
+          stepId: flowStep.order,
+          status: userFlow.progressStatus,
+          totalScore,
+        })
+        .from(userFlow)
+        .leftJoin(flowStep, eq(userFlow.fkCurrentStepId, flowStep.id))
+        .leftJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
+        .where(eq(userFlow.fkFlowId, flowId))
+        .groupBy(userFlow.fkUserId, flowStep.order, userFlow.progressStatus)
+        .orderBy(desc(totalScore)),
+      db
+        .select({
+          id: problem.id,
+          title: problem.title,
+          score: problem.score,
+        })
+        .from(problem)
+        .innerJoin(flowStep, eq(problem.fkFlowStepId, flowStep.id))
+        .where(eq(flowStep.fkFlowId, flowId))
+        .orderBy(asc(flowStep.order), asc(problem.id)),
+      db
+        .select({
+          uid: userFlow.fkUserId,
+          problemId: userPoint.fkProblemId,
+          points: userPoint.points,
+          judgerId: userPoint.fkJudgerId,
+        })
+        .from(userFlow)
+        .innerJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
+        .where(eq(userFlow.fkFlowId, flowId)),
+    ]);
 
     const userMap = await listPeopleUsersByLinkIds(
       [

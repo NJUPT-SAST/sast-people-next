@@ -8,7 +8,7 @@ import { columns } from '@/components/recruitment/columns';
 import { calScore } from '@/action/user-flow/user-point/calScore';
 import { getEvaluationCandidates } from '@/action/user-flow/evaluation';
 import { Loading } from '@/components/loading';
-import { displayFlow } from '@/types/flow';
+import { flowSelection } from '@/types/flow';
 import { BadgeCheck, ClipboardList, Users } from 'lucide-react';
 
 type ExamResult = Awaited<ReturnType<typeof calScore>>;
@@ -25,7 +25,7 @@ export const RecruitmentContent = ({
   targetScheduleId,
   role,
 }: {
-  flowTypes: displayFlow[];
+  flowTypes: flowSelection[];
   initialData: ExamResult;
   initialEvalData: CandidatesResult;
   defaultFlowId?: string;

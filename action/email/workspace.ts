@@ -99,6 +99,19 @@ export async function listEmailFlowTargets() {
   }));
 }
 
+export async function listEmailFlowOptions() {
+  await verifyRole(3);
+
+  return db
+    .select({
+      id: flow.id,
+      title: flow.title,
+    })
+    .from(flow)
+    .where(and(eq(flow.isDeleted, false), eq(flow.type, "recruitment")))
+    .orderBy(desc(flow.createdAt));
+}
+
 export async function createResultEmailBatchFromFlow(
   flowIdInput: unknown,
   acceptInput: unknown,
