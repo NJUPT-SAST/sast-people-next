@@ -24,12 +24,6 @@ import { Button } from '../ui/button';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { batchSetOutcomeByUid } from '@/action/user-flow/edit';
-import {
-  buildRecruitmentScoreCsv,
-  downloadCsv,
-  recruitmentStatusText,
-  type RecruitmentScoreExportRow,
-} from '@/components/recruitment/exportCsv';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -45,9 +39,16 @@ type RecruitmentRowLike = {
   stepId: number;
   status: string;
   isGraded?: boolean;
-} & RecruitmentScoreExportRow;
+};
 
 const finalStatuses = new Set(['passed', 'failed']);
+const recruitmentStatusText: Record<string, string> = {
+  ungraded: '未批卷',
+  ongoing: '待确认',
+  passed: '通过',
+  failed: '不通过',
+  not_started: '未开始',
+};
 
 export function DataTable<TData, TValue>({
   columns,
@@ -166,21 +167,6 @@ export function DataTable<TData, TValue>({
               className="h-9 w-full sm:w-[180px]"
             />
             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start lg:justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={filteredRows.length === 0}
-                onClick={() => {
-                  const csv = buildRecruitmentScoreCsv({
-                    rows: filteredRows.map((row) => toRecruitmentRow(row)),
-                    includeSensitiveInfo: role >= 3,
-                  });
-                  downloadCsv(`flow-${flowTypeId}-scores.csv`, csv);
-                  toast.success('已导出当前筛选结果');
-                }}
-              >
-                导出 CSV
-              </Button>
               {role >= 3 && (
                 <>
                   <Button

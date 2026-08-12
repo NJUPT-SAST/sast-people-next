@@ -12,8 +12,6 @@ import {
   formatDate,
   getBatchStatusBadgeClass,
 } from "./emailDashboardConstants";
-import { EmailBatchStatusDialog } from "./EmailBatchStatusDialog";
-import { PreviewDialog } from "./emailDashboardDialogs";
 import type { EmailBatch } from "./emailDashboardTypes";
 
 function RecoverStaleBatchButton({ batchId }: { batchId: number }) {
@@ -91,10 +89,6 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
           </p>
         ) : (
           batches.map((batch) => {
-            const deliveries = Array.isArray(batch.deliveries)
-              ? batch.deliveries
-              : [];
-            const preview = deliveries[0]?.htmlSnapshot ?? null;
             const failed = batch.counts.failed + batch.counts.dead;
             const canRetry = batch.counts.pending > 0 || failed > 0;
             const canRecover = batch.counts.sending > 0;
@@ -134,13 +128,6 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 lg:justify-end">
-                  <PreviewDialog
-                    title={batch.flowTitle}
-                    html={preview}
-                    triggerLabel="预览"
-                    triggerSize="sm"
-                  />
-                  <EmailBatchStatusDialog batch={batch} />
                   {canRecover && <RecoverStaleBatchButton batchId={batch.id} />}
                   {canRetry && (
                     <RetryBatchButton batchId={batch.id} disabled={false} />

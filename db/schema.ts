@@ -151,6 +151,7 @@ export const userFlow = pgTable("user_flow", {
     .$onUpdate(() => sql`now()`),
 }, (table) => ({
   uniqueFlowUser: unique().on(table.fkFlowId, table.fkUserId),
+  userIdIdx: index("user_flow_fk_user_id_idx").on(table.fkUserId),
 }));
 
 export const problem = pgTable("problem", {
@@ -229,6 +230,10 @@ export const emailDelivery = pgTable("email_delivery", {
     table.status,
   ),
   flowIdIdx: index("email_delivery_fk_flow_id_idx").on(table.fkFlowId),
+  batchCreatedAtIdx: index("email_delivery_batch_created_at_idx").on(
+    table.fkEmailBatchId,
+    table.createdAt,
+  ),
   attemptStatusIdx: index("email_delivery_attempt_status_idx").on(
     table.status,
     table.lastAttemptAt,
@@ -346,7 +351,12 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
-});
+}, (table) => ({
+  userFlowStatusIdx: index("interview_evaluation_user_flow_status_idx").on(
+    table.fkUserFlowId,
+    table.status,
+  ),
+}));
 
 export const userOAuthAccount = pgTable("user_oauth_account", {
   id: serial("id").primaryKey(),

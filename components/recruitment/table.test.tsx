@@ -165,6 +165,7 @@ describe("Recruitment DataTable", () => {
     );
 
     expect(screen.queryByRole("button", { name: /邮件/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /导出 CSV/i })).not.toBeInTheDocument();
   });
 
   it("uses distinct target ids for desktop and mobile render paths", () => {

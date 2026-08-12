@@ -12,11 +12,10 @@ import Link from "next/link";
 import {
   deliveryStatusText,
   getDeliveryStatusBadgeClass,
-  isToday,
 } from "./emailDashboardConstants";
 import type {
   EmailCenterConfig,
-  EmailDeliveryRecord,
+  EmailStatusOverview,
 } from "./emailDashboardTypes";
 
 function getReadinessClass(status: "pass" | "warn" | "fail") {
@@ -28,35 +27,22 @@ function getReadinessClass(status: "pass" | "warn" | "fail") {
 }
 
 export function EmailOverviewSection({
-  deliveries,
+  overview,
   emailCenterConfig,
 }: {
-  deliveries: EmailDeliveryRecord[];
+  overview: EmailStatusOverview;
   emailCenterConfig: EmailCenterConfig;
 }) {
-  const todayDeliveries = deliveries.filter((delivery) =>
-    isToday(delivery.sentAt ?? delivery.createdAt),
-  );
-  const todaySentCount = todayDeliveries.filter(
-    (delivery) => delivery.status === "sent",
-  ).length;
-  const todayFailedCount = todayDeliveries.filter(
-    (delivery) => delivery.status === "failed" || delivery.status === "dead",
-  ).length;
-  const pendingOrSending = deliveries.filter(
-    (delivery) =>
-      delivery.status === "pending" || delivery.status === "sending",
-  ).length;
-  const recentFailures = deliveries
-    .filter(
-      (delivery) =>
-        delivery.status === "failed" || delivery.status === "dead",
-    )
-    .slice(0, 5);
+  const {
+    todaySentCount,
+    todayFailedCount,
+    pendingOrSendingCount,
+    recentFailures,
+  } = overview;
   const healthLabel =
     todayFailedCount > 0
       ? "有发送失败"
-      : pendingOrSending > 0
+      : pendingOrSendingCount > 0
         ? "发送中"
         : "正常";
   const HealthIcon = todayFailedCount > 0 ? AlertTriangle : CheckCircle2;
@@ -76,7 +62,7 @@ export function EmailOverviewSection({
             <p className="text-xs text-muted-foreground">
               今日成功 {todaySentCount}
               {todayFailedCount > 0 ? ` · 失败 ${todayFailedCount}` : ""}
-              {pendingOrSending > 0 ? ` · 进行中 ${pendingOrSending}` : ""}
+              {pendingOrSendingCount > 0 ? ` · 进行中 ${pendingOrSendingCount}` : ""}
               {" · "}
               {emailCenterConfig.realRecipientMode ? "正式发送" : "测试模式"}
             </p>
@@ -114,7 +100,7 @@ export function EmailOverviewSection({
                     {delivery.subject}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {delivery.userName || "未知收件人"}
+                    {delivery.toAddress || "未知收件人"}
                     {delivery.errorMessage ? ` · ${delivery.errorMessage}` : ""}
                   </p>
                 </div>

@@ -19,17 +19,29 @@ import {
 import type {
   EmailBatch,
   FlowTarget,
+  ResultEmailDeliveryState,
 } from "./emailDashboardTypes";
 
-function remainingForFlow(flow: FlowTarget, batches: EmailBatch[]) {
+function remainingForFlow(
+  flow: FlowTarget,
+  deliveryStates: ResultEmailDeliveryState[],
+) {
   return (
     countRemainingRecipients({
       recipients: Array.isArray(flow.passed) ? flow.passed : [],
-      deliveries: getLaneDeliveries({ batches, flowId: flow.id, accept: true }),
+      deliveries: getLaneDeliveries({
+        deliveries: deliveryStates,
+        flowId: flow.id,
+        accept: true,
+      }),
     }) +
     countRemainingRecipients({
       recipients: Array.isArray(flow.failed) ? flow.failed : [],
-      deliveries: getLaneDeliveries({ batches, flowId: flow.id, accept: false }),
+      deliveries: getLaneDeliveries({
+        deliveries: deliveryStates,
+        flowId: flow.id,
+        accept: false,
+      }),
     })
   );
 }
@@ -37,11 +49,11 @@ function remainingForFlow(flow: FlowTarget, batches: EmailBatch[]) {
 function SendLane({
   flow,
   accept,
-  batches,
+  deliveryStates,
 }: {
   flow: FlowTarget;
   accept: boolean;
-  batches: EmailBatch[];
+  deliveryStates: ResultEmailDeliveryState[];
 }) {
   const recipients = Array.isArray(accept ? flow.passed : flow.failed)
     ? accept
@@ -54,7 +66,7 @@ function SendLane({
     : flow.rejectedPreviewHtml;
   const resultLabel = accept ? "通过" : "不通过";
   const laneDeliveries = getLaneDeliveries({
-    batches,
+    deliveries: deliveryStates,
     flowId: flow.id,
     accept,
   });
@@ -111,6 +123,7 @@ function SendLane({
 
 export function EmailSendingTasksSection({
   batches,
+  deliveryStates,
   filteredFlows,
   selectedFlow,
   selectedFlowId,
@@ -119,6 +132,7 @@ export function EmailSendingTasksSection({
   setSelectedFlowId,
 }: {
   batches: EmailBatch[];
+  deliveryStates: ResultEmailDeliveryState[];
   filteredFlows: FlowTarget[];
   selectedFlow?: FlowTarget;
   selectedFlowId?: number;
@@ -139,7 +153,7 @@ export function EmailSendingTasksSection({
             disabled={filteredFlows.length === 0}
           >
             {filteredFlows.map((flow) => {
-              const n = remainingForFlow(flow, batches);
+              const n = remainingForFlow(flow, deliveryStates);
               return (
                 <option key={flow.id} value={flow.id}>
                   {flow.title}
@@ -170,7 +184,7 @@ export function EmailSendingTasksSection({
             >
               {filteredFlows.map((flow) => {
                 const active = selectedFlowId === flow.id;
-                const pending = remainingForFlow(flow, batches);
+                const pending = remainingForFlow(flow, deliveryStates);
                 return (
                   <button
                     key={flow.id}
@@ -205,11 +219,15 @@ export function EmailSendingTasksSection({
               <div className="flex flex-col gap-3">
                 <h2 className="text-base font-semibold">{selectedFlow.title}</h2>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <SendLane flow={selectedFlow} accept batches={batches} />
+                  <SendLane
+                    flow={selectedFlow}
+                    accept
+                    deliveryStates={deliveryStates}
+                  />
                   <SendLane
                     flow={selectedFlow}
                     accept={false}
-                    batches={batches}
+                    deliveryStates={deliveryStates}
                   />
                 </div>
               </div>

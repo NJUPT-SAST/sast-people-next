@@ -1,23 +1,29 @@
 import "server-only";
 
 import { db } from "@/db/drizzle";
-import { operationAudit, user as userTable } from "@/db/schema";
+import { operationAudit } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { listLinkUsers } from "@/lib/link/admin";
+import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
+import { logServerError } from "@/lib/server-error-log";
 import {
   and,
   count,
   desc,
   eq,
   gte,
-  ilike,
   inArray,
   lte,
-  or,
+  sql,
   type SQL,
 } from "drizzle-orm";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
+const LINK_ACTOR_SEARCH_PAGE_SIZE = 100;
+const LINK_ACTOR_SEARCH_CONCURRENCY = 4;
+const MAX_LINK_ACTOR_SEARCH_RESULTS = 1000;
 
 export type OperationAuditListParams = {
   page?: string | number;
@@ -124,7 +130,7 @@ function getDateEnd(value: string) {
   return date;
 }
 
-function buildWhereConditions({
+async function buildWhereConditions({
   actor,
   action,
   actionGroup,
@@ -152,15 +158,17 @@ function buildWhereConditions({
   }
 
   if (actor) {
-    const actorConditions: SQL<unknown>[] = [
-      ilike(userTable.name, `%${actor}%`),
-      ilike(userTable.studentId, `%${actor}%`),
-    ];
     const actorId = Number(actor);
     if (Number.isInteger(actorId) && actorId > 0) {
-      actorConditions.push(eq(operationAudit.actorId, actorId));
+      conditions.push(eq(operationAudit.actorId, actorId));
+    } else {
+      const actorIds = await findLinkActorIds(actor);
+      conditions.push(
+        actorIds.length > 0
+          ? inArray(operationAudit.actorId, actorIds)
+          : sql`false`,
+      );
     }
-    conditions.push(or(...actorConditions)!);
   }
 
   const fromDate = getDateStart(from);
@@ -176,40 +184,90 @@ function buildWhereConditions({
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
+const findLinkActorIds = async (keyword: string) => {
+  const accessToken = await getLinkAdminAccessTokenFromSession();
+  const firstPage = await listLinkUsers(accessToken, {
+    page: 1,
+    pageSize: LINK_ACTOR_SEARCH_PAGE_SIZE,
+    keyword,
+  });
+  if (firstPage.total > MAX_LINK_ACTOR_SEARCH_RESULTS) {
+    throw new Error("匹配的 Link 用户过多，请缩小姓名或学号筛选范围");
+  }
+  const totalPages = Math.ceil(firstPage.total / LINK_ACTOR_SEARCH_PAGE_SIZE);
+  if (totalPages <= 1) return firstPage.users.map((item) => item.id);
+
+  const remainingPages = [];
+  for (
+    let page = 2;
+    page <= totalPages;
+    page += LINK_ACTOR_SEARCH_CONCURRENCY
+  ) {
+    remainingPages.push(
+      ...(await Promise.all(
+        Array.from(
+          { length: Math.min(LINK_ACTOR_SEARCH_CONCURRENCY, totalPages - page + 1) },
+          (_, index) =>
+            listLinkUsers(accessToken, {
+              page: page + index,
+              pageSize: LINK_ACTOR_SEARCH_PAGE_SIZE,
+              keyword,
+            }),
+        ),
+      )),
+    );
+  }
+  return Array.from(new Set([firstPage, ...remainingPages].flatMap((page) =>
+    page.users.map((item) => item.id),
+  )));
+};
+
 export async function listOperationAudit(params: OperationAuditListParams) {
   await verifyRole(3);
 
   const normalized = normalizeOperationAuditListParams(params);
   const offset = (normalized.page - 1) * normalized.pageSize;
-  const whereConditions = buildWhereConditions(normalized);
+  const whereConditions = await buildWhereConditions(normalized);
 
-  const totalCountResult = await db
-    .select({ count: count() })
-    .from(operationAudit)
-    .leftJoin(userTable, eq(operationAudit.actorId, userTable.id))
-    .where(whereConditions)
-    .execute();
+  const [totalCountResult, rawLogs] = await Promise.all([
+    db
+      .select({ count: count() })
+      .from(operationAudit)
+      .where(whereConditions)
+      .execute(),
+    db
+      .select({
+        id: operationAudit.id,
+        actorId: operationAudit.actorId,
+        action: operationAudit.action,
+        resourceType: operationAudit.resourceType,
+        resourceId: operationAudit.resourceId,
+        metadata: operationAudit.metadata,
+        createdAt: operationAudit.createdAt,
+      })
+      .from(operationAudit)
+      .where(whereConditions)
+      .orderBy(desc(operationAudit.createdAt))
+      .limit(normalized.pageSize)
+      .offset(offset)
+      .execute(),
+  ]);
   const totalCount = Number(totalCountResult[0]?.count) || 0;
 
-  const logs = await db
-    .select({
-      id: operationAudit.id,
-      actorId: operationAudit.actorId,
-      actorName: userTable.name,
-      actorStudentId: userTable.studentId,
-      action: operationAudit.action,
-      resourceType: operationAudit.resourceType,
-      resourceId: operationAudit.resourceId,
-      metadata: operationAudit.metadata,
-      createdAt: operationAudit.createdAt,
-    })
-    .from(operationAudit)
-    .leftJoin(userTable, eq(operationAudit.actorId, userTable.id))
-    .where(whereConditions)
-    .orderBy(desc(operationAudit.createdAt))
-    .limit(normalized.pageSize)
-    .offset(offset)
-    .execute();
+  let actorMap: Awaited<ReturnType<typeof listPeopleUsersByLinkIds>> = new Map();
+  try {
+    actorMap = await listPeopleUsersByLinkIds(rawLogs.map((log) => log.actorId));
+  } catch (error) {
+    logServerError("operation-audit:actor-lookup", error, {
+      action: "list-operation-audit-actors",
+      metadata: { actorCount: rawLogs.length },
+    });
+  }
+  const logs = rawLogs.map((log) => ({
+    ...log,
+    actorName: actorMap.get(log.actorId)?.name ?? null,
+    actorStudentId: actorMap.get(log.actorId)?.studentId ?? null,
+  }));
 
   return {
     filters: normalized,

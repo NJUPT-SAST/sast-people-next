@@ -10,6 +10,14 @@ export type EmailDeliveryPage = Awaited<
   ReturnType<typeof import("@/action/email/list").listEmailDeliveryPage>
 >;
 
+export type ResultEmailDeliveryState = Awaited<
+  ReturnType<typeof import("@/action/email/list").listResultEmailDeliveryStates>
+>[number];
+
+export type EmailStatusOverview = Awaited<
+  ReturnType<typeof import("@/action/email/list").getEmailStatusOverview>
+>;
+
 export type FlowTarget = Awaited<
   ReturnType<typeof import("@/action/email/workspace").listEmailFlowTargets>
 >[number];
