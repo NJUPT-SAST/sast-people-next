@@ -106,8 +106,9 @@ People 业务表中的用户字段保存 Link 用户 ID。
 Link OAuth 凭据在写入服务端 session 前使用 AES-GCM 加密，绝不写入 cookie。
 `session/expired.cleanup` Inngest 定时任务每天清理已过期的服务端会话记录。
 
-管理页面首次打开时，讲师或管理员会单独进行一次管理授权。该 OAuth
-流程申请 `admin:read`、`admin:write`，并把令牌保存为
+讲师或管理员在一次登录流程中会自动接续管理授权：People 先用最小 scope
+识别 Link 身份，再自动请求 `admin:read`、`admin:write`。普通同学和部员只会
+获得普通资料 scope，不会收到管理 scope 请求。管理令牌保存为
 `linkAdminAccessToken`、`linkAdminRefreshToken` 和
 `linkAdminAccessTokenExpiresAt`。普通登录令牌只用于读取当前用户资料，
 不会用于 `/admin/*` 接口。
