@@ -4,7 +4,7 @@ import { db } from "@/db/drizzle";
 import { flow, userFlow } from "@/db/schema";
 import { updateLinkUserRole } from "@/lib/link/admin";
 import { peopleRoleToLinkRole } from "@/lib/link/role";
-import { getLinkAccessTokenFromSession } from "@/lib/link/session";
+import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -46,7 +46,7 @@ export const syncUserRoleFromAcceptedFlows = async (uid: number) => {
   );
 
   if (calculatedRole !== userRecord.role) {
-    const accessToken = await getLinkAccessTokenFromSession();
+    const accessToken = await getLinkAdminAccessTokenFromSession();
     await updateLinkUserRole(
       accessToken,
       uid,

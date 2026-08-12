@@ -21,6 +21,9 @@ export async function encrypt(payload: {
   linkAccessToken?: string;
   linkRefreshToken?: string;
   linkAccessTokenExpiresAt?: number;
+  linkAdminAccessToken?: string;
+  linkAdminRefreshToken?: string;
+  linkAdminAccessTokenExpiresAt?: number;
 }) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })

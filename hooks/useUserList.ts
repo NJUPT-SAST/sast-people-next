@@ -4,8 +4,8 @@ import { verifyRole } from "@/lib/dal";
 import { listLinkUsers } from "@/lib/link/admin";
 import {
   canUseLegacyUserFallback,
-  getLinkAccessTokenFromSession,
-  MissingLinkAccessTokenError,
+  getLinkAdminAccessTokenFromSession,
+  MissingLinkAdminAccessTokenError,
 } from "@/lib/link/session";
 import { toPeopleUserFromLinkAdminItem } from "@/lib/link/people-user";
 import { and, asc, count, desc, eq, ilike, or, SQL } from "drizzle-orm";
@@ -30,7 +30,7 @@ export const useUserList = async ({
   const canViewQq = session.role >= 2;
 
   try {
-    const accessToken = await getLinkAccessTokenFromSession();
+    const accessToken = await getLinkAdminAccessTokenFromSession();
     const result = await listLinkUsers(accessToken, {
       page,
       pageSize,
@@ -47,7 +47,7 @@ export const useUserList = async ({
     };
   } catch (err) {
     if (
-      err instanceof MissingLinkAccessTokenError &&
+      err instanceof MissingLinkAdminAccessTokenError &&
       canUseLegacyUserFallback()
     ) {
       return getLegacyUserList({

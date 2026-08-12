@@ -15,6 +15,9 @@ type LinkSessionPayload = {
   linkAccessToken?: unknown;
   linkRefreshToken?: unknown;
   linkAccessTokenExpiresAt?: unknown;
+  linkAdminAccessToken?: unknown;
+  linkAdminRefreshToken?: unknown;
+  linkAdminAccessTokenExpiresAt?: unknown;
   accessToken?: unknown;
   refreshToken?: unknown;
   accessTokenExpiresAt?: unknown;
@@ -29,11 +32,28 @@ export class MissingLinkAccessTokenError extends Error {
   }
 }
 
+export class MissingLinkAdminAccessTokenError extends Error {
+  constructor() {
+    super("Link admin authorization is required before calling Link admin APIs.");
+    this.name = "MissingLinkAdminAccessTokenError";
+  }
+}
+
 export const canUseLegacyUserFallback = () =>
   process.env.NODE_ENV !== "production" &&
   process.env.LINK_ALLOW_LEGACY_FALLBACK === "true";
 
-export const getLinkAccessTokenFromSession = async () => {
+export const getLinkAccessTokenFromSession = async (): Promise<string> => {
+  return getLinkTokenFromSession("session");
+};
+
+export const getLinkAdminAccessTokenFromSession = async (): Promise<string> => {
+  return getLinkTokenFromSession("admin");
+};
+
+const getLinkTokenFromSession = async (
+  purpose: "session" | "admin",
+): Promise<string> => {
   if (shouldUseMockLink()) {
     return "mock-link-access-token";
   }
@@ -43,26 +63,34 @@ export const getLinkAccessTokenFromSession = async () => {
   const session = (await decrypt(cookie)) as LinkSessionPayload | null;
 
   if (!session) {
-    throw new MissingLinkAccessTokenError();
+    return throwMissingTokenError(purpose);
   }
 
-  const token = session?.linkAccessToken ?? session?.accessToken;
-  const refreshToken = session?.linkRefreshToken ?? session?.refreshToken;
+  const token =
+    purpose === "admin"
+      ? session.linkAdminAccessToken
+      : session.linkAccessToken ?? session.accessToken;
+  const refreshToken =
+    purpose === "admin"
+      ? session.linkAdminRefreshToken
+      : session.linkRefreshToken ?? session.refreshToken;
   const expiresAt =
-    session?.linkAccessTokenExpiresAt ?? session?.accessTokenExpiresAt;
+    purpose === "admin"
+      ? session.linkAdminAccessTokenExpiresAt
+      : session.linkAccessTokenExpiresAt ?? session.accessTokenExpiresAt;
 
   if (typeof token !== "string" || token.length === 0) {
-    throw new MissingLinkAccessTokenError();
+    return throwMissingTokenError(purpose);
   }
 
   if (shouldRefreshLinkToken(expiresAt)) {
     if (typeof refreshToken !== "string" || refreshToken.length === 0) {
-      throw new MissingLinkAccessTokenError();
+      return throwMissingTokenError(purpose);
     }
 
     const refreshed = await refreshLinkOAuthToken(refreshToken);
     const refreshedAccessToken = refreshed.access_token;
-    await updateLinkTokensInSession(cookieStore, session, {
+    await updateLinkTokensInSession(cookieStore, session, purpose, {
       accessToken: refreshedAccessToken,
       refreshToken: refreshed.refresh_token ?? refreshToken,
       accessTokenExpiresAt: Date.now() + refreshed.expires_in * 1000,
@@ -72,6 +100,13 @@ export const getLinkAccessTokenFromSession = async () => {
   }
 
   return token;
+};
+
+const throwMissingTokenError = (purpose: "session" | "admin"): never => {
+  if (purpose === "admin") {
+    throw new MissingLinkAdminAccessTokenError();
+  }
+  throw new MissingLinkAccessTokenError();
 };
 
 const shouldRefreshLinkToken = (expiresAt: unknown) => {
@@ -84,6 +119,7 @@ const shouldRefreshLinkToken = (expiresAt: unknown) => {
 const updateLinkTokensInSession = async (
   cookieStore: ReadonlyRequestCookies,
   session: LinkSessionPayload,
+  purpose: "session" | "admin",
   linkTokens: {
     accessToken: string;
     refreshToken?: string;
@@ -95,7 +131,7 @@ const updateLinkTokensInSession = async (
     typeof session.role !== "number" ||
     typeof session.name !== "string"
   ) {
-    throw new MissingLinkAccessTokenError();
+    return throwMissingTokenError(purpose);
   }
 
   const expiresAt =
@@ -104,13 +140,46 @@ const updateLinkTokensInSession = async (
       : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   const encrypted = await encrypt({
-    uid: session.uid,
-    role: session.role,
-    name: session.name,
+    uid: session.uid as number,
+    role: session.role as number,
+    name: session.name as string,
     expiresAt,
-    linkAccessToken: linkTokens.accessToken,
-    linkRefreshToken: linkTokens.refreshToken,
-    linkAccessTokenExpiresAt: linkTokens.accessTokenExpiresAt,
+    linkAccessToken:
+      purpose === "session"
+        ? linkTokens.accessToken
+        : typeof session.linkAccessToken === "string"
+          ? session.linkAccessToken
+          : undefined,
+    linkRefreshToken:
+      purpose === "session"
+        ? linkTokens.refreshToken
+        : typeof session.linkRefreshToken === "string"
+          ? session.linkRefreshToken
+          : undefined,
+    linkAccessTokenExpiresAt:
+      purpose === "session"
+        ? linkTokens.accessTokenExpiresAt
+        : typeof session.linkAccessTokenExpiresAt === "number"
+          ? session.linkAccessTokenExpiresAt
+          : undefined,
+    linkAdminAccessToken:
+      purpose === "admin"
+        ? linkTokens.accessToken
+        : typeof session.linkAdminAccessToken === "string"
+          ? session.linkAdminAccessToken
+          : undefined,
+    linkAdminRefreshToken:
+      purpose === "admin"
+        ? linkTokens.refreshToken
+        : typeof session.linkAdminRefreshToken === "string"
+          ? session.linkAdminRefreshToken
+          : undefined,
+    linkAdminAccessTokenExpiresAt:
+      purpose === "admin"
+        ? linkTokens.accessTokenExpiresAt
+        : typeof session.linkAdminAccessTokenExpiresAt === "number"
+          ? session.linkAdminAccessTokenExpiresAt
+          : undefined,
   });
 
   try {

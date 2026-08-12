@@ -18,7 +18,11 @@ export const getLinkOAuthBaseUrl = () => {
 };
 
 export const getLinkOAuthScopes = () =>
-  process.env.LINK_OAUTH_SCOPES || "openid profile";
+  process.env.LINK_OAUTH_SCOPES || "openid profile email user:read";
+
+export const getLinkAdminOAuthScopes = () =>
+  process.env.LINK_ADMIN_OAUTH_SCOPES ||
+  `${getLinkOAuthScopes()} admin:read admin:write`;
 
 export const createLinkOAuthUrl = (path: string) => {
   const baseUrl = getLinkOAuthBaseUrl();

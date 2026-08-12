@@ -6,8 +6,8 @@ import { getLinkUserDetail } from '@/lib/link/admin';
 import { toPeopleUserFromLinkProfile } from '@/lib/link/people-user';
 import {
   canUseLegacyUserFallback,
-  getLinkAccessTokenFromSession,
-  MissingLinkAccessTokenError,
+  getLinkAdminAccessTokenFromSession,
+  MissingLinkAdminAccessTokenError,
 } from '@/lib/link/session';
 import { eq } from 'drizzle-orm';
 
@@ -17,7 +17,7 @@ export const useUserInfoById = async (id: number) => {
   const canViewQq = session.role >= 2;
 
   try {
-    const accessToken = await getLinkAccessTokenFromSession();
+    const accessToken = await getLinkAdminAccessTokenFromSession();
     const userInfo = await getLinkUserDetail(accessToken, id);
     if (!userInfo) {
       throw new Error('User not found');
@@ -28,7 +28,7 @@ export const useUserInfoById = async (id: number) => {
     };
   } catch (err) {
     if (
-      err instanceof MissingLinkAccessTokenError &&
+      err instanceof MissingLinkAdminAccessTokenError &&
       canUseLegacyUserFallback()
     ) {
       const userInfo = await db

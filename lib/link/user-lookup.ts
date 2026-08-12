@@ -10,7 +10,9 @@ import {
 } from "@/lib/link/people-user";
 import {
   canUseLegacyUserFallback,
+  getLinkAdminAccessTokenFromSession,
   getLinkAccessTokenFromSession,
+  MissingLinkAdminAccessTokenError,
   MissingLinkAccessTokenError,
 } from "@/lib/link/session";
 import type { userType } from "@/types/user";
@@ -35,11 +37,13 @@ export const getPeopleUserByLinkId = async (
       return toPeopleUserFromLinkProfile(currentUser, canViewSensitiveInfo);
     }
 
-    const userInfo = await getLinkUserDetail(accessToken, id);
+    const adminAccessToken = await getLinkAdminAccessTokenFromSession();
+    const userInfo = await getLinkUserDetail(adminAccessToken, id);
     return toPeopleUserFromLinkProfile(userInfo, canViewSensitiveInfo);
   } catch (err) {
     if (
-      err instanceof MissingLinkAccessTokenError &&
+      (err instanceof MissingLinkAccessTokenError ||
+        err instanceof MissingLinkAdminAccessTokenError) &&
       canUseLegacyUserFallback()
     ) {
       const userInfo = await getLegacyPeopleUserById(id);
@@ -74,7 +78,8 @@ export const findPeopleUserByStudentId = async (
       return toPeopleUserFromLinkProfile(currentUser, canViewSensitiveInfo);
     }
 
-    const result = await listLinkUsers(accessToken, {
+    const adminAccessToken = await getLinkAdminAccessTokenFromSession();
+    const result = await listLinkUsers(adminAccessToken, {
       page: 1,
       pageSize: 100,
       studentId: normalizedStudentId,
@@ -90,7 +95,8 @@ export const findPeopleUserByStudentId = async (
       : null;
   } catch (err) {
     if (
-      err instanceof MissingLinkAccessTokenError &&
+      (err instanceof MissingLinkAccessTokenError ||
+        err instanceof MissingLinkAdminAccessTokenError) &&
       canUseLegacyUserFallback()
     ) {
       const userInfo = await getLegacyPeopleUserByStudentId(normalizedStudentId);
@@ -115,7 +121,7 @@ export const listPeopleUsersByLinkIds = async (
   }
 
   try {
-    const accessToken = await getLinkAccessTokenFromSession();
+    const accessToken = await getLinkAdminAccessTokenFromSession();
     const users = await Promise.all(
       uniqueIds.map((id) => getLinkUserDetail(accessToken, id)),
     );
@@ -127,7 +133,7 @@ export const listPeopleUsersByLinkIds = async (
     );
   } catch (err) {
     if (
-      err instanceof MissingLinkAccessTokenError &&
+      err instanceof MissingLinkAdminAccessTokenError &&
       canUseLegacyUserFallback()
     ) {
       const users = await db.select().from(user).where(inArray(user.id, uniqueIds));

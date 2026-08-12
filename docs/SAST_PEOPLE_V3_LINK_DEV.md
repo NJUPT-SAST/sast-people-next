@@ -103,14 +103,20 @@ People 业务表中的用户字段保存 Link 用户 ID。
    - `linkRefreshToken`
    - `linkAccessTokenExpiresAt`
 
+管理页面首次打开时，讲师或管理员会单独进行一次管理授权。该 OAuth
+流程申请 `admin:read`、`admin:write`，并把令牌保存为
+`linkAdminAccessToken`、`linkAdminRefreshToken` 和
+`linkAdminAccessTokenExpiresAt`。普通登录令牌只用于读取当前用户资料，
+不会用于 `/admin/*` 接口。
+
 ### 6.2 用户资料读取
 
 | 场景 | Link 接口 |
 | --- | --- |
 | 当前登录用户资料 | `GET /user/profile` |
-| 管理端用户列表 | `GET /admin/users` |
-| 管理端用户详情 | `GET /admin/users/{id}` |
-| 根据学号查用户 | `GET /admin/users?keyword={student_id}` 后由 People 精确匹配 |
+| 管理端用户列表 | `GET /admin/users`，管理令牌 |
+| 管理端用户详情 | `GET /admin/users/{id}`，管理令牌 |
+| 根据学号查用户 | `GET /admin/users?keyword={student_id}`，管理令牌后由 People 精确匹配 |
 
 People 读取 Link 返回后，会转换为现有 People UI 使用的 `userType` 视图模型。
 
@@ -158,11 +164,11 @@ People v3 当前依赖以下 Link API：
 | --- | --- | --- | --- |
 | OAuth 授权 | `GET` | `/oauth/authorize` | 已登录 Link 用户 |
 | OAuth token | `POST` | `/oauth/token` | OAuth client |
-| 当前用户资料 | `GET` | `/user/profile` | 当前用户 |
-| 用户列表 | `GET` | `/admin/users` | `admin` 或 `lecturer` |
-| 用户详情 | `GET` | `/admin/users/{id}` | `admin` 或 `lecturer` |
-| 更新用户 | `PUT` | `/admin/users/{id}` | `admin` |
-| 封禁用户 | `DELETE` | `/admin/users/{id}` | `admin` |
+| 当前用户资料 | `GET` | `/user/profile` | `user:read` |
+| 用户列表 | `GET` | `/admin/users` | `admin:read` |
+| 用户详情 | `GET` | `/admin/users/{id}` | `admin:read` |
+| 更新用户 | `PUT` | `/admin/users/{id}` | `admin:write` |
+| 封禁用户 | `DELETE` | `/admin/users/{id}` | `admin:write` |
 
 ### 7.1 People 需要的用户字段
 
@@ -234,7 +240,8 @@ LINK_CLIENT_ID=
 LINK_CLIENT_SECRET=
 LINK_API_BASE_URL=
 LINK_AUTH_BASE_URL=
-LINK_OAUTH_SCOPES=openid profile
+LINK_OAUTH_SCOPES=openid profile email user:read
+LINK_ADMIN_OAUTH_SCOPES=openid profile email user:read admin:read admin:write
 LINK_USE_MOCK=false
 LINK_ALLOW_LEGACY_FALLBACK=false
 PEOPLE_ALLOW_LEGACY_AUTH=false
