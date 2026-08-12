@@ -1,6 +1,8 @@
 import {
   listEmailBatches,
   listEmailDeliveryPage,
+  getEmailStatusOverview,
+  listResultEmailDeliveryStates,
 } from "@/action/email/list";
 import {
   getInterviewScheduleEmailPreviews,
@@ -109,11 +111,12 @@ async function loadEmailDashboardData(
   const activeTab = normalizeEmailCenterTab(getSearchParam(searchParams, "tab"));
 
   if (activeTab === "tasks") {
-    const [batches, flowTargets] = await Promise.all([
+    const [batches, flowTargets, resultDeliveryStates] = await Promise.all([
       listEmailBatches(),
       listEmailFlowTargets(),
+      listResultEmailDeliveryStates(),
     ]);
-    return { batches, flowTargets };
+    return { batches, flowTargets, resultDeliveryStates };
   }
 
   if (activeTab === "records") {
@@ -148,7 +151,7 @@ async function loadEmailDashboardData(
   }
 
   return {
-    recordDeliveryPage: await listEmailDeliveryPage({ pageSize: 50 }),
+    statusOverview: await getEmailStatusOverview(),
   };
 }
 

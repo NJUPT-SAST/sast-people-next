@@ -183,6 +183,8 @@ Keep secrets in `.env.local`. Do not commit real `.env*` files.
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string |
+| `DATABASE_POOL_MAX` | Optional per-instance PostgreSQL connection limit (default: `20`) |
+| `DATABASE_POOL_IDLE_TIMEOUT_MS` / `DATABASE_POOL_CONNECTION_TIMEOUT_MS` | Optional pool timeouts in milliseconds (defaults: `30000` / `10000`) |
 | `SESSION_SECRET` | Cookie session encryption secret |
 | `LINK_CLIENT_ID` / `LINK_CLIENT_SECRET` | SAST Link OAuth app credentials |
 | `LINK_API_BASE_URL` | Link JSON API base |

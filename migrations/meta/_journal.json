@@ -232,6 +232,13 @@
       "when": 1786525800002,
       "tag": "0032_default_people_runtime_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786525800003,
+      "tag": "0033_page_data_access_indexes",
+      "breakpoints": true
     }
   ]
 }

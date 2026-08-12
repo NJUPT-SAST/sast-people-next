@@ -59,6 +59,22 @@ describe("emailDashboardUtils", () => {
     ]);
   });
 
+  it("keeps historical sent deliveries out of a later send batch", () => {
+    expect(
+      getQueueableEmailRecipients({
+        recipients,
+        deliveries: [
+          { userFlowId: 1, status: "sent" },
+          { userFlowId: 2, status: "pending" },
+        ],
+      }),
+    ).toEqual([
+      { userFlowId: 2, userId: 102, name: "Bob", studentId: null },
+      { userFlowId: 3, userId: 103, name: "Carol", studentId: "  " },
+      { userFlowId: 4, userId: 104, name: "Dave", studentId: "B004" },
+    ]);
+  });
+
   it("blocks sending when remaining recipients have no student id", () => {
     expect(
       getEmailPreflight({

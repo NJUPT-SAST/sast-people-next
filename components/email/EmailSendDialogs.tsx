@@ -30,7 +30,7 @@ import { toast } from "sonner";
 
 import { hiddenScrollbar } from "./emailDashboardConstants";
 import { PreviewDialog } from "./emailDashboardDialogs";
-import type { EmailBatch, FlowTarget } from "./emailDashboardTypes";
+import type { FlowTarget, ResultEmailDeliveryState } from "./emailDashboardTypes";
 
 export function RecipientsDialog({
   recipients,
@@ -106,7 +106,7 @@ export function SendConfirmDialog({
   subject: string;
   previewHtml: string | null;
   recipients: FlowTarget["passed"];
-  deliveries: EmailBatch["deliveries"];
+  deliveries: ResultEmailDeliveryState[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);

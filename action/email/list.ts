@@ -12,8 +12,10 @@ import {
   gte,
   ilike,
   inArray,
+  isNotNull,
   lte,
   or,
+  sql,
   type SQL,
 } from "drizzle-orm";
 
@@ -194,58 +196,33 @@ export async function listEmailBatches() {
     return [];
   }
 
-  const deliveries = await db
+  const deliverySummaries = await db
     .select({
-      id: emailDelivery.id,
       batchId: emailDelivery.fkEmailBatchId,
-      userFlowId: emailDelivery.fkUserFlowId,
-      userId: emailDelivery.fkUserId,
-      toAddress: emailDelivery.toAddress,
-      subject: emailDelivery.subject,
-      status: emailDelivery.status,
-      errorMessage: emailDelivery.errorMessage,
-      attemptCount: emailDelivery.attemptCount,
-      lastAttemptAt: emailDelivery.lastAttemptAt,
-      nextRetryAt: emailDelivery.nextRetryAt,
-      deadLetteredAt: emailDelivery.deadLetteredAt,
-      sentAt: emailDelivery.sentAt,
-      htmlSnapshot: emailDelivery.htmlSnapshot,
+      pending: sql<number>`count(*) filter (where ${emailDelivery.status} = 'pending')`,
+      sending: sql<number>`count(*) filter (where ${emailDelivery.status} = 'sending')`,
+      sent: sql<number>`count(*) filter (where ${emailDelivery.status} = 'sent')`,
+      failed: sql<number>`count(*) filter (where ${emailDelivery.status} = 'failed')`,
+      dead: sql<number>`count(*) filter (where ${emailDelivery.status} = 'dead')`,
     })
     .from(emailDelivery)
     .where(inArray(emailDelivery.fkEmailBatchId, batches.map((batch) => batch.id)))
-    .orderBy(desc(emailDelivery.createdAt));
-
-  const userMap = await listPeopleUsersByLinkIds([
-    ...batches
-      .map((batch) => batch.createdById)
-      .filter((id): id is number => id !== null),
-    ...deliveries
-      .map((delivery) => delivery.userId)
-      .filter((id): id is number => id !== null),
-  ]);
+    .groupBy(emailDelivery.fkEmailBatchId);
+  const summaryByBatchId = new Map(
+    deliverySummaries.map((summary) => [summary.batchId, summary]),
+  );
 
   return batches.map((batch) => {
-    const batchDeliveries = deliveries
-      .filter((item) => item.batchId === batch.id)
-      .map((item) => ({
-        ...item,
-        userName: item.userId
-          ? userMap.get(item.userId)?.name ?? "未知用户"
-          : "外部/测试收件人",
-        studentId: item.userId ? userMap.get(item.userId)?.studentId ?? null : null,
-      }));
+    const summary = summaryByBatchId.get(batch.id);
     return {
       ...batch,
-      createdByName: batch.createdById
-        ? userMap.get(batch.createdById)?.name ?? null
-        : null,
-      deliveries: batchDeliveries,
+      createdByName: null,
       counts: {
-        pending: batchDeliveries.filter((item) => item.status === "pending").length,
-        sending: batchDeliveries.filter((item) => item.status === "sending").length,
-        sent: batchDeliveries.filter((item) => item.status === "sent").length,
-        failed: batchDeliveries.filter((item) => item.status === "failed").length,
-        dead: batchDeliveries.filter((item) => item.status === "dead").length,
+        pending: Number(summary?.pending ?? 0),
+        sending: Number(summary?.sending ?? 0),
+        sent: Number(summary?.sent ?? 0),
+        failed: Number(summary?.failed ?? 0),
+        dead: Number(summary?.dead ?? 0),
       },
     };
   });
@@ -364,4 +341,88 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
 export async function listEmailDeliveries() {
   const page = await listEmailDeliveryPage({ pageSize: 50 });
   return page.deliveries;
+}
+
+export async function listResultEmailDeliveryStates() {
+  await verifyRole(3);
+
+  return db
+    .select({
+      flowId: sql<number>`coalesce(${emailDelivery.fkFlowId}, ${emailBatch.fkFlowId})`,
+      userFlowId: emailDelivery.fkUserFlowId,
+      accept: emailBatch.accept,
+      hasSent: sql<boolean>`bool_or(${emailDelivery.status} = 'sent')`,
+      hasSending: sql<boolean>`bool_or(${emailDelivery.status} = 'sending')`,
+      hasQueueable: sql<boolean>`bool_or(${emailDelivery.status} in ('pending', 'failed', 'dead'))`,
+    })
+    .from(emailDelivery)
+    .innerJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
+    .where(
+      and(
+        eq(emailDelivery.category, "result"),
+        isNotNull(emailBatch.fkFlowId),
+        isNotNull(emailDelivery.fkUserFlowId),
+        isNotNull(emailBatch.accept),
+      ),
+    )
+    .groupBy(
+      sql`coalesce(${emailDelivery.fkFlowId}, ${emailBatch.fkFlowId})`,
+      emailDelivery.fkUserFlowId,
+      emailBatch.accept,
+    );
+}
+
+export async function getEmailStatusOverview() {
+  await verifyRole(3);
+
+  const now = new Date();
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const [todaySent, todayFailed, pendingOrSending, recentFailures] =
+    await Promise.all([
+      db
+        .select({ value: count() })
+        .from(emailDelivery)
+        .where(
+          and(
+            eq(emailDelivery.status, "sent"),
+            gte(emailDelivery.sentAt, todayStart),
+          ),
+        ),
+      db
+        .select({ value: count() })
+        .from(emailDelivery)
+        .where(
+          and(
+            inArray(emailDelivery.status, ["failed", "dead"]),
+            gte(emailDelivery.createdAt, todayStart),
+          ),
+        ),
+      db
+        .select({ value: count() })
+        .from(emailDelivery)
+        .where(inArray(emailDelivery.status, ["pending", "sending"])),
+      db
+        .select({
+          id: emailDelivery.id,
+          subject: emailDelivery.subject,
+          toAddress: emailDelivery.toAddress,
+          status: emailDelivery.status,
+          errorMessage: emailDelivery.errorMessage,
+        })
+        .from(emailDelivery)
+        .where(inArray(emailDelivery.status, ["failed", "dead"]))
+        .orderBy(desc(emailDelivery.createdAt))
+        .limit(5),
+    ]);
+
+  return {
+    todaySentCount: Number(todaySent[0]?.value) || 0,
+    todayFailedCount: Number(todayFailed[0]?.value) || 0,
+    pendingOrSendingCount: Number(pendingOrSending[0]?.value) || 0,
+    recentFailures,
+  };
 }

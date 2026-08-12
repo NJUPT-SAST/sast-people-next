@@ -1,20 +1,34 @@
 import { getQueueableEmailRecipients } from "@/components/email/emailDashboardUtils";
 
-import type { EmailBatch, FlowTarget } from "./emailDashboardTypes";
+import type { FlowTarget, ResultEmailDeliveryState } from "./emailDashboardTypes";
+
+type LaneDelivery = {
+  userFlowId: number | null;
+  status: "pending" | "sending" | "sent" | "failed" | "dead";
+};
 
 export function getLaneDeliveries({
-  batches,
+  deliveries,
   flowId,
   accept,
 }: {
-  batches: EmailBatch[];
+  deliveries: ResultEmailDeliveryState[];
   flowId: number;
   accept: boolean;
 }) {
-  const safeBatches = Array.isArray(batches) ? batches : [];
-  return safeBatches
-    .filter((batch) => batch.flowId === flowId && batch.accept === accept)
-    .flatMap((batch) => (Array.isArray(batch.deliveries) ? batch.deliveries : []));
+  const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
+  return safeDeliveries
+    .filter((delivery) => delivery.flowId === flowId && delivery.accept === accept)
+    .map((delivery) => ({
+      ...delivery,
+      status: delivery.hasSent
+        ? "sent"
+        : delivery.hasSending
+          ? "sending"
+          : delivery.hasQueueable
+            ? "failed"
+            : "sent",
+    })) satisfies LaneDelivery[];
 }
 
 export function countRemainingRecipients({
@@ -22,7 +36,7 @@ export function countRemainingRecipients({
   deliveries,
 }: {
   recipients: Array<FlowTarget["passed"][number]>;
-  deliveries: EmailBatch["deliveries"];
+  deliveries: LaneDelivery[];
 }) {
   return getQueueableEmailRecipients({
     recipients: Array.isArray(recipients) ? recipients : [],

@@ -33,11 +33,13 @@ import type {
   EmailCenterConfig,
   EmailDeliveryPage,
   EmailFlowOption,
+  EmailStatusOverview,
   EmailTemplateDefinition,
   FlowTarget,
   InterviewSchedulePreviews,
   InterviewScheduleTemplates,
   ResultEmailPreviews,
+  ResultEmailDeliveryState,
   TemplateSetting,
 } from "./emailDashboardTypes";
 
@@ -121,6 +123,8 @@ export function EmailDashboardClient({
   recordDeliveryPage = emptyDeliveryPage,
   flowTargets = [],
   flowOptions = [],
+  resultDeliveryStates = [],
+  statusOverview,
   templateSettings = [],
   resultEmailPreviews = {} as ResultEmailPreviews,
   interviewScheduleTemplates = [],
@@ -134,6 +138,8 @@ export function EmailDashboardClient({
   recordDeliveryPage?: EmailDeliveryPage;
   flowTargets?: FlowTarget[];
   flowOptions?: EmailFlowOption[];
+  resultDeliveryStates?: ResultEmailDeliveryState[];
+  statusOverview?: EmailStatusOverview;
   templateSettings?: TemplateSetting[];
   resultEmailPreviews?: ResultEmailPreviews;
   interviewScheduleTemplates?: InterviewScheduleTemplates;
@@ -160,6 +166,11 @@ export function EmailDashboardClient({
     () => (Array.isArray(flowOptions) ? flowOptions : []),
     [flowOptions],
   );
+  const safeResultDeliveryStates = useMemo(
+    () =>
+      Array.isArray(resultDeliveryStates) ? resultDeliveryStates : [],
+    [resultDeliveryStates],
+  );
   const safeTemplateSettings = useMemo(
     () => (Array.isArray(templateSettings) ? templateSettings : []),
     [templateSettings],
@@ -176,10 +187,8 @@ export function EmailDashboardClient({
         (batch) =>
           batch.status === "draft" ||
           batch.status === "queued" ||
-          (Array.isArray(batch.deliveries) ? batch.deliveries : []).some(
-            (delivery) =>
-              delivery.status === "pending" || delivery.status === "sending",
-          ),
+          batch.counts.pending > 0 ||
+          batch.counts.sending > 0,
       ) ||
       safeDeliveries.some(
         (delivery) => delivery.status === "pending" || delivery.status === "sending",
@@ -188,14 +197,9 @@ export function EmailDashboardClient({
   );
   const activeEmailWorkKey = useMemo(() => {
     const batchKey = safeBatches
-      .map((batch) => {
-        const deliveryKey = Array.isArray(batch.deliveries)
-          ? batch.deliveries
-              .map((delivery) => `${delivery.id}:${delivery.status}:${delivery.attemptCount}`)
-              .join("|")
-          : "";
-        return `${batch.id}:${batch.status}:${batch.counts.pending}:${batch.counts.sending}:${deliveryKey}`;
-      })
+      .map((batch) =>
+        `${batch.id}:${batch.status}:${batch.counts.pending}:${batch.counts.sending}`,
+      )
       .join(";");
     const deliveryKey = safeDeliveries
       .map((delivery) => `${delivery.id}:${delivery.status}:${delivery.attemptCount}`)
@@ -289,10 +293,12 @@ export function EmailDashboardClient({
   } else if (resolvedActiveTab === "status") {
     content = (
       <div className="flex flex-col gap-5">
-        <EmailOverviewSection
-          deliveries={safeDeliveries}
-          emailCenterConfig={emailCenterConfig}
-        />
+        {statusOverview && (
+          <EmailOverviewSection
+            overview={statusOverview}
+            emailCenterConfig={emailCenterConfig}
+          />
+        )}
         <EmailConfigSection emailCenterConfig={emailCenterConfig} />
       </div>
     );
@@ -300,6 +306,7 @@ export function EmailDashboardClient({
     content = (
       <EmailSendingTasksSection
         batches={safeBatches}
+        deliveryStates={safeResultDeliveryStates}
         filteredFlows={filteredFlows}
         selectedFlow={selectedFlow}
         selectedFlowId={selectedFlow?.id}

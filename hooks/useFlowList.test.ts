@@ -25,7 +25,8 @@ describe("useFlowList", () => {
       { id: 7, ownerId: 42, title: "Recruitment", isDeleted: false },
     ]) }));
     const mockFrom = jest.fn(() => ({ where: mockWhere }));
-    const mockStepWhere = jest.fn().mockResolvedValue([]);
+    const mockStepOrderBy = jest.fn().mockResolvedValue([]);
+    const mockStepWhere = jest.fn(() => ({ orderBy: mockStepOrderBy }));
     const mockStepFrom = jest.fn(() => ({ where: mockStepWhere }));
     mockSelect
       .mockReturnValueOnce({ from: mockFrom } as never)

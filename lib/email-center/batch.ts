@@ -297,11 +297,16 @@ export async function sendEmailBatchById(batchId: number) {
       .where(inArray(userFlow.id, userFlowIds));
   }
 
-  await Promise.all(
-    queueableDeliveries
-      .map((item) => item.userId)
-      .filter((id): id is number => id !== null)
-      .map((userId) => syncUserRoleFromAcceptedFlows(userId)),
+  await runWithConcurrency(
+    Array.from(
+      new Set(
+        queueableDeliveries
+          .map((item) => item.userId)
+          .filter((id): id is number => id !== null),
+      ),
+    ),
+    BATCH_SEND_CONCURRENCY,
+    syncUserRoleFromAcceptedFlows,
   );
 
   try {

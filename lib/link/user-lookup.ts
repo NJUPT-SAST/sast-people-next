@@ -23,8 +23,30 @@ type LookupOptions = {
   canViewSensitiveInfo?: boolean;
 };
 
+const LINK_DETAIL_CONCURRENCY = 8;
+
 const normalizeStudentId = (studentId: string | null | undefined) =>
   studentId?.trim().toUpperCase() ?? "";
+
+const mapWithConcurrency = async <T, R>(
+  values: T[],
+  limit: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> => {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(values[index]);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, values.length) }, worker),
+  );
+  return results;
+};
 
 export const getPeopleUserByLinkId = async (
   id: number,
@@ -135,8 +157,10 @@ const listPeopleUsersByLinkIdsCached = cache(async (
 
   try {
     const accessToken = await getLinkAdminAccessTokenFromSession();
-    const users = await Promise.all(
-      uniqueIds.map((id) => getLinkUserDetail(accessToken, id)),
+    const users = await mapWithConcurrency(
+      uniqueIds,
+      LINK_DETAIL_CONCURRENCY,
+      (id) => getLinkUserDetail(accessToken, id),
     );
     return new Map(
       users.map((item) => [
