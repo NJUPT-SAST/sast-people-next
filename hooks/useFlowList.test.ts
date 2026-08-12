@@ -9,7 +9,7 @@ jest.mock("@/lib/link/session", () => ({
 import { db } from "@/db/drizzle";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { MissingLinkAdminAccessTokenError } from "@/lib/link/session";
-import { useFlowList } from "./useFlowList";
+import { useFlowList } from "@/hooks/useFlowList";
 
 const mockSelect = jest.mocked(db.select);
 const mockListPeopleUsersByLinkIds = jest.mocked(listPeopleUsersByLinkIds);
@@ -37,5 +37,16 @@ describe("useFlowList", () => {
     await expect(useFlowList()).resolves.toEqual([
       expect.objectContaining({ id: 7, owner: "未知用户", steps: [] }),
     ]);
+  });
+
+  it("propagates Link lookup failures other than missing admin authorization", async () => {
+    const lookupError = new Error("Link is unavailable");
+    const mockWhere = jest.fn(() => ({ orderBy: jest.fn().mockResolvedValue([]) }));
+    mockSelect.mockReturnValueOnce({
+      from: jest.fn(() => ({ where: mockWhere })),
+    } as never);
+    mockListPeopleUsersByLinkIds.mockRejectedValue(lookupError);
+
+    await expect(useFlowList()).rejects.toThrow(lookupError);
   });
 });
