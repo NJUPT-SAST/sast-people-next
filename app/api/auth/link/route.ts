@@ -136,6 +136,7 @@ const saveLinkAdminTokens = async (
     !session ||
     typeof session.uid !== "number" ||
     typeof session.role !== "number" ||
+    session.role < 2 ||
     typeof session.name !== "string" ||
     Number(session.uid) !== profileId
   ) {

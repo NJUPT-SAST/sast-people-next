@@ -73,6 +73,9 @@ export async function createCodeChallenge(
   isBinding: boolean,
   purpose: LinkOAuthPurpose = "session",
 ) {
+  if (purpose === "admin") {
+    await verifyRole(2);
+  }
   const code_verifier = base64URLEncode(crypto.randomBytes(32));
   const state = base64URLEncode(crypto.randomBytes(24));
   const cookieStore = await cookies();
