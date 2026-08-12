@@ -14,6 +14,10 @@ export type FlowTarget = Awaited<
   ReturnType<typeof import("@/action/email/workspace").listEmailFlowTargets>
 >[number];
 
+export type EmailFlowOption = Awaited<
+  ReturnType<typeof import("@/action/email/workspace").listEmailFlowOptions>
+>[number];
+
 export type TemplateSetting = Awaited<
   ReturnType<typeof import("@/action/email/template").listEmailTemplateSettings>
 >[number];

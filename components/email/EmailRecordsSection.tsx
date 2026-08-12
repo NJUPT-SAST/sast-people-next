@@ -26,8 +26,8 @@ import { EmailRecordActions } from "./EmailRecordActions";
 import type {
   EmailDeliveryPage,
   EmailDeliveryRecord,
+  EmailFlowOption,
   EmailTemplateDefinition,
-  FlowTarget,
 } from "./emailDashboardTypes";
 
 function templateLabel(
@@ -43,7 +43,7 @@ export function EmailRecordsSection({
   templateDefinitions,
 }: {
   deliveryPage: EmailDeliveryPage;
-  flowTargets: FlowTarget[];
+  flowTargets: EmailFlowOption[];
   templateDefinitions: EmailTemplateDefinition[];
 }) {
   const deliveries = Array.isArray(deliveryPage.deliveries)

@@ -1,9 +1,11 @@
 import { RecruitmentContent } from "@/components/recruitment/recruitmentContent";
 import { PageTitle } from "@/components/route";
-import { useFlowList as getFlowList } from "@/hooks/useFlowList";
 import { calScore } from "@/action/user-flow/user-point/calScore";
 import { getEvaluationCandidates } from "@/action/user-flow/evaluation";
+import { db } from "@/db/drizzle";
+import { flow } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
+import { desc, eq } from "drizzle-orm";
 
 const EVALUATION_FLOW_TYPES = ["woc", "soc", "recruitment_exemption"];
 
@@ -18,8 +20,11 @@ const Recruitment = async ({
 }) => {
   const session = await verifySession();
   const awaitedSearchParams = await searchParams;
-  const flowTypesResult = await getFlowList();
-  const flowTypes = Array.isArray(flowTypesResult) ? flowTypesResult : [];
+  const flowTypes = await db
+    .select({ id: flow.id, title: flow.title, type: flow.type })
+    .from(flow)
+    .where(eq(flow.isDeleted, false))
+    .orderBy(desc(flow.createdAt));
   const requestedFlowId = Number(awaitedSearchParams.flowId);
   const requestedFlow = Number.isInteger(requestedFlowId)
     ? flowTypes.find((flow) => flow.id === requestedFlowId)

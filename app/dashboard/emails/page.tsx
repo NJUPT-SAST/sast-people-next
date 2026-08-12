@@ -10,10 +10,16 @@ import {
   getResultEmailPreviews,
   listEmailTemplateSettings,
 } from "@/action/email/template";
-import { listEmailFlowTargets } from "@/action/email/workspace";
+import {
+  listEmailFlowOptions,
+  listEmailFlowTargets,
+} from "@/action/email/workspace";
 import { EmailDashboardClient } from "@/components/email/emailDashboardClient";
 import { PageTitle } from "@/components/route";
 import { getEmailCenterConfigSummary } from "@/lib/email-center/config";
+import {
+  normalizeEmailCenterTab,
+} from "@/components/email/emailDashboardConstants";
 import { emailTemplateDefinitions } from "@/lib/email-center/registry";
 import { logServerError } from "@/lib/server-error-log";
 import { MailCheck } from "lucide-react";
@@ -36,15 +42,6 @@ export default async function EmailDashboardPage({
     throw error;
   }
 
-  const [
-    batches,
-    recordDeliveryPage,
-    flowTargets,
-    templateSettings,
-    resultEmailPreviews,
-    interviewScheduleTemplates,
-    interviewSchedulePreviews,
-  ] = data;
   const emailCenterConfig = getEmailCenterConfigSummary();
   const initialFlowId = parseOptionalPositiveInt(
     getSearchParam(awaitedSearchParams, "flowId"),
@@ -80,13 +77,7 @@ export default async function EmailDashboardPage({
 
       <div className="mt-4">
         <EmailDashboardClient
-          batches={batches}
-          recordDeliveryPage={recordDeliveryPage}
-          flowTargets={flowTargets}
-          templateSettings={templateSettings}
-          resultEmailPreviews={resultEmailPreviews}
-          interviewScheduleTemplates={interviewScheduleTemplates}
-          interviewSchedulePreviews={interviewSchedulePreviews}
+          {...data}
           emailCenterConfig={emailCenterConfig}
           templateDefinitions={emailTemplateDefinitions}
           activeTab={getSearchParam(awaitedSearchParams, "tab")}
@@ -115,29 +106,65 @@ function parseOptionalPositiveInt(value: string | undefined) {
 async function loadEmailDashboardData(
   searchParams: Record<string, string | string[] | undefined>,
 ) {
-  const activeTab = getSearchParam(searchParams, "tab");
-  const isRecordsTab = activeTab === "records";
+  const activeTab = normalizeEmailCenterTab(getSearchParam(searchParams, "tab"));
 
-  return Promise.all([
-    listEmailBatches(),
-    listEmailDeliveryPage({
-      page: isRecordsTab ? getSearchParam(searchParams, "page") : 1,
-      pageSize: isRecordsTab ? getSearchParam(searchParams, "pageSize") : 50,
-      category: isRecordsTab ? getSearchParam(searchParams, "category") : "",
-      status: isRecordsTab ? getSearchParam(searchParams, "status") : "",
-      templateKey: isRecordsTab
-        ? getSearchParam(searchParams, "templateKey")
-        : "",
-      flowId: isRecordsTab ? getSearchParam(searchParams, "flowId") : "",
-      creatorId: isRecordsTab ? getSearchParam(searchParams, "creatorId") : "",
-      from: isRecordsTab ? getSearchParam(searchParams, "from") : "",
-      to: isRecordsTab ? getSearchParam(searchParams, "to") : "",
-      query: isRecordsTab ? getSearchParam(searchParams, "query") : "",
-    }),
-    listEmailFlowTargets(),
-    listEmailTemplateSettings(),
-    getResultEmailPreviews(),
-    listInterviewScheduleEmailTemplates(),
-    getInterviewScheduleEmailPreviews(),
-  ]);
+  if (activeTab === "tasks") {
+    const [batches, flowTargets] = await Promise.all([
+      listEmailBatches(),
+      listEmailFlowTargets(),
+    ]);
+    return { batches, flowTargets };
+  }
+
+  if (activeTab === "records") {
+    const [recordDeliveryPage, flowOptions] = await Promise.all([
+      listEmailDeliveryPage(getDeliveryListParams(searchParams)),
+      listEmailFlowOptions(),
+    ]);
+    return { recordDeliveryPage, flowOptions };
+  }
+
+  if (activeTab === "templates") {
+    const [
+      flowOptions,
+      templateSettings,
+      resultEmailPreviews,
+      interviewScheduleTemplates,
+      interviewSchedulePreviews,
+    ] = await Promise.all([
+      listEmailFlowOptions(),
+      listEmailTemplateSettings(),
+      getResultEmailPreviews(),
+      listInterviewScheduleEmailTemplates(),
+      getInterviewScheduleEmailPreviews(),
+    ]);
+    return {
+      flowOptions,
+      templateSettings,
+      resultEmailPreviews,
+      interviewScheduleTemplates,
+      interviewSchedulePreviews,
+    };
+  }
+
+  return {
+    recordDeliveryPage: await listEmailDeliveryPage({ pageSize: 50 }),
+  };
+}
+
+function getDeliveryListParams(
+  searchParams: Record<string, string | string[] | undefined>,
+) {
+  return {
+    page: getSearchParam(searchParams, "page"),
+    pageSize: getSearchParam(searchParams, "pageSize"),
+    category: getSearchParam(searchParams, "category"),
+    status: getSearchParam(searchParams, "status"),
+    templateKey: getSearchParam(searchParams, "templateKey"),
+    flowId: getSearchParam(searchParams, "flowId"),
+    creatorId: getSearchParam(searchParams, "creatorId"),
+    from: getSearchParam(searchParams, "from"),
+    to: getSearchParam(searchParams, "to"),
+    query: getSearchParam(searchParams, "query"),
+  };
 }
