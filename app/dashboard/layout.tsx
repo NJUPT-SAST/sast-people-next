@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { verifySession } from '@/lib/dal';
-import { createLinkOAuthAuthorizationUrl } from '@/lib/link/oauth-flow';
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -26,7 +25,7 @@ export default async function RootLayout({
     ? await getSession({ includeLinkTokens: true })
     : null;
   if (session.role >= 2 && !sessionWithTokens?.linkAdminAccessToken) {
-    redirect(await createLinkOAuthAuthorizationUrl());
+    redirect('/api/auth/link/start');
   }
   return (
     <DashboardLayout
