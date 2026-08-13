@@ -1,15 +1,8 @@
 'use server';
-import { db } from '@/db/drizzle';
-import { user } from '@/db/schema';
 import { verifyRole } from '@/lib/dal';
 import { getLinkUserDetail } from '@/lib/link/admin';
 import { toPeopleUserFromLinkProfile } from '@/lib/link/people-user';
-import {
-  canUseLegacyUserFallback,
-  getLinkAdminAccessTokenFromSession,
-  MissingLinkAdminAccessTokenError,
-} from '@/lib/link/session';
-import { eq } from 'drizzle-orm';
+import { getLinkAdminAccessTokenFromSession } from '@/lib/link/session';
 
 export const useUserInfoById = async (id: number) => {
   const session = await verifyRole(2);
@@ -26,25 +19,7 @@ export const useUserInfoById = async (id: number) => {
       ...toPeopleUserFromLinkProfile(userInfo, canViewPhone),
       qq: canViewQq ? userInfo.qq_number ?? null : null,
     };
-  } catch (err) {
-    if (
-      err instanceof MissingLinkAdminAccessTokenError &&
-      canUseLegacyUserFallback()
-    ) {
-      const userInfo = await db
-        .select()
-        .from(user)
-        .where(eq(user.id, id))
-        .limit(1);
-      if (userInfo.length === 0) {
-        throw new Error('User not found');
-      }
-      return {
-        ...userInfo[0],
-        phone: canViewPhone ? userInfo[0].phone : null,
-        qq: canViewQq ? userInfo[0].qq : null,
-      };
-    }
-    throw err;
+  } catch (error) {
+    throw error;
   }
 };

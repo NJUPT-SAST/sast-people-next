@@ -13,7 +13,6 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 
 用户基础资料、账号状态、角色和第三方身份绑定由 SAST Link 维护。People 业务表中的用户字段保存 Link 用户 ID，不再对旧 People `public.user.id` 建外键。
 
-旧 `public.user` 表短期保留，仅用于 legacy fallback、本地排障和迁移校验。正常 v3.1 运行时不应把它作为用户资料数据源。
 
 ## 2. 枚举
 
@@ -33,7 +32,6 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 
 | 表 | 作用 | 用户字段口径 |
 | --- | --- | --- |
-| `user` | **@deprecated** 旧 People 用户表，v3.1 不作为主数据源 | 旧 People 用户 ID |
 | `flow` | 招新、WOC/SOC 等流程 | `owner_id` 保存 Link 用户 ID |
 | `flow_step` | 流程步骤 | 无用户字段 |
 | `user_flow` | 用户报名和流程状态 | `fk_user_id` 保存 Link 用户 ID |
@@ -50,34 +48,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `interview_schedule` | 非笔试流程面试日程和飞书会议记录 | `fk_organizer_id` 保存 Link 用户 ID |
 | `operation_audit` | 管理操作审计 | `actor_id` 保存 Link 用户 ID |
 
-## 4. 旧用户表
-
-### `user`
-
-**@deprecated** v3.1 中保留该表仅用于本地 legacy fallback 和迁移排障，不再作为用户基础资料主数据源。联调稳定后删除。
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `id` | `serial` | 旧 People 用户 ID |
-| `name` | `varchar(30)` | 姓名 |
-| `student_id` | `varchar(16)` | 学号，唯一 |
-| `email` | `varchar(254)` | 邮箱 |
-| `phone` | `varchar(16)` | 手机号 |
-| `college` | `varchar(50)` | 学院 |
-| `major` | `varchar(50)` | 专业 |
-| `department` | `varchar(50)[]` | 部门数组 |
-| `github` | `text` | GitHub |
-| `blog` | `text` | 博客 |
-| `personal_statement` | `text` | 个人简介 |
-| `qq` | `varchar(20)` | QQ |
-| `link_openid` | `varchar(255)` | 旧 Link OpenID，唯一 |
-| `feishu_openid` | `varchar(255)` | 旧飞书 OpenID，唯一 |
-| `role` | `integer` | 旧 People 数字角色 |
-| `created_at` | `timestamp` | 创建时间 |
-| `updated_at` | `timestamp` | 更新时间 |
-| `is_deleted` | `boolean` | 旧删除标记 |
-
-## 5. 流程表
+## 4. 流程表
 
 ### `flow`
 
@@ -445,7 +416,7 @@ flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
 ## 12. 维护原则
 
 1. 新增或修改 People 业务表时，同步更新本文档。
-2. 任何用户基础资料字段优先放到 Link，不扩展旧 `user` 表。
+2. 任何用户基础资料字段优先放到 Link，不在 People 数据库复制用户资料。
 3. 如果未来确实需要 People 私有用户扩展字段，应新增以 Link 用户 ID 为主键或唯一键的扩展表。
 4. 业务表用户字段必须明确标注保存的是 Link 用户 ID，避免和旧 People 用户 ID 混用。
 5. 第三方 OAuth token 属于 People 私有业务凭据，必须加密保存，不写入 session 或客户端。

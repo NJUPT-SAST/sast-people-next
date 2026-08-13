@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { commentSummary } from "./feishu-notification-utils.mjs";
 
 const appId = process.env.FEISHU_APP_ID;
 const appSecret = process.env.FEISHU_APP_SECRET;
@@ -141,6 +142,8 @@ function commentNotification() {
     return null;
   }
 
+  const summary = commentSummary(comment.body);
+
   if (issue.pull_request) {
     return {
       title: `PR 有新讨论 · #${issue.number}`,
@@ -151,6 +154,7 @@ function commentNotification() {
       details: [
         line("标题", issue.title),
         line("评论人", comment.user?.login ?? "未知"),
+        ...(summary ? [line("评论摘要", summary)] : []),
       ],
     };
   }
@@ -164,6 +168,7 @@ function commentNotification() {
     details: [
       line("标题", issue.title),
       line("评论人", comment.user?.login ?? "未知"),
+      ...(summary ? [line("评论摘要", summary)] : []),
     ],
   };
 }
@@ -176,6 +181,9 @@ function reviewCommentNotification() {
     return null;
   }
 
+  const summary = commentSummary(comment.body);
+  const lineNumber = comment.line ?? comment.original_line;
+
   return {
     title: `PR 有行内评论 · #${pullRequest.number}`,
     template: "orange",
@@ -186,6 +194,8 @@ function reviewCommentNotification() {
       line("标题", pullRequest.title),
       line("评论人", comment.user?.login ?? "未知"),
       ...(comment.path ? [line("文件", comment.path)] : []),
+      ...(comment.path && lineNumber ? [line("位置", `${comment.path}:${lineNumber}`)] : []),
+      ...(summary ? [line("评论摘要", summary)] : []),
     ],
   };
 }
@@ -193,6 +203,17 @@ function reviewCommentNotification() {
 function reviewNotification() {
   const review = event.review;
   const pullRequest = event.pull_request;
+
+  if (review.user?.type === "Bot") {
+    return null;
+  }
+
+  const summary = commentSummary(review.body);
+  if (event.action !== "dismissed" && review.state === "commented" && !summary) {
+    // The individual inline comments already have their own notifications.
+    return null;
+  }
+
   const labels = {
     approved: ["PR 已批准", "green"],
     changes_requested: ["PR 请求修改", "red"],
@@ -215,6 +236,7 @@ function reviewNotification() {
     details: [
       line("标题", pullRequest.title),
       line("审阅人", review.user.login),
+      ...(summary ? [line("审查摘要", summary)] : []),
     ],
   };
 }

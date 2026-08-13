@@ -1,47 +1,5 @@
 begin;
 
-insert into "user" (
-  id,
-  name,
-  student_id,
-  email,
-  phone,
-  college,
-  major,
-  department,
-  github,
-  blog,
-  personal_statement,
-  qq,
-  role,
-  created_at,
-  updated_at,
-  is_deleted
-) values
-  (1, 'Local Admin', '001', 'admin@njupt.edu.cn', '13800001111', '计算机学院、软件学院、网络空间安全学院', '软件工程', ARRAY['software']::varchar[], 'https://github.com/NJUPT-SAST', 'https://sast.fun', '本地管理员账号', '100000', 3, now(), now(), false),
-  (2, 'Demo Lecturer', '002', 'lecturer@njupt.edu.cn', '13800002222', '计算机学院、软件学院、网络空间安全学院', '网络空间安全', ARRAY['software']::varchar[], 'https://github.com/demo-lecturer', 'https://lecturer.example.com', '负责阅卷和面评的讲师账号', '200000', 2, now(), now(), false),
-  (3, 'Demo Member', '003', 'member@njupt.edu.cn', '13800003333', '通信与信息工程学院', '通信工程', ARRAY['media']::varchar[], 'https://github.com/demo-member', 'https://member.example.com', '在读成员账号', '300000', 1, now(), now(), false),
-  (4, 'Demo Freshman A', 'B260001', 'freshman-a@njupt.edu.cn', '13800004444', '计算机学院、软件学院、网络空间安全学院', '软件工程', ARRAY[]::varchar[], null, 'https://portfolio-a.example.com', '喜欢 Web 开发和工程化', '400000', 0, now(), now(), false),
-  (5, 'Demo Freshman B', 'B260002', 'freshman-b@njupt.edu.cn', '13800005555', '人工智能学院', '人工智能', ARRAY[]::varchar[], 'https://github.com/demo-b', null, '做过一些机器学习小项目', '500000', 0, now(), now(), false),
-  (6, 'Demo Freshman C', 'B260003', 'freshman-c@njupt.edu.cn', '13800006666', '传媒与艺术学院', '数字媒体艺术', ARRAY[]::varchar[], null, 'https://portfolio-c.example.com', '偏设计和视觉表达', '600000', 0, now(), now(), false),
-  (7, 'Demo Freshman D', 'B260004', 'freshman-d@njupt.edu.cn', '13800007777', '物联网学院', '物联网工程', ARRAY[]::varchar[], 'https://github.com/demo-d', null, '喜欢硬件和嵌入式', '700000', 0, now(), now(), false),
-  (8, 'Demo Freshman E', 'B260005', 'freshman-e@njupt.edu.cn', '13800008888', '外国语学院', '英语', ARRAY[]::varchar[], null, 'https://portfolio-e.example.com', '希望参与社团运营和内容工作', '800000', 0, now(), now(), false)
-on conflict (id) do update set
-  name = excluded.name,
-  student_id = excluded.student_id,
-  email = excluded.email,
-  phone = excluded.phone,
-  college = excluded.college,
-  major = excluded.major,
-  department = excluded.department,
-  github = excluded.github,
-  blog = excluded.blog,
-  personal_statement = excluded.personal_statement,
-  qq = excluded.qq,
-  role = excluded.role,
-  is_deleted = false,
-  updated_at = now();
-
 insert into flow (
   id,
   title,
@@ -349,7 +307,6 @@ on conflict (id) do update set
   metadata = excluded.metadata,
   created_at = excluded.created_at;
 
-select setval(pg_get_serial_sequence('"user"', 'id'), greatest((select coalesce(max(id), 1) from "user"), 1));
 select setval(pg_get_serial_sequence('flow', 'id'), greatest((select coalesce(max(id), 1) from flow), 1));
 select setval(pg_get_serial_sequence('flow_step', 'id'), greatest((select coalesce(max(id), 1) from flow_step), 1));
 select setval(pg_get_serial_sequence('problem', 'id'), greatest((select coalesce(max(id), 1) from problem), 1));

@@ -1,42 +1,42 @@
-'use client';
-import { Separator } from './ui/separator';
-import { ArrowRight } from 'lucide-react';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
-import { useFormStatus } from 'react-dom';
-import { loginFromTest } from '@/action/user/auth';
-import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
+"use client";
+
+import { loginWithMockLinkUser } from "@/action/test-login";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useFormStatus } from "react-dom";
+import { toast } from "sonner";
 
 export const TestLogin = () => {
-  const formStatus = useFormStatus();
   const router = useRouter();
+
   return (
     <div className="flex w-full flex-col gap-4">
       <Separator className="w-full bg-[#dbe5da]" />
       <div className="space-y-1">
         <p className="text-sm font-medium text-[#18231d]">使用测试帐号登入</p>
-        <p className="text-xs text-[#66756c]">仅开发环境可见。</p>
+        <p className="text-xs text-[#66756c]">仅本地 Link mock 环境可见。</p>
       </div>
       <form
-        action={async (formdata) => {
-          toast.promise(
+        action={async (formData) => {
+          await toast.promise(
             async () => {
-              await loginFromTest(formdata);
-              router.push('/dashboard');
-              return;
+              await loginWithMockLinkUser(formData);
+              router.push("/dashboard");
             },
             {
-              loading: '登录中',
-              success: '登录成功',
-              error: '登录失败, 请检查该学号是否已经拥有帐号',
+              loading: "登录中",
+              success: "登录成功",
+              error: "登录失败，请检查测试学号。",
             },
-          );
+          ).unwrap();
         }}
         className="flex w-full flex-col gap-3 sm:flex-row"
       >
         <Input
-          disabled={formStatus.pending}
+          disabled={useFormStatus().pending}
           type="text"
           name="studentId"
           placeholder="请填写测试学号"
@@ -51,15 +51,13 @@ export const TestLogin = () => {
 const FormContentWithStatus = () => {
   const formStatus = useFormStatus();
   return (
-    <>
-      <Button
-        loading={formStatus.pending}
-        disabled={formStatus.pending}
-        type="submit"
-        className="m-0 h-11 shrink-0"
-      >
-        登录 <ArrowRight />
-      </Button>
-    </>
+    <Button
+      loading={formStatus.pending}
+      disabled={formStatus.pending}
+      type="submit"
+      className="m-0 h-11 shrink-0"
+    >
+      登录 <ArrowRight />
+    </Button>
   );
 };

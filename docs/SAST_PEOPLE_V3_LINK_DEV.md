@@ -24,7 +24,6 @@ SAST People 原有用户体系由 People 本地 `public.user` 表维护。SAST L
 4. People 管理端的角色变更和封禁操作切换为 Link API。
 5. People 新库仅保留流程、报名、评分、面评、邮件等业务数据。
 6. People 业务表中的用户关联字段统一迁移为 Link 用户 ID。
-7. 保留本地 mock 和 legacy fallback，用于真实 Link 环境不可用、脱离外部服务本地开发和排障。
 
 ## 3. 非目标
 
@@ -33,7 +32,6 @@ SAST People 原有用户体系由 People 本地 `public.user` 表维护。SAST L
 1. People 不实现用户资料编辑能力。
 2. People 不直接读取或写入 Link 数据库。
 3. People 不负责维护 `college`、`major`、`profile.intro` 等用户资料字段。
-4. 本次不立即删除 People 旧 `public.user` 表。
 5. 本次不将 v3 直接合入线上主分支。
 
 ## 4. 术语
@@ -43,7 +41,6 @@ SAST People 原有用户体系由 People 本地 `public.user` 表维护。SAST L
 | Link 用户 ID | Link `public.user.id`，v3 运行时使用的用户主键 |
 | Legacy 用户 ID | 旧 People `public.user.id`，仅用于一次性迁移 |
 | `people_legacy_user_map` | 一次性迁移映射表，用于将旧 People 用户 ID 映射到 Link 用户 ID |
-| legacy fallback | 本地开发兜底逻辑，在缺少 Link token 时读取旧 People 用户表 |
 
 ## 5. 架构边界
 
@@ -250,8 +247,6 @@ LINK_AUTH_BASE_URL=
 LINK_OAUTH_SCOPES=openid profile email user:read
 LINK_ADMIN_OAUTH_SCOPES=openid profile email user:read admin:read admin:write
 LINK_USE_MOCK=false
-LINK_ALLOW_LEGACY_FALLBACK=false
-PEOPLE_ALLOW_LEGACY_AUTH=false
 NEXT_PUBLIC_LINK_PROFILE_URL=
 ```
 
@@ -261,8 +256,6 @@ NEXT_PUBLIC_LINK_PROFILE_URL=
 
 ```env
 LINK_USE_MOCK=true
-LINK_ALLOW_LEGACY_FALLBACK=true
-PEOPLE_ALLOW_LEGACY_AUTH=false
 ```
 
 ### 8.2 真实联调模式
@@ -271,8 +264,6 @@ PEOPLE_ALLOW_LEGACY_AUTH=false
 
 ```env
 LINK_USE_MOCK=false
-LINK_ALLOW_LEGACY_FALLBACK=false
-PEOPLE_ALLOW_LEGACY_AUTH=false
 ```
 
 ## 9. 数据库迁移方案
@@ -388,23 +379,11 @@ lib/link/
 | 旧飞书登录 | 生产默认关闭 |
 | 测试登录 | 生产默认关闭 |
 
-## 11. 保留旧 `public.user` 的原因
+## 11. Legacy 表清理
 
-短期内不删除旧 `public.user` 表。
-
-原因：
-
-1. 本地 legacy fallback 仍依赖该表。
-2. 真实 Link 环境不可用或联调失败时，该表可用于排查迁移问题。
-3. 删除旧表前需要确认所有环境均已关闭 legacy 入口。
-
-后续清理建议：
-
-1. 真实 Link 联调通过。
-2. 设置 `LINK_ALLOW_LEGACY_FALLBACK=false`。
-3. 设置 `PEOPLE_ALLOW_LEGACY_AUTH=false`。
-4. 观察一段时间。
-5. 将 `public.user` 改名为 `legacy_user` 或删除。
+`migrations/0034_drop_legacy_people_user.sql` 删除旧 `public.user` 表。
+运行前会检查是否仍有外键指向该表；存在依赖时迁移会失败，必须先显式清理依赖，避免级联删除。
+该迁移必须由拥有数据库对象或具备所需 `GRANT` 权限的发布账号执行；People 运行时账号不得执行迁移。发布前请按 [发布检查清单](RELEASE_CHECKLIST.md) 确认数据库权限。
 
 ## 12. 联调计划
 
@@ -427,8 +406,7 @@ Link 契约确认后，按以下顺序联调：
 | Link 真实返回与 OpenAPI 不一致 | People 页面显示空字段或报名校验失败 | 保持 mock；按 v3.1 OpenAPI 对照真实响应并同步修正 |
 | Link 权限不足 | lecturer/admin 页面调用失败 | 确认 `/admin/users` 权限策略 |
 | 业务表用户 ID 映射错误 | 报名、阅卷、邮件关联错误 | 使用 `people_legacy_user_map` 抽样校验 |
-| 旧登录入口误用 | 继续写旧 People 用户表 | 生产默认关闭 `PEOPLE_ALLOW_LEGACY_AUTH` |
-| 过早删除旧 user 表 | fallback 和排障能力丢失 | 暂不删除，联调稳定后再清理 |
+| 本地 mock 误用 | 测试身份数据混入真实流程 | 生产必须设置 `LINK_USE_MOCK=false` |
 
 ## 14. 当前状态
 

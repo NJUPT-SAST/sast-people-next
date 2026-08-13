@@ -101,7 +101,9 @@ const Login = async () => {
                 </div>
 
                 <LinkLogin isBinding={false} />
-                {process.env.NODE_ENV === "development" && <TestLogin />}
+                {process.env.NODE_ENV !== "production" && process.env.LINK_USE_MOCK === "true" && (
+                  <TestLogin />
+                )}
               </CardContent>
             </Card>
 

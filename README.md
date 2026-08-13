@@ -94,15 +94,12 @@ Set in `.env.local`:
 ```env
 DATABASE_URL=postgres://sastpeople:sast_dev_password@localhost:55432/sastpeople_local
 SESSION_SECRET=replace-with-a-long-random-string
-LINK_ALLOW_LEGACY_FALLBACK=false
-PEOPLE_ALLOW_LEGACY_AUTH=false
 ```
 
 Then:
 
 ```bash
 pnpm db:migrate
-pnpm db:seed:local
 pnpm db:seed:demo
 pnpm dev
 ```
@@ -144,7 +141,6 @@ Point `DATABASE_URL` at any local PostgreSQL instance, then run:
 
 ```bash
 pnpm db:migrate
-pnpm db:seed:local
 pnpm db:seed:demo
 ```
 
@@ -154,7 +150,6 @@ SAST Link owns user identity and profile data. Configure `LINK_*` variables for 
 
 - Use `LINK_USE_MOCK=true` only as a temporary local stub when Link is unavailable.
 - Do not enable `LINK_USE_MOCK=true` for production or real-user testing.
-- Keep `LINK_ALLOW_LEGACY_FALLBACK=false` and `PEOPLE_ALLOW_LEGACY_AUTH=false` outside controlled local fallback scenarios.
 
 ## Full Development Mode
 
@@ -251,7 +246,6 @@ This does not require rebuilding or copying a new image. Build-time public varia
 | `pnpm db:dev:down` | Stop local Docker PostgreSQL |
 | `pnpm db:dev:logs` | Tail local Docker PostgreSQL logs |
 | `pnpm db:migrate` | Apply Drizzle migrations |
-| `pnpm db:seed:local` | Seed the local administrator account |
 | `pnpm db:seed:demo` | Seed local demo workflow and email snapshot data |
 | `pnpm db:generate` | Generate Drizzle migrations |
 | `pnpm db:push` | Push schema changes directly |
@@ -312,7 +306,6 @@ Current core tables:
 
 | Table | Purpose |
 | --- | --- |
-| `user` | Legacy fallback and migration only |
 | `flow` | Workflow definition |
 | `flow_step` | Workflow steps |
 | `user_flow` | User registration and progress status |
