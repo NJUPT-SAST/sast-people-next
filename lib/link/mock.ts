@@ -239,10 +239,42 @@ export const getMockUserDetail = async (id: number) => {
   return user;
 };
 
+export const getMockUsersByIds = async (ids: number[]) => {
+  const usersById = new Map(mockUsers.map((user) => [user.id, user]));
+  const seen = new Set<number>();
+  return ids.flatMap((id) => {
+    if (seen.has(id)) return [];
+    seen.add(id);
+    const user = usersById.get(id);
+    return user ? [user] : [];
+  });
+};
+
 export const updateMockUserRole = async (id: number, role: LinkRole) => {
   const user = mockUsers.find((item) => item.id === id);
   if (!user) throw new Error("Mock Link user not found");
   user.role = role;
+};
+
+export const updateMockUserRoles = async (ids: number[], role: LinkRole) => {
+  const results = [] as Array<{
+    id: number;
+    success: boolean;
+    role?: LinkRole;
+    reason?: string;
+  }>;
+
+  for (const id of new Set(ids)) {
+    const user = mockUsers.find((item) => item.id === id);
+    if (!user) {
+      results.push({ id, success: false, reason: "用户不存在" });
+      continue;
+    }
+    user.role = role;
+    results.push({ id, success: true, role });
+  }
+
+  return { results };
 };
 
 export const banMockUser = async (id: number) => {

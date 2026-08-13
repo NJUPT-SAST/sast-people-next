@@ -6,6 +6,7 @@ const mockSelectResults: unknown[][] = [];
 const mockUpdateSetCalls: unknown[] = [];
 const mockOffer = jest.fn();
 const mockSyncUserRoleFromAcceptedFlows = jest.fn();
+const mockSyncUserRolesFromAcceptedFlows = jest.fn();
 const mockAssertEmailConfigured = jest.fn();
 const mockSendEmailDelivery = jest.fn();
 const mockListPeopleUsersByLinkIds = jest.fn();
@@ -80,6 +81,7 @@ jest.mock("@/action/email/template", () => ({
 
 jest.mock("@/action/user-flow/roleTransition", () => ({
   syncUserRoleFromAcceptedFlows: mockSyncUserRoleFromAcceptedFlows,
+  syncUserRolesFromAcceptedFlows: mockSyncUserRolesFromAcceptedFlows,
 }));
 
 jest.mock("@/event", () => ({
@@ -255,12 +257,12 @@ describe("email batch service", () => {
       ],
     );
     mockOffer.mockResolvedValue(undefined);
-    mockSyncUserRoleFromAcceptedFlows.mockResolvedValue(undefined);
+    mockSyncUserRolesFromAcceptedFlows.mockResolvedValue(undefined);
 
     await expect(sendEmailBatchById(7)).resolves.toEqual({ queuedCount: 1 });
 
     expect(mockOffer).toHaveBeenCalledWith(101);
-    expect(mockSyncUserRoleFromAcceptedFlows).toHaveBeenCalledWith(301);
+    expect(mockSyncUserRolesFromAcceptedFlows).toHaveBeenCalledWith([301]);
     expect(mockUpdateSetCalls).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -302,7 +304,7 @@ describe("email batch service", () => {
     mockAssertEmailConfigured.mockImplementation(() => {
       throw new Error("邮件密码未配置，请先设置 EMAIL_PASSWORD。");
     });
-    mockSyncUserRoleFromAcceptedFlows.mockResolvedValue(undefined);
+    mockSyncUserRolesFromAcceptedFlows.mockResolvedValue(undefined);
 
     await expect(sendEmailBatchById(8)).rejects.toThrow(
       "邮件发送服务未启动或未配置",
@@ -345,7 +347,7 @@ describe("email batch service", () => {
     mockOffer.mockRejectedValue(new Error("queue unavailable"));
     mockAssertEmailConfigured.mockReturnValue(undefined);
     mockSendEmailDelivery.mockResolvedValue({ messageId: "direct-message" });
-    mockSyncUserRoleFromAcceptedFlows.mockResolvedValue(undefined);
+    mockSyncUserRolesFromAcceptedFlows.mockResolvedValue(undefined);
 
     await expect(sendEmailBatchById(9)).resolves.toEqual({ queuedCount: 1 });
 
@@ -361,7 +363,7 @@ describe("email batch service", () => {
     );
   });
 
-  it("deduplicates role syncs and limits their concurrency for a batch", async () => {
+  it("submits deduplicated role-sync targets as one batch", async () => {
     mockSelectResults.push(
       [{ id: 10, category: "result", accept: true, status: "queued" }],
       [],
@@ -375,24 +377,12 @@ describe("email batch service", () => {
       ],
     );
     mockOffer.mockResolvedValue(undefined);
-    let active = 0;
-    let maxActive = 0;
-    mockSyncUserRoleFromAcceptedFlows.mockImplementation(async () => {
-      active += 1;
-      maxActive = Math.max(maxActive, active);
-      await new Promise((resolve) => setTimeout(resolve, 1));
-      active -= 1;
-    });
+    mockSyncUserRolesFromAcceptedFlows.mockResolvedValue(undefined);
 
     await expect(sendEmailBatchById(10)).resolves.toEqual({ queuedCount: 6 });
 
-    expect(mockSyncUserRoleFromAcceptedFlows).toHaveBeenCalledTimes(5);
-    const syncedUserIds = mockSyncUserRoleFromAcceptedFlows.mock.calls.map(
-      ([userId]) => userId,
-    );
-    expect(new Set(syncedUserIds)).toEqual(
-      new Set([501, 502, 503, 504, 505]),
-    );
-    expect(maxActive).toBeLessThanOrEqual(5);
+    expect(mockSyncUserRolesFromAcceptedFlows).toHaveBeenCalledWith([
+      501, 502, 503, 504, 505, 501,
+    ]);
   });
 });
