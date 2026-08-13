@@ -593,7 +593,7 @@ export async function createInterviewSchedule(
       endsAt,
     });
 
-    revalidatePath("/dashboard/recruitment");
+    revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
       action: existingSchedule ? "interview_schedule.update" : "interview_schedule.create",
@@ -620,7 +620,7 @@ export async function createInterviewSchedule(
     };
   } catch (error) {
     logServerError("interviewSchedule:create", error, {
-      path: "/dashboard/recruitment",
+      path: "/dashboard/interviews",
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       action: "create-interview-schedule",
@@ -761,7 +761,7 @@ export async function cancelInterviewSchedule(
       }
     }
 
-    revalidatePath("/dashboard/recruitment");
+    revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
       action: "interview_schedule.cancel",
@@ -777,7 +777,7 @@ export async function cancelInterviewSchedule(
     return { success: true, emailWarning };
   } catch (error) {
     logServerError("interviewSchedule:cancel", error, {
-      path: "/dashboard/recruitment",
+      path: "/dashboard/interviews",
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       action: "cancel-interview-schedule",
@@ -842,7 +842,7 @@ export async function confirmInterviewScheduleEnded(
     resourceId: schedule.id,
     metadata: { userFlowId: schedule.userFlowId, provider: "feishu" },
   });
-  revalidatePath("/dashboard/recruitment");
+  revalidatePath("/dashboard/interviews");
 
   return { success: true };
 }

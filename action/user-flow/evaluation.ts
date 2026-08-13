@@ -321,7 +321,7 @@ export const createEvaluation = async (
       return result;
     }
 
-    revalidatePath("/dashboard/recruitment");
+    revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/approvals");
     await writeOperationAudit({
       actorId: session.uid,
@@ -339,7 +339,7 @@ export const createEvaluation = async (
     return { success: true, data: result.data };
   } catch (error) {
     logServerError("evaluation:create", error, {
-      path: "/dashboard/recruitment",
+      path: "/dashboard/interviews",
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       action: "create-evaluation",
@@ -409,7 +409,7 @@ export const approveEvaluation = async (evaluationId: number) => {
     }
 
     revalidatePath("/dashboard/approvals");
-    revalidatePath("/dashboard/recruitment");
+    revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
       action: "evaluation.approve",
@@ -468,7 +468,7 @@ export const rejectEvaluation = async (evaluationId: number) => {
     });
 
     revalidatePath("/dashboard/approvals");
-    revalidatePath("/dashboard/recruitment");
+    revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
       action: "evaluation.reject",
@@ -666,7 +666,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
       .sort((a, b) => (a.studentId ?? "").localeCompare(b.studentId ?? ""));
   } catch (error) {
     logServerError("evaluation:getCandidates", error, {
-      path: "/dashboard/recruitment",
+      path: "/dashboard/interviews",
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       action: "get-evaluation-candidates",

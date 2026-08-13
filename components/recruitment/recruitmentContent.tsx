@@ -8,13 +8,27 @@ import { columns } from '@/components/recruitment/columns';
 import { calScore } from '@/action/user-flow/user-point/calScore';
 import { getEvaluationCandidates } from '@/action/user-flow/evaluation';
 import { Loading } from '@/components/loading';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { flowSelection } from '@/types/flow';
 import { BadgeCheck, ClipboardList, Users } from 'lucide-react';
 
 type ExamResult = Awaited<ReturnType<typeof calScore>>;
 type CandidatesResult = Awaited<ReturnType<typeof getEvaluationCandidates>>;
+type RecruitmentWorkspaceMode = 'written' | 'interview';
 
-const EVALUATION_FLOW_TYPES = ['woc', 'soc', 'recruitment_exemption'];
+const interviewTypeTabs = [
+  { value: 'recruitment_exemption', label: '免试招新' },
+  { value: 'woc', label: 'WOC/WOD' },
+  { value: 'soc', label: 'SOC/SOD' },
+] as const;
+
+type InterviewFlowType = (typeof interviewTypeTabs)[number]['value'];
+
+function getInterviewFlowType(flowTypes: flowSelection[], flowId?: string) {
+  const type = flowTypes.find((flow) => flow.id === Number(flowId))?.type;
+  const matchingTab = interviewTypeTabs.find((tab) => tab.value === type);
+  return matchingTab?.value ?? interviewTypeTabs[0].value;
+}
 
 export const RecruitmentContent = ({
   flowTypes,
@@ -24,6 +38,7 @@ export const RecruitmentContent = ({
   targetUserFlowId,
   targetScheduleId,
   role,
+  mode,
 }: {
   flowTypes: flowSelection[];
   initialData: ExamResult;
@@ -32,6 +47,7 @@ export const RecruitmentContent = ({
   targetUserFlowId?: number;
   targetScheduleId?: number;
   role: number;
+  mode: RecruitmentWorkspaceMode;
 }) => {
   const [flowId, setFlowId] = useState(defaultFlowId);
   const [scoreData, setScoreData] = useState(initialData);
@@ -41,17 +57,19 @@ export const RecruitmentContent = ({
   const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
   const safeEvalData = Array.isArray(evalData) ? evalData : [];
 
-  const selectedFlow = safeFlowTypes.find((f) => f.id === parseInt(flowId ?? ''));
-  const isEvaluationFlow = selectedFlow
-    ? EVALUATION_FLOW_TYPES.includes(selectedFlow.type)
-    : false;
+  const isEvaluationWorkspace = mode === 'interview';
+  const [interviewFlowType, setInterviewFlowType] = useState<InterviewFlowType>(
+    () => getInterviewFlowType(safeFlowTypes, defaultFlowId),
+  );
+  const visibleFlowTypes = isEvaluationWorkspace
+    ? safeFlowTypes.filter((flow) => flow.type === interviewFlowType)
+    : safeFlowTypes;
 
   const handleFlowChange = async (value: string) => {
     setFlowId(value);
     setLoading(true);
-    const flow = safeFlowTypes.find((f) => f.id === parseInt(value));
     try {
-      if (flow && EVALUATION_FLOW_TYPES.includes(flow.type)) {
+      if (isEvaluationWorkspace) {
         const candidates = await getEvaluationCandidates(parseInt(value));
         setEvalData(candidates);
       } else {
@@ -76,6 +94,18 @@ export const RecruitmentContent = ({
     }
   };
 
+  const handleInterviewFlowTypeChange = async (value: string) => {
+    const nextType = value as InterviewFlowType;
+    const nextFlow = safeFlowTypes.find((flow) => flow.type === nextType);
+    setInterviewFlowType(nextType);
+    setFlowId(nextFlow?.id.toString());
+    if (!nextFlow) {
+      setEvalData([]);
+      return;
+    }
+    await handleFlowChange(nextFlow.id.toString());
+  };
+
   const averageScore =
     safeScoreData.length === 0
       ? 0
@@ -83,19 +113,37 @@ export const RecruitmentContent = ({
           (acc, cur) => acc + parseInt(cur.totalScore ?? '0', 10),
           0,
         ) / safeScoreData.length;
-
   return (
     <div className="min-w-0 space-y-4">
       <section className="border-y bg-muted/20">
         <div className="flex flex-col gap-4 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">选择流程</p>
-            <p className="text-xs text-muted-foreground">
-              切换流程后，下方列表会自动刷新对应报名人员。
-            </p>
+          <div className="flex min-w-0 flex-col gap-3">
+            {isEvaluationWorkspace && (
+              <Tabs
+                value={interviewFlowType}
+                onValueChange={handleInterviewFlowTypeChange}
+              >
+                <TabsList className="h-9 max-w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-fit">
+                  {interviewTypeTabs.map((tab) => (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                    >
+                      {tab.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            )}
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium">选择流程</p>
+              <p className="text-xs text-muted-foreground">
+                切换流程后，下方列表会自动刷新对应报名人员。
+              </p>
+            </div>
           </div>
           <SelectFlow
-            flowTypes={safeFlowTypes}
+            flowTypes={visibleFlowTypes}
             defaultFlowTypeId={flowId}
             onChange={handleFlowChange}
           />
@@ -107,10 +155,10 @@ export const RecruitmentContent = ({
               <Users className="size-4" />
               <span>总人数</span>
               <span className="font-semibold tabular-nums text-foreground">
-                {isEvaluationFlow ? safeEvalData.length : safeScoreData.length}
+                {isEvaluationWorkspace ? safeEvalData.length : safeScoreData.length}
               </span>
             </div>
-            {!isEvaluationFlow && (
+            {!isEvaluationWorkspace && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <BadgeCheck className="size-4" />
                 <span>平均分</span>
@@ -123,7 +171,7 @@ export const RecruitmentContent = ({
               <ClipboardList className="size-4" />
               <span>流程类型</span>
               <span className="font-medium text-foreground">
-                {isEvaluationFlow ? '面评审核' : '笔试成绩'}
+                {isEvaluationWorkspace ? '面试候选人' : '笔试成绩'}
               </span>
             </div>
           </div>
@@ -133,7 +181,7 @@ export const RecruitmentContent = ({
       {flowId ? (
         loading ? (
           <Loading />
-        ) : isEvaluationFlow ? (
+        ) : isEvaluationWorkspace ? (
           <div className="space-y-4">
             <EvaluationTable
               candidates={safeEvalData}
