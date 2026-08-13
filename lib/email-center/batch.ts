@@ -18,7 +18,7 @@ import { assertEmailConfigured } from "@/lib/email-center/provider";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
 const EMAIL_SERVICE_UNAVAILABLE =
   "邮件发送服务未启动或未配置，请检查 Inngest 邮件队列和 EMAIL_PASSWORD。";
@@ -88,10 +88,16 @@ export async function createResultEmailBatch({
     }),
   }));
 
-  const existingDeliveries = await db
+  const resultFlowId = sql<number>`coalesce(${emailDelivery.fkFlowId}, ${emailBatch.fkFlowId})`;
+  const resultAccept = sql<boolean>`case coalesce(${emailDelivery.metadata}->>'accept', ${emailBatch.accept}::text) when 'true' then true when 'false' then false else null end`;
+
+  const currentDeliveries = await db
     .select({
       idempotencyKey: emailDelivery.idempotencyKey,
       batchId: emailDelivery.fkEmailBatchId,
+      userFlowId: emailDelivery.fkUserFlowId,
+      userId: emailDelivery.fkUserId,
+      status: emailDelivery.status,
     })
     .from(emailDelivery)
     .where(
@@ -100,18 +106,71 @@ export async function createResultEmailBatch({
         targetsWithIdempotency.map((item) => item.idempotencyKey),
       ),
     );
+  const legacyDeliveries = await db
+    .select({
+      idempotencyKey: emailDelivery.idempotencyKey,
+      batchId: emailDelivery.fkEmailBatchId,
+      userFlowId: emailDelivery.fkUserFlowId,
+      userId: emailDelivery.fkUserId,
+      status: emailDelivery.status,
+    })
+    .from(emailDelivery)
+    .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
+    .where(
+      and(
+        isNull(emailDelivery.idempotencyKey),
+        eq(emailDelivery.category, "result"),
+        eq(resultFlowId, flowId),
+        eq(resultAccept, accept),
+        or(
+          inArray(
+            emailDelivery.fkUserFlowId,
+            targetsWithIdempotency.map((item) => item.userFlowId),
+          ),
+          inArray(
+            emailDelivery.fkUserId,
+            targetsWithIdempotency.map((item) => item.userId),
+          ),
+        ),
+      ),
+    );
+  const existingDeliveries = [...currentDeliveries, ...legacyDeliveries];
   const existingIdempotencyKeys = new Set(
     existingDeliveries
       .map((item) => item.idempotencyKey)
       .filter((key): key is string => key !== null),
   );
+  const existingUserFlowIds = new Set(
+    existingDeliveries
+      .map((item) => item.userFlowId)
+      .filter((id): id is number => id !== null),
+  );
+  const existingUserIds = new Set(
+    existingDeliveries
+      .map((item) => item.userId)
+      .filter((id): id is number => id !== null),
+  );
   const missingTargets = targetsWithIdempotency.filter(
-    (item) => !existingIdempotencyKeys.has(item.idempotencyKey),
+    (item) =>
+      !existingIdempotencyKeys.has(item.idempotencyKey) &&
+      !existingUserFlowIds.has(item.userFlowId) &&
+      !existingUserIds.has(item.userId),
   );
 
   if (missingTargets.length === 0) {
+    const reusableBatchId = existingDeliveries.find(
+      (item) =>
+        (item.status === "pending" ||
+          item.status === "failed" ||
+          item.status === "dead") &&
+        item.batchId !== null,
+    )?.batchId;
+
     return {
-      batchId: existingDeliveries.find((item) => item.batchId)?.batchId ?? null,
+      batchId:
+        reusableBatchId ??
+        existingDeliveries.find((item) => item.batchId !== null)?.batchId ??
+        null,
       deliveryCount: 0,
     };
   }

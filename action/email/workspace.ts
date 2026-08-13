@@ -4,7 +4,7 @@ import { batchSendEmail } from "@/action/user/sendEmail";
 import { sendEmailBatch } from "@/action/email/send";
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
+import { flow, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import {
   requireBooleanInput,
@@ -13,7 +13,7 @@ import {
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { getResultEmailTemplateKey } from "@/lib/email/result-email";
 import { renderEmailTemplate } from "@/lib/email-center/render";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function listEmailFlowTargets() {
@@ -127,26 +127,9 @@ export async function createResultEmailBatchFromFlow(
 
   if (rows.length === 0) return { batchId: null, deliveryCount: 0 };
 
-  const existingDeliveries = await db
-    .select({ batchId: emailDelivery.fkEmailBatchId, userFlowId: emailDelivery.fkUserFlowId, status: emailDelivery.status })
-    .from(emailDelivery)
-    .innerJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
-    .where(and(eq(emailBatch.fkFlowId, flowId), eq(emailBatch.accept, accept), inArray(emailDelivery.fkUserFlowId, rows.map((item) => item.userFlowId))))
-    .orderBy(asc(emailDelivery.createdAt));
-
-  const reusableDelivery = existingDeliveries.find(
-    (item) =>
-      item.status === "pending" ||
-      item.status === "failed" ||
-      item.status === "dead",
-  );
-  if (reusableDelivery) return { batchId: reusableDelivery.batchId, deliveryCount: 0 };
-
-  const existingUserFlowIds = new Set(existingDeliveries.map((item) => item.userFlowId));
-  const rowsWithoutDelivery = rows.filter((item) => !existingUserFlowIds.has(item.userFlowId));
-  if (rowsWithoutDelivery.length === 0) return { batchId: null, deliveryCount: 0 };
-
-  const result = await batchSendEmail(rowsWithoutDelivery.map((item) => item.userId), flowId, accept);
+  // createResultEmailBatch is the single deduplication boundary. It also
+  // recognizes legacy deliveries that only retain fk_user_id.
+  const result = await batchSendEmail(rows.map((item) => item.userId), flowId, accept);
   revalidatePath("/dashboard/emails");
   return result;
 }

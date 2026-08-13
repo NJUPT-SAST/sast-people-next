@@ -38,6 +38,9 @@ const mockDb = {
         innerJoin: jest.fn(() => ({
           where: jest.fn(() => createQueryPromise(result)),
         })),
+        leftJoin: jest.fn(() => ({
+          where: jest.fn(() => createQueryPromise(result)),
+        })),
         where: jest.fn(() => createQueryPromise(result)),
       })),
     };
@@ -194,6 +197,41 @@ describe("email batch service", () => {
     });
     expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(mockDb.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not recreate deliveries already sent by a legacy batch", async () => {
+    mockSelectResults.push(
+      [
+        {
+          userFlowId: 203,
+          userId: 303,
+          flowName: "2025 招新",
+        },
+      ],
+      [],
+      [
+        {
+          idempotencyKey: null,
+          batchId: 71,
+          userFlowId: null,
+          userId: 303,
+          status: "sent",
+        },
+      ],
+    );
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [303],
+        flowId: 7,
+        accept: true,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 71, deliveryCount: 0 });
+
+    expect(mockListPeopleUsersByLinkIds).not.toHaveBeenCalled();
+    expect(mockRenderEmailTemplate).not.toHaveBeenCalled();
+    expect(mockDb.insert).not.toHaveBeenCalled();
   });
 
   it("recovers stale sending deliveries before queueing a batch", async () => {

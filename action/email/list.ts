@@ -1,7 +1,13 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, emailDeliveryAttempt, flow } from "@/db/schema";
+import {
+  emailBatch,
+  emailDelivery,
+  emailDeliveryAttempt,
+  flow,
+  userFlow,
+} from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import {
@@ -346,29 +352,43 @@ export async function listEmailDeliveries() {
 export async function listResultEmailDeliveryStates() {
   await verifyRole(3);
 
+  // Older deliveries may predate fk_user_flow_id, or keep their flow and
+  // result type on the delivery rather than the batch. Resolve those fields
+  // before aggregating so historical successful emails are never re-offered.
+  const resultFlowId = sql<number>`coalesce(${emailDelivery.fkFlowId}, ${emailBatch.fkFlowId})`;
+  const resultAccept = sql<boolean>`case coalesce(${emailDelivery.metadata}->>'accept', ${emailBatch.accept}::text) when 'true' then true when 'false' then false else null end`;
+  const resultUserFlowId = sql<number>`coalesce(${emailDelivery.fkUserFlowId}, ${userFlow.id})`;
+
   return db
     .select({
-      flowId: sql<number>`coalesce(${emailDelivery.fkFlowId}, ${emailBatch.fkFlowId})`,
-      userFlowId: emailDelivery.fkUserFlowId,
-      accept: emailBatch.accept,
+      flowId: resultFlowId,
+      userFlowId: resultUserFlowId,
+      accept: resultAccept,
       hasSent: sql<boolean>`bool_or(${emailDelivery.status} = 'sent')`,
       hasSending: sql<boolean>`bool_or(${emailDelivery.status} = 'sending')`,
       hasQueueable: sql<boolean>`bool_or(${emailDelivery.status} in ('pending', 'failed', 'dead'))`,
     })
     .from(emailDelivery)
     .innerJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
+    .leftJoin(
+      userFlow,
+      and(
+        eq(userFlow.fkFlowId, resultFlowId),
+        eq(userFlow.fkUserId, emailDelivery.fkUserId),
+      ),
+    )
     .where(
       and(
         eq(emailDelivery.category, "result"),
-        isNotNull(emailBatch.fkFlowId),
-        isNotNull(emailDelivery.fkUserFlowId),
-        isNotNull(emailBatch.accept),
+        isNotNull(resultFlowId),
+        isNotNull(resultUserFlowId),
+        isNotNull(resultAccept),
       ),
     )
     .groupBy(
-      sql`coalesce(${emailDelivery.fkFlowId}, ${emailBatch.fkFlowId})`,
-      emailDelivery.fkUserFlowId,
-      emailBatch.accept,
+      resultFlowId,
+      resultUserFlowId,
+      resultAccept,
     );
 }
 
