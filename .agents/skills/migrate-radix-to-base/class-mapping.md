@@ -1,7 +1,11 @@
 # Class-string rewrites (layer 2)
 
 Apply these across ALL class strings (className, cva definitions, cn calls),
-including app code. They are safe, mechanical rewrites.
+including app code. Before applying state selectors from the table below,
+inspect each component family/element's actual target attribute: some parts use
+component-specific attributes (e.g. data-panel-open for Accordion/Collapsible
+Trigger, inverse data-hidden for Tabs Panel, data-progressing for Progress)
+that should NOT be blindly rewritten by the generic table.
 
 ## Data-attribute selectors
 
@@ -43,7 +47,11 @@ uses per-side slide classes, keep the `data-[side=...]` or
 | `--radix-<comp>-trigger-height` | `--anchor-height` |
 | `--radix-accordion-content-height` | `--accordion-panel-height` |
 | `--radix-collapsible-content-height` | `--collapsible-panel-height` |
-| `--radix-navigation-menu-viewport-height/width` | `--positioner-height` / `--positioner-width` |
+| `--radix-navigation-menu-viewport-width` | `--popup-width` |
+| `--radix-navigation-menu-viewport-height` | `--popup-height` |
+
+Note: Positioner also provides `--positioner-width`/`--positioner-height` and
+`--available-width`/`--available-height` for Navigation Menu.
 
 ## Element changes kill pseudo-class variants
 

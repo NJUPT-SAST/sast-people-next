@@ -13,7 +13,7 @@ transforming, and record gaps in the report.
 
 ## Preflight (always)
 
-1. `npx shadcn@latest info --json` (or the project's runner): gives the
+1. `npx shadcn@4.17.0 info --json` (or the project's runner): gives the
    current base, STYLE (e.g. `radix-lyra`), tailwind version, aliases,
    installed components, and package manager. Trust it over inference.
 2. Detect the package manager (packageManager field / lockfile:
@@ -94,7 +94,10 @@ transforming, and record gaps in the report.
    call-site props in `consumer-props.md`); typecheck each. When no consumer
    imports the original: delete it, rename `-base` -> original, flip imports
    back, final check, commit. When the LAST radix wrapper in the project is
-   finalized, flip `components.json` to `base-<style>` and remove radix deps.
+   finalized, flip `components.json` to `base-<style>` (only if a Base variant
+   of that style actually exists; for legacy styles new-york, new-york-v4,
+   default which have no base-<style> counterpart, retain the original style
+   name and note this in the report) and remove radix deps.
 
 **Whole project** (only when explicitly asked): same per-component work in
 dependency order (leaf/shared wrappers like button and label first). After
@@ -109,8 +112,10 @@ full build.
   Report them as intentionally untouched.
 - No Base UI counterpart: AspectRatio -> CSS aspect-ratio div; Label ->
   native `<label>`; VisuallyHidden -> `sr-only`; Direction -> Direction
-  Provider (`direction` prop, not `dir`). Popover Anchor and NavigationMenu
-  Indicator have no equivalent: inert passthrough + flag.
+  Provider (`direction` prop, not `dir`). Popover.Anchor retains equivalent
+  capability via the Positioner's `anchor` prop. NavigationMenu.Indicator has
+  no Base UI tracking-part equivalent (NavigationMenu.Icon is just the chevron
+  inside Trigger, not a replacement for Indicator's tracking behavior).
 - `button.tsx` migrates to the REAL `@base-ui/react/button` primitive, never
   a hand-rolled useRender wrapper.
 - Behavior deltas are FLAGGED, never silently patched (tabs manual
@@ -153,7 +158,7 @@ documented publicly; reports must match it):
 
 <every file touched, with what changed and why; include file:line for
 anything notable. Confirm the leftover scan is clean:
-grep -n "radix-ui\|@radix-ui" on this component's files>
+grep -n "radix-ui\|@radix-ui\|IconPlaceholder" on this component's files>
 
 ## Left alone
 

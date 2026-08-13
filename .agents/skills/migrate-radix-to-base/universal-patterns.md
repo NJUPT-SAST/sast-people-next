@@ -25,8 +25,8 @@ All radix-ui exports, classified for migration:
 | HoverCard | Preview Card | RENAMED + positioner model |
 | Label | none | missing: native `<label>` (Field.Label inside forms) |
 | Menubar | Menubar + Menu | restructured (menubar root only; menus delegate to Menu) |
-| NavigationMenu | Navigation Menu | heavily restructured (Viewport -> Positioner/Popup/Viewport, Indicator->Icon) |
-| Popover | Popover | positioner model (Anchor dropped; verify vs docs) |
+| NavigationMenu | Navigation Menu | heavily restructured (Viewport -> Positioner/Popup/Viewport; Indicator has no Base tracking-part equivalent, Icon is just chevron) |
+| Popover | Popover | positioner model (Anchor part dropped; capability retained via Positioner anchor prop) |
 | Progress | Progress | restructured (new Track/Label/Value parts, no manual transform) |
 | RadioGroup | Radio Group + Radio | restructured (Item -> Radio.Root, two subpath imports) |
 | ScrollArea | Scroll Area | direct (Scrollbar/Thumb renames) |
@@ -141,11 +141,11 @@ One subpath per component either way.
 | select `Viewport` | `List` |
 | select `ScrollUp/DownButton` | `ScrollUp/DownArrow` |
 | scroll-area `ScrollAreaScrollbar` / `ScrollAreaThumb` | `Scrollbar` / `Thumb` |
-| nav-menu `Indicator` | `Icon` |
+| nav-menu `Indicator` | no tracking-part equivalent (Icon is just chevron in Trigger) |
 | nav-menu `Viewport` | `Positioner > Popup > Viewport` |
 | hover-card `HoverCard*` | `PreviewCard*` |
 | radio-group `Item` / `Indicator` | `Radio.Root` / `Radio.Indicator` |
-| popover `Anchor` | dropped (verify against docs) |
+| popover `Anchor` | part dropped (capability via Positioner anchor prop) |
 | alert-dialog `Cancel` / `Action` | `Close` / dropped (plain Button) |
 | separator `decorative` prop | dropped |
 | Label primitive | native `<label>` |
@@ -175,8 +175,9 @@ Root gains `modal`, `snapPoints`, `swipeDirection` (default "down"),
 context provider in our wrapper. This is a vaul migration, not radix.
 
 ### popover / tooltip / hover-card
-Portal > Positioner > Popup. Popover: Anchor dropped, Title is now a real
-primitive part. Tooltip: Provider `delayDuration` -> `delay`; Content gains
+Portal > Positioner > Popup. Popover: Anchor part dropped (capability retained
+via Positioner anchor prop), Title is now a real primitive part. Tooltip:
+Provider `delayDuration` -> `delay`; Content gains
 side/align/alignOffset; default sideOffset 0 -> 4; Arrow gets explicit
 per-side positioning classes. HoverCard: primitive renamed PreviewCard
 (public wrapper names stay HoverCard*).
@@ -213,7 +214,9 @@ Scroll-area: Scrollbar/Thumb renames only. Label: no primitive; native
 
 ### navigation-menu
 Viewport moves out of Root into `Portal > Positioner > Popup > Viewport`
-(our NavigationMenuPositioner). Indicator -> Icon. `viewport` boolean prop
+(our NavigationMenuPositioner). Indicator has no Base tracking-part equivalent
+(Icon is just the chevron inside Trigger, not a replacement for tracking
+behavior). `viewport` boolean prop
 removed; `align` forwarded to Positioner. New `data-instant`,
 `data-activation-direction` hooks; vars -> `--positioner-height/width`,
 `--popup-height/width`.

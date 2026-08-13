@@ -56,6 +56,8 @@ This applies to all group-based components:
 | `Bubble` (stacked) | `BubbleGroup` |
 | `Attachment` (in a row) | `AttachmentGroup` |
 
+Note: `MessageScrollerContent`'s direct children must be `MessageScrollerItem` only — no extra wrapper or grouping components in between.
+
 Chat components nest in a fixed order (`MessageScrollerProvider` → `MessageScroller` → `MessageScrollerViewport` → `MessageScrollerContent` → `MessageScrollerItem`). See [chat.md](./chat.md).
 
 ---

@@ -85,7 +85,7 @@
           "-ExecutionPolicy",
           "Bypass",
           "-Command",
-          "if (Test-Path \"${workspaceFolder}\\.vscode\\.ui-dev.lock\") { $pid = (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if ($pid) { Stop-Process -Id $pid -Force }; Remove-Item -Force \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" }"
+          "if (Test-Path \"${workspaceFolder}\\.vscode\\.ui-dev.lock\") { $owningProcessId = (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if ($owningProcessId) { Stop-Process -Id $owningProcessId -Force }; Remove-Item -Force \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" }"
         ]
       },
       "linux": {

@@ -16,12 +16,14 @@ check node_modules/@base-ui/react/**/*.d.ts, never guess.
 
 | Component | Radix prop | Base UI fate | Call-site action |
 |---|---|---|---|
-| Accordion | `type="single"\|"multiple"` + `collapsible` | dropped; `value`/`defaultValue` are ALWAYS arrays; multiple-open via `multiple` | `type="single" collapsible` -> remove both; wrap values in arrays; `type="multiple"` -> `multiple` |
+| Accordion | `type="single"\|"multiple"` + `collapsible` | dropped; `value`/`defaultValue` are ALWAYS arrays; multiple-open via `multiple` | `type="single" collapsible` -> remove both; wrap values in arrays; `type="multiple"` -> `multiple`. Note: `collapsible={true}` may simply be removed, but `collapsible={false}` semantics must be preserved — migration must reject/cancel an attempt to reach an empty controlled value (e.g. via `eventDetails.cancel()` in `onValueChange` when `nextValue.length === 0`), not just silently drop the prop. |
 | Tabs | `activationMode="manual"` | dropped; Base UI defaults to MANUAL activation | remove prop; near-equivalent opt-in is `Tabs.List activateOnFocus` (behavior delta: flag, do not auto-add) |
 | Select | `position="popper"\|"item-aligned"` | `alignItemWithTrigger` boolean (on Positioner; wrappers expose it) | `position="popper"` -> `alignItemWithTrigger={false}`; `item-aligned` -> `alignItemWithTrigger` (default) |
-| TooltipProvider | `delayDuration`, `skipDelayDuration` | `delay`; skip-delay concept dropped | rename / remove |
-| Tooltip | `disableHoverableContent` | NO equivalent | remove; FLAG the behavior change in the report |
-| Avatar.Image | `delayMs` | `delay` | rename |
+| TooltipProvider | `delayDuration` | `delay` (rename on Provider) | rename |
+| TooltipProvider | `skipDelayDuration` | `timeout` (rename on Provider) | rename |
+| Tooltip.Root | `disableHoverableContent` | `disableHoverablePopup` (rename on Root) | rename |
+| Avatar.Image | – | `onLoadingStatusChange` | Avatar.Image supports `onLoadingStatusChange` only |
+| Avatar.Fallback | `delayMs` | `delay` | rename |
 | ScrollArea | `type="always"\|"scroll"\|...` | dropped | remove |
 | Separator | `decorative` | dropped | remove |
 | Checkbox | `checked="indeterminate"` | `indeterminate` is a SEPARATE boolean prop | `checked="indeterminate"` -> `indeterminate` + boolean `checked` |
