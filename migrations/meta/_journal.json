@@ -246,6 +246,13 @@
       "when": 1786612200000,
       "tag": "0034_drop_legacy_people_user",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786612200001,
+      "tag": "0035_backfill_legacy_result_email_deliveries",
+      "breakpoints": true
     }
   ]
 }
