@@ -37,8 +37,10 @@ Returns registry names from `components.json`. Errors if no `components.json` ex
 
 Lists all items from one or more registries. Registries can be configured
 namespaces such as `@acme`, public GitHub sources such as `owner/repo`, or
-registry catalog URLs. Omit `registries` to list from every registry configured
-in `components.json`.
+registry catalog URLs. Omit `registries` to list only non-built-in registries
+configured in `components.json`; this excludes `@shadcn`. When none are
+configured, the tool returns `No registries are configured`. Pass
+`["@shadcn"]` explicitly to query the built-in registry.
 
 **Input:** `registries` (string[], optional — omit for all configured), `types` (string[], optional — e.g. `["ui", "block"]`), `limit` (number, optional, defaults to 100), `offset` (number, optional)
 
@@ -46,8 +48,8 @@ in `components.json`.
 
 Fuzzy search across registries. Registries can be configured namespaces, public
 GitHub sources, or registry catalog URLs. Omit `registries` to search every
-registry configured in `components.json` — e.g. "find me a hero" across all
-configured registries.
+non-built-in registry configured in `components.json`; this excludes
+`@shadcn`. Pass `["@shadcn"]` explicitly to search the built-in registry.
 
 **Input:** `registries` (string[], optional — omit for all configured), `query` (string), `types` (string[], optional — e.g. `["ui", "block"]`), `limit` (number, optional, defaults to 100), `offset` (number, optional)
 
@@ -61,7 +63,8 @@ View item details including full file contents.
 ### `shadcn:get_item_examples_from_registries`
 
 Find usage examples and demos with source code. Omit `registries` to search
-every registry configured in `components.json`.
+non-built-in registries configured in `components.json`; pass `["@shadcn"]`
+explicitly to include the built-in registry.
 
 **Input:** `registries` (string[], optional — omit for all configured), `query` (string) — e.g. `"accordion-demo"`, `"button example"`
 
