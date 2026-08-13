@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     body.uid as number,
     body.name,
     role,
-    undefined,
+    linkAdminTokenMarker,
     linkAdminTokenMarker,
   );
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });

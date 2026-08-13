@@ -46,7 +46,10 @@ describe("Playwright test session route", () => {
       1,
       "Admin",
       3,
-      undefined,
+      expect.objectContaining({
+        accessToken: "playwright-link-access-token",
+        accessTokenExpiresAt: expect.any(Number),
+      }),
       expect.objectContaining({
         accessToken: "playwright-link-access-token",
         accessTokenExpiresAt: expect.any(Number),
