@@ -2,10 +2,11 @@
 
 Apply these across ALL class strings (className, cva definitions, cn calls),
 including app code. Before applying state selectors from the table below,
-inspect each component family/element's actual target attribute: some parts use
+identify the component family and element's actual target attribute. Do not
+apply a generic state mapping when the component is unknown: some parts use
 component-specific attributes (e.g. data-panel-open for Accordion/Collapsible
 Trigger, inverse data-hidden for Tabs Panel, data-progressing for Progress)
-that should NOT be blindly rewritten by the generic table.
+that must not be mechanically rewritten.
 
 ## Data-attribute selectors
 
@@ -15,13 +16,13 @@ that should NOT be blindly rewritten by the generic table.
 | `data-[state=closed]:` | `data-closed:` |
 | `data-[state=checked]:` | `data-checked:` |
 | `data-[state=unchecked]:` | `data-unchecked:` |
-| `data-[state=active]:` (tabs) | `data-active:` |
+| `data-[state=active]:` on `Tabs.Tab` | `data-active:` (do not generate `data-highlighted:`) |
 | `data-[state=on]:` (toggle) | `data-pressed:` |
 | `data-[highlighted]:` | `data-highlighted:` (unchanged) |
 | `data-[disabled]:` | `data-disabled:` (unchanged) |
 | `data-[side=...]:` | `data-[side=...]:` (unchanged, still parameterized) |
 | `group-data-[state=open]` / `peer-data-[state=open]` | `group-data-open` / `peer-data-open` |
-| submenu trigger open marker `data-[state=open]:` | `data-popup-open:` |
+| `data-[state=open]:` on `Menu.Trigger` or `NavigationMenu.Trigger` | `data-popup-open:` |
 
 ## Animation idiom
 

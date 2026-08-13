@@ -9,7 +9,7 @@ Cross-cutting rules (apply to every part below):
 | Radix pattern | Base UI equivalent |
 | --- | --- |
 | `asChild` (`boolean`, `false`) | `render` (`ReactElement \| ((props: HTMLProps, state) => ReactElement)`). No merge-onto-child boolean; pass the element or a function. |
-| `dir` (`"ltr" \| "rtl"`) on roots | Dropped everywhere. Base UI reads direction from `<DirectionProvider>` (`@base-ui/react/direction-provider`) or the DOM `dir` attribute. |
+| `dir` (`"ltr" \| "rtl"`) on roots | Preserve `dir` on actual DOM containers when it controls page or custom-style RTL. Configure Base UI with the same direction through `<DirectionProvider>` (`@base-ui/react/direction-provider`); the provider does not replace DOM/CSS direction. |
 | `forceMount` (`boolean`) | `keepMounted` (`boolean`, `false`) on `Portal` / indicator parts. Same use case (animation/SEO), presence is CSS-driven via `data-starting-style` / `data-ending-style` instead of Radix `data-state` + forced mount. Exception: `NavigationMenu.Content` also supports `keepMounted` directly on the content part itself (not moved to Portal like other menu families). |
 | `onEscapeKeyDown` / `onPointerDownOutside` / `onFocusOutside` / `onInteractOutside` (content parts) | Dropped as separate props. Use `onOpenChange(open, eventDetails)` on the Root and branch on `eventDetails.reason` (`'escape-key'`, `'outside-press'`, `'focus-out'`, ...). Call `eventDetails.cancel()` to prevent the close (replaces `event.preventDefault()`). |
 | `onSelect` on items (`(event: Event) => void`; `event.preventDefault()` keeps menu open) | `onClick` (`(event: BaseUIEvent<React.MouseEvent<HTMLDivElement>>) => void`) plus `closeOnClick` (`boolean`) to control whether the menu closes. |

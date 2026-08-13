@@ -37,7 +37,7 @@
           "-ExecutionPolicy",
           "Bypass",
           "-Command",
-          "if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { exit 0 }; New-Item -ItemType Directory -Path \"${workspaceFolder}\\.vscode\" -Force | Out-Null; $process = Start-Process -FilePath pnpm -ArgumentList @('--dir', '${workspaceFolder}', 'dev') -WorkingDirectory '${workspaceFolder}' -NoNewWindow -PassThru; Set-Content -Path \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" -Value $process.Id; Wait-Process -Id $process.Id"
+          "if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { exit 0 }; New-Item -ItemType Directory -Path \"${workspaceFolder}\\.vscode\" -Force | Out-Null; $process = Start-Process -FilePath pnpm -ArgumentList @('--dir', ('\"{0}\"' -f '${workspaceFolder}'), 'dev') -WorkingDirectory '${workspaceFolder}' -NoNewWindow -PassThru; Set-Content -Path \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" -Value $process.Id; Wait-Process -Id $process.Id"
         ]
       },
       "linux": {
