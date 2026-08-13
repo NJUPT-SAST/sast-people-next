@@ -147,6 +147,7 @@ export const ViewUserInfoSheet = ({
   const [detailUserInfo, setDetailUserInfo] = useState<userType | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const displayUserInfo = detailUserInfo ?? userInfo;
+  const canUpdateRole = currentUserRole >= 3 && displayUserInfo.role !== 3;
 
   const handleRoleChange = async (newRole: string) => {
     const roleNum = Number(newRole);
@@ -281,7 +282,7 @@ export const ViewUserInfoSheet = ({
 
           <InfoSection title="权限">
             <InfoRow label="角色">
-              {currentUserRole >= 3 ? (
+              {canUpdateRole ? (
                 <Select
                   value={role.toString()}
                   onValueChange={handleRoleChange}

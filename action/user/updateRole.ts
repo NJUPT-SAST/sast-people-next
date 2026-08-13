@@ -1,8 +1,8 @@
 "use server";
 
 import { verifyRole } from "@/lib/dal";
-import { updateLinkUserRole } from "@/lib/link/admin";
-import { peopleRoleToLinkRole } from "@/lib/link/role";
+import { getLinkUserDetail, updateLinkUserRole } from "@/lib/link/admin";
+import { isAssignablePeopleRole, peopleRoleToLinkRole } from "@/lib/link/role";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
@@ -14,11 +14,16 @@ export const updateUserRole = async (uid: number, role: number) => {
   try {
     session = await verifyRole(3);
 
-    if (![0, 1, 2].includes(role)) {
+    if (!isAssignablePeopleRole(role)) {
       throw new Error("不能设置管理员身份");
     }
 
     const accessToken = await getLinkAdminAccessTokenFromSession();
+    const targetUser = await getLinkUserDetail(accessToken, uid);
+    if (targetUser.role === "admin") {
+      throw new Error("管理员身份只能通过数据库手动变更");
+    }
+
     await updateLinkUserRole(accessToken, uid, peopleRoleToLinkRole(role));
     await writeOperationAudit({
       actorId: session.uid,
