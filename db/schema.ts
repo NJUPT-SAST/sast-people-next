@@ -68,34 +68,6 @@ export const interviewScheduleStatusEnum = pgEnum("interview_schedule_status_enu
   "failed",
 ]);
 
-/** @deprecated v3.1: 用户资料由 SAST Link 维护，此表仅用于 legacy fallback。联调稳定后删除。 */
-export const user = pgTable("user", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 30 }).notNull(),
-  studentId: varchar("student_id", { length: 16 }).unique(),
-  email: varchar("email", { length: 254 }),
-  phone: varchar("phone", { length: 16 }),
-  college: varchar("college", { length: 50 }),
-  major: varchar("major", { length: 50 }),
-  departments: varchar("department", { length: 50 })
-    .array()
-    .notNull()
-    .default(sql`ARRAY[]::text[]`),
-  github: text("github"),
-  blog: text("blog"),
-  personalStatement: text("personal_statement"),
-  qq: varchar("qq", { length: 20 }),
-  linkOpenid: varchar("link_openid", { length: 255 }).unique(),
-  feishuOpenid: varchar("feishu_openid", { length: 255 }).unique(),
-  role: integer("role").default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => sql`now()`),
-  isDeleted: boolean("is_deleted").default(false),
-});
-
 export const flow = pgTable("flow", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 100 }).notNull(),

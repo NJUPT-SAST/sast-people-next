@@ -1,8 +1,6 @@
 "use client";
-import { user } from "@/db/schema";
 import type { userType } from "@/types/user";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createInsertSchema } from "drizzle-zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { Button } from "../ui/button";
@@ -24,7 +22,7 @@ import {
 } from "../ui/form";
 import { Input } from "../ui/input";
 
-export const fullUserSchema = createInsertSchema(user, {
+export const basicInfoSchema = z.object({
   name: z
     .string()
     .min(2, "姓名至少两个字符")
@@ -47,15 +45,6 @@ export const fullUserSchema = createInsertSchema(user, {
   college: z.string().min(1, "学院不能为空").trim(),
   major: z.string().min(1, "专业不能为空").trim(),
   qq: z.string().min(1, "QQ号不能为空").trim(),
-});
-export const basicInfoSchema = fullUserSchema.pick({
-  name: true,
-  studentId: true,
-  phone: true,
-  email: true,
-  college: true,
-  major: true,
-  qq: true,
 });
 export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
   const linkProfileUrl =

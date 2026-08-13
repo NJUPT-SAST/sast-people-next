@@ -94,8 +94,6 @@ Set in `.env.local`:
 ```env
 DATABASE_URL=postgres://sastpeople:sast_dev_password@localhost:55432/sastpeople_local
 SESSION_SECRET=replace-with-a-long-random-string
-LINK_ALLOW_LEGACY_FALLBACK=false
-PEOPLE_ALLOW_LEGACY_AUTH=false
 ```
 
 Then:
@@ -154,7 +152,6 @@ SAST Link owns user identity and profile data. Configure `LINK_*` variables for 
 
 - Use `LINK_USE_MOCK=true` only as a temporary local stub when Link is unavailable.
 - Do not enable `LINK_USE_MOCK=true` for production or real-user testing.
-- Keep `LINK_ALLOW_LEGACY_FALLBACK=false` and `PEOPLE_ALLOW_LEGACY_AUTH=false` outside controlled local fallback scenarios.
 
 ## Full Development Mode
 
@@ -312,7 +309,6 @@ Current core tables:
 
 | Table | Purpose |
 | --- | --- |
-| `user` | Legacy fallback and migration only |
 | `flow` | Workflow definition |
 | `flow_step` | Workflow steps |
 | `user_flow` | User registration and progress status |

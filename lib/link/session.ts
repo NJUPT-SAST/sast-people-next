@@ -18,10 +18,6 @@ export class MissingLinkAdminAccessTokenError extends Error {
   }
 }
 
-export const canUseLegacyUserFallback = () =>
-  process.env.NODE_ENV !== "production" &&
-  process.env.LINK_ALLOW_LEGACY_FALLBACK === "true";
-
 export const getLinkAccessTokenFromSession = async (): Promise<string> =>
   getLinkTokenFromSession("session");
 

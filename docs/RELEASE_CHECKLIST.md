@@ -58,8 +58,6 @@
 
 - [ ] `LINK_USE_MOCK=false`
 - [ ] `LINK_LOGIN_FEISHU_TEST_MOCK=false`
-- [ ] `LINK_ALLOW_LEGACY_FALLBACK=false`
-- [ ] `PEOPLE_ALLOW_LEGACY_AUTH=false`
 - [ ] 非生产邮件确认 `EMAIL_TEST_RECIPIENT` 指向安全收件人
 - [ ] 生产真实收件模式确认无误（不要误用测试收件人）
 
