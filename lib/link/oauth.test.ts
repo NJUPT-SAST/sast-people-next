@@ -25,13 +25,11 @@ describe("Link OAuth token client", () => {
     process.env.LINK_CLIENT_ID = "client-id";
     process.env.LINK_AUTH_BASE_URL = "https://link.example/v2";
     delete process.env.LINK_CLIENT_SECRET;
-    delete process.env.LINK_ADMIN_CLIENT_ID;
-    delete process.env.LINK_ADMIN_CLIENT_SECRET;
     delete process.env.LINK_OAUTH_SCOPES;
     delete process.env.LINK_ADMIN_OAUTH_SCOPES;
   });
 
-  it("uses user-read scopes for login and adds admin scopes only for management", () => {
+  it("keeps the base scopes and provides a combined scope set for People login", () => {
     expect(getLinkOAuthScopes()).toBe("openid profile email user:read");
     expect(getLinkAdminOAuthScopes()).toBe(
       "openid profile email user:read admin:read admin:write",
@@ -58,25 +56,4 @@ describe("Link OAuth token client", () => {
     );
   });
 
-  it("uses the admin client for admin authorization-code exchange and refresh", async () => {
-    process.env.LINK_ADMIN_CLIENT_ID = "admin-client-id";
-    process.env.LINK_ADMIN_CLIENT_SECRET = "admin-client-secret";
-
-    await exchangeLinkOAuthCode(
-      "admin code",
-      "verifier",
-      "https://people.example/cb",
-      "admin",
-    );
-    await refreshLinkOAuthToken("admin-refresh-token", "admin");
-
-    expect(fetchMock.mock.calls[0][1]?.body).toContain("client_id=admin-client-id");
-    expect(fetchMock.mock.calls[0][1]?.body).toContain(
-      "client_secret=admin-client-secret",
-    );
-    expect(fetchMock.mock.calls[1][1]?.body).toContain("client_id=admin-client-id");
-    expect(fetchMock.mock.calls[1][1]?.body).toContain(
-      "client_secret=admin-client-secret",
-    );
-  });
 });

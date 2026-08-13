@@ -9,31 +9,18 @@ export type LinkOAuthTokenResponse = {
   id_token?: string;
 };
 
-export type LinkOAuthPurpose = "session" | "admin";
-
-const getLinkOAuthClient = (purpose: LinkOAuthPurpose) => {
-  const clientId =
-    purpose === "admin"
-      ? process.env.LINK_ADMIN_CLIENT_ID || process.env.LINK_CLIENT_ID
-      : process.env.LINK_CLIENT_ID;
-  const clientSecret =
-    purpose === "admin"
-      ? process.env.LINK_ADMIN_CLIENT_SECRET || process.env.LINK_CLIENT_SECRET
-      : process.env.LINK_CLIENT_SECRET;
+const getLinkOAuthClient = () => {
+  const clientId = process.env.LINK_CLIENT_ID;
+  const clientSecret = process.env.LINK_CLIENT_SECRET;
 
   if (!clientId) {
-    throw new Error(
-      purpose === "admin"
-        ? "LINK_ADMIN_CLIENT_ID or LINK_CLIENT_ID environment variable is not set"
-        : "LINK_CLIENT_ID environment variable is not set",
-    );
+    throw new Error("LINK_CLIENT_ID environment variable is not set");
   }
 
   return { clientId, clientSecret };
 };
 
-export const getLinkOAuthClientId = (purpose: LinkOAuthPurpose = "session") =>
-  getLinkOAuthClient(purpose).clientId;
+export const getLinkOAuthClientId = () => getLinkOAuthClient().clientId;
 
 export const getLinkOAuthBaseUrl = () => {
   const baseUrl =
@@ -85,9 +72,8 @@ export const exchangeLinkOAuthCode = async (
   code: string,
   codeVerifier: string,
   redirectUri: string,
-  purpose: LinkOAuthPurpose = "session",
 ) => {
-  const { clientId, clientSecret } = getLinkOAuthClient(purpose);
+  const { clientId, clientSecret } = getLinkOAuthClient();
 
   return requestLinkOAuthToken({
     grant_type: "authorization_code",
@@ -103,9 +89,8 @@ export const exchangeLinkOAuthCode = async (
 
 export const refreshLinkOAuthToken = async (
   refreshToken: string,
-  purpose: LinkOAuthPurpose = "session",
 ) => {
-  const { clientId, clientSecret } = getLinkOAuthClient(purpose);
+  const { clientId, clientSecret } = getLinkOAuthClient();
 
   return requestLinkOAuthToken({
     grant_type: "refresh_token",

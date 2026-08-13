@@ -1,25 +1,13 @@
 import {
   IS_BINDING,
-  LINK_OAUTH_PURPOSE,
   LINK_OAUTH_STATE,
 } from "@/const/cookie";
 import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { getCurrentUserProfile } from "@/lib/link/user";
-import {
-  createLinkOAuthAuthorizationUrl,
-  getLinkOAuthRedirectUri,
-  requiresLinkAdminAuthorization,
-} from "@/lib/link/oauth-flow";
-import {
-  exchangeLinkOAuthCode,
-  type LinkOAuthPurpose,
-} from "@/lib/link/oauth";
+import { getLinkOAuthRedirectUri } from "@/lib/link/oauth-flow";
+import { exchangeLinkOAuthCode } from "@/lib/link/oauth";
 import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
-import {
-  createSession,
-  getSession,
-  updateLinkSessionTokens,
-} from "@/lib/session";
+import { createSession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { getURLFromRedirectError } from "next/dist/client/components/redirect";
 import { redirect } from "next/navigation";
@@ -37,7 +25,6 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const code_verifier = cookieStore.get("link_code_verifier")?.value;
   const expectedState = cookieStore.get(LINK_OAUTH_STATE)?.value;
-  const purpose = cookieStore.get(LINK_OAUTH_PURPOSE)?.value ?? "session";
   if (!code_verifier) {
     return NextResponse.json(
       { message: "code_verifier is missing" },
@@ -51,16 +38,11 @@ export async function GET(request: NextRequest) {
     );
   }
   try {
-    if (purpose !== "session" && purpose !== "admin") {
-      return NextResponse.json({ message: "invalid oauth purpose" }, { status: 400 });
-    }
-
     const redirectUri = getLinkOAuthRedirectUri();
     const token = await exchangeLinkOAuthCode(
       code,
       code_verifier,
       redirectUri,
-      purpose as LinkOAuthPurpose,
     );
     if (!token.access_token) {
       return NextResponse.json(
@@ -78,7 +60,6 @@ export async function GET(request: NextRequest) {
 
     cookieStore.delete("link_code_verifier");
     cookieStore.delete(LINK_OAUTH_STATE);
-    cookieStore.delete(LINK_OAUTH_PURPOSE);
 
     if (cookieStore.get(IS_BINDING)?.value === "1") {
       cookieStore.delete(IS_BINDING);
@@ -90,17 +71,21 @@ export async function GET(request: NextRequest) {
         accessTokenExpiresAt: Date.now() + token.expires_in * 1000,
       };
 
-    if (purpose === "admin") {
-      await saveLinkAdminTokens(profile.id, linkTokens);
-    } else {
-      const peopleRole = shouldUseLinkFeishuTestMock()
-        ? 2
-        : linkRoleToPeopleRole(profile.role);
-      await createSession(profile.id, profile.name, peopleRole, linkTokens);
-      if (requiresLinkAdminAuthorization(peopleRole)) {
-        return redirect(await createLinkOAuthAuthorizationUrl("admin"));
-      }
-    }
+    const peopleRole = shouldUseLinkFeishuTestMock()
+      ? 2
+      : linkRoleToPeopleRole(profile.role);
+    await createSession(
+      profile.id,
+      profile.name,
+      peopleRole,
+      linkTokens,
+      peopleRole >= 2
+        ? {
+            accessToken: linkTokens.accessToken,
+            accessTokenExpiresAt: linkTokens.accessTokenExpiresAt,
+          }
+        : undefined,
+    );
 
     return redirect("/dashboard");
   } catch (err) {
@@ -114,12 +99,9 @@ export async function GET(request: NextRequest) {
     logServerError("api:auth:link", err, {
       path: request.nextUrl.pathname,
       method: request.method,
-      action:
-        purpose === "admin"
-          ? "authorize-link-admin"
-          : cookieStore.get(IS_BINDING)?.value === "1"
-            ? "bind-link"
-            : "login-link",
+      action: cookieStore.get(IS_BINDING)?.value === "1"
+        ? "bind-link"
+        : "login-link",
       metadata: {
         hasCode: Boolean(code),
         hasCodeVerifier: Boolean(code_verifier),
@@ -130,27 +112,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "link auth failed" }, { status: 500 });
   }
 }
-
-const saveLinkAdminTokens = async (
-  profileId: number,
-  linkTokens: {
-    accessToken: string;
-    refreshToken?: string;
-    accessTokenExpiresAt: number;
-  },
-) => {
-  const session = await getSession();
-  if (
-    !session ||
-    session.role < 2 ||
-    session.uid !== profileId
-  ) {
-    throw new Error("管理员授权账号必须与当前 People 登录账号一致。");
-  }
-
-  await updateLinkSessionTokens(session.id, "admin", {
-    accessToken: linkTokens.accessToken,
-    refreshToken: linkTokens.refreshToken,
-    accessTokenExpiresAt: linkTokens.accessTokenExpiresAt,
-  });
-};

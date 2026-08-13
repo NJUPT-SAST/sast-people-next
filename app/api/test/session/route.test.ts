@@ -42,6 +42,18 @@ describe("Playwright test session route", () => {
     const response = await POST(requestWithBody({ uid: 1, role: 3, name: "Admin" }) as never);
 
     expect(response.status).toBe(200);
-    expect(mockCreateSession).toHaveBeenCalledWith(1, "Admin", 3);
+    expect(mockCreateSession).toHaveBeenCalledWith(
+      1,
+      "Admin",
+      3,
+      expect.objectContaining({
+        accessToken: "playwright-link-access-token",
+        accessTokenExpiresAt: expect.any(Number),
+      }),
+      expect.objectContaining({
+        accessToken: "playwright-link-access-token",
+        accessTokenExpiresAt: expect.any(Number),
+      }),
+    );
   });
 });

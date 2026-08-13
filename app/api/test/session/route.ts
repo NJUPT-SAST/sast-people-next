@@ -22,6 +22,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "invalid test session" }, { status: 400 });
   }
 
-  await createSession(body.uid as number, body.name, body.role as number);
+  const role = body.role as number;
+  const linkAdminTokenMarker = role >= 2
+    ? {
+        accessToken: "playwright-link-access-token",
+        accessTokenExpiresAt: Date.now() + 60 * 60 * 1000,
+      }
+    : undefined;
+
+  await createSession(
+    body.uid as number,
+    body.name,
+    role,
+    linkAdminTokenMarker,
+    linkAdminTokenMarker,
+  );
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
