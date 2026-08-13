@@ -1,6 +1,7 @@
 import { LinkLogin } from "@/components/linkLogin";
 import BlurIn from "@/components/magicui/blur-in";
 import FlickeringGrid from "@/components/magicui/flickering-grid";
+import { TestLogin } from "@/components/testLogin";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 import "./login-font.css";
@@ -100,6 +101,9 @@ const Login = async () => {
                 </div>
 
                 <LinkLogin isBinding={false} />
+                {process.env.NODE_ENV !== "production" && process.env.LINK_USE_MOCK === "true" && (
+                  <TestLogin />
+                )}
               </CardContent>
             </Card>
 
