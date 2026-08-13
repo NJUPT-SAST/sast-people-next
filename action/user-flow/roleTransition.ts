@@ -82,22 +82,28 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[]) => {
   let changedRole = false;
   for (const [role, ids] of idsByRole) {
     for (const batch of chunk(ids, LINK_BATCH_ROLE_UPDATE_LIMIT)) {
-      const result = await updateLinkUserRoles(
-        accessToken,
-        batch,
-        peopleRoleToLinkRole(role),
-      );
-      const returnedIds = new Set(result.results.map((item) => item.id));
-      for (const item of result.results) {
-        if (!item.success) {
-          failures.push({ id: item.id, reason: item.reason ?? "未知错误" });
-        } else {
-          changedRole = true;
+      try {
+        const result = await updateLinkUserRoles(
+          accessToken,
+          batch,
+          peopleRoleToLinkRole(role),
+        );
+        const returnedIds = new Set(result.results.map((item) => item.id));
+        for (const item of result.results) {
+          if (!item.success) {
+            failures.push({ id: item.id, reason: item.reason ?? "未知错误" });
+          } else {
+            changedRole = true;
+          }
         }
-      }
-      for (const id of batch) {
-        if (!returnedIds.has(id)) {
-          failures.push({ id, reason: "Link 未返回该用户的更新结果" });
+        for (const id of batch) {
+          if (!returnedIds.has(id)) {
+            failures.push({ id, reason: "Link 未返回该用户的更新结果" });
+          }
+        }
+      } catch (error) {
+        for (const id of batch) {
+          failures.push({ id, reason: error instanceof Error ? error.message : "未知错误" });
         }
       }
     }

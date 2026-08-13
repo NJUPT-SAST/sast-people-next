@@ -109,11 +109,12 @@ const listPeopleUsersByLinkIdsCached = cache(async (
   }
 
   const accessToken = await getLinkAdminAccessTokenFromSession();
-  const userBatches = await Promise.all(
-    chunk(uniqueIds, LINK_BATCH_USER_READ_LIMIT).map((ids) =>
-      getLinkUsersByIds(accessToken, ids),
-    ),
-  );
+  const batches = chunk(uniqueIds, LINK_BATCH_USER_READ_LIMIT);
+  const userBatches = [];
+  for (const ids of batches) {
+    const batch = await getLinkUsersByIds(accessToken, ids);
+    userBatches.push(batch);
+  }
   const users = userBatches.flat();
   return new Map(
     users.map((item) => [
