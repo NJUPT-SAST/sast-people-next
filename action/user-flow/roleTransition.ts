@@ -9,6 +9,8 @@ import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+const ADMIN_ROLE = 3;
+
 const roleGrantedByFlow = (flowType: string) => {
   if (flowType === "soc") return 2;
   if (
@@ -24,7 +26,8 @@ const roleGrantedByFlow = (flowType: string) => {
 export const syncUserRoleFromAcceptedFlows = async (uid: number) => {
   const userRecord = await getPeopleUserByLinkId(uid);
 
-  if (!userRecord || userRecord.role === null || userRecord.role >= 3) {
+  // People must never automatically change an administrator role.
+  if (!userRecord || userRecord.role === null || userRecord.role >= ADMIN_ROLE) {
     return;
   }
 
