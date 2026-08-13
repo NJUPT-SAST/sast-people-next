@@ -29,6 +29,10 @@ The workflow exits successfully without sending a message until all three
 values are configured. Once any one value is present, the other two are
 required.
 
+The workflow always runs the notification script from the repository default
+branch. Pull requests supply event data only, so notification behavior changes
+take effect after merge rather than while their own PR is under review.
+
 ## Notification policy
 
 The workflow sends notifications for:
