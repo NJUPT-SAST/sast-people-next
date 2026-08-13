@@ -128,7 +128,6 @@ export function EmailConfigSection({
     ["发信服务", emailCenterConfig.smtpConfigured ? "已就绪" : "未配置"],
     ["收件模式", emailCenterConfig.realRecipientMode ? "正式发送" : "测试重定向"],
     ["发件人", emailCenterConfig.sender || "—"],
-    ["测试收件人", emailCenterConfig.testRecipient || "—"],
   ];
   const problemChecks = emailCenterConfig.readinessChecks.filter(
     (check) => check.status !== "pass",
@@ -139,7 +138,7 @@ export function EmailConfigSection({
       <div className="border-b px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold">环境</h2>
       </div>
-      <div className="grid gap-px border-b bg-border sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-px border-b bg-border sm:grid-cols-3">
         {rows.map(([label, value]) => (
           <div key={label} className="bg-card px-4 py-3">
             <p className="text-xs text-muted-foreground">{label}</p>

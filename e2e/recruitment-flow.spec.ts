@@ -225,8 +225,8 @@ test.describe("recruitment written outcome", () => {
       void dialog.accept();
     });
 
-    await page.goto(`/dashboard/recruitment?flowId=${flowId}`);
-    await expect(page.getByText("按流程查看报名人员")).toBeVisible();
+    await page.goto(`/dashboard/exams?flowId=${flowId}`);
+    await expect(page.getByText("按笔试流程查看成绩")).toBeVisible();
     await expect(page.getByText(flowTitle)).toBeVisible();
 
     // Desktop table and mobile cards both render the name in the DOM.

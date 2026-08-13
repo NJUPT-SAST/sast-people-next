@@ -128,7 +128,7 @@ export async function sendInterviewScheduleCard({
   userFlowId,
   uuidSuffix = Date.now(),
 }: InterviewScheduleCardInput) {
-  const peopleUrl = getPeopleUrl("/dashboard/recruitment");
+  const peopleUrl = getPeopleUrl("/dashboard/interviews");
   const actions = [
     meetingLink ? button("打开留档会议", meetingLink, "primary") : null,
     scheduleLink ? button("查看日程", scheduleLink) : null,
@@ -196,7 +196,7 @@ export async function sendInterviewCancelledCard({
         line("原结束", formatDateTime(endsAt)),
         line("原地点", location),
       ],
-      actions: [button("打开 People", getPeopleUrl("/dashboard/recruitment"))],
+      actions: [button("打开 People", getPeopleUrl("/dashboard/interviews"))],
     }),
   });
 }
@@ -225,7 +225,7 @@ export async function sendInterviewMinuteCard({
       ],
       actions: [
         button("查看妙记", minuteUrl, "primary"),
-        button("打开 People 面评", getPeopleUrl("/dashboard/recruitment")),
+        button("打开 People 面评", getPeopleUrl("/dashboard/interviews")),
       ],
     }),
   });

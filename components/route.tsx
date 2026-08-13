@@ -3,9 +3,10 @@ import { usePathname } from 'next/navigation';
 import {
   UserPen,
   Workflow,
-  FilePenLine,
+  ClipboardPenLine,
+  NotepadTextDashed,
   Users,
-  ArrowDownWideNarrow,
+  CalendarCheck,
   SquareChartGantt,
   ClipboardCheck,
   FileWarning,
@@ -56,7 +57,7 @@ export const menuItems: MenuItem[] = [
   },
   {
     title: '试卷批改',
-    icon: FilePenLine,
+    icon: ClipboardPenLine,
     path: '/review',
     group: 'work',
   },
@@ -67,9 +68,15 @@ export const menuItems: MenuItem[] = [
     group: 'manage',
   },
   {
-    title: '成绩管理',
-    icon: ArrowDownWideNarrow,
-    path: '/recruitment',
+    title: '笔试管理',
+    icon: NotepadTextDashed,
+    path: '/exams',
+    group: 'work',
+  },
+  {
+    title: '面试管理',
+    icon: CalendarCheck,
+    path: '/interviews',
     group: 'work',
   },
   {
@@ -125,7 +132,8 @@ export function getVisibleMenuItems(role: number): MenuItem[] {
         item.group === 'me' ||
         item.path === '/review' ||
         item.path === '/manage' ||
-        item.path === '/recruitment',
+        item.path === '/exams' ||
+        item.path === '/interviews',
     );
   }
   return menuItems;

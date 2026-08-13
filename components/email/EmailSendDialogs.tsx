@@ -39,7 +39,7 @@ export function RecipientsDialog({
   recipients,
   title,
   triggerLabel = "名单",
-  description = "教育邮箱由学号生成。",
+  description = "将发送至下列教育邮箱。",
 }: {
   recipients: FlowTarget["passed"];
   title: string;
@@ -74,7 +74,6 @@ export function RecipientsDialog({
             <TableHeader>
               <TableRow>
                 <TableHead>姓名</TableHead>
-                <TableHead>学号</TableHead>
                 <TableHead>教育邮箱</TableHead>
               </TableRow>
             </TableHeader>
@@ -82,7 +81,6 @@ export function RecipientsDialog({
               {safeRecipients.map((item) => (
                 <TableRow key={item.userId}>
                   <TableCell>{item.name}</TableCell>
-                  <TableCell>{item.studentId}</TableCell>
                   <TableCell className="font-mono text-xs">
                     {getEducationEmailLabel(item.studentId)}
                   </TableCell>

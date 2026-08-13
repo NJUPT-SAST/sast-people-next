@@ -1,15 +1,9 @@
-import { RecruitmentContent } from "@/components/recruitment/recruitmentContent";
-import { PageTitle } from "@/components/route";
-import { calScore } from "@/action/user-flow/user-point/calScore";
-import { getEvaluationCandidates } from "@/action/user-flow/evaluation";
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
-import { verifySession } from "@/lib/dal";
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 
-const EVALUATION_FLOW_TYPES = ["woc", "soc", "recruitment_exemption"];
-
-const Recruitment = async ({
+export default async function RecruitmentRedirect({
   searchParams,
 }: {
   searchParams: Promise<{
@@ -17,57 +11,29 @@ const Recruitment = async ({
     userFlowId?: string;
     scheduleId?: string;
   }>;
-}) => {
-  const session = await verifySession();
-  const awaitedSearchParams = await searchParams;
-  const flowTypes = await db
-    .select({ id: flow.id, title: flow.title, type: flow.type })
-    .from(flow)
-    .where(eq(flow.isDeleted, false))
-    .orderBy(desc(flow.createdAt));
-  const requestedFlowId = Number(awaitedSearchParams.flowId);
-  const requestedFlow = Number.isInteger(requestedFlowId)
-    ? flowTypes.find((flow) => flow.id === requestedFlowId)
-    : undefined;
-  const targetUserFlowId = Number(awaitedSearchParams.userFlowId);
-  const targetScheduleId = Number(awaitedSearchParams.scheduleId);
-  const defaultFlow = requestedFlow ?? flowTypes[0];
-  const defaultFlowId = defaultFlow?.id?.toString();
-  const isDefaultEvaluationFlow = defaultFlow
-    ? EVALUATION_FLOW_TYPES.includes(defaultFlow.type)
-    : false;
-  const initialData = defaultFlowId && !isDefaultEvaluationFlow
-    ? await calScore(parseInt(defaultFlowId))
-    : [];
-  const initialEvalData = defaultFlowId && isDefaultEvaluationFlow
-    ? await getEvaluationCandidates(parseInt(defaultFlowId))
-    : [];
+}) {
+  const params = await searchParams;
 
-  return (
-    <>
-      <div className="flex flex-col gap-1 border-b pb-4">
-        <PageTitle />
-        <p className="text-sm text-muted-foreground">
-          按流程查看报名人员，处理面评结果、筛选笔试成绩并发送最终通知。
-        </p>
-      </div>
-      <div className="mt-5">
-        <RecruitmentContent
-          flowTypes={flowTypes}
-          initialData={initialData}
-          initialEvalData={initialEvalData}
-          defaultFlowId={defaultFlowId}
-          targetUserFlowId={
-            Number.isInteger(targetUserFlowId) ? targetUserFlowId : undefined
-          }
-          targetScheduleId={
-            Number.isInteger(targetScheduleId) ? targetScheduleId : undefined
-          }
-          role={session.role}
-        />
-      </div>
-    </>
+  // No params at all → default to interviews
+  if (Object.keys(params).length === 0) {
+    redirect("/dashboard/interviews");
+    return;
+  }
+
+  const flowId = Number(params.flowId);
+  const [selectedFlow] = Number.isInteger(flowId) && flowId > 0
+    ? await db
+        .select({ type: flow.type })
+        .from(flow)
+        .where(eq(flow.id, flowId))
+        .limit(1)
+    : [];
+  const destination = selectedFlow?.type && selectedFlow.type !== "recruitment"
+    ? "/dashboard/interviews"
+    : "/dashboard/exams";
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, value]) => Boolean(value)) as Array<[string, string]>,
   );
-};
 
-export default Recruitment;
+  redirect(query.size > 0 ? `${destination}?${query}` : destination);
+}

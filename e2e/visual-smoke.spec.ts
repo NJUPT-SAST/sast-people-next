@@ -44,8 +44,13 @@ const keyRoutes: Array<{
     user: "candidate",
   },
   {
-    path: "/dashboard/recruitment",
-    marker: "成绩管理",
+    path: "/dashboard/exams",
+    marker: "笔试管理",
+    user: "admin",
+  },
+  {
+    path: "/dashboard/interviews",
+    marker: "面试管理",
     user: "admin",
   },
   {

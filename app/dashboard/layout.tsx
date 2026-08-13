@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { verifySession } from '@/lib/dal';
+import { shouldUseMockLink } from '@/lib/link/client';
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -24,7 +25,11 @@ export default async function RootLayout({
   const sessionWithTokens = session.role >= 2
     ? await getSession({ includeLinkTokens: true })
     : null;
-  if (session.role >= 2 && !sessionWithTokens?.linkAdminAccessToken) {
+  if (
+    session.role >= 2 &&
+    !shouldUseMockLink() &&
+    !sessionWithTokens?.linkAdminAccessToken
+  ) {
     redirect('/api/auth/link/start');
   }
   return (
