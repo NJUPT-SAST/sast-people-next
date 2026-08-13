@@ -100,7 +100,6 @@ Then:
 
 ```bash
 pnpm db:migrate
-pnpm db:seed:local
 pnpm db:seed:demo
 pnpm dev
 ```
@@ -142,7 +141,6 @@ Point `DATABASE_URL` at any local PostgreSQL instance, then run:
 
 ```bash
 pnpm db:migrate
-pnpm db:seed:local
 pnpm db:seed:demo
 ```
 
@@ -248,7 +246,6 @@ This does not require rebuilding or copying a new image. Build-time public varia
 | `pnpm db:dev:down` | Stop local Docker PostgreSQL |
 | `pnpm db:dev:logs` | Tail local Docker PostgreSQL logs |
 | `pnpm db:migrate` | Apply Drizzle migrations |
-| `pnpm db:seed:local` | Seed the local administrator account |
 | `pnpm db:seed:demo` | Seed local demo workflow and email snapshot data |
 | `pnpm db:generate` | Generate Drizzle migrations |
 | `pnpm db:push` | Push schema changes directly |

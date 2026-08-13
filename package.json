@@ -21,7 +21,6 @@
     "test:coverage": "jest --coverage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed:local": "node scripts/run-sql-file.mjs scripts/seed-local-dev.sql \"Seeded local development database.\"",
     "db:seed:demo": "node scripts/run-sql-file.mjs scripts/seed-demo-dev.sql \"Seeded demo development data.\" && node scripts/seed-demo-email-snapshots.mjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
