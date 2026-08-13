@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
 import { EvaluationTable } from '@/components/recruitment/evaluationTable';
@@ -53,6 +53,7 @@ export const RecruitmentContent = ({
   const [scoreData, setScoreData] = useState(initialData);
   const [evalData, setEvalData] = useState<CandidatesResult>(initialEvalData);
   const [loading, setLoading] = useState(false);
+  const flowRequestId = useRef(0);
   const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
   const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
   const safeEvalData = Array.isArray(evalData) ? evalData : [];
@@ -66,31 +67,45 @@ export const RecruitmentContent = ({
     : safeFlowTypes;
 
   const handleFlowChange = async (value: string) => {
+    const requestId = ++flowRequestId.current;
     setFlowId(value);
     setLoading(true);
     try {
       if (isEvaluationWorkspace) {
         const candidates = await getEvaluationCandidates(parseInt(value));
-        setEvalData(candidates);
+        if (requestId === flowRequestId.current) {
+          setEvalData(candidates);
+        }
       } else {
         const scores = await calScore(parseInt(value));
-        setScoreData(scores);
+        if (requestId === flowRequestId.current) {
+          setScoreData(scores);
+        }
       }
     } catch {
-      setScoreData([]);
-      setEvalData([]);
+      if (requestId === flowRequestId.current) {
+        setScoreData([]);
+        setEvalData([]);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === flowRequestId.current) {
+        setLoading(false);
+      }
     }
   };
 
   const refreshEvalData = async () => {
     if (!flowId) return;
+    const requestId = ++flowRequestId.current;
     try {
       const candidates = await getEvaluationCandidates(parseInt(flowId));
-      setEvalData(candidates);
+      if (requestId === flowRequestId.current) {
+        setEvalData(candidates);
+      }
     } catch {
-      setEvalData([]);
+      if (requestId === flowRequestId.current) {
+        setEvalData([]);
+      }
     }
   };
 
@@ -100,6 +115,8 @@ export const RecruitmentContent = ({
     setInterviewFlowType(nextType);
     setFlowId(nextFlow?.id.toString());
     if (!nextFlow) {
+      ++flowRequestId.current;
+      setLoading(false);
       setEvalData([]);
       return;
     }
