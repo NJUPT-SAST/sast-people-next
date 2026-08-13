@@ -24,7 +24,7 @@ export const SelectFlow = ({
     <Select
       disabled={!hasFlowTypes}
       onValueChange={(value) => onChange?.(value)}
-      defaultValue={defaultFlowTypeId}
+      value={defaultFlowTypeId}
     >
       <SelectTrigger
         className="h-10 w-full truncate md:w-[320px]"

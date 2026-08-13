@@ -86,8 +86,8 @@ function EmailDeliveryDetailDialog({
   onRetry: () => void;
   canRetry: boolean;
 }) {
-  const recruitmentHref = delivery.flowId
-    ? `/dashboard/recruitment?flowId=${delivery.flowId}${
+  const workspaceHref = delivery.flowId
+    ? `${delivery.category === "interview" ? "/dashboard/interviews" : "/dashboard/recruitment"}?flowId=${delivery.flowId}${
         delivery.userFlowId ? `&userFlowId=${delivery.userFlowId}` : ""
       }${
         delivery.relatedScheduleId
@@ -265,7 +265,7 @@ function EmailDeliveryDetailDialog({
             <DetailItem
               label="流程"
               value={delivery.flowTitle ?? delivery.batchName}
-              href={recruitmentHref ?? flowHref ?? undefined}
+              href={workspaceHref ?? flowHref ?? undefined}
             />
             <DetailItem
               label="流程 ID"
@@ -282,13 +282,13 @@ function EmailDeliveryDetailDialog({
             <DetailItem
               label="报名记录"
               value={delivery.userFlowId ? `#${delivery.userFlowId}` : null}
-              href={recruitmentHref ?? undefined}
+              href={workspaceHref ?? undefined}
               mono
             />
             <DetailItem
               label="面试预约"
               value={delivery.relatedScheduleId ? `#${delivery.relatedScheduleId}` : null}
-              href={recruitmentHref ?? undefined}
+              href={workspaceHref ?? undefined}
               mono
             />
           </div>

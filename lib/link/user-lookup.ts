@@ -1,6 +1,10 @@
 import "server-only";
 
-import { getLinkUserDetail, listLinkUsers } from "@/lib/link/admin";
+import {
+  getLinkUserDetail,
+  getLinkUsersByIds,
+  listLinkUsers,
+} from "@/lib/link/admin";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import {
   toPeopleUserFromLinkAdminItem,
@@ -17,30 +21,16 @@ type LookupOptions = {
   canViewSensitiveInfo?: boolean;
 };
 
-const LINK_DETAIL_CONCURRENCY = 8;
+const LINK_BATCH_USER_READ_LIMIT = 100;
 
 const normalizeStudentId = (studentId: string | null | undefined) =>
   studentId?.trim().toUpperCase() ?? "";
 
-const mapWithConcurrency = async <T, R>(
-  values: T[],
-  limit: number,
-  mapper: (value: T) => Promise<R>,
-): Promise<R[]> => {
-  const results = new Array<R>(values.length);
-  let nextIndex = 0;
-  const worker = async () => {
-    while (nextIndex < values.length) {
-      const index = nextIndex++;
-      results[index] = await mapper(values[index]);
-    }
-  };
-
-  await Promise.all(
-    Array.from({ length: Math.min(limit, values.length) }, worker),
+const chunk = <T,>(values: T[], size: number) =>
+  Array.from(
+    { length: Math.ceil(values.length / size) },
+    (_, index) => values.slice(index * size, (index + 1) * size),
   );
-  return results;
-};
 
 export const getPeopleUserByLinkId = async (
   id: number,
@@ -99,7 +89,9 @@ export const listPeopleUsersByLinkIds = async (
   ids: number[],
   { canViewSensitiveInfo = false }: LookupOptions = {},
 ): Promise<Map<number, userType>> => {
-  const idsKey = Array.from(new Set(ids.filter((id) => Number.isFinite(id))))
+  const idsKey = Array.from(
+    new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0)),
+  )
     .sort((a, b) => a - b)
     .join(",");
   return listPeopleUsersByLinkIdsCached(idsKey, canViewSensitiveInfo);
@@ -117,11 +109,13 @@ const listPeopleUsersByLinkIdsCached = cache(async (
   }
 
   const accessToken = await getLinkAdminAccessTokenFromSession();
-  const users = await mapWithConcurrency(
-    uniqueIds,
-    LINK_DETAIL_CONCURRENCY,
-    (id) => getLinkUserDetail(accessToken, id),
-  );
+  const batches = chunk(uniqueIds, LINK_BATCH_USER_READ_LIMIT);
+  const userBatches = [];
+  for (const ids of batches) {
+    const batch = await getLinkUsersByIds(accessToken, ids);
+    userBatches.push(batch);
+  }
+  const users = userBatches.flat();
   return new Map(
     users.map((item) => [
       item.id,
