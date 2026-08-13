@@ -37,21 +37,21 @@
           "-ExecutionPolicy",
           "Bypass",
           "-Command",
-          "if (Get-NetTCPConnection -LocalPort 3003 -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { New-Item -ItemType File -Path \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" -Force | Out-Null; pnpm dev }"
+          "if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { exit 0 }; New-Item -ItemType Directory -Path \"${workspaceFolder}\\.vscode\" -Force | Out-Null; $process = Start-Process -FilePath pnpm -ArgumentList @('--dir', ('\"{0}\"' -f '${workspaceFolder}'), 'dev') -WorkingDirectory '${workspaceFolder}' -NoNewWindow -PassThru; Set-Content -Path \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" -Value $process.Id; Wait-Process -Id $process.Id"
         ]
       },
       "linux": {
         "command": "bash",
         "args": [
           "-lc",
-          "lsof -ti :3003 >/dev/null 2>&1 && exit 0 || { mkdir -p \"${workspaceFolder}/.vscode\"; touch \"${workspaceFolder}/.vscode/.ui-dev.lock\"; pnpm dev; }"
+          "lsof -nP -iTCP:3000 -sTCP:LISTEN -t >/dev/null 2>&1 && exit 0; mkdir -p \"${workspaceFolder}/.vscode\"; printf '%s\\n' \"$$\" > \"${workspaceFolder}/.vscode/.ui-dev.lock\"; exec pnpm --dir \"${workspaceFolder}\" dev"
         ]
       },
       "osx": {
         "command": "bash",
         "args": [
           "-lc",
-          "lsof -ti :3003 >/dev/null 2>&1 && exit 0 || { mkdir -p \"${workspaceFolder}/.vscode\"; touch \"${workspaceFolder}/.vscode/.ui-dev.lock\"; pnpm dev; }"
+          "lsof -nP -iTCP:3000 -sTCP:LISTEN -t >/dev/null 2>&1 && exit 0; mkdir -p \"${workspaceFolder}/.vscode\"; printf '%s\\n' \"$$\" > \"${workspaceFolder}/.vscode/.ui-dev.lock\"; exec pnpm --dir \"${workspaceFolder}\" dev"
         ]
       },
       "problemMatcher": {
@@ -85,21 +85,21 @@
           "-ExecutionPolicy",
           "Bypass",
           "-Command",
-          "if (Test-Path \"${workspaceFolder}\\.vscode\\.ui-dev.lock\") { $pid = (Get-NetTCPConnection -LocalPort 3003 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if ($pid) { Stop-Process -Id $pid -Force }; Remove-Item -Force \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" }"
+          "if (Test-Path \"${workspaceFolder}\\.vscode\\.ui-dev.lock\") { $owningProcessId = (Get-Content \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" -Raw).Trim(); $process = Get-CimInstance Win32_Process -Filter \"ProcessId = $owningProcessId\" -ErrorAction SilentlyContinue; if ($process -and $process.CommandLine -like '*pnpm*' -and $process.CommandLine -like '*--dir*' -and $process.CommandLine -like '*dev*' -and $process.CommandLine.Contains('${workspaceFolder}')) { Stop-Process -Id $owningProcessId -Force }; Remove-Item -Force \"${workspaceFolder}\\.vscode\\.ui-dev.lock\" }"
         ]
       },
       "linux": {
         "command": "bash",
         "args": [
           "-lc",
-          "if [ -f \"${workspaceFolder}/.vscode/.ui-dev.lock\" ]; then lsof -ti :3003 | xargs -r kill -9 2>/dev/null; rm -f \"${workspaceFolder}/.vscode/.ui-dev.lock\"; fi"
+          "lock=\"${workspaceFolder}/.vscode/.ui-dev.lock\"; if [ -f \"$lock\" ]; then process_id=$(cat \"$lock\"); command=$(ps -p \"$process_id\" -o args= 2>/dev/null || true); case \"$command\" in *\"pnpm --dir ${workspaceFolder} dev\"*) kill \"$process_id\" 2>/dev/null || true ;; esac; rm -f \"$lock\"; fi"
         ]
       },
       "osx": {
         "command": "bash",
         "args": [
           "-lc",
-          "if [ -f \"${workspaceFolder}/.vscode/.ui-dev.lock\" ]; then lsof -ti :3003 | xargs kill -9 2>/dev/null || true; rm -f \"${workspaceFolder}/.vscode/.ui-dev.lock\"; fi"
+          "lock=\"${workspaceFolder}/.vscode/.ui-dev.lock\"; if [ -f \"$lock\" ]; then process_id=$(cat \"$lock\"); command=$(ps -p \"$process_id\" -o command= 2>/dev/null || true); case \"$command\" in *\"pnpm --dir ${workspaceFolder} dev\"*) kill \"$process_id\" 2>/dev/null || true ;; esac; rm -f \"$lock\"; fi"
         ]
       },
       "problemMatcher": [],

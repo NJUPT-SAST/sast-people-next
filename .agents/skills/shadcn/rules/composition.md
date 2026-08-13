@@ -5,7 +5,7 @@
 - Items always inside their Group component
 - Callouts use Alert
 - Empty states use Empty component
-- Toast notifications use sonner
+- Toast notifications follow the project base
 - Choosing between overlay components
 - Dialog, Sheet, and Drawer always need a Title
 - Card structure
@@ -51,6 +51,14 @@ This applies to all group-based components:
 | `MenubarItem` | `MenubarGroup` |
 | `ContextMenuItem` | `ContextMenuGroup` |
 | `CommandItem` | `CommandGroup` |
+| `MessageScrollerItem` | `MessageScrollerContent` |
+| `Message` (consecutive, same sender) | `MessageGroup` |
+| `Bubble` (stacked) | `BubbleGroup` |
+| `Attachment` (in a row) | `AttachmentGroup` |
+
+Note: `MessageScrollerContent`'s direct children must be `MessageScrollerItem` only — no extra wrapper or grouping components in between.
+
+Chat components nest in a fixed order (`MessageScrollerProvider` → `MessageScroller` → `MessageScrollerViewport` → `MessageScrollerContent` → `MessageScrollerItem`). See [chat.md](./chat.md).
 
 ---
 
@@ -82,7 +90,19 @@ This applies to all group-based components:
 
 ---
 
-## Toast notifications use sonner
+## Toast notifications follow the project base
+
+For Base UI projects, use the `toast` component:
+
+```tsx
+import { toast } from "@/components/ui/toast"
+
+toast.add({
+  title: "Changes saved.",
+})
+```
+
+For Radix and React Aria projects, use Sonner:
 
 ```tsx
 import { toast } from "sonner"

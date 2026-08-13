@@ -15,7 +15,6 @@ This repository is a Next.js 16 web application using:
 - `app/` contains App Router routes and layouts.
 - `components/ui/` contains reusable UI primitives.
 - `lib/` contains shared utilities and helpers.
-- `mock/` contains mock implementations used in mock mode.
 - Use the `@/` alias for internal imports.
 
 ## Common Commands
@@ -23,7 +22,7 @@ This repository is a Next.js 16 web application using:
 ```bash
 pnpm install
 pnpm dev
-pnpm dev:mock
+pnpm dev:local
 pnpm dev:full
 pnpm build
 pnpm lint
@@ -33,5 +32,5 @@ pnpm test
 ## Configuration Notes
 
 - `next.config.ts` is configured for Web deployment with `output: "standalone"`.
-- Mock mode swaps selected server modules using Turbopack and Webpack aliases.
+- `pnpm dev:local` starts the local development workflow defined in `scripts/dev-local.sh`.
 - ESLint uses the flat config format with Next.js presets.
