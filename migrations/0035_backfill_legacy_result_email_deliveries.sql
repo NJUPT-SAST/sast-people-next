@@ -15,6 +15,9 @@ WHERE "delivery"."fk_email_batch_id" = "batch"."id"
 
 -- The legacy compatibility lookup is scoped to deliveries without the modern
 -- idempotency key, so it does not add write overhead to current mail traffic.
+-- Drizzle applies SQL migrations in a transaction, where CREATE INDEX
+-- CONCURRENTLY is invalid. Execute this migration during a low-traffic
+-- maintenance window because ordinary index creation briefly blocks writes.
 CREATE INDEX IF NOT EXISTS "email_delivery_legacy_result_recipient_idx"
   ON "email_delivery" ("fk_user_id")
   WHERE "category" = 'result' AND "idempotency_key" IS NULL;
