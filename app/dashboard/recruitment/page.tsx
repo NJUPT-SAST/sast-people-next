@@ -13,6 +13,13 @@ export default async function RecruitmentRedirect({
   }>;
 }) {
   const params = await searchParams;
+
+  // No params at all → default to interviews
+  if (Object.keys(params).length === 0) {
+    redirect("/dashboard/interviews");
+    return;
+  }
+
   const flowId = Number(params.flowId);
   const [selectedFlow] = Number.isInteger(flowId) && flowId > 0
     ? await db
