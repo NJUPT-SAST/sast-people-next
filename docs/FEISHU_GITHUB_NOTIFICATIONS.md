@@ -48,9 +48,9 @@ comment. Each human-authored PR/Issue discussion or inline review comment is
 sent once. A submitted review that has neither a decision nor a summary is not
 sent again because its inline comments were already delivered. The workflow
 deliberately does not notify every push, successful CI run, review-request
-removal, issue unassignment, or bot event, to keep the group usable. These
-events do not create new work or a delivery risk; GitHub remains the canonical
-activity record for them.
+removal, issue unassignment, or bot comment/review event, to keep the group
+usable. These events do not create new work or a delivery risk; GitHub remains
+the canonical activity record for them.
 
 ## Verification
 

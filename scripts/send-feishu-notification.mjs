@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { commentSummary } from "./feishu-notification-utils.mjs";
 
 const appId = process.env.FEISHU_APP_ID;
 const appSecret = process.env.FEISHU_APP_SECRET;
@@ -24,32 +25,9 @@ if (!eventName || !eventPath || !repository) {
 
 const event = JSON.parse(await readFile(eventPath, "utf8"));
 const eventUrl = `${serverUrl}/${repository}/actions`;
-const COMMENT_SUMMARY_MAX_LENGTH = 300;
 
 function line(label, value) {
   return `**${label}**：${value}`;
-}
-
-function commentSummary(body) {
-  if (typeof body !== "string") {
-    return null;
-  }
-
-  const normalized = body
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, "[已隐藏 GitHub 凭据]")
-    .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[已隐藏]")
-    .replace(/\b((?:"?(?:api[_-]?key|secret|token|password)"?)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}\]]+)/gi, "$1[已隐藏]");
-
-  if (!normalized) {
-    return null;
-  }
-
-  const characters = Array.from(normalized);
-  return characters.length > COMMENT_SUMMARY_MAX_LENGTH
-    ? `${characters.slice(0, COMMENT_SUMMARY_MAX_LENGTH).join("")}...`
-    : normalized;
 }
 
 function workflowNotification() {

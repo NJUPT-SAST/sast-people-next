@@ -383,6 +383,7 @@ lib/link/
 
 `migrations/0034_drop_legacy_people_user.sql` 删除旧 `public.user` 表。
 运行前会检查是否仍有外键指向该表；存在依赖时迁移会失败，必须先显式清理依赖，避免级联删除。
+该迁移必须由拥有数据库对象或具备所需 `GRANT` 权限的发布账号执行；People 运行时账号不得执行迁移。发布前请按 [发布检查清单](RELEASE_CHECKLIST.md) 确认数据库权限。
 
 ## 12. 联调计划
 

@@ -62,6 +62,9 @@ jobs:
       - name: Seed E2E fixture data
         run: pnpm db:seed:demo
 
+      - name: Run Feishu notification script tests
+        run: node --test scripts/feishu-notification-utils.test.mjs
+
       - name: Run unit tests
         run: pnpm exec jest
 
