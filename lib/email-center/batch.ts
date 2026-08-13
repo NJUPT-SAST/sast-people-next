@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getEmailTemplateSetting } from "@/action/email/template";
-import { syncUserRoleFromAcceptedFlows } from "@/action/user-flow/roleTransition";
+import { syncUserRolesFromAcceptedFlows } from "@/action/user-flow/roleTransition";
 import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
 import event from "@/event";
@@ -356,16 +356,10 @@ export async function sendEmailBatchById(batchId: number) {
       .where(inArray(userFlow.id, userFlowIds));
   }
 
-  await runWithConcurrency(
-    Array.from(
-      new Set(
-        queueableDeliveries
-          .map((item) => item.userId)
-          .filter((id): id is number => id !== null),
-      ),
-    ),
-    BATCH_SEND_CONCURRENCY,
-    syncUserRoleFromAcceptedFlows,
+  await syncUserRolesFromAcceptedFlows(
+    queueableDeliveries
+      .map((item) => item.userId)
+      .filter((id): id is number => id !== null),
   );
 
   try {

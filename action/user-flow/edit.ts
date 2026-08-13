@@ -6,24 +6,7 @@ import { verifyRole } from '@/lib/dal';
 import { logServerError } from '@/lib/server-error-log';
 import { writeOperationAudit } from '@/lib/operation-audit';
 import { and, eq, inArray, notInArray } from 'drizzle-orm';
-import { syncUserRoleFromAcceptedFlows } from './roleTransition';
-
-const ROLE_SYNC_CONCURRENCY = 5;
-
-async function syncRolesWithConcurrency(userIds: number[]) {
-  const uniqueUserIds = [...new Set(userIds)];
-  let nextIndex = 0;
-  const workerCount = Math.min(ROLE_SYNC_CONCURRENCY, uniqueUserIds.length);
-
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (nextIndex < uniqueUserIds.length) {
-        const userId = uniqueUserIds[nextIndex++];
-        await syncUserRoleFromAcceptedFlows(userId);
-      }
-    }),
-  );
-}
+import { syncUserRoleFromAcceptedFlows, syncUserRolesFromAcceptedFlows } from './roleTransition';
 
 async function findStepIdByOrder(
   flowId: number,
@@ -190,7 +173,7 @@ export const batchEndByUid = async (
     const stepId = await findStepIdByOrder(flowId, stepOrder);
     const progressStatus = statusStr === 'accepted' ? 'passed' : 'failed';
     await db.update(userFlow).set({ progressStatus, fkCurrentStepId: stepId, updatedAt: new Date() }).where(and(eq(userFlow.fkFlowId, flowId), inArray(userFlow.fkUserId, uids)));
-    await syncRolesWithConcurrency(uids);
+    await syncUserRolesFromAcceptedFlows(uids);
     await writeOperationAudit({ actorId: session.uid, action: 'user_flow.batch_end', resourceType: 'flow', resourceId: flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
   } catch (error) {
     logServerError("user-flow:batchEndByUid", error, { path: "/dashboard/review", userId: session?.uid ?? null, role: session?.role ?? null, action: "batch-end-user-flow", flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });

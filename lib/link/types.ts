@@ -76,6 +76,17 @@ export type LinkUsersList = {
   page_size: number;
 };
 
+export type LinkBatchRoleUpdateResult = {
+  id: number;
+  success: boolean;
+  role?: LinkRole;
+  reason?: string;
+};
+
+export type LinkBatchRoleUpdateResponse = {
+  results: LinkBatchRoleUpdateResult[];
+};
+
 export type LinkListUsersParams = {
   page?: number;
   pageSize?: number;
