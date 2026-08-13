@@ -21,7 +21,7 @@ export const TestLogin = () => {
       </div>
       <form
         action={async (formData) => {
-          toast.promise(
+          await toast.promise(
             async () => {
               await loginWithMockLinkUser(formData);
               router.push("/dashboard");
@@ -31,7 +31,7 @@ export const TestLogin = () => {
               success: "登录成功",
               error: "登录失败，请检查测试学号。",
             },
-          );
+          ).unwrap();
         }}
         className="flex w-full flex-col gap-3 sm:flex-row"
       >
