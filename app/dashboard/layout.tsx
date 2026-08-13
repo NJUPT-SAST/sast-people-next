@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import { verifySession } from '@/lib/dal';
+import { createLinkOAuthAuthorizationUrl } from '@/lib/link/oauth-flow';
+import { getSession } from '@/lib/session';
+import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { Loading } from '@/components/loading';
 import { UserCard } from '@/components/userCard';
@@ -19,6 +22,12 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await verifySession();
+  const sessionWithTokens = session.role >= 2
+    ? await getSession({ includeLinkTokens: true })
+    : null;
+  if (session.role >= 2 && !sessionWithTokens?.linkAdminAccessToken) {
+    redirect(await createLinkOAuthAuthorizationUrl());
+  }
   return (
     <DashboardLayout
       role={session.role}

@@ -32,12 +32,18 @@ const getLinkTokenFromSession = async (
   const session = await getSession({ includeLinkTokens: true });
   if (!session) return throwMissingTokenError(purpose);
 
+  const usesSessionTokenForAdmin =
+    purpose === "admin" && !session.linkAdminRefreshToken;
   const token =
-    purpose === "admin" ? session.linkAdminAccessToken : session.linkAccessToken;
+    purpose === "admin" && !usesSessionTokenForAdmin
+      ? session.linkAdminAccessToken
+      : session.linkAccessToken;
   const refreshToken =
-    purpose === "admin" ? session.linkAdminRefreshToken : session.linkRefreshToken;
+    purpose === "admin" && !usesSessionTokenForAdmin
+      ? session.linkAdminRefreshToken
+      : session.linkRefreshToken;
   const expiresAt =
-    purpose === "admin"
+    purpose === "admin" && !usesSessionTokenForAdmin
       ? session.linkAdminAccessTokenExpiresAt
       : session.linkAccessTokenExpiresAt;
 
@@ -46,12 +52,16 @@ const getLinkTokenFromSession = async (
   if (!shouldRefreshLinkToken(expiresAt)) return token;
   if (!refreshToken) return throwMissingTokenError(purpose);
 
-  const refreshed = await refreshLinkOAuthToken(refreshToken, purpose);
-  await updateLinkSessionTokens(session.id, purpose, {
-    accessToken: refreshed.access_token,
-    refreshToken: refreshed.refresh_token ?? refreshToken,
-    accessTokenExpiresAt: Date.now() + refreshed.expires_in * 1000,
-  });
+  const refreshed = await refreshLinkOAuthToken(refreshToken);
+  await updateLinkSessionTokens(
+    session.id,
+    usesSessionTokenForAdmin ? "session" : purpose,
+    {
+      accessToken: refreshed.access_token,
+      refreshToken: refreshed.refresh_token ?? refreshToken,
+      accessTokenExpiresAt: Date.now() + refreshed.expires_in * 1000,
+    },
+  );
   return refreshed.access_token;
 };
 

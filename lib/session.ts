@@ -110,6 +110,7 @@ export async function createSession(
   name: string,
   role: number,
   linkTokens?: LinkSessionTokens,
+  linkAdminTokenMarker?: Required<Pick<LinkSessionTokens, "accessToken" | "accessTokenExpiresAt">>,
 ) {
   const expiresAt = new Date(Date.now() + sessionLifetimeMs(role));
   const id = crypto.randomBytes(32).toString("base64url");
@@ -134,6 +135,13 @@ export async function createSession(
     linkAccessTokenExpiresAt: linkTokens?.accessTokenExpiresAt
       ? new Date(linkTokens.accessTokenExpiresAt)
       : null,
+    linkAdminAccessToken: linkAdminTokenMarker?.accessToken
+      ? encryptSecret(linkAdminTokenMarker.accessToken)
+      : null,
+    linkAdminRefreshToken: null,
+    linkAdminAccessTokenExpiresAt: linkAdminTokenMarker?.accessTokenExpiresAt
+      ? new Date(linkAdminTokenMarker.accessTokenExpiresAt)
+      : null,
   });
 
   const cookieStore = await cookies();
@@ -146,22 +154,21 @@ export async function updateLinkSessionTokens(
   linkTokens: Required<Pick<LinkSessionTokens, "accessToken" | "accessTokenExpiresAt">> &
     Pick<LinkSessionTokens, "refreshToken">,
 ) {
-  const values =
-    purpose === "admin"
-      ? {
-          linkAdminAccessToken: encryptSecret(linkTokens.accessToken),
-          linkAdminAccessTokenExpiresAt: new Date(linkTokens.accessTokenExpiresAt),
-          ...(linkTokens.refreshToken
-            ? { linkAdminRefreshToken: encryptSecret(linkTokens.refreshToken) }
-            : {}),
-        }
-      : {
-          linkAccessToken: encryptSecret(linkTokens.accessToken),
-          linkAccessTokenExpiresAt: new Date(linkTokens.accessTokenExpiresAt),
-          ...(linkTokens.refreshToken
-            ? { linkRefreshToken: encryptSecret(linkTokens.refreshToken) }
-            : {}),
-        };
+  const adminValues = {
+    linkAdminAccessToken: encryptSecret(linkTokens.accessToken),
+    linkAdminAccessTokenExpiresAt: new Date(linkTokens.accessTokenExpiresAt),
+    ...(linkTokens.refreshToken
+      ? { linkAdminRefreshToken: encryptSecret(linkTokens.refreshToken) }
+      : {}),
+  };
+  const sessionValues = {
+    linkAccessToken: encryptSecret(linkTokens.accessToken),
+    linkAccessTokenExpiresAt: new Date(linkTokens.accessTokenExpiresAt),
+    ...(linkTokens.refreshToken
+      ? { linkRefreshToken: encryptSecret(linkTokens.refreshToken) }
+      : {}),
+  };
+  const values = purpose === "admin" ? adminValues : sessionValues;
 
   await db
     .update(peopleSession)

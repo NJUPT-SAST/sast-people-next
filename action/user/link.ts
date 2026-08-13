@@ -8,21 +8,12 @@ import { verifyRole } from "@/lib/dal";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import {
   exchangeLinkOAuthCode,
-  type LinkOAuthPurpose,
 } from "@/lib/link/oauth";
 import { logServerError } from "@/lib/server-error-log";
 import { redirect } from "next/navigation";
 
-export type { LinkOAuthPurpose } from "@/lib/link/oauth";
-
-export async function redirectSASTLink(
-  isBinding: boolean,
-  purpose: LinkOAuthPurpose = "session",
-) {
-  if (purpose === "admin") {
-    await verifyRole(2);
-  }
-  return redirect(await createLinkOAuthAuthorizationUrl(purpose, isBinding));
+export async function redirectSASTLink(isBinding: boolean) {
+  return redirect(await createLinkOAuthAuthorizationUrl(isBinding));
 }
 
 export const get_user_access_token = async (
@@ -34,7 +25,6 @@ export const get_user_access_token = async (
     code,
     code_verifier,
     redirect_uri,
-    "session",
   );
   return token.access_token;
 };
@@ -43,14 +33,8 @@ export const get_user_info = async (access_token: string) => {
   return getCurrentUserProfile(access_token);
 };
 
-export async function createCodeChallenge(
-  isBinding: boolean,
-  purpose: LinkOAuthPurpose = "session",
-) {
-  if (purpose === "admin") {
-    await verifyRole(2);
-  }
-  const url = new URL(await createLinkOAuthAuthorizationUrl(purpose, isBinding));
+export async function createCodeChallenge(isBinding: boolean) {
+  const url = new URL(await createLinkOAuthAuthorizationUrl(isBinding));
   return {
     codeChallenge: url.searchParams.get("code_challenge")!,
     state: url.searchParams.get("state")!,

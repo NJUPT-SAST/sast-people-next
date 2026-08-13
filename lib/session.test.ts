@@ -78,6 +78,28 @@ describe("server sessions", () => {
     expect(sessionId).not.toContain("refresh-token");
   });
 
+  it("marks a one-pass administrator session without duplicating its refresh token", async () => {
+    await createSession(
+      42,
+      "Admin",
+      3,
+      {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        accessTokenExpiresAt: Date.now() + 3600_000,
+      },
+      {
+        accessToken: "access-token",
+        accessTokenExpiresAt: Date.now() + 3600_000,
+      },
+    );
+
+    expect(mockValues.mock.calls[0][0]).toMatchObject({
+      linkAdminAccessToken: "encrypted:access-token",
+      linkAdminRefreshToken: null,
+    });
+  });
+
   it("updates only admin credentials when refreshing an admin token", async () => {
     await updateLinkSessionTokens("a".repeat(43), "admin", {
       accessToken: "admin-access",

@@ -103,12 +103,10 @@ People 业务表中的用户字段保存 Link 用户 ID。
 Link OAuth 凭据在写入服务端 session 前使用 AES-GCM 加密，绝不写入 cookie。
 `session/expired.cleanup` Inngest 定时任务每天清理已过期的服务端会话记录。
 
-讲师或管理员在一次登录流程中会自动接续管理授权：People 先用最小 scope
-识别 Link 身份，再自动请求 `admin:read`、`admin:write`。普通同学和部员只会
-获得普通资料 scope，不会收到管理 scope 请求。管理令牌保存为
-`linkAdminAccessToken`、`linkAdminRefreshToken` 和
-`linkAdminAccessTokenExpiresAt`。普通登录令牌只用于读取当前用户资料，
-不会用于 `/admin/*` 接口。
+People 使用一个 Link OAuth 客户端，在登录时一次性请求资料与管理所需的完整
+scope。服务端仍以 Link 返回的用户角色决定 People 权限；普通成员不能访问
+People 的管理路由。管理员调用 `/admin/*` 接口时复用同一份登录 token，不会在
+登录后再次跳转授权。
 
 ### 6.2 用户资料读取
 
@@ -239,12 +237,10 @@ v3.1 已确认补齐 People 依赖字段：
 ```env
 LINK_CLIENT_ID=
 LINK_CLIENT_SECRET=
-# Optional dedicated client for admin OAuth. When empty, Link uses LINK_CLIENT_*.
-LINK_ADMIN_CLIENT_ID=
-LINK_ADMIN_CLIENT_SECRET=
 LINK_API_BASE_URL=
 LINK_AUTH_BASE_URL=
 LINK_OAUTH_SCOPES=openid profile email user:read
+# Complete People scopes are requested once at login for ordinary and management APIs.
 LINK_ADMIN_OAUTH_SCOPES=openid profile email user:read admin:read admin:write
 LINK_USE_MOCK=false
 NEXT_PUBLIC_LINK_PROFILE_URL=
