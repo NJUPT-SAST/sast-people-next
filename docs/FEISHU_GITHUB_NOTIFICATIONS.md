@@ -34,23 +34,27 @@ required.
 The workflow sends notifications for:
 
 - pull request creation, reopening, ready-for-review, review request, closure,
-  and merge;
+  and merge; creation, reopening, and ready-for-review cards include the PR
+  description summary, while review-request cards identify the requested
+  reviewer;
 - approval, requested changes, and human review comments; comment and review
   cards include a whitespace-normalized summary limited to 300 characters;
 - issue creation, reopening, closure, assignment, and human discussion;
+  creation and reopening cards include the Issue description summary;
 - failed CI runs only;
 - completed deployment runs, including success and failure;
-- published releases.
+- published releases with the release-note summary.
 
 The summary hides common GitHub tokens, Bearer tokens, and `secret`, `token`,
 or `password` key values. The GitHub link remains the source of the full
 comment. Each human-authored PR/Issue discussion or inline review comment is
 sent once. A submitted review that has neither a decision nor a summary is not
-sent again because its inline comments were already delivered. The workflow
-deliberately does not notify every push, successful CI run, review-request
-removal, issue unassignment, or bot comment/review event, to keep the group
-usable. These events do not create new work or a delivery risk; GitHub remains
-the canonical activity record for them.
+sent again because its inline comments were already delivered. Closure, merge,
+assignment, CI, and deployment cards do not repeat the original description.
+The workflow deliberately does not notify every push, successful CI run,
+review-request removal, issue unassignment, or bot comment/review event, to
+keep the group usable. These events do not create new work or a delivery risk;
+GitHub remains the canonical activity record for them.
 
 ## Verification
 

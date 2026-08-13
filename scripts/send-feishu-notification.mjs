@@ -74,6 +74,7 @@ function workflowNotification() {
 function pullRequestNotification() {
   const pullRequest = event.pull_request;
   const action = event.action;
+  const summary = commentSummary(pullRequest.body);
   const isMerged = action === "closed" && pullRequest.merged;
   const labels = {
     opened: ["PR 已创建", "blue"],
@@ -98,6 +99,12 @@ function pullRequestNotification() {
       line("标题", pullRequest.title),
       line("发起人", pullRequest.user.login),
       line("分支", `${pullRequest.head.ref} -> ${pullRequest.base.ref}`),
+      ...(["opened", "reopened", "ready_for_review"].includes(action) && summary
+        ? [line("摘要", summary)]
+        : []),
+      ...(action === "review_requested" && (event.requested_reviewer || event.requested_team)
+        ? [line("请求审阅", event.requested_reviewer?.login ?? event.requested_team.name)]
+        : []),
     ],
   };
 }
@@ -105,6 +112,7 @@ function pullRequestNotification() {
 function issueNotification() {
   const issue = event.issue;
   const action = event.action;
+  const summary = commentSummary(issue.body);
   const labels = {
     opened: ["Issue 已创建", "blue"],
     reopened: ["Issue 已重新打开", "blue"],
@@ -128,6 +136,9 @@ function issueNotification() {
       line("操作者", event.sender?.login ?? issue.user.login),
       ...(issue.assignee
         ? [line("负责人", issue.assignee.login)]
+        : []),
+      ...(["opened", "reopened"].includes(action) && summary
+        ? [line("摘要", summary)]
         : []),
     ],
   };
@@ -243,6 +254,7 @@ function reviewNotification() {
 
 function releaseNotification() {
   const release = event.release;
+  const summary = commentSummary(release.body);
 
   return {
     title: `版本已发布 · ${release.tag_name}`,
@@ -253,6 +265,7 @@ function releaseNotification() {
     details: [
       line("版本", release.name || release.tag_name),
       line("发布人", release.author?.login ?? "未知"),
+      ...(summary ? [line("发布摘要", summary)] : []),
     ],
   };
 }
