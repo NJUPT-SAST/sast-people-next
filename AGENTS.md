@@ -18,7 +18,7 @@
 - `pnpm dev` — Run Next.js in development on port `3000`.
 - `pnpm dev:full` — Next.js (`3001`) + Inngest + email preview (`3002`).
 - `pnpm db:dev:up` / `pnpm db:dev:down` — Local Docker PostgreSQL.
-- `pnpm db:migrate` / `pnpm db:seed:local` / `pnpm db:seed:demo` — Schema and seed data.
+- `pnpm db:migrate` / `pnpm db:seed:demo` — Schema and demo seed data.
 - `pnpm build` / `pnpm start` — Production build and serve.
 - `pnpm lint` — Run ESLint. Use `--fix` to auto-fix.
 - `pnpm test` / `pnpm test:watch` / `pnpm test:coverage` — Jest.

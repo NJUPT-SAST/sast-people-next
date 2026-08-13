@@ -3,15 +3,15 @@
     "shadcn": {
       "command": "npx",
       "args": [
-        "shadcn@latest",
+        "shadcn@4.17.0",
         "mcp"
-      ],
+      ]
     },
     "next-devtools": {
       "command": "npx",
       "args": [
         "-y",
-        "next-devtools-mcp@latest"
+        "next-devtools-mcp@0.4.0"
       ]
     }
   }
