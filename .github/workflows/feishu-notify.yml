@@ -25,9 +25,9 @@ jobs:
   notify:
     name: Send Feishu Notification
     runs-on: ubuntu-latest
-    # workflow_run is intentionally not checked out at its triggering commit.
-    # The script executes only from the default branch, so a fork PR cannot
-    # use this workflow's repository secrets to run untrusted code.
+    # Notifications always execute the script that is already merged into the
+    # default branch. Event data still comes from the triggering PR, Issue, or
+    # workflow run, but an unmerged branch cannot change notification behavior.
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.name == 'Deploy' ||
@@ -36,6 +36,9 @@ jobs:
     steps:
       - name: Checkout notification script
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
       - name: Send notification
         env:
