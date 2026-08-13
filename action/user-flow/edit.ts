@@ -6,7 +6,10 @@ import { verifyRole } from '@/lib/dal';
 import { logServerError } from '@/lib/server-error-log';
 import { writeOperationAudit } from '@/lib/operation-audit';
 import { and, eq, inArray, notInArray } from 'drizzle-orm';
-import { syncUserRoleFromAcceptedFlows, syncUserRolesFromAcceptedFlows } from './roleTransition';
+import {
+  syncUserRoleFromAcceptedFlows,
+  syncUserRolesFromAcceptedFlows,
+} from "@/action/user-flow/roleTransition";
 
 async function findStepIdByOrder(
   flowId: number,
