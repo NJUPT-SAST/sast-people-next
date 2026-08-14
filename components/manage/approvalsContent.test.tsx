@@ -23,11 +23,13 @@ function row({
   candidateName,
   status,
   recommendation,
+  reviewerName = null,
 }: {
   id: number;
   candidateName: string;
   status: "submitted" | "approved" | "rejected";
   recommendation: "passed" | "failed" | null;
+  reviewerName?: string | null;
 }) {
   return {
     evaluation: {
@@ -45,6 +47,7 @@ function row({
     meetingLink: null,
     portfolioLink: null,
     authorName: "讲师",
+    reviewerName,
     candidateName,
     candidateStudentId: `B26${id}`,
     flowTitle: "2026 免试招新",
@@ -75,5 +78,31 @@ describe("ApprovalsContent", () => {
 
     expect(screen.queryByText("张三")).not.toBeInTheDocument();
     expect(screen.getByText("李四")).toBeInTheDocument();
+  });
+
+  it("shows and searches the administrator who made an archived decision", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({
+            id: 1,
+            candidateName: "王五",
+            status: "approved",
+            recommendation: "passed",
+            reviewerName: "管理员甲",
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "已归档 (1)" }));
+
+    expect(screen.getByText("面评人：讲师")).toBeInTheDocument();
+    expect(screen.getByText("审批人：管理员甲")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("搜索归档面评"), "管理员甲");
+
+    expect(screen.getByText("王五")).toBeInTheDocument();
   });
 });

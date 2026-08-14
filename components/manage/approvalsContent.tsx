@@ -28,6 +28,7 @@ export type EvaluationRow = {
   meetingLink: string | null;
   portfolioLink: string | null;
   authorName: string | null;
+  reviewerName: string | null;
   candidateName: string | null;
   candidateStudentId: string | null;
   flowTitle: string | null;
@@ -109,13 +110,7 @@ export const ApprovalsContent = ({
     try {
       await approveEvaluation(id);
       toast.success("面评已通过");
-      setEvaluations((prev) =>
-        prev.map((e) =>
-          e.evaluation.id === id
-            ? { ...e, evaluation: { ...e.evaluation, status: "approved" } }
-            : e,
-        ),
-      );
+      await fetchEvaluations();
     } catch {
       toast.error("操作失败");
     } finally {
@@ -128,13 +123,7 @@ export const ApprovalsContent = ({
     try {
       await rejectEvaluation(id);
       toast.success("面评已判定不通过");
-      setEvaluations((prev) =>
-        prev.map((e) =>
-          e.evaluation.id === id
-            ? { ...e, evaluation: { ...e.evaluation, status: "rejected" } }
-            : e,
-        ),
-      );
+      await fetchEvaluations();
     } catch {
       toast.error("操作失败");
     } finally {
@@ -180,6 +169,7 @@ export const ApprovalsContent = ({
       row.candidateName,
       row.candidateStudentId,
       row.authorName,
+      row.reviewerName,
       row.flowTitle,
     ].some((value) => value?.toLocaleLowerCase().includes(normalizedArchiveQuery));
     const matchesFlow =
@@ -231,7 +221,7 @@ export const ApprovalsContent = ({
               setArchiveQuery(event.target.value);
               setArchivePage(1);
             }}
-            placeholder="搜索候选人、学号、讲师或流程"
+            placeholder="搜索候选人、学号、面评人、审批人或流程"
             aria-label="搜索归档面评"
           />
           <Select
@@ -334,12 +324,24 @@ export const ApprovalsContent = ({
                 )}
                 <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                    {row.authorName && <span>评价人：{row.authorName}</span>}
-                    {row.authorName && <span className="hidden sm:inline">·</span>}
+                    <span>面评人：{row.authorName ?? "历史记录未保存面评人"}</span>
+                    <span className="hidden sm:inline">·</span>
+                    {row.evaluation.status !== "submitted" && (
+                      <>
+                        <span>
+                          审批人：{row.reviewerName ?? "历史记录未保存审批人"}
+                        </span>
+                        <span className="hidden sm:inline">·</span>
+                      </>
+                    )}
                     <span>
-                      {originalDayjs(row.evaluation.createdAt).format(
-                        "YYYY-MM-DD HH:mm",
-                      )}
+                      {row.evaluation.status === "submitted" ? "提交" : "终审"}
+                      {" "}
+                      {originalDayjs(
+                        row.evaluation.status === "submitted"
+                          ? row.evaluation.createdAt
+                          : row.evaluation.updatedAt,
+                      ).format("YYYY-MM-DD HH:mm")}
                     </span>
                   </div>
                   {row.evaluation.status === "submitted" && (

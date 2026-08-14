@@ -22,6 +22,8 @@ type LookupOptions = {
 };
 
 const LINK_BATCH_USER_READ_LIMIT = 100;
+const LINK_KEYWORD_SEARCH_PAGE_SIZE = 100;
+const LINK_KEYWORD_SEARCH_MAX_PAGES = 10;
 
 const normalizeStudentId = (studentId: string | null | undefined) =>
   studentId?.trim().toUpperCase() ?? "";
@@ -83,6 +85,45 @@ export const findPeopleUserByStudentId = async (
   return matchedUser
     ? toPeopleUserFromLinkAdminItem(matchedUser, canViewSensitiveInfo)
     : null;
+};
+
+/**
+ * Resolve a Link keyword to user IDs for database-backed feature searches.
+ * Link matches names, student IDs, and login emails through its admin API.
+ */
+export const findPeopleUserIdsByKeyword = async (
+  keyword: string,
+): Promise<number[]> => {
+  const normalizedKeyword = keyword.trim();
+  if (!normalizedKeyword) return [];
+
+  const accessToken = await getLinkAdminAccessTokenFromSession();
+  const firstPage = await listLinkUsers(accessToken, {
+    page: 1,
+    pageSize: LINK_KEYWORD_SEARCH_PAGE_SIZE,
+    keyword: normalizedKeyword,
+  });
+  const totalPages = Math.min(
+    Math.ceil(firstPage.total / LINK_KEYWORD_SEARCH_PAGE_SIZE),
+    LINK_KEYWORD_SEARCH_MAX_PAGES,
+  );
+  const remainingPages = await Promise.all(
+    Array.from({ length: Math.max(totalPages - 1, 0) }, (_, index) =>
+      listLinkUsers(accessToken, {
+        page: index + 2,
+        pageSize: LINK_KEYWORD_SEARCH_PAGE_SIZE,
+        keyword: normalizedKeyword,
+      }),
+    ),
+  );
+
+  return Array.from(
+    new Set(
+      [firstPage, ...remainingPages]
+        .flatMap((page) => page.users)
+        .map((user) => user.id),
+    ),
+  );
 };
 
 export const listPeopleUsersByLinkIds = async (
