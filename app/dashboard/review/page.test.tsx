@@ -87,7 +87,7 @@ describe("Review", () => {
       },
     ]);
 
-    render(await Review());
+    render(await Review({}));
 
     expect(screen.getByTestId("selectable-flow-ids")).toHaveTextContent("2");
     expect(screen.getByTestId("scanner-flow-ids")).toHaveTextContent("2");
