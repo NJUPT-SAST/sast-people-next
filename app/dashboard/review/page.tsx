@@ -14,7 +14,7 @@ const Review: React.FC = async () => {
   const flowList = await getFlowList();
   const now = new Date();
   const reviewableFlowList = flowList.filter(
-    (flow) => !flow.endedAt || flow.endedAt >= now,
+    (flow) => now >= flow.startedAt && (!flow.endedAt || now <= flow.endedAt),
   );
   const activeFlowIds = reviewableFlowList.map((flow) => flow.id);
 
