@@ -538,7 +538,11 @@ export const getAllEvaluations = async () => {
 
     const userMap = await listPeopleUsersByLinkIds(
       rows
-        .flatMap((row) => [row.authorId, row.candidateId])
+        .flatMap((row) => [
+          row.authorId,
+          row.candidateId,
+          row.evaluation.fkReviewedBy,
+        ])
         .filter((id): id is number => id !== null),
     );
 
@@ -550,6 +554,9 @@ export const getAllEvaluations = async () => {
         minuteByUserFlow.get(row.evaluation.fkUserFlowId) ??
         null,
       authorName: userMap.get(row.authorId)?.name ?? null,
+      reviewerName: row.evaluation.fkReviewedBy
+        ? (userMap.get(row.evaluation.fkReviewedBy)?.name ?? null)
+        : null,
       candidateName: row.candidateId
         ? (userMap.get(row.candidateId)?.name ?? null)
         : null,

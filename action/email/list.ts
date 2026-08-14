@@ -9,7 +9,10 @@ import {
   userFlow,
 } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
-import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
+import {
+  findPeopleUserIdsByKeyword,
+  listPeopleUsersByLinkIds,
+} from "@/lib/link/user-lookup";
 import {
   and,
   count,
@@ -96,7 +99,7 @@ function getDateEnd(value: string) {
   return date;
 }
 
-function buildEmailDeliveryWhereConditions({
+async function buildEmailDeliveryWhereConditions({
   category,
   status,
   templateKey,
@@ -132,15 +135,26 @@ function buildEmailDeliveryWhereConditions({
 
   if (query) {
     const pattern = `%${query}%`;
+    let matchedUserIds: number[] = [];
+    try {
+      matchedUserIds = await findPeopleUserIdsByKeyword(query);
+    } catch {
+      // Keep database-backed search available when Link is temporarily unavailable.
+      matchedUserIds = [];
+    }
+    const queryConditions: SQL<unknown>[] = [
+      ilike(emailDelivery.subject, pattern),
+      ilike(emailDelivery.toAddress, pattern),
+      ilike(emailDelivery.templateKey, pattern),
+      ilike(emailDelivery.errorMessage, pattern),
+      ilike(flow.title, pattern),
+      ilike(emailBatch.name, pattern),
+    ];
+    if (matchedUserIds.length > 0) {
+      queryConditions.push(inArray(emailDelivery.fkUserId, matchedUserIds));
+    }
     conditions.push(
-      or(
-        ilike(emailDelivery.subject, pattern),
-        ilike(emailDelivery.toAddress, pattern),
-        ilike(emailDelivery.templateKey, pattern),
-        ilike(emailDelivery.errorMessage, pattern),
-        ilike(flow.title, pattern),
-        ilike(emailBatch.name, pattern),
-      )!,
+      or(...queryConditions)!,
     );
   }
 
@@ -238,7 +252,7 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
   await verifyRole(3);
 
   const filters = normalizeEmailDeliveryListParams(params);
-  const whereConditions = buildEmailDeliveryWhereConditions(filters);
+  const whereConditions = await buildEmailDeliveryWhereConditions(filters);
 
   const totalCountResult = await db
     .select({ value: count() })

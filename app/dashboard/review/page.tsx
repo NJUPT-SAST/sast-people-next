@@ -12,7 +12,11 @@ import { useFlowList as getFlowList } from "@/hooks/useFlowList";
 
 const Review: React.FC = async () => {
   const flowList = await getFlowList();
-  const activeFlowIds = flowList.map((flow) => flow.id);
+  const now = new Date();
+  const reviewableFlowList = flowList.filter(
+    (flow) => now >= flow.startedAt && (!flow.endedAt || now <= flow.endedAt),
+  );
+  const activeFlowIds = reviewableFlowList.map((flow) => flow.id);
 
   return (
     <>
@@ -20,7 +24,7 @@ const Review: React.FC = async () => {
         <PageTitle />
         <div className="w-full sm:w-auto">
           <ReviewSheet>
-            <SelectProblemServer flowList={flowList} />
+            <SelectProblemServer flowList={reviewableFlowList} />
           </ReviewSheet>
         </div>
       </PageHeader>

@@ -149,7 +149,7 @@ export function EmailRecordsSection({
               id="email-record-query"
               name="query"
               defaultValue={filters.query}
-              placeholder="搜索姓名、邮箱、主题"
+              placeholder="搜索姓名、学号、邮箱、主题"
               className="h-9 pl-8"
               aria-label="搜索"
             />
