@@ -6,6 +6,7 @@ import { logServerError } from "@/lib/server-error-log";
 import { and, eq, inArray, InferInsertModel, sql } from "drizzle-orm";
 
 type PointInsertValue = InferInsertModel<typeof userPoint>;
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 type NormalizedPointValue = {
   fkUserFlowId: number;
@@ -83,12 +84,15 @@ function normalizePointValues(values: Array<PointInsertValue>): NormalizedPointV
   };
 }
 
-async function assertPointValuesMatchFlow({
-  userFlowId,
-  problemIds,
-  values,
-}: NormalizedPointValues): Promise<ValidatedScoreChanges> {
-  const [targetUserFlow] = await db
+async function validateScoreChanges(
+  tx: Tx,
+  { userFlowId, problemIds, values }: NormalizedPointValues,
+): Promise<ValidatedScoreChanges> {
+  await tx.execute(
+    sql`select 1 from ${userFlow} where ${userFlow.id} = ${userFlowId} for update`,
+  );
+
+  const [targetUserFlow] = await tx
     .select({
       flowId: userFlow.fkFlowId,
       progressStatus: userFlow.progressStatus,
@@ -110,7 +114,7 @@ async function assertPointValuesMatchFlow({
   }
 
   const [problemRows, existingPoints] = await Promise.all([
-    db
+    tx
       .select({
         id: problem.id,
         title: problem.title,
@@ -120,7 +124,7 @@ async function assertPointValuesMatchFlow({
       .from(problem)
       .innerJoin(flowStep, eq(problem.fkFlowStepId, flowStep.id))
       .where(inArray(problem.id, problemIds)),
-    db
+    tx
       .select({ problemId: userPoint.fkProblemId, points: userPoint.points })
       .from(userPoint)
       .where(
@@ -179,31 +183,36 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
 
   try {
     session = await verifyRole(2);
+    const actor = session;
     const normalized = normalizePointValues([
       { fkUserFlowId: userFlowId, fkProblemId: problemId, points: point },
     ]);
-    const validated = await assertPointValuesMatchFlow(normalized);
-    const rows = await db
-      .insert(userPoint)
-      .values({
-        fkUserFlowId: userFlowId,
-        fkProblemId: problemId,
-        points: point,
-        fkJudgerId: session.uid,
-      })
-      .onConflictDoUpdate({
-        target: [userPoint.fkUserFlowId, userPoint.fkProblemId],
-        set: { points: point, fkJudgerId: session.uid },
-        setWhere: getScoreOverwriteCondition(session),
-      })
-      .returning({ id: userPoint.id });
+    const { validated, rows } = await db.transaction(async (tx) => {
+      const validated = await validateScoreChanges(tx, normalized);
+      const rows = await tx
+        .insert(userPoint)
+        .values({
+          fkUserFlowId: userFlowId,
+          fkProblemId: problemId,
+          points: point,
+          fkJudgerId: actor.uid,
+        })
+        .onConflictDoUpdate({
+          target: [userPoint.fkUserFlowId, userPoint.fkProblemId],
+          set: { points: point, fkJudgerId: actor.uid },
+          setWhere: getScoreOverwriteCondition(actor),
+        })
+        .returning({ id: userPoint.id });
+
+      return { validated, rows };
+    });
 
     if (rows.length === 0) {
       throw new ReviewPointConflictError();
     }
 
     await writeOperationAudit({
-      actorId: session.uid,
+      actorId: actor.uid,
       action: "review.score.upsert",
       resourceType: "user_flow",
       resourceId: userFlowId,
@@ -236,27 +245,32 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
   try {
     normalized = normalizePointValues(values);
     session = await verifyRole(2);
-    const validated = await assertPointValuesMatchFlow(normalized);
-    const actorId = session.uid;
-    const rows = await db
-      .insert(userPoint)
-      .values(
-        normalized.values.map((value) => ({
-          fkUserFlowId: value.fkUserFlowId,
-          fkProblemId: value.fkProblemId,
-          points: value.points,
-          fkJudgerId: actorId,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: [userPoint.fkUserFlowId, userPoint.fkProblemId],
-        set: {
-          points: sql`excluded.points`,
-          fkJudgerId: sql`excluded.fk_judger_id`,
-        },
-        setWhere: getScoreOverwriteCondition(session),
-      })
-      .returning({ id: userPoint.id });
+    const actor = session;
+    const actorId = actor.uid;
+    const { validated, rows } = await db.transaction(async (tx) => {
+      const validated = await validateScoreChanges(tx, normalized!);
+      const rows = await tx
+        .insert(userPoint)
+        .values(
+          normalized!.values.map((value) => ({
+            fkUserFlowId: value.fkUserFlowId,
+            fkProblemId: value.fkProblemId,
+            points: value.points,
+            fkJudgerId: actorId,
+          })),
+        )
+        .onConflictDoUpdate({
+          target: [userPoint.fkUserFlowId, userPoint.fkProblemId],
+          set: {
+            points: sql`excluded.points`,
+            fkJudgerId: sql`excluded.fk_judger_id`,
+          },
+          setWhere: getScoreOverwriteCondition(actor),
+        })
+        .returning({ id: userPoint.id });
+
+      return { validated, rows };
+    });
 
     if (rows.length !== normalized.values.length) {
       throw new ReviewPointConflictError("部分题目已被其他批卷人保存，请刷新后查看");

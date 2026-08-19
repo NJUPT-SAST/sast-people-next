@@ -71,7 +71,7 @@ feat(批卷): add new feature
 
 ## Pull Request 语言规范
 
-- PR 标题必须使用英文，并遵循 Conventional Commits 格式：`type(scope): imperative summary`。
+- PR 标题必须使用英文，并遵循 Conventional Commits 格式：`type[(scope)]: imperative summary`；scope 可选。
 - PR 描述、评审说明、变更摘要和验证说明统一使用中文。
 - 代码标识符、命令、文件路径、API 名称和 commit message 保持原样，不强行翻译。
 - PR 描述应说明：解决的问题、关键改动、风险或兼容性影响、已执行的验证。

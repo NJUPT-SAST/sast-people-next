@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { GET } from './route';
+import { GET } from '@/app/api/user-flow/route';
 
 const findUserFlowId = jest.fn();
 

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { AuditLogTable } from './audit-log-table';
+import { AuditLogTable } from '@/components/audit/audit-log-table';
 
 const filters = {
   page: 1,

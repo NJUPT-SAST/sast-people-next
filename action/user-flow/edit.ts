@@ -5,7 +5,7 @@ import { flow, flowStep, userFlow } from '@/db/schema';
 import { verifyRole } from '@/lib/dal';
 import { logServerError } from '@/lib/server-error-log';
 import { writeOperationAudit } from '@/lib/operation-audit';
-import { and, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import {
   syncUserRoleFromAcceptedFlows,
   syncUserRolesFromAcceptedFlows,
@@ -196,10 +196,43 @@ export const batchSetOutcomeByUid = async (
     if (uids.length === 0) return;
     await assertBatchDirectOutcomeAllowed(flowId);
     const stepId = await findStepIdByOrder(flowId, stepOrder);
-    await db.update(userFlow).set({ progressStatus: statusStr, fkCurrentStepId: stepId, updatedAt: new Date() }).where(and(eq(userFlow.fkFlowId, flowId), inArray(userFlow.fkUserId, uids), notInArray(userFlow.progressStatus, ['passed', 'failed'])));
-    await writeOperationAudit({ actorId: session.uid, action: 'user_flow.batch_set_outcome', resourceType: 'flow', resourceId: flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
+    await db.transaction(async (tx) => {
+      const targetRows = await tx
+        .select({ id: userFlow.id })
+        .from(userFlow)
+        .where(
+          and(
+            eq(userFlow.fkFlowId, flowId),
+            inArray(userFlow.fkUserId, uids),
+            notInArray(userFlow.progressStatus, ['passed', 'failed']),
+          ),
+        )
+        .for('update');
+
+      if (targetRows.length === 0) return;
+
+      await tx
+        .update(userFlow)
+        .set({ progressStatus: statusStr, fkCurrentStepId: stepId, updatedAt: new Date() })
+        .where(inArray(userFlow.id, targetRows.map((row) => row.id)));
+    });
+    await syncUserRolesFromAcceptedFlows(uids);
+    await writeOperationAudit({
+      actorId: session.uid,
+      action: 'user_flow.batch_set_outcome',
+      resourceType: 'flow',
+      resourceId: flowId,
+      metadata: { stepOrder, status: statusStr, targetUserIds: uids },
+    });
   } catch (error) {
-    logServerError("user-flow:batchSetOutcomeByUid", error, { path: "/dashboard/review", userId: session?.uid ?? null, role: session?.role ?? null, action: "batch-set-user-flow-outcome", flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
+    logServerError("user-flow:batchSetOutcomeByUid", error, {
+      path: "/dashboard/review",
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "batch-set-user-flow-outcome",
+      flowId,
+      metadata: { stepOrder, status: statusStr, targetUserIds: uids },
+    });
     throw error;
   }
 };
