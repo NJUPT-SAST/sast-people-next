@@ -1,0 +1,13 @@
+[mcp_servers.next-devtools]
+command = "npx"
+args = [
+    "-y",
+    "next-devtools-mcp@0.4.0",
+]
+
+[mcp_servers.shadcn]
+command = "npx"
+args = [
+    "shadcn@4.17.0",
+    "mcp",
+]
