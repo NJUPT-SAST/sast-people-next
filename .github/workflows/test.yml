@@ -71,7 +71,7 @@ jobs:
           NEXT_PUBLIC_MOCK: true
 
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
       - name: Run end-to-end tests
         run: pnpm test:e2e
