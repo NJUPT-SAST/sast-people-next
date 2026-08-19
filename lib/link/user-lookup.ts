@@ -23,7 +23,6 @@ type LookupOptions = {
 
 const LINK_BATCH_USER_READ_LIMIT = 100;
 const LINK_KEYWORD_SEARCH_PAGE_SIZE = 100;
-const LINK_KEYWORD_SEARCH_MAX_PAGES = 10;
 
 const normalizeStudentId = (studentId: string | null | undefined) =>
   studentId?.trim().toUpperCase() ?? "";
@@ -103,19 +102,20 @@ export const findPeopleUserIdsByKeyword = async (
     pageSize: LINK_KEYWORD_SEARCH_PAGE_SIZE,
     keyword: normalizedKeyword,
   });
-  const totalPages = Math.min(
-    Math.ceil(firstPage.total / LINK_KEYWORD_SEARCH_PAGE_SIZE),
-    LINK_KEYWORD_SEARCH_MAX_PAGES,
+  const totalPages = Math.ceil(
+    firstPage.total / LINK_KEYWORD_SEARCH_PAGE_SIZE,
   );
-  const remainingPages = await Promise.all(
-    Array.from({ length: Math.max(totalPages - 1, 0) }, (_, index) =>
-      listLinkUsers(accessToken, {
-        page: index + 2,
+  const remainingPages = [];
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    remainingPages.push(
+      await listLinkUsers(accessToken, {
+        page,
         pageSize: LINK_KEYWORD_SEARCH_PAGE_SIZE,
         keyword: normalizedKeyword,
       }),
-    ),
-  );
+    );
+  }
 
   return Array.from(
     new Set(

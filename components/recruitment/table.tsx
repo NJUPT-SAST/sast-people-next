@@ -100,12 +100,8 @@ export function DataTable<TData, TValue>({
       role >= 3
         ? safeColumns
         : safeColumns.filter((c) => {
-            const col = c as { id?: string; accessorKey?: string };
-            return (
-              col.id !== 'select' &&
-              col.accessorKey !== 'phoneNumber' &&
-              (col.accessorKey !== 'problemScores' || role >= 2)
-            );
+            return c.id !== 'select' &&
+              (!('accessorKey' in c) || c.accessorKey !== 'problemScores' || role >= 2);
           }),
     [safeColumns, role],
   );
@@ -139,18 +135,20 @@ export function DataTable<TData, TValue>({
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'not_started'];
 
   return (
-    <div className="space-y-4">
-      <div className="border-y bg-muted/20 px-4 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">批量处理</p>
-            <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
-              {role >= 3
-                ? helperText
-                : '查看当前流程的报名结果与状态。'}
-            </p>
+    <div className="flex flex-col gap-4">
+      <div className="border-y bg-muted/20 px-4 py-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium">批量处理</p>
+              <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
+                {role >= 3
+                  ? helperText
+                  : '查看当前流程的报名结果与状态。'}
+              </p>
+            </div>
             {role >= 3 && (
-              <Button asChild size="sm" variant="link" className="h-auto px-0 text-xs">
+              <Button asChild size="sm" variant="link" className="h-8 w-fit px-0 text-xs">
                 <Link href={`/dashboard/emails?tab=tasks&flowId=${flowTypeId}`}>
                   去邮件中心发结果通知
                 </Link>
@@ -164,13 +162,14 @@ export function DataTable<TData, TValue>({
               onChange={(event) =>
                 totalScoreColumn?.setFilterValue(event.target.value)
               }
-              className="h-9 w-full sm:w-[180px]"
+              className="h-10 w-full sm:h-9 sm:w-[180px]"
             />
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start lg:justify-end">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-start lg:justify-end">
               {role >= 3 && (
                 <>
                   <Button
                     size="sm"
+                    className="h-10 w-full sm:h-9 sm:w-auto"
                     disabled={!canEditOutcomes}
                     onClick={async () => {
                       const selectedRows = selectedMutableRows;
@@ -208,6 +207,7 @@ export function DataTable<TData, TValue>({
                   <Button
                     size="sm"
                     variant="outline"
+                    className="h-10 w-full sm:h-9 sm:w-auto"
                     disabled={!canEditOutcomes}
                     onClick={async () => {
                       const selectedRows = selectedMutableRows;
@@ -248,13 +248,13 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
         {role >= 3 && (
-          <div className="mt-3 flex flex-wrap gap-2 border-t pt-3 text-xs text-muted-foreground">
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-3 text-xs text-muted-foreground sm:flex sm:flex-wrap">
             {summaryStatuses.map((status) => {
               const count = allRows.filter((item) => getRowStatus(item) === status).length;
               return (
                 <div
                   key={status}
-                  className="inline-flex items-center gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1"
+                  className="inline-flex items-center justify-between gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1 sm:justify-start"
                 >
                   <span>{recruitmentStatusText[status]}</span>
                   <span className="font-semibold tabular-nums text-foreground">
@@ -355,7 +355,6 @@ export function DataTable<TData, TValue>({
               const selectCell = cellById.get('select');
               const studentIdCell = cellById.get('studentId');
               const nameCell = cellById.get('name');
-              const phoneCell = cellById.get('phoneNumber');
               const statusCell = cellById.get('status');
               const totalScoreCell = cellById.get('totalScore');
               const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
@@ -395,11 +394,6 @@ export function DataTable<TData, TValue>({
                         ? flexRender(studentIdCell.column.columnDef.cell, studentIdCell.getContext())
                         : '-'}
                     </div>
-                    {role >= 3 && phoneCell && (
-                      <div className="text-sm text-muted-foreground">
-                        手机: {flexRender(phoneCell.column.columnDef.cell, phoneCell.getContext()) || '-'}
-                      </div>
-                    )}
                     <div className="flex items-center justify-between gap-3 pt-1">
                       {role >= 2 && problemScoresCell ? (
                         <div className="text-sm text-muted-foreground">

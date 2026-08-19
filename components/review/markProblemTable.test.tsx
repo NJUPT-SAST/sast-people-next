@@ -86,4 +86,59 @@ describe("MarkProblemTable", () => {
       expect(push).toHaveBeenCalledWith("/dashboard/review");
     });
   });
+
+  it('autosaves a valid score for the edited problem', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    render(
+      <MarkProblemTable
+        userFlowId={3}
+        points={[{ fkProblemId: 1, points: 20 }] as never}
+      />,
+    );
+
+    const scoreInput = screen.getAllByRole('spinbutton')[0];
+    await user.clear(scoreInput);
+    await user.type(scoreInput, '88');
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/user-point',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'single',
+            data: { userFlowId: 3, problemId: 1, point: 88 },
+          }),
+        }),
+      );
+    });
+  });
+
+  it('shows an inline error and does not autosave a score above the maximum', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    render(
+      <MarkProblemTable
+        userFlowId={3}
+        points={[{ fkProblemId: 1, points: 20 }] as never}
+      />,
+    );
+
+    const scoreInput = screen.getAllByRole('spinbutton')[0];
+    await user.clear(scoreInput);
+    await user.type(scoreInput, '120');
+
+    expect(screen.getByText('算法题 的得分必须在 0 到 100 之间')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

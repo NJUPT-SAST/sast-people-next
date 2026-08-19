@@ -1,7 +1,15 @@
 import "server-only";
 
 import { db } from "@/db/drizzle";
-import { operationAudit } from "@/db/schema";
+import {
+  emailBatch,
+  emailDelivery,
+  flow,
+  interviewEvaluation,
+  interviewSchedule,
+  operationAudit,
+  userFlow,
+} from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { listLinkUsers } from "@/lib/link/admin";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
@@ -68,8 +76,14 @@ export const operationAuditActionGroups = {
     "evaluation.reopen_and_create",
     "evaluation.approve",
     "evaluation.reject",
+    "evaluation.unapprove",
     "evaluation.reopen",
     "interview_schedule.create",
+    "interview_schedule.update",
+    "interview_schedule.cancel",
+    "interview_schedule.meeting.ended",
+    "interview_schedule.meeting.ended_manual",
+    "interview_schedule.meeting_minute.generated",
   ],
   flow: [
     "flow.create",
@@ -254,20 +268,131 @@ export async function listOperationAudit(params: OperationAuditListParams) {
   ]);
   const totalCount = Number(totalCountResult[0]?.count) || 0;
 
-  let actorMap: Awaited<ReturnType<typeof listPeopleUsersByLinkIds>> = new Map();
+  const resourceIds = (resourceType: string) =>
+    rawLogs
+      .filter((log) => log.resourceType === resourceType && log.resourceId !== null)
+      .map((log) => log.resourceId as number);
+  const [flows, userFlows, emailBatches, emailDeliveries, evaluations, schedules] =
+    await Promise.all([
+      db
+        .select({ id: flow.id, label: flow.title })
+        .from(flow)
+        .where(inArray(flow.id, resourceIds('flow'))),
+      db
+        .select({ id: userFlow.id, targetUserId: userFlow.fkUserId, flowTitle: flow.title })
+        .from(userFlow)
+        .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+        .where(inArray(userFlow.id, resourceIds('user_flow'))),
+      db
+        .select({ id: emailBatch.id, label: emailBatch.name, subject: emailBatch.subject })
+        .from(emailBatch)
+        .where(inArray(emailBatch.id, resourceIds('email_batch'))),
+      db
+        .select({ id: emailDelivery.id, label: emailDelivery.toAddress, subject: emailDelivery.subject, targetUserId: emailDelivery.fkUserId })
+        .from(emailDelivery)
+        .where(inArray(emailDelivery.id, resourceIds('email_delivery'))),
+      db
+        .select({ id: interviewEvaluation.id, targetUserId: userFlow.fkUserId, flowTitle: flow.title })
+        .from(interviewEvaluation)
+        .innerJoin(userFlow, eq(interviewEvaluation.fkUserFlowId, userFlow.id))
+        .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+        .where(inArray(interviewEvaluation.id, resourceIds('interview_evaluation'))),
+      db
+        .select({ id: interviewSchedule.id, targetUserId: userFlow.fkUserId, label: interviewSchedule.summary })
+        .from(interviewSchedule)
+        .innerJoin(userFlow, eq(interviewSchedule.fkUserFlowId, userFlow.id))
+        .where(inArray(interviewSchedule.id, resourceIds('interview_schedule'))),
+    ]);
+  const resourceLabelByKey = new Map<string, string>();
+  const resourceTargetUserIdByKey = new Map<string, number>();
+  flows.forEach((item) => resourceLabelByKey.set(`flow:${item.id}`, `流程：${item.label}`));
+  userFlows.forEach((item) => {
+    resourceLabelByKey.set(`user_flow:${item.id}`, `考生流程：${item.flowTitle}`);
+    resourceTargetUserIdByKey.set(`user_flow:${item.id}`, item.targetUserId);
+  });
+  emailBatches.forEach((item) =>
+    resourceLabelByKey.set(`email_batch:${item.id}`, `邮件批次：${item.label ?? item.subject}`),
+  );
+  emailDeliveries.forEach((item) => {
+    resourceLabelByKey.set(`email_delivery:${item.id}`, `邮件投递：${item.label}`);
+    if (item.targetUserId) resourceTargetUserIdByKey.set(`email_delivery:${item.id}`, item.targetUserId);
+  });
+  evaluations.forEach((item) => {
+    resourceLabelByKey.set(`interview_evaluation:${item.id}`, `面评：${item.flowTitle}`);
+    resourceTargetUserIdByKey.set(`interview_evaluation:${item.id}`, item.targetUserId);
+  });
+  schedules.forEach((item) => {
+    resourceLabelByKey.set(`interview_schedule:${item.id}`, `面试：${item.label}`);
+    resourceTargetUserIdByKey.set(`interview_schedule:${item.id}`, item.targetUserId);
+  });
+  const targetUserIds = rawLogs.flatMap((log) => {
+    const metadata = log.metadata as Record<string, unknown> | null;
+    const resourceTargetUserId =
+      log.resourceType === 'link_user' ? log.resourceId : undefined;
+    const targetUserId =
+      typeof metadata?.targetUserId === 'number'
+        ? metadata.targetUserId
+        : typeof metadata?.userId === 'number'
+          ? metadata.userId
+          : resourceTargetUserId ?? resourceTargetUserIdByKey.get(`${log.resourceType}:${log.resourceId}`);
+    const targetUserIds = metadata?.targetUserIds;
+
+    return [
+      ...(typeof targetUserId === 'number' ? [targetUserId] : []),
+      ...(Array.isArray(targetUserIds)
+        ? targetUserIds.filter((id): id is number => typeof id === 'number')
+        : []),
+    ];
+  });
+  let peopleMap: Awaited<ReturnType<typeof listPeopleUsersByLinkIds>> = new Map();
   try {
-    actorMap = await listPeopleUsersByLinkIds(rawLogs.map((log) => log.actorId));
+    peopleMap = await listPeopleUsersByLinkIds([
+      ...rawLogs.map((log) => log.actorId),
+      ...targetUserIds,
+    ]);
   } catch (error) {
-    logServerError("operation-audit:actor-lookup", error, {
-      action: "list-operation-audit-actors",
-      metadata: { actorCount: rawLogs.length },
+    logServerError("operation-audit:people-lookup", error, {
+      action: "list-operation-audit-people",
+      metadata: { logCount: rawLogs.length, targetUserCount: targetUserIds.length },
     });
   }
-  const logs = rawLogs.map((log) => ({
-    ...log,
-    actorName: actorMap.get(log.actorId)?.name ?? null,
-    actorStudentId: actorMap.get(log.actorId)?.studentId ?? null,
-  }));
+  const logs = rawLogs.map((log) => {
+    const metadata = log.metadata as Record<string, unknown> | null;
+    const resourceKey = `${log.resourceType}:${log.resourceId}`;
+    const targetUserId =
+      typeof metadata?.targetUserId === 'number'
+        ? metadata.targetUserId
+        : typeof metadata?.userId === 'number'
+          ? metadata.userId
+          : log.resourceType === 'link_user'
+            ? log.resourceId
+            : resourceTargetUserIdByKey.get(resourceKey);
+    const targetUserIds = metadata?.targetUserIds;
+
+    return {
+      ...log,
+      actorName: peopleMap.get(log.actorId)?.name ?? null,
+      actorStudentId: peopleMap.get(log.actorId)?.studentId ?? null,
+      resourceLabel: resourceLabelByKey.get(resourceKey) ?? null,
+      targetUser:
+        typeof targetUserId === 'number'
+          ? {
+              id: targetUserId,
+              name: peopleMap.get(targetUserId)?.name ?? null,
+              studentId: peopleMap.get(targetUserId)?.studentId ?? null,
+            }
+          : null,
+      targetUsers: Array.isArray(targetUserIds)
+        ? targetUserIds
+            .filter((id): id is number => typeof id === 'number')
+            .map((id) => ({
+              id,
+              name: peopleMap.get(id)?.name ?? null,
+              studentId: peopleMap.get(id)?.studentId ?? null,
+            }))
+        : [],
+    };
+  });
 
   return {
     filters: normalized,

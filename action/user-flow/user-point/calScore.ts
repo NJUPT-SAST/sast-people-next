@@ -73,7 +73,6 @@ export const calScore = async (flowId: number) => {
       ...row,
       name: userMap.get(row.uid)?.name ?? '未知用户',
       studentId: userMap.get(row.uid)?.studentId ?? null,
-      phoneNumber: session!.role >= 3 ? userMap.get(row.uid)?.phone ?? null : null,
       isGraded: gradedUidSet.has(row.uid),
       problemScores: problems.map((item) => ({
         ...pointMap.get(`${row.uid}-${item.id}`),

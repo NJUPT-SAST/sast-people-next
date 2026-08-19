@@ -14,13 +14,10 @@ export const findUserFlowId = async (
     return null;
   }
 
-  const result = await db.select({ id: userFlow.id })
+  const [result] = await db
+    .select({ id: userFlow.id, progressStatus: userFlow.progressStatus })
     .from(userFlow)
     .where(and(eq(userFlow.fkUserId, userInfo.id), eq(userFlow.fkFlowId, flowId)));
 
-  if (result.length === 0) {
-    return null;
-  }
-
-  return result[0].id;
+  return result ?? null;
 };
