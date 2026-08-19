@@ -116,6 +116,30 @@
   --sidebar-ring: #18a058;
 }
 
+@keyframes qr-scanner-sweep {
+  0%,
+  100% {
+    top: 0.5rem;
+    opacity: 0.65;
+  }
+  50% {
+    top: calc(100% - 0.75rem);
+    opacity: 1;
+  }
+}
+
+.qr-scanner-line {
+  animation: qr-scanner-sweep 2.2s ease-in-out infinite;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 85%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-scanner-line {
+    animation: none;
+    top: 50%;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
