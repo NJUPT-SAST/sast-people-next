@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    name: Tests, E2E, Build & Container Smoke
+    name: Tests, E2E & Build
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
