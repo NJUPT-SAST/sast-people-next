@@ -247,7 +247,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
     session = await verifyRole(2);
     const actor = session;
     const actorId = actor.uid;
-    const { validated, rows } = await db.transaction(async (tx) => {
+    const { validated } = await db.transaction(async (tx) => {
       const validated = await validateScoreChanges(tx, normalized!);
       const rows = await tx
         .insert(userPoint)
@@ -269,12 +269,13 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
         })
         .returning({ id: userPoint.id });
 
-      return { validated, rows };
+      if (rows.length !== normalized!.values.length) {
+        throw new ReviewPointConflictError("部分题目已被其他批卷人保存，请刷新后查看");
+      }
+
+      return { validated };
     });
 
-    if (rows.length !== normalized.values.length) {
-      throw new ReviewPointConflictError("部分题目已被其他批卷人保存，请刷新后查看");
-    }
 
     await writeOperationAudit({
       actorId,
