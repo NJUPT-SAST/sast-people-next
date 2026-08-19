@@ -273,6 +273,7 @@ function releaseNotification() {
 function notification() {
   switch (eventName) {
     case "pull_request":
+    case "pull_request_target":
       return pullRequestNotification();
     case "pull_request_review":
       return reviewNotification();
