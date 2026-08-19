@@ -76,6 +76,8 @@ describe("QRCodeScanner", () => {
 
     await user.click(screen.getByRole("button", { name: /开启摄像头/i }));
 
+    expect(screen.getByTestId("scan-guide")).toBeInTheDocument();
+
     await act(async () => {
       onDecodeResult?.({
         getText: () =>

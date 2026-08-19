@@ -240,19 +240,18 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
 
 export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
-  let normalized: NormalizedPointValues | null = null;
 
   try {
-    normalized = normalizePointValues(values);
     session = await verifyRole(2);
     const actor = session;
+    const normalized = normalizePointValues(values);
     const actorId = actor.uid;
     const { validated } = await db.transaction(async (tx) => {
-      const validated = await validateScoreChanges(tx, normalized!);
+      const validated = await validateScoreChanges(tx, normalized);
       const rows = await tx
         .insert(userPoint)
         .values(
-          normalized!.values.map((value) => ({
+          normalized.values.map((value) => ({
             fkUserFlowId: value.fkUserFlowId,
             fkProblemId: value.fkProblemId,
             points: value.points,
@@ -269,7 +268,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
         })
         .returning({ id: userPoint.id });
 
-      if (rows.length !== normalized!.values.length) {
+      if (rows.length !== normalized.values.length) {
         throw new ReviewPointConflictError("部分题目已被其他批卷人保存，请刷新后查看");
       }
 
@@ -297,10 +296,10 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
       action: "batch-upsert-point",
       userId: session?.uid ?? null,
       role: session?.role ?? null,
-      userFlowId: normalized?.userFlowId ?? values[0]?.fkUserFlowId ?? null,
+      userFlowId: values[0]?.fkUserFlowId ?? null,
       metadata: {
-        itemCount: normalized?.values.length ?? values.length,
-        problemIds: normalized?.problemIds ?? values.map((value) => value.fkProblemId),
+        itemCount: values.length,
+        problemIds: values.map((value) => value.fkProblemId),
       },
     });
     throw error;

@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
@@ -9,10 +9,10 @@ on:
 
 permissions:
   contents: read
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 
 jobs:
   quality:
@@ -21,5 +21,4 @@ jobs:
 
   test:
     name: Test & Build
-    needs: quality
     uses: ./.github/workflows/test.yml

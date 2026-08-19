@@ -141,6 +141,21 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
             className="absolute inset-0 h-full w-full object-cover"
           />
         )}
+        {!paused && !isResolving && (
+          <div
+            aria-hidden="true"
+            data-testid="scan-guide"
+            className="pointer-events-none absolute inset-0 grid place-items-center"
+          >
+            <div className="relative aspect-square w-[62%] max-w-[230px] border border-primary/70 shadow-[0_0_0_999px_rgb(0_0_0_/_0.14)]">
+              <span className="qr-scanner-line absolute inset-x-2 top-2 h-0.5 bg-primary" />
+              <span className="absolute -left-px -top-px size-7 border-l-2 border-t-2 border-primary" />
+              <span className="absolute -right-px -top-px size-7 border-r-2 border-t-2 border-primary" />
+              <span className="absolute -bottom-px -left-px size-7 border-b-2 border-l-2 border-primary" />
+              <span className="absolute -bottom-px -right-px size-7 border-b-2 border-r-2 border-primary" />
+            </div>
+          </div>
+        )}
         {paused && (
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="flex w-full max-w-sm flex-col gap-4 p-5">

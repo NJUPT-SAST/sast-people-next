@@ -2,7 +2,7 @@
 
 import { InferSelectModel } from 'drizzle-orm';
 import { CheckCircle2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -36,6 +36,7 @@ export const MarkProblemTable = ({
   );
   const [scoreErrors, setScoreErrors] = useState<Record<number, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const saveSequenceByProblemId = useRef(new Map<number, number>());
   const problems = useLocalProblemList();
 
   const getDisplayScore = (problemId: number, existedScore: number | null) => {
@@ -76,17 +77,21 @@ export const MarkProblemTable = ({
   };
 
   useEffect(() => {
+    const controllers = new Map<number, AbortController>();
     const timers = Object.entries(editedScores).map(([problemId, value]) => {
       const id = Number(problemId);
+      const sequence = (saveSequenceByProblemId.current.get(id) ?? 0) + 1;
+      saveSequenceByProblemId.current.set(id, sequence);
       const problem = problems.find((item) => item.id === id);
       const score = parseScore(value);
       const errorMessage = problem
         ? validateScore(problem.name, problem.maxPoint, score)
         : '题目不存在';
 
-      if (errorMessage || !problem) {
-        return null;
-      }
+      if (errorMessage || !problem) return null;
+
+      const controller = new AbortController();
+      controllers.set(id, controller);
 
       return window.setTimeout(() => {
         void fetch('/api/user-point', {
@@ -95,11 +100,19 @@ export const MarkProblemTable = ({
             action: 'single',
             data: { userFlowId, problemId: id, point: score },
           }),
+          signal: controller.signal,
         })
           .then(async (response) => {
             if (!response.ok) {
               const error = await response.json();
               throw new Error(error.message || '评分自动保存失败');
+            }
+
+            if (
+              controller.signal.aborted ||
+              saveSequenceByProblemId.current.get(id) !== sequence
+            ) {
+              return;
             }
 
             setPersistedScores((previous) => ({ ...previous, [id]: score }));
@@ -116,6 +129,13 @@ export const MarkProblemTable = ({
             });
           })
           .catch((error: unknown) => {
+            if (
+              controller.signal.aborted ||
+              saveSequenceByProblemId.current.get(id) !== sequence
+            ) {
+              return;
+            }
+
             setScoreErrors((previous) => ({
               ...previous,
               [id]: error instanceof Error ? error.message : '评分自动保存失败',
@@ -128,6 +148,7 @@ export const MarkProblemTable = ({
       timers.forEach((timer) => {
         if (timer !== null) window.clearTimeout(timer);
       });
+      controllers.forEach((controller) => controller.abort());
     };
   }, [editedScores, problems, userFlowId]);
 

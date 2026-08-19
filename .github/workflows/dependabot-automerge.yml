@@ -14,6 +14,7 @@ jobs:
   enable-automerge:
     name: Enable auto-merge for eligible updates
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # Dependabot metadata is trusted only for internal Dependabot PRs targeting
     # the protected default branch in this repository.
     if: >-

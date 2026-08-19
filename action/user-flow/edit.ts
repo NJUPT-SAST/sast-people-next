@@ -196,9 +196,9 @@ export const batchSetOutcomeByUid = async (
     if (uids.length === 0) return;
     await assertBatchDirectOutcomeAllowed(flowId);
     const stepId = await findStepIdByOrder(flowId, stepOrder);
-    await db.transaction(async (tx) => {
+    const updatedUserIds = await db.transaction(async (tx) => {
       const targetRows = await tx
-        .select({ id: userFlow.id })
+        .select({ id: userFlow.id, userId: userFlow.fkUserId })
         .from(userFlow)
         .where(
           and(
@@ -209,20 +209,28 @@ export const batchSetOutcomeByUid = async (
         )
         .for('update');
 
-      if (targetRows.length === 0) return;
+      if (targetRows.length === 0) return [];
 
       await tx
         .update(userFlow)
         .set({ progressStatus: statusStr, fkCurrentStepId: stepId, updatedAt: new Date() })
         .where(inArray(userFlow.id, targetRows.map((row) => row.id)));
+
+      return targetRows.map((row) => row.userId);
     });
-    await syncUserRolesFromAcceptedFlows(uids);
+    await syncUserRolesFromAcceptedFlows(updatedUserIds);
+    const updatedUserIdSet = new Set(updatedUserIds);
     await writeOperationAudit({
       actorId: session.uid,
       action: 'user_flow.batch_set_outcome',
       resourceType: 'flow',
       resourceId: flowId,
-      metadata: { stepOrder, status: statusStr, targetUserIds: uids },
+      metadata: {
+        stepOrder,
+        status: statusStr,
+        updatedUserIds,
+        skippedUserIds: uids.filter((userId) => !updatedUserIdSet.has(userId)),
+      },
     });
   } catch (error) {
     logServerError("user-flow:batchSetOutcomeByUid", error, {

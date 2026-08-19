@@ -56,11 +56,15 @@ const config: Config = {
     "cobertura",
   ],
 
-  // Coverage thresholds - not enforced; use coverage reports for visibility
-  // coverageThreshold: { global: { lines: 50, statements: 50 } },
-
-  // An object that configures minimum threshold enforcement for coverage results
-  // coverageThreshold: undefined,
+  // Keep the current coverage baseline from regressing while new tests raise it.
+  coverageThreshold: {
+    global: {
+      lines: 47,
+      statements: 47,
+      functions: 55,
+      branches: 60,
+    },
+  },
 
   // A path to a custom dependency extractor
   // dependencyExtractor: undefined,

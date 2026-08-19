@@ -23,7 +23,7 @@ export async function resolveUserFlowForReview(
     };
   }
 
-  if (!response.ok || !data?.success || !data.userFlowId || !data.canReview) {
+  if (!response.ok || !data?.success || !data.userFlowId || data.canReview === false) {
     return {
       success: false,
       message: data?.message ?? '查询报名记录失败',

@@ -12,8 +12,9 @@
 ## 1. 代码与 CI 门禁
 
 - [ ] 目标分支质量检查通过：`pnpm lint`、`pnpm exec tsc --noEmit`
-- [ ] 单元测试通过：`pnpm test`
+- [ ] 单元测试通过：`pnpm test:coverage`，覆盖率不得低于 Jest 配置中的基线
 - [ ] 生产构建通过：`pnpm build`
+- [ ] Docker 构建和 `/health` 容器 smoke 通过
 - [ ] E2E 通过：`pnpm test:e2e`
   - 邮件中心管理员页与 webhook 鉴权
   - 学生报名 → 落库 → 页面展示
@@ -23,6 +24,7 @@
 - [ ] GitHub Actions `quality.yml` / `test.yml` 在目标分支绿灯
   - Lint 失败必须阻断
   - 临时 PostgreSQL + migrate + seed + Playwright 已执行
+  - 失败时下载 `test-diagnostics-*` artifact
 
 ## 2. 数据库
 
@@ -42,6 +44,11 @@
 ## 3. 环境变量与密钥
 
 服务端私密配置只放运行环境，不写入仓库、日志或 `NEXT_PUBLIC_*`。
+
+部署 workflow 的 `production` Environment 必须配置 required reviewers，并设置以下 SSH secrets：
+
+- [ ] `SERVER_SSH_KNOWN_HOSTS`（预先核验的完整 known_hosts 行）
+- [ ] `SERVER_SSH_FINGERPRINT`（`SHA256:...` host key 指纹）
 
 ### 3.1 必填
 

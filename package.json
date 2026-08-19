@@ -4,6 +4,7 @@
   "description": "Recruitment workflows, grading, interview review, and result notifications for NJUPT SAST.",
   "private": true,
   "license": "MIT",
+  "packageManager": "pnpm@11.20.0",
   "scripts": {
     "dev": "next dev",
     "dev:db": "next dev",
