@@ -119,12 +119,13 @@ describe("MarkProblemTable", () => {
     });
   });
 
-  it('shows an inline error and does not autosave a score above the maximum', async () => {
+  it('keeps a previous save from clearing an error after the score becomes invalid', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true }),
-    });
+    const deferred = Promise.withResolvers<{
+      ok: boolean;
+      json: () => Promise<{ success: boolean }>;
+    }>();
+    fetchMock.mockReturnValue(deferred.promise);
 
     render(
       <MarkProblemTable
@@ -135,10 +136,16 @@ describe("MarkProblemTable", () => {
 
     const scoreInput = screen.getAllByRole('spinbutton')[0];
     await user.clear(scoreInput);
+    await user.type(scoreInput, '88');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    await user.clear(scoreInput);
     await user.type(scoreInput, '120');
+    expect(screen.getByText('算法题 的得分必须在 0 到 100 之间')).toBeInTheDocument();
+
+    deferred.resolve({ ok: true, json: async () => ({ success: true }) });
+    await Promise.resolve();
 
     expect(screen.getByText('算法题 的得分必须在 0 到 100 之间')).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

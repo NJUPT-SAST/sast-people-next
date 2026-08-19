@@ -80,6 +80,8 @@ export const MarkProblemTable = ({
     const controllers = new Map<number, AbortController>();
     const timers = Object.entries(editedScores).map(([problemId, value]) => {
       const id = Number(problemId);
+      const sequence = (saveSequenceByProblemId.current.get(id) ?? 0) + 1;
+      saveSequenceByProblemId.current.set(id, sequence);
       const problem = problems.find((item) => item.id === id);
       const score = parseScore(value);
       const errorMessage = problem
@@ -88,8 +90,6 @@ export const MarkProblemTable = ({
 
       if (errorMessage || !problem) return null;
 
-      const sequence = (saveSequenceByProblemId.current.get(id) ?? 0) + 1;
-      saveSequenceByProblemId.current.set(id, sequence);
       const controller = new AbortController();
       controllers.set(id, controller);
 
@@ -108,7 +108,12 @@ export const MarkProblemTable = ({
               throw new Error(error.message || '评分自动保存失败');
             }
 
-            if (saveSequenceByProblemId.current.get(id) !== sequence) return;
+            if (
+              controller.signal.aborted ||
+              saveSequenceByProblemId.current.get(id) !== sequence
+            ) {
+              return;
+            }
 
             setPersistedScores((previous) => ({ ...previous, [id]: score }));
             setScoreErrors((previous) => {
