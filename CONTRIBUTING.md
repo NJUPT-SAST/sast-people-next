@@ -54,16 +54,55 @@ pnpm dev:full
 
 ## 提交规范
 
-推荐使用 Conventional Commits：
+使用 Conventional Commits，**commit message 必须使用英文**。类型、可选 scope 和简短说明均使用英文，避免中英文混写。
 
 ```text
-feat: ...
-fix: ...
-docs: ...
-refactor: ...
-test: ...
-chore: ...
-ci: ...
+feat(review): autosave valid scores
+fix(audit): render readable resource labels
+docs: clarify collaboration language policy
+```
+
+不要使用以下形式：
+
+```text
+fix: 修复阅卷问题
+feat(批卷): add new feature
+```
+
+## Pull Request 语言规范
+
+- PR 标题必须使用英文，并遵循 Conventional Commits 格式：`type(scope): imperative summary`。
+- PR 描述、评审说明、变更摘要和验证说明统一使用中文。
+- 代码标识符、命令、文件路径、API 名称和 commit message 保持原样，不强行翻译。
+- PR 描述应说明：解决的问题、关键改动、风险或兼容性影响、已执行的验证。
+
+PR 标题示例：
+
+```text
+fix(review): prevent grading finalized candidates
+feat(audit): add compact event details
+docs: clarify contribution language rules
+```
+
+不要使用以下 PR 标题：
+
+```text
+修复批卷终态问题
+Fix grading bug
+feat: 修复批卷终态问题
+```
+
+PR 正文示例：
+
+```md
+## 摘要
+
+修复已确认通过或不通过的考生仍可进入批卷的问题。
+
+## 验证
+
+- `pnpm test -- app/api/user-flow/route.test.ts --runInBand`
+- `pnpm exec tsc --noEmit`
 ```
 
 ## Pull Request 检查项
