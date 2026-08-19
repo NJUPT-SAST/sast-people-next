@@ -25,9 +25,9 @@ jobs:
   notify:
     name: Send Feishu Notification
     runs-on: ubuntu-latest
-    # Notifications always execute the script that is already merged into the
-    # default branch. Event data still comes from the triggering PR, Issue, or
-    # workflow run, but an unmerged branch cannot change notification behavior.
+    # pull_request_target exposes repository secrets. This workflow only reads
+    # GitHub event data and checks out the trusted default branch; it must never
+    # check out, run, or install content from the PR head branch.
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.name == 'Deploy' ||

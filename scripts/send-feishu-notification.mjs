@@ -6,8 +6,9 @@ const appSecret = process.env.FEISHU_APP_SECRET;
 const chatId = process.env.FEISHU_NOTIFY_CHAT_ID;
 
 if (!appId && !appSecret && !chatId) {
-  console.log("Feishu notification credentials are not configured; skipping notification.");
-  process.exit(0);
+  throw new Error(
+    "Feishu notification credentials are not configured. Set FEISHU_APP_ID, FEISHU_APP_SECRET, and FEISHU_NOTIFY_CHAT_ID.",
+  );
 }
 
 if (!appId || !appSecret || !chatId) {
@@ -273,6 +274,7 @@ function releaseNotification() {
 function notification() {
   switch (eventName) {
     case "pull_request":
+    case "pull_request_target":
       return pullRequestNotification();
     case "pull_request_review":
       return reviewNotification();
