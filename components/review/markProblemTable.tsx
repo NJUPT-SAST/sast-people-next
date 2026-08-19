@@ -1,7 +1,7 @@
 'use client';
 
 import { InferSelectModel } from 'drizzle-orm';
-import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -26,12 +26,22 @@ export const MarkProblemTable = ({
   const studentId = useSearchParams().get('user');
 
   const [editedScores, setEditedScores] = useState<Record<number, string>>({});
+  const [persistedScores, setPersistedScores] = useState<Record<number, number>>(
+    () =>
+      Object.fromEntries(
+        points
+          .filter((point) => point.fkProblemId !== null)
+          .map((point) => [point.fkProblemId, point.points]),
+      ),
+  );
+  const [scoreErrors, setScoreErrors] = useState<Record<number, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const problems = useLocalProblemList();
 
   const getDisplayScore = (problemId: number, existedScore: number | null) => {
     if (editedScores[problemId] !== undefined) return editedScores[problemId];
-    if (existedScore === null) return "";
+    if (persistedScores[problemId] !== undefined) return String(persistedScores[problemId]);
+    if (existedScore === null) return '';
     return String(existedScore);
   };
 
@@ -65,6 +75,63 @@ export const MarkProblemTable = ({
     return null;
   };
 
+  useEffect(() => {
+    const timers = Object.entries(editedScores).map(([problemId, value]) => {
+      const id = Number(problemId);
+      const problem = problems.find((item) => item.id === id);
+      const score = parseScore(value);
+      const errorMessage = problem
+        ? validateScore(problem.name, problem.maxPoint, score)
+        : '题目不存在';
+
+      if (errorMessage || !problem) {
+        return null;
+      }
+
+      return window.setTimeout(() => {
+        void fetch('/api/user-point', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'single',
+            data: { userFlowId, problemId: id, point: score },
+          }),
+        })
+          .then(async (response) => {
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.message || '评分自动保存失败');
+            }
+
+            setPersistedScores((previous) => ({ ...previous, [id]: score }));
+            setScoreErrors((previous) => {
+              const next = { ...previous };
+              delete next[id];
+              return next;
+            });
+            setEditedScores((previous) => {
+              if (previous[id] !== value) return previous;
+              const next = { ...previous };
+              delete next[id];
+              return next;
+            });
+          })
+          .catch((error: unknown) => {
+            setScoreErrors((previous) => ({
+              ...previous,
+              [id]: error instanceof Error ? error.message : '评分自动保存失败',
+            }));
+          });
+      }, 500);
+    });
+
+    return () => {
+      timers.forEach((timer) => {
+        if (timer !== null) window.clearTimeout(timer);
+      });
+    };
+  }, [editedScores, problems, userFlowId]);
+
+
   const problemPoints: Array<InferSelectModel<typeof userPoint>> = problems.map(
     (problem) => {
       const existed = points.find((point) => point.fkProblemId === problem.id);
@@ -83,11 +150,7 @@ export const MarkProblemTable = ({
     },
   );
 
-  const hasUnsavedChanges = problems.some((problem) => {
-    const existed = points.find((point) => point.fkProblemId === problem.id);
-    const originalScore = existed ? String(existed.points) : "";
-    return getDisplayScore(problem.id, existed ? existed.points : null) !== originalScore;
-  });
+  const hasUnsavedChanges = Object.keys(editedScores).length > 0;
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -170,17 +233,6 @@ export const MarkProblemTable = ({
     return values as Array<InferSelectModel<typeof userPoint>>;
   };
 
-  const handleBackToReview = () => {
-    if (hasUnsavedChanges) {
-      const confirmed = window.confirm('当前评分尚未保存，确定直接返回扫码页吗？');
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
-    router.push('/dashboard/review');
-  };
 
   const handleSubmit = async () => {
     if (isSubmitting) {
@@ -229,16 +281,18 @@ export const MarkProblemTable = ({
                   <Badge variant="outline">
                     当前总分 {totalScore} / {totalMaxScore}
                   </Badge>
-                  {hasUnsavedChanges ? (
-                    <Badge variant="outline">有未保存修改</Badge>
+                  {Object.keys(scoreErrors).length > 0 ? (
+                    <Badge variant="outline">有待修正评分</Badge>
+                  ) : hasUnsavedChanges ? (
+                    <Badge variant="outline">正在自动保存</Badge>
                   ) : (
-                    <Badge variant="outline">已同步当前填写内容</Badge>
+                    <Badge variant="outline">已自动保存</Badge>
                   )}
                 </div>
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              为每道题填写分数后，点击底部“确认评分并返回扫码页”。本页不再逐题单独确认。
+              合法分数会自动保存。确认后返回扫码页继续下一位。
             </p>
           </div>
         </header>
@@ -249,7 +303,7 @@ export const MarkProblemTable = ({
               const existed = points.find((point) => point.fkProblemId === problem.id);
               const displayScore = getDisplayScore(problem.id, existed ? existed.points : null);
               const parsedScore = parseScore(displayScore);
-
+              const inputError = scoreErrors[problem.id];
               return (
                 <div
                   key={problem.id}
@@ -276,13 +330,41 @@ export const MarkProblemTable = ({
                       min={0}
                       max={problem.maxPoint}
                       value={displayScore}
+                      aria-describedby={
+                        inputError ? `problem-score-error-${problem.id}` : undefined
+                      }
+                      aria-invalid={Boolean(inputError)}
                       onChange={(event) => {
-                        setEditedScores((prev) => ({
-                          ...prev,
-                          [problem.id]: event.target.value,
+                        const value = event.target.value;
+                        const errorMessage = validateScore(
+                          problem.name,
+                          problem.maxPoint,
+                          parseScore(value),
+                        );
+
+                        setEditedScores((previous) => ({
+                          ...previous,
+                          [problem.id]: value,
                         }));
+                        setScoreErrors((previous) => {
+                          const next = { ...previous };
+                          if (errorMessage) {
+                            next[problem.id] = errorMessage;
+                          } else {
+                            delete next[problem.id];
+                          }
+                          return next;
+                        });
                       }}
                     />
+                    {inputError && (
+                      <p
+                        id={`problem-score-error-${problem.id}`}
+                        className="text-sm text-destructive"
+                      >
+                        {inputError}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -290,34 +372,16 @@ export const MarkProblemTable = ({
           </div>
         </div>
       </section>
-      <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex flex-col gap-3 rounded-lg border bg-background/95 p-4 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium">完成当前考生阅卷</p>
-          <p className="text-xs text-muted-foreground">
-            提交后会保存所有题目分数，并自动返回扫码页继续下一位。
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full sm:h-9 sm:w-auto"
-            onClick={handleBackToReview}
-            disabled={isSubmitting}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            返回扫码页
-          </Button>
-          <Button
-            type="button"
-            className="h-11 w-full sm:h-9 sm:w-auto"
-            onClick={() => void handleSubmit()}
-            loading={isSubmitting}
-          >
-            <CheckCircle2 data-icon="inline-start" />
-            确认评分并返回扫码页
-          </Button>
-        </div>
+      <div className="flex justify-end border-t px-4 pb-1 pt-4 lg:px-6">
+        <Button
+          type="button"
+          className="h-10 w-full sm:w-auto"
+          onClick={() => void handleSubmit()}
+          loading={isSubmitting}
+        >
+          <CheckCircle2 data-icon="inline-start" />
+          确认评分并返回扫码页
+        </Button>
       </div>
     </div>
   );

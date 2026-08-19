@@ -12,6 +12,7 @@ export async function resolveUserFlowForReview(
   const data = (await response.json().catch(() => null)) as {
     success?: boolean;
     userFlowId?: number | null;
+    canReview?: boolean;
     message?: string;
   } | null;
 
@@ -22,8 +23,11 @@ export async function resolveUserFlowForReview(
     };
   }
 
-  if (!response.ok || !data?.success || !data.userFlowId) {
-    throw new Error(data?.message ?? "查询报名记录失败");
+  if (!response.ok || !data?.success || !data.userFlowId || !data.canReview) {
+    return {
+      success: false,
+      message: data?.message ?? '查询报名记录失败',
+    };
   }
 
   return { success: true, userFlowId: data.userFlowId };

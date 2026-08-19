@@ -15,16 +15,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userFlowId = await findUserFlowId(studentId, Number(flowId));
+    const userFlow = await findUserFlowId(studentId, Number(flowId));
 
-    if (userFlowId === null) {
+    if (userFlow === null) {
       return NextResponse.json(
         { success: false, message: '该同学未报名当前阅卷流程' },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    return NextResponse.json({ success: true, userFlowId });
+    const canReview =
+      userFlow.progressStatus !== 'passed' && userFlow.progressStatus !== 'failed';
+
+    return NextResponse.json({
+      success: true,
+      userFlowId: userFlow.id,
+      canReview,
+      message: canReview ? undefined : '该考生笔试结果已确认，不能再修改评分',
+    });
   } catch (error) {
     const { searchParams } = new URL(request.url);
     logServerError('api:user-flow:get', error, {
