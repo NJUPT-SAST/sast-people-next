@@ -99,10 +99,6 @@ export const columns: ColumnDef<
     ),
   },
   {
-    accessorKey: 'phoneNumber',
-    header: '手机号',
-  },
-  {
     accessorKey: 'status',
     header: '状态',
     cell: ({ getValue }) => {

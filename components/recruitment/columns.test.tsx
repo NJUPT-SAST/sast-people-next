@@ -11,7 +11,6 @@ describe("recruitment columns", () => {
       "select",
       "studentId",
       "name",
-      "phoneNumber",
       "status",
       "problemScores",
       "totalScore",
