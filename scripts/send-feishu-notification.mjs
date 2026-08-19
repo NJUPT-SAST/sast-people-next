@@ -80,7 +80,9 @@ function pullRequestNotification() {
   const labels = {
     opened: ["PR 已创建", "blue"],
     reopened: ["PR 已重新打开", "blue"],
+    synchronize: ["PR 已推送更新", "blue"],
     ready_for_review: ["PR 已准备审阅", "blue"],
+    converted_to_draft: ["PR 已转为草稿", "grey"],
     review_requested: ["PR 请求审阅", "orange"],
     closed: [isMerged ? "PR 已合并" : "PR 已关闭", isMerged ? "green" : "grey"],
   };
@@ -100,7 +102,7 @@ function pullRequestNotification() {
       line("标题", pullRequest.title),
       line("发起人", pullRequest.user.login),
       line("分支", `${pullRequest.head.ref} -> ${pullRequest.base.ref}`),
-      ...(["opened", "reopened", "ready_for_review"].includes(action) && summary
+      ...(["opened", "reopened", "synchronize", "ready_for_review"].includes(action) && summary
         ? [line("摘要", summary)]
         : []),
       ...(action === "review_requested" && (event.requested_reviewer || event.requested_team)
