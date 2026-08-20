@@ -4,21 +4,24 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+env:
+  SESSION_SECRET: ci-session-secret
+  EMAIL_WEBHOOK_SECRET: ci-email-webhook-secret
+  LINK_USE_MOCK: "true"
+  LINK_LOGIN_FEISHU_TEST_MOCK: "true"
+  PLAYWRIGHT_TEST_MODE: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
-  test:
-    name: Tests, E2E & Build
+  unit:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     env:
       DATABASE_URL: postgresql://sast:sast@localhost:5432/sastpeople
-      SESSION_SECRET: ci-session-secret
-      EMAIL_WEBHOOK_SECRET: ci-email-webhook-secret
-      LINK_USE_MOCK: "true"
-      LINK_LOGIN_FEISHU_TEST_MOCK: "true"
-      PLAYWRIGHT_TEST_MODE: "1"
-      NEXT_TELEMETRY_DISABLED: "1"
-
     services:
       postgres:
         image: postgres:16-alpine
@@ -33,92 +36,107 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-
       - name: Setup pnpm
         run: corepack enable
-
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22.x
           cache: pnpm
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
       - name: Apply database migrations
         run: pnpm db:migrate
-
-      - name: Seed E2E fixture data
+      - name: Seed test fixtures
         run: pnpm db:seed:demo
-
       - name: Run Feishu notification script tests
         run: node --test scripts/feishu-notification-utils.node-test.mjs
-
       - name: Run unit tests with coverage
         run: pnpm test:coverage
+      - name: Upload unit test diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: unit-test-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: coverage/
 
+  build:
+    name: Next.js Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Setup pnpm
+        run: corepack enable
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Build Next.js application
         run: pnpm build
         env:
           NEXT_PUBLIC_MOCK: true
 
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://sast:sast@localhost:5432/sastpeople
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sastpeople
+          POSTGRES_USER: sast
+          POSTGRES_PASSWORD: sast
+        options: >-
+          --health-cmd "pg_isready -U sast -d sastpeople"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Setup pnpm
+        run: corepack enable
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Apply database migrations
+        run: pnpm db:migrate
+      - name: Seed E2E fixture data
+        run: pnpm db:seed:demo
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
-
       - name: Run end-to-end tests
         run: pnpm test:e2e
-      - name: Build Docker image
-        run: docker build --tag sast-people-next:ci --build-arg NEXT_PUBLIC_SENTRY_DSN= .
-
-      - name: Run Docker health smoke test
-        run: |
-          set -euo pipefail
-          docker rm --force sast-people-next-ci >/dev/null 2>&1 || true
-          docker run --detach --name sast-people-next-ci --network host \
-            --env DATABASE_URL="$DATABASE_URL" \
-            --env SESSION_SECRET="$SESSION_SECRET" \
-            --env EMAIL_WEBHOOK_SECRET="$EMAIL_WEBHOOK_SECRET" \
-            sast-people-next:ci
-          cleanup() {
-            docker stop sast-people-next-ci >/dev/null 2>&1 || true
-            docker rm sast-people-next-ci >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          for attempt in $(seq 1 24); do
-            if curl --fail --silent --max-time 5 http://127.0.0.1:3003/health >/dev/null; then
-              echo "Docker health smoke passed on attempt ${attempt}."
-              exit 0
-            fi
-            if [[ "$(docker inspect --format='{{.State.Running}}' sast-people-next-ci 2>/dev/null)" != "true" ]]; then
-              echo "Docker container exited before health check succeeded."
-              docker inspect --format='status={{.State.Status}} exit_code={{.State.ExitCode}}' sast-people-next-ci || echo "(inspect failed)"
-              docker logs sast-people-next-ci || true
-              exit 1
-            fi
-            sleep 5
-          done
-          echo "Docker health smoke timed out."
-          docker inspect --format='status={{.State.Status}} exit_code={{.State.ExitCode}}' sast-people-next-ci || echo "(inspect failed)"
-          docker logs sast-people-next-ci || true
-          exit 1
-
-      - name: Upload test diagnostics
+      - name: Upload E2E diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: test-diagnostics-${{ github.run_id }}
+          name: e2e-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
           path: |
-            coverage/
             playwright-report/
             test-results/

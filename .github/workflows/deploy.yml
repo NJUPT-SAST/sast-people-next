@@ -3,7 +3,10 @@ name: Deploy
 # ============================================================================
 # Docker Build + Private TCR + SSH Deployment
 # ============================================================================
-# Manual trigger only (workflow_dispatch).
+# This workflow builds, publishes, and deploys an image for a commit that has
+# already passed the protected pull request checks. Runtime health and rollback
+# remain part of deployment; repository tests are not repeated here.
+#
 # Requires the following secrets:
 #   - SERVER_HOST:                Target server IP/hostname
 #   - SERVER_USER:                SSH user
@@ -36,22 +39,12 @@ env:
   TCR_NAMESPACE: sast
 
 jobs:
-  quality:
-    name: Quality Check
-    uses: ./.github/workflows/quality.yml
-  test:
-    name: Test Suite
-    uses: ./.github/workflows/test.yml
-
-
   deploy:
     name: Docker Build & Deploy
-    needs: [quality, test]
     runs-on: ubuntu-latest
     environment: production
     if: >-
-      !cancelled() && !failure() &&
-      (github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/v'))
+      github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/v')
 
     steps:
       - name: Checkout code
