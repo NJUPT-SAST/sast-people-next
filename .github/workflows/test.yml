@@ -95,21 +95,21 @@ jobs:
           }
           trap cleanup EXIT
           for attempt in $(seq 1 24); do
-            if curl --fail --silent http://127.0.0.1:3003/health >/dev/null; then
+            if curl --fail --silent --max-time 5 http://127.0.0.1:3003/health >/dev/null; then
               echo "Docker health smoke passed on attempt ${attempt}."
               exit 0
             fi
             if [[ "$(docker inspect --format='{{.State.Running}}' sast-people-next-ci 2>/dev/null)" != "true" ]]; then
               echo "Docker container exited before health check succeeded."
-              docker inspect --format='status={{.State.Status}} exit_code={{.State.ExitCode}}' sast-people-next-ci
-              docker logs sast-people-next-ci
+              docker inspect --format='status={{.State.Status}} exit_code={{.State.ExitCode}}' sast-people-next-ci || echo "(inspect failed)"
+              docker logs sast-people-next-ci || true
               exit 1
             fi
             sleep 5
           done
           echo "Docker health smoke timed out."
-          docker inspect --format='status={{.State.Status}} exit_code={{.State.ExitCode}}' sast-people-next-ci
-          docker logs sast-people-next-ci
+          docker inspect --format='status={{.State.Status}} exit_code={{.State.ExitCode}}' sast-people-next-ci || echo "(inspect failed)"
+          docker logs sast-people-next-ci || true
           exit 1
 
       - name: Upload test diagnostics
