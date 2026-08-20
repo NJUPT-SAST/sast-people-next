@@ -21,7 +21,7 @@ jobs:
       github.repository == 'NJUPT-SAST/sast-people-next' &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.base.ref == 'v3.1' &&
+      github.event.pull_request.base.ref == 'v3' &&
       github.event.pull_request.draft == false
 
     steps:
