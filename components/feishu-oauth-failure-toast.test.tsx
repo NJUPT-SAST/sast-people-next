@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { render, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { FeishuOAuthFailureToast } from "./feishu-oauth-failure-toast";
@@ -21,10 +22,16 @@ describe("FeishuOAuthFailureToast", () => {
   });
 
   it("shows the failure once and removes its query parameter", async () => {
-    render(<FeishuOAuthFailureToast message="绑定失败" />);
+    render(
+      <StrictMode>
+        <FeishuOAuthFailureToast message="绑定失败" />
+      </StrictMode>,
+    );
 
     await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledTimes(1);
       expect(toast.error).toHaveBeenCalledWith("绑定失败");
+      expect(mockReplace).toHaveBeenCalledTimes(1);
       expect(mockReplace).toHaveBeenCalledWith("/dashboard?start=profile");
     });
   });
