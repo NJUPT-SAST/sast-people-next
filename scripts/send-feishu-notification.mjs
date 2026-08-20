@@ -1,5 +1,9 @@
 import { readFile } from "node:fs/promises";
-import { commentSummary } from "./feishu-notification-utils.mjs";
+import {
+  commentSummary,
+  pullRequestCompareUrl,
+  pullRequestUpdateDetails,
+} from "./feishu-notification-utils.mjs";
 
 const appId = process.env.FEISHU_APP_ID;
 const appSecret = process.env.FEISHU_APP_SECRET;
@@ -75,7 +79,7 @@ function workflowNotification() {
 function pullRequestNotification() {
   const pullRequest = event.pull_request;
   const action = event.action;
-  const summary = commentSummary(pullRequest.body);
+  const summary = action === "synchronize" ? null : commentSummary(pullRequest.body);
   const isMerged = action === "closed" && pullRequest.merged;
   const labels = {
     opened: ["PR 已创建", "blue"],
@@ -87,6 +91,9 @@ function pullRequestNotification() {
     closed: [isMerged ? "PR 已合并" : "PR 已关闭", isMerged ? "green" : "grey"],
   };
   const label = labels[action];
+  const compareUrl = action === "synchronize"
+    ? pullRequestCompareUrl({ serverUrl, repository, before: event.before, after: event.after })
+    : null;
 
   if (!label) {
     return null;
@@ -95,20 +102,27 @@ function pullRequestNotification() {
   return {
     title: `${label[0]} · #${pullRequest.number}`,
     template: label[1],
-    url: pullRequest.html_url,
-    buttonLabel: "查看 PR",
+    url: compareUrl ?? pullRequest.html_url,
+    buttonLabel: compareUrl ? "查看更新" : "查看 PR",
     subtitle: "GitHub Pull Request",
-    details: [
-      line("标题", pullRequest.title),
-      line("发起人", pullRequest.user.login),
-      line("分支", `${pullRequest.head.ref} -> ${pullRequest.base.ref}`),
-      ...(["opened", "reopened", "synchronize", "ready_for_review"].includes(action) && summary
-        ? [line("摘要", summary)]
-        : []),
-      ...(action === "review_requested" && (event.requested_reviewer || event.requested_team)
-        ? [line("请求审阅", event.requested_reviewer?.login ?? event.requested_team.name)]
-        : []),
-    ],
+    details: action === "synchronize"
+      ? pullRequestUpdateDetails({
+        before: event.before,
+        after: event.after,
+        headSha: pullRequest.head.sha,
+        senderLogin: event.sender?.login,
+      }).map(([detailLabel, value]) => line(detailLabel, value))
+      : [
+        line("标题", pullRequest.title),
+        line("发起人", pullRequest.user.login),
+        line("分支", `${pullRequest.head.ref} -> ${pullRequest.base.ref}`),
+        ...(["opened", "reopened", "ready_for_review"].includes(action) && summary
+          ? [line("摘要", summary)]
+          : []),
+        ...(action === "review_requested" && (event.requested_reviewer || event.requested_team)
+          ? [line("请求审阅", event.requested_reviewer?.login ?? event.requested_team.name)]
+          : []),
+      ],
   };
 }
 

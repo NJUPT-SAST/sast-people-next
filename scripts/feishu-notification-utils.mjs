@@ -26,3 +26,37 @@ export function commentSummary(body) {
     ? `${characters.slice(0, COMMENT_SUMMARY_MAX_LENGTH - ELLIPSIS.length).join("")}${ELLIPSIS}`
     : normalized;
 }
+
+function shortCommitSha(sha) {
+  return typeof sha === "string" && sha.length > 0 ? sha.slice(0, 7) : null;
+}
+
+export function pullRequestUpdateDetails({ before, after, headSha, senderLogin }) {
+  const previousCommit = shortCommitSha(before);
+  const latestCommit = shortCommitSha(after) ?? shortCommitSha(headSha);
+
+  return [
+    ["推送者", typeof senderLogin === "string" && senderLogin ? senderLogin : "未知"],
+    ...(previousCommit && latestCommit && previousCommit !== latestCommit
+      ? [["提交范围", `${previousCommit} -> ${latestCommit}`]]
+      : latestCommit
+        ? [["最新提交", latestCommit]]
+        : []),
+  ];
+}
+
+export function pullRequestCompareUrl({ serverUrl, repository, before, after }) {
+  if (
+    typeof serverUrl !== "string" ||
+    typeof repository !== "string" ||
+    typeof before !== "string" ||
+    typeof after !== "string" ||
+    !before ||
+    !after ||
+    before === after
+  ) {
+    return null;
+  }
+
+  return `${serverUrl}/${repository}/compare/${encodeURIComponent(before)}...${encodeURIComponent(after)}`;
+}
