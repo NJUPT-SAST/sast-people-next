@@ -14,6 +14,7 @@ import {
   getLinkAdminAccessTokenFromSession,
   getLinkAccessTokenFromSession,
 } from "@/lib/link/session";
+import { isLinkAuthorizationError } from "@/lib/link/client";
 import type { userType } from "@/types/user";
 import { cache } from "react";
 
@@ -168,7 +169,8 @@ const listPeopleUsersByLinkIdsCached = cache(async (
 const tryGetCurrentUserProfile = async (accessToken: string) => {
   try {
     return await getCurrentUserProfile(accessToken);
-  } catch {
+  } catch (error) {
+    if (isLinkAuthorizationError(error)) throw error;
     return null;
   }
 };

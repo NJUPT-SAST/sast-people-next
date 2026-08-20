@@ -20,6 +20,10 @@ export class LinkApiError extends Error {
   }
 }
 
+export const isLinkAuthorizationError = (error: unknown) =>
+  error instanceof LinkApiError &&
+  (error.status === 401 || error.status === 403 || error.code === 4014905830);
+
 export const shouldUseMockLink = () => process.env.LINK_USE_MOCK === "true";
 
 export const shouldUseLinkFeishuTestMock = () =>

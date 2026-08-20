@@ -3,8 +3,12 @@
 import type { ReactNode } from "react";
 
 jest.mock("@/lib/dal", () => ({ verifySession: jest.fn() }));
+jest.mock("@/hooks/useUserInfo", () => ({ useUserInfo: jest.fn() }));
 jest.mock("@/lib/session", () => ({ getSession: jest.fn() }));
-jest.mock("@/lib/link/client", () => ({ shouldUseMockLink: jest.fn() }));
+jest.mock("@/lib/link/client", () => ({
+  shouldUseMockLink: jest.fn(),
+  isLinkAuthorizationError: jest.fn(() => false),
+}));
 jest.mock("next/navigation", () => ({ redirect: jest.fn() }));
 jest.mock("@/components/dashboard-layout", () => ({
   DashboardLayout: ({ children }: { children: ReactNode }) => children,
@@ -23,6 +27,9 @@ const { getSession: mockGetSession } = jest.requireMock("@/lib/session") as {
 const { shouldUseMockLink: mockShouldUseMockLink } = jest.requireMock(
   "@/lib/link/client",
 ) as { shouldUseMockLink: jest.Mock };
+const { useUserInfo: mockGetUserInfo } = jest.requireMock(
+  "@/hooks/useUserInfo",
+) as { useUserInfo: jest.Mock };
 const { redirect: mockRedirect } = jest.requireMock("next/navigation") as {
   redirect: jest.Mock;
 };
@@ -33,8 +40,10 @@ describe("DashboardLayout", () => {
     mockGetSession.mockReset();
     mockRedirect.mockReset();
     mockShouldUseMockLink.mockReset();
+    mockGetUserInfo.mockReset();
     mockVerifySession.mockResolvedValue({ uid: 1, role: 3, name: "Admin" });
     mockGetSession.mockResolvedValue({ linkAdminAccessToken: null });
+    mockGetUserInfo.mockResolvedValue({ id: 1 });
   });
 
   it("does not start real Link OAuth for a local mock administrator", async () => {

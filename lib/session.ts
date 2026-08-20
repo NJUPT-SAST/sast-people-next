@@ -185,7 +185,6 @@ export async function deleteSession() {
   const cookieStore = await cookies();
   cookieStore.delete(SESSION);
 }
-
 export async function updateSession() {
   const session = await getSession();
   if (!session) return null;
