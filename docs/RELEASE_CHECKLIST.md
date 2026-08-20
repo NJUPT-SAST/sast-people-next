@@ -45,10 +45,11 @@
 
 服务端私密配置只放运行环境，不写入仓库、日志或 `NEXT_PUBLIC_*`。
 
-部署 workflow 的 `production` Environment 必须配置 required reviewers，并设置以下 SSH secrets：
+部署 workflow 使用仓库 Secrets 中的以下 SSH 凭据；部署私钥仅用于该服务的低权限部署账号。
 
-- [ ] `SERVER_SSH_KNOWN_HOSTS`（预先核验的完整 known_hosts 行）
-- [ ] `SERVER_SSH_FINGERPRINT`（`SHA256:...` host key 指纹）
+- [ ] `SERVER_HOST`（目标服务器域名或 IP）
+- [ ] `SERVER_USER`（服务的低权限部署账号）
+- [ ] `SSH_PRIVATE_KEY`（该部署账号专用私钥）
 
 ### 3.1 必填
 
