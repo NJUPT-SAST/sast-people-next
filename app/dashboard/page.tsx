@@ -1,3 +1,4 @@
+import { FeishuOAuthFailureToast } from "@/components/feishu-oauth-failure-toast";
 import { PageHeader, PageTitle } from "@/components/route";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +18,7 @@ import { ExperienceInfoServer } from "./experienceInfo";
 import { LinkLogin } from "@/components/linkLogin";
 import { Clock, Rocket } from "lucide-react";
 
-const feishuOAuthFailureMessage: Record<string, string> = {
+export const feishuOAuthFailureMessage: Record<string, string> = {
   link_identity_missing: "绑定失败：当前 Link 账号尚未绑定飞书身份，请先在 Link 完成飞书绑定后重试。",
   identity_mismatch: "绑定失败：请使用与当前 Link 账号绑定的同一个飞书账号授权。",
   link_session_invalid: "绑定失败：Link 登录状态已失效，请重新登录 People 后再绑定飞书。",
@@ -56,14 +57,9 @@ export default async function Home({
           </div>
         )}
       </PageHeader>
-      {feishuOAuthFailureMessage[awaitedSearchParams.feishuOAuth ?? ""] && (
-        <div
-          role="alert"
-          className="mt-4 border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-        >
-          {feishuOAuthFailureMessage[awaitedSearchParams.feishuOAuth ?? ""]}
-        </div>
-      )}
+      <FeishuOAuthFailureToast
+        message={feishuOAuthFailureMessage[awaitedSearchParams.feishuOAuth ?? ""]}
+      />
       {userInfo.studentId === null && !awaitedSearchParams.start ? (
         userInfo.role === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-xl bg-muted/30 p-8 animate-in fade-in duration-500">
