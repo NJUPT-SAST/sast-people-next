@@ -51,7 +51,7 @@ jobs:
     environment: production
     if: >-
       !cancelled() && !failure() &&
-      (github.ref == 'refs/heads/v3.1' || startsWith(github.ref, 'refs/tags/v'))
+      (github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/v'))
 
     steps:
       - name: Checkout code
