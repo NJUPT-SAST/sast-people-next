@@ -29,9 +29,11 @@ jobs:
     # GitHub event data and checks out the trusted default branch; it must never
     # check out, run, or install content from the PR head branch.
     if: >-
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.name == 'Deploy' ||
-      (github.event.workflow_run.name == 'CI/CD Pipeline' && github.event.workflow_run.conclusion == 'failure')
+      (
+        github.event_name != 'workflow_run' ||
+        github.event.workflow_run.name == 'Deploy' ||
+        (github.event.workflow_run.name == 'CI/CD Pipeline' && github.event.workflow_run.conclusion == 'failure')
+      ) && !(github.event_name == 'pull_request_target' && github.event.action == 'synchronize' && github.event.pull_request.user.login == 'dependabot[bot]')
 
     steps:
       - name: Checkout notification script
