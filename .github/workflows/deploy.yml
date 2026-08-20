@@ -5,7 +5,9 @@ name: Deploy
 # ============================================================================
 # This workflow builds, publishes, and deploys an image for a commit that has
 # already passed the protected pull request checks. Runtime health and rollback
-# remain part of deployment; repository tests are not repeated here.
+# remain part of deployment; repository tests are not repeated here. Tagged
+# deployments additionally require a successful Release workflow for the same
+# commit before they can publish an image.
 #
 # Requires the following secrets:
 #   - SERVER_HOST:                Target server IP/hostname
@@ -26,6 +28,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -47,6 +50,24 @@ jobs:
       github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/v')
 
     steps:
+      - name: Verify tagged release checks
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow release.yml \
+            --commit "$GITHUB_SHA" \
+            --status completed \
+            --json conclusion \
+            --jq 'any(.[]; .conclusion == "success")' \
+            | grep -qx true; then
+            echo "A successful Release workflow is required before deploying tag $GITHUB_REF_NAME."
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
