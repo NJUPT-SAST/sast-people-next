@@ -31,7 +31,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify npm patch-only update
+      - name: Evaluate npm patch-only update
         id: eligible
         env:
           PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
@@ -41,18 +41,20 @@ jobs:
           set -euo pipefail
 
           # Dependabot groups minor and patch updates together in this repo.
-          # The aggregate type and every individual update must be patch-level.
-          jq -e \
+          # Only an all-patch npm group is eligible; other updates are skipped.
+          if jq -e \
             --arg ecosystem "$PACKAGE_ECOSYSTEM" \
             --arg update_type "$UPDATE_TYPE" \
-            '($ecosystem == "npm") and
+            '($ecosystem == "npm_and_yarn") and
              ($update_type == "version-update:semver-patch") and
              (type == "array") and
              (length > 0) and
-             all(.[]; .packageEcosystem == "npm" and .updateType == "version-update:semver-patch")' \
-            <<<"$UPDATED_DEPENDENCIES"
-
-          echo "eligible=true" >> "$GITHUB_OUTPUT"
+             all(.[]; .packageEcosystem == "npm_and_yarn" and .updateType == "version-update:semver-patch")' \
+            <<<"$UPDATED_DEPENDENCIES"; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Enable auto-merge
         if: steps.eligible.outputs.eligible == 'true'
