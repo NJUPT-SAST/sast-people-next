@@ -8,8 +8,6 @@ name: Deploy
 #   - SERVER_HOST:                Target server IP/hostname
 #   - SERVER_USER:                SSH user
 #   - SSH_PRIVATE_KEY:            SSH private key for authentication
-#   - SERVER_SSH_KNOWN_HOSTS:     Pinned known_hosts entry for SERVER_HOST
-#   - SERVER_SSH_FINGERPRINT:     SHA-256 fingerprint of the server host key
 #   - NEXT_PUBLIC_SENTRY_DSN:     Build-time public Sentry DSN
 #   - TCR_USERNAME:               Tencent Cloud account ID / UIN (organization secret)
 #   - TCR_PASSWORD:               TCR registry login password (organization secret)
