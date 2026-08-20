@@ -1,11 +1,14 @@
-import { verifySession } from '../lib/dal';
-import { cache } from 'react';
-import { redirect } from 'next/navigation';
-import { isNextControlFlowError, logServerError } from '@/lib/server-error-log';
-import { getCurrentUserProfile } from '@/lib/link/user';
-import { getLinkAccessTokenFromSession, MissingLinkAccessTokenError } from '@/lib/link/session';
-import { toPeopleUserFromLinkProfile } from '@/lib/link/people-user';
-
+import { verifySession } from "../lib/dal";
+import { cache } from "react";
+import { redirect } from "next/navigation";
+import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
+import { isLinkAuthorizationError } from "@/lib/link/client";
+import { getCurrentUserProfile } from "@/lib/link/user";
+import {
+  getLinkAccessTokenFromSession,
+  MissingLinkAccessTokenError,
+} from "@/lib/link/session";
+import { toPeopleUserFromLinkProfile } from "@/lib/link/people-user";
 export const useUserInfo = cache(async () => {
   try {
     await verifySession();
@@ -19,6 +22,9 @@ export const useUserInfo = cache(async () => {
     } catch (err) {
       if (err instanceof MissingLinkAccessTokenError) {
         redirect('/login');
+      }
+      if (isLinkAuthorizationError(err)) {
+        redirect("/api/auth/logout?reason=link-authorization");
       }
       throw err;
     }
