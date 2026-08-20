@@ -8,6 +8,7 @@ import { exchangeFeishuOAuthCode } from "@/lib/feishu/user-auth";
 import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
 import { getLinkAccessTokenFromSession } from "@/lib/link/session";
 import { getCurrentUserProfile } from "@/lib/link/user";
+import { getPublicBaseUrl } from "@/lib/app-url";
 import { logServerError } from "@/lib/server-error-log";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
         stage,
       },
     });
-    return redirectAfterFeishuOAuthFailure(request, cookieStore, error);
+    return redirectAfterFeishuOAuthFailure(cookieStore, error);
   }
 
   redirect("/dashboard");
@@ -91,12 +92,11 @@ const assertFeishuUnionMatchesLinkIdentity = async (unionId: string) => {
 };
 
 function redirectAfterFeishuOAuthFailure(
-  request: NextRequest,
   cookieStore: Awaited<ReturnType<typeof cookies>>,
   error: unknown,
 ) {
   cookieStore.delete(FEISHU_OAUTH_STATE);
-  const url = new URL("/dashboard", request.url);
+  const url = new URL("/dashboard", getPublicBaseUrl());
   url.searchParams.set("feishuOAuth", getFeishuOAuthFailure(error));
   return NextResponse.redirect(url);
 }
