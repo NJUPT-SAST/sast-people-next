@@ -110,8 +110,6 @@ export const InterviewScheduleEmail = ({
       </Preview>
       <Body style={main}>
         <Container style={container}>
-          <Section style={topAccent} />
-
           <Section style={header}>
             <table
               role="presentation"
@@ -147,7 +145,6 @@ export const InterviewScheduleEmail = ({
               >
                 <tbody>
                   <tr>
-                    <td style={scheduleRail} />
                     <td style={scheduleContent}>
                       <Text style={scheduleLabel}>面试时间</Text>
                       <Text style={scheduleStart}>{startsAtText}</Text>
@@ -227,13 +224,6 @@ const container = {
   borderRadius: "14px",
   overflow: "hidden" as const,
   boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
-};
-
-const topAccent = {
-  height: "3px",
-  lineHeight: "3px",
-  fontSize: "0",
-  backgroundColor: "#1e293b",
 };
 
 const header = {
@@ -332,13 +322,6 @@ const scheduleCard = {
 const scheduleTable = {
   width: "100%",
   borderCollapse: "collapse" as const,
-};
-
-const scheduleRail = {
-  width: "4px",
-  fontSize: "0",
-  lineHeight: "0",
-  backgroundColor: "#1e293b",
 };
 
 const scheduleContent = {
