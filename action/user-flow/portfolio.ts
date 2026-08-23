@@ -12,6 +12,7 @@ const editableStatuses = new Set(["not_started", "ongoing"]);
 export const updatePortfolioLink = async (
   userFlowId: number,
   portfolioLink: string,
+  portfolioDescription: string,
 ) => {
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
@@ -52,7 +53,10 @@ export const updatePortfolioLink = async (
 
     await db
       .update(userFlow)
-      .set({ portfolioLink: portfolioLink.trim() || null })
+      .set({
+        portfolioLink: portfolioLink.trim() || null,
+        portfolioDescription: portfolioDescription.trim() || null,
+      })
       .where(eq(userFlow.id, userFlowId));
 
     revalidatePath("/dashboard/user-flow");

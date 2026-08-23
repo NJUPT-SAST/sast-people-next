@@ -111,6 +111,7 @@ export const userFlow = pgTable("user_flow", {
   fkCurrentStepId: integer("fk_current_step_id")
     .references(() => flowStep.id, { onDelete: "set null" }),
   portfolioLink: text("portfolio_link"),
+  portfolioDescription: text("portfolio_description"),
   fkFlowId: integer("fk_flow_id")
     .references(() => flow.id, { onDelete: "cascade" })
     .notNull(),

@@ -24,6 +24,7 @@ export const register = async (
   flowId: number,
   uid: number,
   portfolioLink?: string,
+  portfolioDescription?: string,
 ) => {
   try {
     const session = await verifySession();
@@ -110,6 +111,8 @@ export const register = async (
       const { startedAt, endedAt, title, type } = flowInfo[0];
       const normalizedPortfolioLink =
         type === "recruitment" ? null : portfolioLink?.trim() || null;
+      const normalizedPortfolioDescription =
+        type === "recruitment" ? null : portfolioDescription?.trim() || null;
 
       if (now < startedAt) {
         return {
@@ -139,6 +142,7 @@ export const register = async (
           fkCurrentStepId: stepId,
           progressStatus: "ongoing",
           portfolioLink: normalizedPortfolioLink,
+          portfolioDescription: normalizedPortfolioDescription,
         })
         .returning();
 

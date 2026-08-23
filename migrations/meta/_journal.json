@@ -260,6 +260,13 @@
       "when": 1786612200002,
       "tag": "0036_mark_confirmed_legacy_result_emails_sent",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787548800000,
+      "tag": "0037_user_flow_portfolio_description",
+      "breakpoints": true
     }
   ]
 }

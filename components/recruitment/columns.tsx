@@ -93,10 +93,8 @@ export const columns: ColumnDef<
   },
   {
     accessorKey: 'name',
-    header: () => <div className="text-center">姓名</div>,
-    cell: ({ getValue }) => (
-      <div className="text-center">{getValue() as string}</div>
-    ),
+    header: '姓名',
+    cell: ({ getValue }) => <div>{getValue() as string}</div>,
   },
   {
     accessorKey: 'status',
