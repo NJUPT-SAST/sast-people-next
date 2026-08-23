@@ -57,10 +57,22 @@ function getEventDispatcher() {
 
 async function handleCalendarEventChanged(event: FeishuCalendarEventChangedEvent) {
   try {
-    return await syncInterviewScheduleFromFeishuEvent({
+    const result = await syncInterviewScheduleFromFeishuEvent({
       calendar_event_id: event.calendar_event_id,
       change_type: event.change_type,
+      internalToken: process.env.FEISHU_EVENT_VERIFICATION_TOKEN,
     });
+    if (!result.synced) {
+      logServerError("api:feishu:calendarEventChanged", new Error("calendar event sync skipped"), {
+        action: "skip-feishu-calendar-event-change",
+        metadata: {
+          calendarEventId: event.calendar_event_id,
+          changeType: event.change_type,
+          reason: result.reason,
+        },
+      });
+    }
+    return result;
   } catch (error) {
     logServerError("api:feishu:calendarEventChanged", error, {
       action: "sync-feishu-calendar-event-change",

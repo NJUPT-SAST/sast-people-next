@@ -1,6 +1,4 @@
-import {
-  isFeishuEventNotFoundError,
-} from "./interview-schedule";
+import { isFeishuEventNotFoundError } from "@/lib/feishu/interview-schedule";
 
 describe("Feishu interview schedule errors", () => {
   it("recognizes event-not-found responses returned directly by the SDK", () => {

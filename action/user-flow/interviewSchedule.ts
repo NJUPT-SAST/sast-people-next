@@ -32,6 +32,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
+const feishuCalendarSubscriptionCache = new Set<number>();
 const interviewEmailTemplateKey = {
   created: "interview.schedule.created",
   rescheduled: "interview.schedule.rescheduled",
@@ -66,6 +67,7 @@ type CreateInterviewScheduleResult =
 export type FeishuCalendarEventChangedInput = {
   calendar_event_id?: string;
   change_type?: string;
+  internalToken?: string;
 };
 
 type PreviewInterviewScheduleEmailResult =
@@ -413,16 +415,6 @@ export async function createInterviewSchedule(
     ].filter(Boolean).join("\n");
 
     const credential = await getValidFeishuUserCredential(session.uid);
-    try {
-      await subscribeFeishuCalendarEventChanges(credential.accessToken);
-    } catch (error) {
-      // Calendar change events are an enhancement; scheduling must still work
-      // when the tenant has not enabled this subscription capability yet.
-      logServerError("interviewSchedule:feishuSubscription", error, {
-        action: "subscribe-feishu-calendar-event-changes",
-        userId: session.uid,
-      });
-    }
     const [existingSchedule] = await db
       .select()
       .from(interviewSchedule)
@@ -453,6 +445,20 @@ export async function createInterviewSchedule(
         success: false,
         error: { message: "该面试已经结束，不能再改约。" },
       };
+    }
+
+    if (!feishuCalendarSubscriptionCache.has(session.uid)) {
+      try {
+        await subscribeFeishuCalendarEventChanges(credential.accessToken);
+        feishuCalendarSubscriptionCache.add(session.uid);
+      } catch (error) {
+        // Calendar change events are an enhancement; scheduling must still work
+        // when the tenant has not enabled this subscription capability yet.
+        logServerError("interviewSchedule:feishuSubscription", error, {
+          action: "subscribe-feishu-calendar-event-changes",
+          userId: session.uid,
+        });
+      }
     }
 
     let feishuSchedule: Awaited<ReturnType<typeof createFeishuInterviewSchedule>>;
@@ -809,6 +815,10 @@ export async function cancelInterviewSchedule(
 export async function syncInterviewScheduleFromFeishuEvent(
   input: FeishuCalendarEventChangedInput,
 ) {
+  const internalToken = process.env.FEISHU_EVENT_VERIFICATION_TOKEN;
+  if (!internalToken || input.internalToken !== internalToken) {
+    throw new Error("Unauthorized Feishu calendar event sync");
+  }
   const eventId = input.calendar_event_id?.trim();
   if (!eventId) return { synced: false as const, reason: "missing_event_id" as const };
 
@@ -901,10 +911,17 @@ export async function syncInterviewScheduleFromFeishuEvent(
     });
   } catch (error) {
     if (!isFeishuEventNotFoundError(error)) throw error;
-    await db
+    const [cancelled] = await db
       .update(interviewSchedule)
       .set({ status: "cancelled", updatedAt: new Date() })
-      .where(eq(interviewSchedule.id, schedule.id));
+      .where(
+        and(
+          eq(interviewSchedule.id, schedule.id),
+          eq(interviewSchedule.status, "created"),
+        ),
+      )
+      .returning({ id: interviewSchedule.id });
+    if (!cancelled) return { synced: false as const, reason: "already_cancelled" as const };
     await sendExternalChangeEmail("cancelled", schedule.startsAt, schedule.endsAt, schedule.location);
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
@@ -918,10 +935,17 @@ export async function syncInterviewScheduleFromFeishuEvent(
   }
 
   if (event.status === "cancelled" || input.change_type === "deleted") {
-    await db
+    const [cancelled] = await db
       .update(interviewSchedule)
       .set({ status: "cancelled", updatedAt: new Date() })
-      .where(eq(interviewSchedule.id, schedule.id));
+      .where(
+        and(
+          eq(interviewSchedule.id, schedule.id),
+          eq(interviewSchedule.status, "created"),
+        ),
+      )
+      .returning({ id: interviewSchedule.id });
+    if (!cancelled) return { synced: false as const, reason: "already_cancelled" as const };
     await sendExternalChangeEmail("cancelled", schedule.startsAt, schedule.endsAt, schedule.location);
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
@@ -939,7 +963,6 @@ export async function syncInterviewScheduleFromFeishuEvent(
     event.endsAt.getTime() !== schedule.endsAt.getTime() ||
     (event.location ?? null) !== schedule.location ||
     (event.summary ?? schedule.summary) !== schedule.summary ||
-    (event.description ?? schedule.description) !== schedule.description ||
     (event.meetingLink && event.meetingLink !== schedule.meetingLink) ||
     (event.scheduleLink && event.scheduleLink !== schedule.scheduleLink);
   if (!changed) return { synced: false as const, reason: "unchanged" as const };
