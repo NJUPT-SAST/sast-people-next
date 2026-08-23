@@ -12,8 +12,10 @@ import { getEducationEmail } from "@/lib/email/address";
 import {
   cancelFeishuInterviewSchedule,
   createFeishuInterviewSchedule,
+  getFeishuCalendarEvent,
   isFeishuEventNotFoundError,
   isFeishuInternalServiceError,
+  subscribeFeishuCalendarEventChanges,
   updateFeishuInterviewSchedule,
 } from "@/lib/feishu/interview-schedule";
 import {
@@ -60,6 +62,11 @@ type CreateInterviewScheduleResult =
         message: string;
       };
     };
+
+export type FeishuCalendarEventChangedInput = {
+  calendar_event_id?: string;
+  change_type?: string;
+};
 
 type PreviewInterviewScheduleEmailResult =
   | {
@@ -406,6 +413,16 @@ export async function createInterviewSchedule(
     ].filter(Boolean).join("\n");
 
     const credential = await getValidFeishuUserCredential(session.uid);
+    try {
+      await subscribeFeishuCalendarEventChanges(credential.accessToken);
+    } catch (error) {
+      // Calendar change events are an enhancement; scheduling must still work
+      // when the tenant has not enabled this subscription capability yet.
+      logServerError("interviewSchedule:feishuSubscription", error, {
+        action: "subscribe-feishu-calendar-event-changes",
+        userId: session.uid,
+      });
+    }
     const [existingSchedule] = await db
       .select()
       .from(interviewSchedule)
@@ -787,6 +804,182 @@ export async function cancelInterviewSchedule(
     });
     throw error;
   }
+}
+
+export async function syncInterviewScheduleFromFeishuEvent(
+  input: FeishuCalendarEventChangedInput,
+) {
+  const eventId = input.calendar_event_id?.trim();
+  if (!eventId) return { synced: false as const, reason: "missing_event_id" as const };
+
+  const [schedule] = await db
+    .select({
+      id: interviewSchedule.id,
+      userFlowId: interviewSchedule.fkUserFlowId,
+      organizerId: interviewSchedule.fkOrganizerId,
+      providerEventId: interviewSchedule.providerEventId,
+      attendeeEmail: interviewSchedule.attendeeEmail,
+      summary: interviewSchedule.summary,
+      description: interviewSchedule.description,
+      location: interviewSchedule.location,
+      startsAt: interviewSchedule.startsAt,
+      endsAt: interviewSchedule.endsAt,
+      meetingLink: interviewSchedule.meetingLink,
+      scheduleLink: interviewSchedule.scheduleLink,
+      status: interviewSchedule.status,
+    })
+    .from(interviewSchedule)
+    .where(
+      and(
+        eq(interviewSchedule.providerEventId, eventId),
+        eq(interviewSchedule.status, "created"),
+      ),
+    )
+    .limit(1);
+
+  if (!schedule) return { synced: false as const, reason: "schedule_not_found" as const };
+
+  const [target] = await db
+    .select({
+      candidateId: userFlow.fkUserId,
+      flowId: flow.id,
+      flowTitle: flow.title,
+    })
+    .from(userFlow)
+    .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
+    .where(eq(userFlow.id, schedule.userFlowId))
+    .limit(1);
+  const userMap = target
+    ? await listPeopleUsersByLinkIds([target.candidateId, schedule.organizerId], {
+        canViewSensitiveInfo: true,
+      })
+    : new Map();
+  const candidate = target ? userMap.get(target.candidateId) : null;
+  const organizer = userMap.get(schedule.organizerId);
+  const candidateName = candidate?.name ?? "同学";
+  const flowName = target?.flowTitle ?? schedule.summary;
+  const organizerName = organizer?.name ?? "面试讲师";
+
+  const sendExternalChangeEmail = async (
+    kind: "rescheduled" | "cancelled",
+    startsAt: Date,
+    endsAt: Date,
+    location?: string | null,
+  ) => {
+    if (!target || !schedule.attendeeEmail) return;
+    const emailResult = await sendInterviewEmailDelivery({
+      kind,
+      toAddress: schedule.attendeeEmail,
+      recipientUserId: target.candidateId,
+      userFlowId: schedule.userFlowId,
+      flowId: target.flowId,
+      scheduleId: schedule.id,
+      createdBy: schedule.organizerId,
+      variables: {
+        candidateName,
+        flowName,
+        organizerName,
+        startsAt,
+        endsAt,
+        location,
+      },
+    });
+    if (!emailResult.ok) {
+      logServerError("interviewSchedule:externalChangeEmail", new Error(emailResult.message), {
+        action: "send-external-feishu-schedule-change-email",
+        metadata: { scheduleId: schedule.id, kind },
+      });
+    }
+  };
+
+  const credential = await getValidFeishuUserCredential(schedule.organizerId);
+  let event: Awaited<ReturnType<typeof getFeishuCalendarEvent>>;
+  try {
+    event = await getFeishuCalendarEvent({
+      accessToken: credential.accessToken,
+      eventId,
+    });
+  } catch (error) {
+    if (!isFeishuEventNotFoundError(error)) throw error;
+    await db
+      .update(interviewSchedule)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(interviewSchedule.id, schedule.id));
+    await sendExternalChangeEmail("cancelled", schedule.startsAt, schedule.endsAt, schedule.location);
+    revalidatePath("/dashboard/interviews");
+    await writeOperationAudit({
+      actorId: schedule.organizerId,
+      action: "interview_schedule.sync.cancelled",
+      resourceType: "interview_schedule",
+      resourceId: schedule.id,
+      metadata: { provider: "feishu", providerEventId: eventId, reason: "event_not_found" },
+    });
+    return { synced: true as const, status: "cancelled" as const };
+  }
+
+  if (event.status === "cancelled" || input.change_type === "deleted") {
+    await db
+      .update(interviewSchedule)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(interviewSchedule.id, schedule.id));
+    await sendExternalChangeEmail("cancelled", schedule.startsAt, schedule.endsAt, schedule.location);
+    revalidatePath("/dashboard/interviews");
+    await writeOperationAudit({
+      actorId: schedule.organizerId,
+      action: "interview_schedule.sync.cancelled",
+      resourceType: "interview_schedule",
+      resourceId: schedule.id,
+      metadata: { provider: "feishu", providerEventId: eventId, changeType: input.change_type },
+    });
+    return { synced: true as const, status: "cancelled" as const };
+  }
+
+  const changed =
+    event.startsAt.getTime() !== schedule.startsAt.getTime() ||
+    event.endsAt.getTime() !== schedule.endsAt.getTime() ||
+    (event.location ?? null) !== schedule.location ||
+    (event.summary ?? schedule.summary) !== schedule.summary ||
+    (event.description ?? schedule.description) !== schedule.description ||
+    (event.meetingLink && event.meetingLink !== schedule.meetingLink) ||
+    (event.scheduleLink && event.scheduleLink !== schedule.scheduleLink);
+  if (!changed) return { synced: false as const, reason: "unchanged" as const };
+
+  await db
+    .update(interviewSchedule)
+    .set({
+      summary: event.summary ?? schedule.summary,
+      description: event.description ?? schedule.description,
+      location: event.location ?? null,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      timezone: event.timezone ?? DEFAULT_TIMEZONE,
+      meetingLink: event.meetingLink ?? schedule.meetingLink,
+      providerMeetingId: event.meetingId,
+      providerMeetingNo: event.meetingNo,
+      scheduleLink: event.scheduleLink,
+      updatedAt: new Date(),
+    })
+    .where(eq(interviewSchedule.id, schedule.id));
+  await sendExternalChangeEmail("rescheduled", event.startsAt, event.endsAt, event.location);
+  revalidatePath("/dashboard/interviews");
+
+  await writeOperationAudit({
+    actorId: schedule.organizerId,
+    action: "interview_schedule.sync.updated",
+    resourceType: "interview_schedule",
+    resourceId: schedule.id,
+    metadata: {
+      provider: "feishu",
+      providerEventId: eventId,
+      oldStartsAt: schedule.startsAt.toISOString(),
+      oldEndsAt: schedule.endsAt.toISOString(),
+      startsAt: event.startsAt.toISOString(),
+      endsAt: event.endsAt.toISOString(),
+      changeType: input.change_type,
+    },
+  });
+
+  return { synced: true as const, status: "updated" as const };
 }
 
 export async function confirmInterviewScheduleEnded(

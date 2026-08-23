@@ -49,6 +49,21 @@ export type CancelFeishuInterviewScheduleInput = {
   reserveId?: string | null;
 };
 
+export type FeishuCalendarEventSnapshot = {
+  eventId: string;
+  status?: "tentative" | "confirmed" | "cancelled";
+  summary?: string;
+  description?: string;
+  location?: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  timezone?: string;
+  meetingLink?: string;
+  meetingId?: string;
+  meetingNo?: string;
+  scheduleLink?: string;
+};
+
 export type GetFeishuMinuteInfoInput = {
   accessToken: string;
   minuteToken: string;
@@ -104,6 +119,78 @@ export function isFeishuEventNotFoundError(error: unknown) {
 export function isFeishuInternalServiceError(error: unknown) {
   const payload = getFeishuErrorPayload(error);
   return payload?.code === 190003 || payload?.msg === "internal service error";
+}
+
+function parseFeishuEventTime(value?: { timestamp?: string; date?: string }) {
+  if (value?.timestamp) {
+    const timestamp = Number(value.timestamp);
+    if (Number.isFinite(timestamp)) {
+      const date = new Date(timestamp < 1e12 ? timestamp * 1000 : timestamp);
+      if (!Number.isNaN(date.getTime())) return date;
+    }
+  }
+  if (value?.date) {
+    const date = new Date(`${value.date}T00:00:00+08:00`);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  return null;
+}
+
+export async function getFeishuCalendarEvent({
+  accessToken,
+  eventId,
+}: {
+  accessToken: string;
+  eventId: string;
+}): Promise<FeishuCalendarEventSnapshot> {
+  const res = await getFeishuClient().calendar.v4.calendarEvent.get(
+    {
+      path: { calendar_id: "primary", event_id: eventId },
+      params: { user_id_type: "open_id" },
+    },
+    lark.withUserAccessToken(accessToken),
+  );
+  if (res.code && res.code !== 0) {
+    if (isFeishuEventNotFoundError(res)) {
+      throw { code: res.code, msg: res.msg };
+    }
+    throw new Error(`get feishu calendar event failed: ${res.msg ?? res.code}`);
+  }
+
+  const event = res.data?.event;
+  const startsAt = parseFeishuEventTime(event?.start_time);
+  const endsAt = parseFeishuEventTime(event?.end_time);
+  if (!event?.event_id || !startsAt || !endsAt) {
+    throw new Error("get feishu calendar event failed: time is empty");
+  }
+
+  return {
+    eventId: event.event_id,
+    status: event.status,
+    summary: event.summary,
+    description: event.description,
+    location: event.location?.name ?? null,
+    startsAt,
+    endsAt,
+    timezone: event.start_time?.timezone,
+    meetingLink: event.vchat?.meeting_url,
+    meetingId: event.vchat?.vc_info?.unique_id,
+    meetingNo: event.vchat?.vc_info?.meeting_no,
+    scheduleLink: event.app_link,
+  };
+}
+
+export async function subscribeFeishuCalendarEventChanges(accessToken: string) {
+  const res = await getFeishuClient().calendar.v4.calendarEvent.subscription(
+    {
+      path: { calendar_id: "primary" },
+      params: { user_id_type: "open_id" },
+    },
+    lark.withUserAccessToken(accessToken),
+  );
+  if (res.code && res.code !== 0) {
+    throw new Error(`subscribe feishu calendar events failed: ${res.msg ?? res.code}`);
+  }
 }
 
 function logFeishuErrorToConsole(action: string, error: unknown) {
