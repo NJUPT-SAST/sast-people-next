@@ -7,7 +7,7 @@ import { updatePortfolioLink } from "@/action/user-flow/portfolio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { externalHref } from "@/lib/link";
+import { externalHref, isValidExternalUrl } from "@/lib/link";
 
 export const PortfolioLinkEditor = ({
   userFlowId,
@@ -26,6 +26,7 @@ export const PortfolioLinkEditor = ({
   const [draftDescription, setDraftDescription] = useState(initialDescription ?? "");
   const [editing, setEditing] = useState(editable && !initialValue);
   const [saving, setSaving] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const hasLink = value.trim().length > 0;
   const href = externalHref(value);
 
@@ -34,6 +35,11 @@ export const PortfolioLinkEditor = ({
       toast.error("流程已结束，作品信息不可修改");
       return;
     }
+    if (!isValidExternalUrl(draft)) {
+      setLinkError("作品链接格式不正确，请填写有效的 URL");
+      return;
+    }
+    setLinkError(null);
     setSaving(true);
     try {
       const result = await updatePortfolioLink(userFlowId, draft, draftDescription);
@@ -103,10 +109,14 @@ export const PortfolioLinkEditor = ({
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                if (linkError) setLinkError(null);
+              }}
               placeholder="https://..."
               inputMode="url"
               className="min-w-0"
+              aria-invalid={Boolean(linkError)}
             />
             <Button
               type="button"
@@ -119,6 +129,11 @@ export const PortfolioLinkEditor = ({
               保存
             </Button>
           </div>
+          {linkError && (
+            <p role="alert" className="text-sm text-destructive">
+              {linkError}
+            </p>
+          )}
           <Textarea
             value={draftDescription}
             onChange={(event) => setDraftDescription(event.target.value)}

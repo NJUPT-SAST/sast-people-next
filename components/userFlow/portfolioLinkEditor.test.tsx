@@ -75,4 +75,24 @@ describe("PortfolioLinkEditor", () => {
     );
     expect(await screen.findByText("新简介")).toBeInTheDocument();
   });
+
+  it("rejects an invalid portfolio URL before saving", async () => {
+    const user = userEvent.setup();
+    render(
+      <PortfolioLinkEditor
+        userFlowId={1}
+        initialValue="https://example.com/work"
+        editable
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /修改/ }));
+    const input = screen.getByPlaceholderText("https://...");
+    await user.clear(input);
+    await user.type(input, "not a url");
+    await user.click(screen.getByRole("button", { name: /保存/ }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("作品链接格式不正确");
+    expect(mockUpdatePortfolioLink).not.toHaveBeenCalled();
+  });
 });

@@ -16,3 +16,18 @@ export const externalHref = (value: string) => {
 
   return "";
 };
+
+export const isValidExternalUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+
+  const href = externalHref(trimmed);
+  if (!href) return false;
+
+  try {
+    const url = new URL(href);
+    return Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+};

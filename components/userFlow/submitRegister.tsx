@@ -25,6 +25,7 @@ import { register } from '@/action/user-flow/register';
 import { toast } from 'sonner';
 import { displayFlow } from '@/types/flow';
 import originalDayjs from '@/lib/dayjs';
+import { isValidExternalUrl } from '@/lib/link';
 
 const isFlowActive = (flow: displayFlow, now: Date) =>
   now >= flow.startedAt && (!flow.endedAt || now <= flow.endedAt);
@@ -42,12 +43,18 @@ const SubmitRegister = ({
   const [selectedFlow, setSelectedFlow] = useState<number | null>(null);
   const [portfolioLink, setPortfolioLink] = useState("");
   const [portfolioDescription, setPortfolioDescription] = useState("");
+  const [portfolioLinkError, setPortfolioLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const currentFlow = safeFlowList.find((flow) => flow.id === selectedFlow);
   const needsPortfolioLink = currentFlow?.type !== "recruitment" && !!currentFlow;
 
   const handleRegister = async () => {
     if (selectedFlow) {
+      if (needsPortfolioLink && !isValidExternalUrl(portfolioLink)) {
+        setPortfolioLinkError("作品链接格式不正确，请填写有效的 URL");
+        return;
+      }
+      setPortfolioLinkError(null);
       setIsSubmitting(true);
       toast.promise(
         (async () => {
@@ -65,6 +72,7 @@ const SubmitRegister = ({
             setSelectedFlow(null);
             setPortfolioLink("");
             setPortfolioDescription("");
+            setPortfolioLinkError(null);
             router.refresh();
           } catch (error) {
             if (error instanceof Error) {
@@ -106,6 +114,7 @@ const SubmitRegister = ({
             setSelectedFlow(Number(value));
             setPortfolioLink("");
             setPortfolioDescription("");
+            setPortfolioLinkError(null);
           }}
         >
           <SelectTrigger className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left">
@@ -148,10 +157,19 @@ const SubmitRegister = ({
               <Input
                 id="portfolio-link"
                 value={portfolioLink}
-                onChange={(event) => setPortfolioLink(event.target.value)}
+                onChange={(event) => {
+                  setPortfolioLink(event.target.value);
+                  if (portfolioLinkError) setPortfolioLinkError(null);
+                }}
                 placeholder="https://..."
                 inputMode="url"
+                aria-invalid={Boolean(portfolioLinkError)}
               />
+              {portfolioLinkError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {portfolioLinkError}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="portfolio-description">作品简介</Label>
@@ -183,4 +201,3 @@ const SubmitRegister = ({
 };
 
 export default SubmitRegister;
-

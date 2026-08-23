@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { logServerError } from "@/lib/server-error-log";
 import { verifySession } from "@/lib/dal";
 import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
+import { isValidExternalUrl } from "@/lib/link";
 
 /** 查找 flow 下指定 order 的步骤 ID */
 async function findStepIdByOrder(
@@ -113,6 +114,16 @@ export const register = async (
         type === "recruitment" ? null : portfolioLink?.trim() || null;
       const normalizedPortfolioDescription =
         type === "recruitment" ? null : portfolioDescription?.trim() || null;
+
+      if (
+        normalizedPortfolioLink &&
+        !isValidExternalUrl(normalizedPortfolioLink)
+      ) {
+        return {
+          success: false,
+          error: { message: "作品链接格式不正确，请填写有效的 URL" },
+        };
+      }
 
       if (now < startedAt) {
         return {
