@@ -11,7 +11,7 @@ import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
@@ -127,6 +127,10 @@ export async function syncInterviewScheduleFromFeishuEvent({
     return { synced: true as const, status: "cancelled" as const };
   };
 
+  if (changeType === "deleted") {
+    return cancelSchedule({ changeType });
+  }
+
   const credential = await getValidFeishuUserCredential(schedule.organizerId);
   let event: Awaited<ReturnType<typeof getFeishuCalendarEvent>>;
   try {
@@ -136,7 +140,7 @@ export async function syncInterviewScheduleFromFeishuEvent({
     return cancelSchedule({ reason: "event_not_found" });
   }
 
-  if (event.status === "cancelled" || changeType === "deleted") {
+  if (event.status === "cancelled") {
     return cancelSchedule({ changeType });
   }
 
@@ -175,7 +179,11 @@ export async function syncInterviewScheduleFromFeishuEvent({
       and(
         eq(interviewSchedule.id, schedule.id),
         eq(interviewSchedule.status, "created"),
-        eq(interviewSchedule.updatedAt, schedule.updatedAt),
+        // PostgreSQL keeps microseconds while the pg driver exposes Date values
+        // with millisecond precision. Match the original timestamp's millisecond
+        // bucket so the optimistic lock remains valid without losing concurrency protection.
+        gte(interviewSchedule.updatedAt, schedule.updatedAt),
+        lt(interviewSchedule.updatedAt, new Date(schedule.updatedAt.getTime() + 1)),
       ),
     )
     .returning({ id: interviewSchedule.id });
