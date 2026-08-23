@@ -1,6 +1,6 @@
 import { db } from "@/db/drizzle";
-import { syncInterviewScheduleFromFeishuEvent } from "@/action/user-flow/interviewSchedule";
 import { interviewEvaluation, interviewSchedule } from "@/db/schema";
+import { syncInterviewScheduleFromFeishuEvent } from "@/lib/feishu/interview-schedule-sync";
 import { getFeishuMinuteInfo } from "@/lib/feishu/interview-schedule";
 import {
   getMeetingCalendarEventId,
@@ -58,9 +58,8 @@ function getEventDispatcher() {
 async function handleCalendarEventChanged(event: FeishuCalendarEventChangedEvent) {
   try {
     const result = await syncInterviewScheduleFromFeishuEvent({
-      calendar_event_id: event.calendar_event_id,
-      change_type: event.change_type,
-      internalToken: process.env.FEISHU_EVENT_VERIFICATION_TOKEN,
+      calendarEventId: event.calendar_event_id,
+      changeType: event.change_type,
     });
     if (!result.synced) {
       logServerError("api:feishu:calendarEventChanged", new Error("calendar event sync skipped"), {

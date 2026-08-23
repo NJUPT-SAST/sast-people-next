@@ -64,12 +64,6 @@ type CreateInterviewScheduleResult =
       };
     };
 
-export type FeishuCalendarEventChangedInput = {
-  calendar_event_id?: string;
-  change_type?: string;
-  internalToken?: string;
-};
-
 type PreviewInterviewScheduleEmailResult =
   | {
       success: true;
@@ -812,8 +806,12 @@ export async function cancelInterviewSchedule(
   }
 }
 
-export async function syncInterviewScheduleFromFeishuEvent(
-  input: FeishuCalendarEventChangedInput,
+async function _syncInterviewScheduleFromFeishuEvent(
+  input: {
+    calendar_event_id?: string;
+    change_type?: string;
+    internalToken?: string;
+  },
 ) {
   const internalToken = process.env.FEISHU_EVENT_VERIFICATION_TOKEN;
   if (!internalToken || input.internalToken !== internalToken) {
