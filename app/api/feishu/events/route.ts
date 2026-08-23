@@ -1,5 +1,6 @@
 import { db } from "@/db/drizzle";
 import { interviewEvaluation, interviewSchedule } from "@/db/schema";
+import { syncInterviewScheduleFromFeishuEvent } from "@/lib/feishu/interview-schedule-sync";
 import { getFeishuMinuteInfo } from "@/lib/feishu/interview-schedule";
 import {
   getMeetingCalendarEventId,
@@ -28,6 +29,13 @@ type FeishuUrlVerificationPayload = {
 
 let dispatcher: lark.EventDispatcher | null = null;
 
+type FeishuCalendarEventChangedEvent = {
+  calendar_event_id?: string;
+  change_type?: string;
+  event_id?: string;
+  event_type?: string;
+};
+
 function getEventDispatcher() {
   if (!dispatcher) {
     dispatcher = new lark.EventDispatcher({
@@ -40,10 +48,42 @@ function getEventDispatcher() {
       "vc.meeting.all_meeting_ended_v1": handleMeetingEnded,
       "vc.meeting.participant_meeting_ended_v1": handleMeetingEnded,
       "minutes.minute.generated_v1": handleMinuteGenerated,
+      "calendar.calendar.event.changed_v4": handleCalendarEventChanged,
     } as lark.EventHandles);
   }
 
   return dispatcher;
+}
+
+async function handleCalendarEventChanged(event: FeishuCalendarEventChangedEvent) {
+  try {
+    const result = await syncInterviewScheduleFromFeishuEvent({
+      calendarEventId: event.calendar_event_id,
+      changeType: event.change_type,
+    });
+    if (!result.synced) {
+      console.info("feishu calendar event sync skipped", {
+        action: "skip-feishu-calendar-event-change",
+        metadata: {
+          calendarEventId: event.calendar_event_id,
+          changeType: event.change_type,
+          reason: result.reason,
+        },
+      });
+    }
+    return result;
+  } catch (error) {
+    logServerError("api:feishu:calendarEventChanged", error, {
+      action: "sync-feishu-calendar-event-change",
+      metadata: {
+        calendarEventId: event.calendar_event_id,
+        changeType: event.change_type,
+        feishuEventId: event.event_id,
+        feishuEventType: event.event_type,
+      },
+    });
+    throw error;
+  }
 }
 
 async function handleMeetingEnded(event: FeishuMeetingEndedEvent) {

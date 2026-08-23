@@ -6,12 +6,14 @@ import { verifySession } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { isValidExternalUrl } from "@/lib/link";
 
 const editableStatuses = new Set(["not_started", "ongoing"]);
 
 export const updatePortfolioLink = async (
   userFlowId: number,
   portfolioLink: string,
+  portfolioDescription: string,
 ) => {
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
 
@@ -50,9 +52,19 @@ export const updatePortfolioLink = async (
       };
     }
 
+    if (portfolioLink.trim() && !isValidExternalUrl(portfolioLink)) {
+      return {
+        success: false,
+        error: { message: "作品链接格式不正确，请填写有效的 URL" },
+      };
+    }
+
     await db
       .update(userFlow)
-      .set({ portfolioLink: portfolioLink.trim() || null })
+      .set({
+        portfolioLink: portfolioLink.trim() || null,
+        portfolioDescription: portfolioDescription.trim() || null,
+      })
       .where(eq(userFlow.id, userFlowId));
 
     revalidatePath("/dashboard/user-flow");

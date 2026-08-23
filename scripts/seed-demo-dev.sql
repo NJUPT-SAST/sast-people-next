@@ -223,7 +223,7 @@ insert into email_template_content (
   'interview.schedule',
   '{flowName} 面试预约通知',
   '面试预约通知',
-  '{candidateName} 同学，你已预约 {flowName} 的面试，讲师为 {organizerName}。时间为 {startsAt} - {endsAt}，请通过会议链接参加：{meetingLink}',
+  '{candidateName} 同学，你已预约 {flowName} 的面试，讲师为 {organizerName}。时间为 {startsAt} - {endsAt}。',
   '南京邮电大学大学生科学技术协会',
   now()
 ) on conflict (template_key) do update set

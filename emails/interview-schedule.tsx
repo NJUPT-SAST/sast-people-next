@@ -110,8 +110,6 @@ export const InterviewScheduleEmail = ({
       </Preview>
       <Body style={main}>
         <Container style={container}>
-          <Section style={topAccent} />
-
           <Section style={header}>
             <table
               role="presentation"
@@ -147,7 +145,6 @@ export const InterviewScheduleEmail = ({
               >
                 <tbody>
                   <tr>
-                    <td style={scheduleRail} />
                     <td style={scheduleContent}>
                       <Text style={scheduleLabel}>面试时间</Text>
                       <Text style={scheduleStart}>{startsAtText}</Text>
@@ -172,13 +169,6 @@ export const InterviewScheduleEmail = ({
               ))}
             </Section>
 
-            <Section style={offlineNotice}>
-              <Text style={offlineNoticeText}>
-                {kind === "cancelled"
-                  ? "原线下面试安排已取消。如需重新安排，请等待后续通知。"
-                  : "本次为线下面试，请按时到达上述地点。飞书日程与会议仅用于工作人员录制和妙记留档，无需通过会议链接参会。"}
-              </Text>
-            </Section>
           </Section>
 
           <Section style={footer}>
@@ -227,13 +217,6 @@ const container = {
   borderRadius: "14px",
   overflow: "hidden" as const,
   boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
-};
-
-const topAccent = {
-  height: "3px",
-  lineHeight: "3px",
-  fontSize: "0",
-  backgroundColor: "#1e293b",
 };
 
 const header = {
@@ -334,13 +317,6 @@ const scheduleTable = {
   borderCollapse: "collapse" as const,
 };
 
-const scheduleRail = {
-  width: "4px",
-  fontSize: "0",
-  lineHeight: "0",
-  backgroundColor: "#1e293b",
-};
-
 const scheduleContent = {
   padding: "16px 18px",
   verticalAlign: "top" as const,
@@ -404,22 +380,6 @@ const metaValue = {
   fontSize: "14px",
   fontWeight: 500,
   lineHeight: "22px",
-};
-
-const offlineNotice = {
-  margin: "0 0 14px",
-  padding: "14px 16px",
-  border: "1px solid #e2e8f0",
-  borderRadius: "10px",
-  backgroundColor: "#f8fafc",
-};
-
-const offlineNoticeText = {
-  margin: 0,
-  color: "#64748b",
-  fontFamily: fontStack,
-  fontSize: "13px",
-  lineHeight: "21px",
 };
 
 const footer = {

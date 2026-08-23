@@ -122,7 +122,7 @@ describe("SubmitRegister", () => {
     await user.click(screen.getByRole("button", { name: "确认报名" }));
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith(2, 7, undefined);
+      expect(mockRegister).toHaveBeenCalledWith(2, 7, undefined, undefined);
       expect(mockToastPromise).toHaveBeenCalled();
     });
   });
@@ -180,10 +180,36 @@ describe("SubmitRegister", () => {
     await user.click(screen.getByRole("button", { name: "提交报名" }));
     await user.click(screen.getByRole("button", { name: /免试流程/i }));
     await user.type(screen.getByLabelText("作品链接"), "https://demo.test");
+    await user.type(screen.getByLabelText("作品简介"), "一个演示项目");
     await user.click(screen.getByRole("button", { name: "确认报名" }));
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith(3, 7, "https://demo.test");
+      expect(mockRegister).toHaveBeenCalledWith(3, 7, "https://demo.test", "一个演示项目");
     });
+  });
+
+  it("rejects an invalid portfolio URL before submitting", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[{
+          id: 3,
+          title: "免试流程",
+          type: "recruitment_exemption",
+          startedAt: new Date("2026-03-21T08:00:00.000Z"),
+          endedAt: new Date("2026-03-23T08:00:00.000Z"),
+        }] as never}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "提交报名" }));
+    await user.click(screen.getByRole("button", { name: /免试流程/i }));
+    await user.type(screen.getByLabelText("作品链接"), "not a url");
+    await user.click(screen.getByRole("button", { name: "确认报名" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("作品链接格式不正确");
+    expect(mockRegister).not.toHaveBeenCalled();
   });
 });

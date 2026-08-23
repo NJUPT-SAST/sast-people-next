@@ -75,6 +75,8 @@ const actionLabels: Record<string, string> = {
   "interview_schedule.meeting.ended": "记录面试结束",
   "interview_schedule.meeting.ended_manual": "手动确认面试结束",
   "interview_schedule.meeting_minute.generated": "生成会议妙记",
+  "interview_schedule.sync.updated": "同步飞书改约",
+  "interview_schedule.sync.cancelled": "同步飞书取消",
 };
 
 const metadataLabels: Record<string, string> = {

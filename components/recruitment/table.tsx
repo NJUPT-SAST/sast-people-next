@@ -133,6 +133,14 @@ export function DataTable<TData, TValue>({
   const helperText =
     '成绩管理只负责确定通过/不通过；标完结果后，到邮件中心按本流程发送结果通知。';
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'not_started'];
+  const columnWidthClass: Record<string, string> = {
+    select: 'w-[6%]',
+    studentId: 'w-[18%]',
+    name: 'w-[30%]',
+    status: 'w-[16%]',
+    problemScores: 'w-[20%]',
+    totalScore: 'w-[10%]',
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -279,13 +287,16 @@ export function DataTable<TData, TValue>({
 
         {/* PC 端长表格试图 */}
         <div className="hidden min-w-0 md:block overflow-x-auto">
-          <Table>
+          <Table className="w-full table-fixed">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="bg-muted/30 hover:bg-muted/30">
                   {headerGroup.headers.map((header) => {
                     return (
-                      <TableHead key={header.id} className="whitespace-nowrap px-4 py-3">
+                      <TableHead
+                        key={header.id}
+                        className={`whitespace-nowrap px-4 py-3 ${columnWidthClass[header.column.id] ?? ''}`}
+                      >
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -318,11 +329,7 @@ export function DataTable<TData, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className={
-                          cell.column.id === 'problemScores'
-                            ? 'whitespace-nowrap px-4 py-4'
-                            : 'whitespace-nowrap px-4 py-4'
-                        }
+                        className={`whitespace-nowrap px-4 py-3 ${columnWidthClass[cell.column.id] ?? ''}`}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

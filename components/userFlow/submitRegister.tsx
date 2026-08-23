@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import {
   Dialog,
@@ -24,6 +25,7 @@ import { register } from '@/action/user-flow/register';
 import { toast } from 'sonner';
 import { displayFlow } from '@/types/flow';
 import originalDayjs from '@/lib/dayjs';
+import { isValidExternalUrl } from '@/lib/link';
 
 const isFlowActive = (flow: displayFlow, now: Date) =>
   now >= flow.startedAt && (!flow.endedAt || now <= flow.endedAt);
@@ -40,12 +42,19 @@ const SubmitRegister = ({
   const [open, setOpen] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<number | null>(null);
   const [portfolioLink, setPortfolioLink] = useState("");
+  const [portfolioDescription, setPortfolioDescription] = useState("");
+  const [portfolioLinkError, setPortfolioLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const currentFlow = safeFlowList.find((flow) => flow.id === selectedFlow);
   const needsPortfolioLink = currentFlow?.type !== "recruitment" && !!currentFlow;
 
   const handleRegister = async () => {
     if (selectedFlow) {
+      if (needsPortfolioLink && !isValidExternalUrl(portfolioLink)) {
+        setPortfolioLinkError("作品链接格式不正确，请填写有效的 URL");
+        return;
+      }
+      setPortfolioLinkError(null);
       setIsSubmitting(true);
       toast.promise(
         (async () => {
@@ -54,6 +63,7 @@ const SubmitRegister = ({
               selectedFlow,
               uid,
               needsPortfolioLink ? portfolioLink : undefined,
+              needsPortfolioLink ? portfolioDescription : undefined,
             );
             if ((result?.success ?? false) === false) {
               throw Error(result?.error?.message ?? "服务器错误")
@@ -61,6 +71,8 @@ const SubmitRegister = ({
             setOpen(false);
             setSelectedFlow(null);
             setPortfolioLink("");
+            setPortfolioDescription("");
+            setPortfolioLinkError(null);
             router.refresh();
           } catch (error) {
             if (error instanceof Error) {
@@ -101,6 +113,8 @@ const SubmitRegister = ({
           onValueChange={(value) => {
             setSelectedFlow(Number(value));
             setPortfolioLink("");
+            setPortfolioDescription("");
+            setPortfolioLinkError(null);
           }}
         >
           <SelectTrigger className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left">
@@ -137,18 +151,39 @@ const SubmitRegister = ({
           )}
         </Select>
         {needsPortfolioLink && (
-          <div className="space-y-2">
-            <Label htmlFor="portfolio-link">作品链接</Label>
-            <Input
-              id="portfolio-link"
-              value={portfolioLink}
-              onChange={(event) => setPortfolioLink(event.target.value)}
-              placeholder="https://..."
-              inputMode="url"
-            />
-            <p className="text-xs text-muted-foreground">
-              报名后可补充或修改。
-            </p>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="portfolio-link">作品链接</Label>
+              <Input
+                id="portfolio-link"
+                value={portfolioLink}
+                onChange={(event) => {
+                  setPortfolioLink(event.target.value);
+                  if (portfolioLinkError) setPortfolioLinkError(null);
+                }}
+                placeholder="https://..."
+                inputMode="url"
+                aria-invalid={Boolean(portfolioLinkError)}
+              />
+              {portfolioLinkError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {portfolioLinkError}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="portfolio-description">作品简介</Label>
+              <Textarea
+                id="portfolio-description"
+                value={portfolioDescription}
+                onChange={(event) => setPortfolioDescription(event.target.value)}
+                placeholder="简单介绍作品内容、你的负责部分和使用技术"
+                className="min-h-24 resize-y"
+              />
+              <p className="text-xs text-muted-foreground">
+                让讲师快速了解这个仓库的用途和你的贡献。
+              </p>
+            </div>
           </div>
         )}
         <DialogFooter>
@@ -166,4 +201,3 @@ const SubmitRegister = ({
 };
 
 export default SubmitRegister;
-

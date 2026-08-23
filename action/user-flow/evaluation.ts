@@ -74,6 +74,7 @@ async function findActiveEvaluationInTx(tx: Tx, userFlowId: number) {
         id: interviewEvaluation.id,
         status: interviewEvaluation.status,
         meetingLink: interviewEvaluation.meetingLink,
+        authorId: interviewEvaluation.fkUserId,
       })
       .from(interviewEvaluation)
       .where(
@@ -239,9 +240,11 @@ export const createEvaluation = async (
             },
           };
         }
-
         const [activeSchedule] = await tx
-          .select({ meetingStatus: interviewSchedule.meetingStatus })
+          .select({
+            meetingStatus: interviewSchedule.meetingStatus,
+            organizerId: interviewSchedule.fkOrganizerId,
+          })
           .from(interviewSchedule)
           .where(
             and(
@@ -259,10 +262,42 @@ export const createEvaluation = async (
           };
         }
 
+        if (activeSchedule.organizerId !== session!.uid) {
+          return {
+            success: false as const,
+            error: { message: "只能由预约讲师提交该候选人的面评" },
+          };
+        }
+
         if (activeSchedule.meetingStatus !== "ended") {
           return {
             success: false as const,
             error: { message: "请先确认面试结束后再提交面评" },
+          };
+        }
+      }
+
+      if (active?.status === "submitted") {
+        const [activeSchedule] = await tx
+          .select({ organizerId: interviewSchedule.fkOrganizerId })
+          .from(interviewSchedule)
+          .where(
+            and(
+              eq(interviewSchedule.fkUserFlowId, userFlowId),
+              eq(interviewSchedule.status, "created"),
+            ),
+          )
+          .orderBy(desc(interviewSchedule.startsAt))
+          .limit(1);
+
+        if (
+          !activeSchedule ||
+          activeSchedule.organizerId !== session!.uid ||
+          active.authorId !== session!.uid
+        ) {
+          return {
+            success: false as const,
+            error: { message: "只能由预约讲师修改待审核面评" },
           };
         }
       }
@@ -587,11 +622,13 @@ export const getEvaluationCandidates = async (flowId: number) => {
         uid: userFlow.fkUserId,
         status: userFlow.progressStatus,
         portfolioLink: userFlow.portfolioLink,
+        portfolioDescription: userFlow.portfolioDescription,
         evalId: interviewEvaluation.id,
         evalContent: interviewEvaluation.content,
         evalMeetingLink: interviewEvaluation.meetingLink,
         evalRecommendation: interviewEvaluation.recommendation,
         evalStatus: interviewEvaluation.status,
+        evalAuthorId: interviewEvaluation.fkUserId,
       })
       .from(userFlow)
       .leftJoin(
@@ -612,6 +649,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
             .select({
               id: interviewSchedule.id,
               fkUserFlowId: interviewSchedule.fkUserFlowId,
+              organizerId: interviewSchedule.fkOrganizerId,
               meetingLink: interviewSchedule.meetingLink,
               scheduleLink: interviewSchedule.scheduleLink,
               meetingMinuteLink: interviewSchedule.meetingMinuteLink,
@@ -638,38 +676,45 @@ export const getEvaluationCandidates = async (flowId: number) => {
       }
     }
 
-    const userMap = await listPeopleUsersByLinkIds(
-      dedupedCandidates.map((candidate) => candidate.uid),
-      { canViewSensitiveInfo: true },
-    );
+    const userIds = [
+      ...dedupedCandidates.map((candidate) => candidate.uid),
+      ...scheduleRows.map((schedule) => schedule.organizerId),
+    ].filter((id): id is number => id !== null);
+    const userMap = await listPeopleUsersByLinkIds(userIds, {
+      canViewSensitiveInfo: true,
+    });
 
     return dedupedCandidates
-      .map((candidate) => ({
-        ...candidate,
-        name: userMap.get(candidate.uid)?.name ?? "未知用户",
-        studentId: userMap.get(candidate.uid)?.studentId ?? null,
-        qq: userMap.get(candidate.uid)?.qq ?? null,
-        scheduleId: latestScheduleMap.get(candidate.userFlowId)?.id ?? null,
-        scheduleMeetingLink:
-          latestScheduleMap.get(candidate.userFlowId)?.meetingLink ?? null,
-        scheduleLink:
-          latestScheduleMap.get(candidate.userFlowId)?.scheduleLink ?? null,
-        scheduleMeetingMinuteLink:
-          latestScheduleMap.get(candidate.userFlowId)?.meetingMinuteLink ??
-          null,
-        scheduleLocation:
-          latestScheduleMap.get(candidate.userFlowId)?.location ?? null,
-        scheduleStartsAt:
-          latestScheduleMap.get(candidate.userFlowId)?.startsAt ?? null,
-        scheduleEndsAt:
-          latestScheduleMap.get(candidate.userFlowId)?.endsAt ?? null,
-        scheduleStatus:
-          latestScheduleMap.get(candidate.userFlowId)?.status ?? null,
-        scheduleMeetingStatus:
-          latestScheduleMap.get(candidate.userFlowId)?.meetingStatus ?? null,
-        scheduleMeetingEndedAt:
-          latestScheduleMap.get(candidate.userFlowId)?.meetingEndedAt ?? null,
-      }))
+      .map((candidate) => {
+        const schedule = latestScheduleMap.get(candidate.userFlowId);
+        return {
+          ...candidate,
+          name: userMap.get(candidate.uid)?.name ?? "未知用户",
+          studentId: userMap.get(candidate.uid)?.studentId ?? null,
+          qq: userMap.get(candidate.uid)?.qq ?? null,
+          scheduleId: schedule?.id ?? null,
+          scheduleOrganizerId: schedule?.organizerId ?? null,
+          scheduleOrganizerName: schedule?.organizerId
+            ? userMap.get(schedule.organizerId)?.name ?? null
+            : null,
+          canManageSchedule:
+            !schedule || schedule.organizerId === session!.uid,
+          canEditEvaluation:
+            candidate.evalId === null
+              ? !schedule || schedule.organizerId === session!.uid
+              : schedule?.organizerId === session!.uid &&
+                candidate.evalAuthorId === session!.uid,
+          scheduleMeetingLink: schedule?.meetingLink ?? null,
+          scheduleLink: schedule?.scheduleLink ?? null,
+          scheduleMeetingMinuteLink: schedule?.meetingMinuteLink ?? null,
+          scheduleLocation: schedule?.location ?? null,
+          scheduleStartsAt: schedule?.startsAt ?? null,
+          scheduleEndsAt: schedule?.endsAt ?? null,
+          scheduleStatus: schedule?.status ?? null,
+          scheduleMeetingStatus: schedule?.meetingStatus ?? null,
+          scheduleMeetingEndedAt: schedule?.meetingEndedAt ?? null,
+        };
+      })
       .sort((a, b) => (a.studentId ?? "").localeCompare(b.studentId ?? ""));
   } catch (error) {
     logServerError("evaluation:getCandidates", error, {

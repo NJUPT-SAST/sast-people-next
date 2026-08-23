@@ -84,6 +84,8 @@ export const operationAuditActionGroups = {
     "interview_schedule.meeting.ended",
     "interview_schedule.meeting.ended_manual",
     "interview_schedule.meeting_minute.generated",
+    "interview_schedule.sync.updated",
+    "interview_schedule.sync.cancelled",
   ],
   flow: [
     "flow.create",
