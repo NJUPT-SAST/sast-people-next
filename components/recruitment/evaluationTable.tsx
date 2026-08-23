@@ -763,10 +763,10 @@ export const EvaluationTable = ({
                         <span className="text-sm text-muted-foreground">正在编辑…</span>
                       ) : c.evalStatus === "submitted" ? (
                         <div className="flex flex-wrap items-center justify-end gap-1.5">
-                          {role >= 3 ? (
-                            <span className="text-sm text-muted-foreground">待面评审批</span>
-                          ) : c.canEditEvaluation ? (
+                          {c.canEditEvaluation ? (
                             <ActionButton onClick={() => startEdit(c)}>修改</ActionButton>
+                          ) : role >= 3 ? (
+                            <span className="text-sm text-muted-foreground">待面评审批</span>
                           ) : (
                             <span className="text-sm text-muted-foreground">
                               预约讲师已提交面评
@@ -883,10 +883,10 @@ export const EvaluationTable = ({
                   </div>
                 ) : c.evalStatus === "submitted" ? (
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {role >= 3 ? (
-                      <span className="text-sm text-muted-foreground">待面评审批</span>
-                    ) : c.canEditEvaluation ? (
+                    {c.canEditEvaluation ? (
                       <ActionButton onClick={() => startEdit(c)}>修改</ActionButton>
+                    ) : role >= 3 ? (
+                      <span className="text-sm text-muted-foreground">待面评审批</span>
                     ) : (
                       <span className="text-sm text-muted-foreground">
                         预约讲师已提交面评
