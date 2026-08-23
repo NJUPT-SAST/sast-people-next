@@ -267,6 +267,13 @@
       "when": 1787548800000,
       "tag": "0037_user_flow_portfolio_description",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787548800001,
+      "tag": "0038_remove_interview_email_meeting_link_copy",
+      "breakpoints": true
     }
   ]
 }
