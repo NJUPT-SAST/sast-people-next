@@ -169,13 +169,6 @@ export const InterviewScheduleEmail = ({
               ))}
             </Section>
 
-            <Section style={offlineNotice}>
-              <Text style={offlineNoticeText}>
-                {kind === "cancelled"
-                  ? "原线下面试安排已取消。如需重新安排，请等待后续通知。"
-                  : "本次为线下面试，请按时到达上述地点。飞书日程与会议仅用于工作人员录制和妙记留档，无需通过会议链接参会。"}
-              </Text>
-            </Section>
           </Section>
 
           <Section style={footer}>
@@ -387,22 +380,6 @@ const metaValue = {
   fontSize: "14px",
   fontWeight: 500,
   lineHeight: "22px",
-};
-
-const offlineNotice = {
-  margin: "0 0 14px",
-  padding: "14px 16px",
-  border: "1px solid #e2e8f0",
-  borderRadius: "10px",
-  backgroundColor: "#f8fafc",
-};
-
-const offlineNoticeText = {
-  margin: 0,
-  color: "#64748b",
-  fontFamily: fontStack,
-  fontSize: "13px",
-  lineHeight: "21px",
 };
 
 const footer = {
