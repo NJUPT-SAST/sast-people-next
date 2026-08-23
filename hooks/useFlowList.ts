@@ -2,6 +2,7 @@ import { db } from "@/db/drizzle";
 import { displayFlow } from "@/types/flow";
 import { flow, flowStep } from "@/db/schema";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
+import { isLinkAuthorizationError } from "@/lib/link/client";
 import { MissingLinkAdminAccessTokenError } from "@/lib/link/session";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
@@ -47,9 +48,13 @@ const getFlowOwnerMap = async (ownerIds: number[]) => {
   try {
     return await listPeopleUsersByLinkIds(ownerIds);
   } catch (error) {
-    // Flow browsing only needs owner names as display metadata. Regular users do
-    // not have an admin Link token, so keep the list available without it.
-    if (error instanceof MissingLinkAdminAccessTokenError) return new Map();
+    // Owner names are display metadata; missing admin scope must not block flow browsing.
+    if (
+      error instanceof MissingLinkAdminAccessTokenError ||
+      isLinkAuthorizationError(error)
+    ) {
+      return new Map();
+    }
     throw error;
   }
 };
