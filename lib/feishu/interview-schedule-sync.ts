@@ -41,6 +41,9 @@ export async function syncInterviewScheduleFromFeishuEvent({
       endsAt: interviewSchedule.endsAt,
       meetingLink: interviewSchedule.meetingLink,
       scheduleLink: interviewSchedule.scheduleLink,
+      providerMeetingId: interviewSchedule.providerMeetingId,
+      providerMeetingNo: interviewSchedule.providerMeetingNo,
+      updatedAt: interviewSchedule.updatedAt,
     })
     .from(interviewSchedule)
     .where(
@@ -142,11 +145,18 @@ export async function syncInterviewScheduleFromFeishuEvent({
     event.endsAt.getTime() !== schedule.endsAt.getTime() ||
     (event.location ?? null) !== schedule.location ||
     (event.summary ?? schedule.summary) !== schedule.summary ||
-    (event.meetingLink && event.meetingLink !== schedule.meetingLink) ||
-    (event.scheduleLink && event.scheduleLink !== schedule.scheduleLink);
+    (event.meetingLink ?? "") !== schedule.meetingLink ||
+    (event.scheduleLink ?? null) !== schedule.scheduleLink ||
+    (event.meetingId ?? null) !== schedule.providerMeetingId ||
+    (event.meetingNo ?? null) !== schedule.providerMeetingNo;
   if (!changed) return { synced: false as const, reason: "unchanged" as const };
 
-  await db
+  const meetingLink = event.meetingLink ?? "";
+  const scheduleLink = event.scheduleLink ?? null;
+  const meetingId = event.meetingId ?? null;
+  const meetingNo = event.meetingNo ?? null;
+
+  const [updated] = await db
     .update(interviewSchedule)
     .set({
       summary: event.summary ?? schedule.summary,
@@ -155,13 +165,21 @@ export async function syncInterviewScheduleFromFeishuEvent({
       startsAt: event.startsAt,
       endsAt: event.endsAt,
       timezone: event.timezone ?? DEFAULT_TIMEZONE,
-      meetingLink: event.meetingLink ?? schedule.meetingLink,
-      providerMeetingId: event.meetingId,
-      providerMeetingNo: event.meetingNo,
-      scheduleLink: event.scheduleLink,
+      meetingLink,
+      providerMeetingId: meetingId,
+      providerMeetingNo: meetingNo,
+      scheduleLink,
       updatedAt: new Date(),
     })
-    .where(eq(interviewSchedule.id, schedule.id));
+    .where(
+      and(
+        eq(interviewSchedule.id, schedule.id),
+        eq(interviewSchedule.status, "created"),
+        eq(interviewSchedule.updatedAt, schedule.updatedAt),
+      ),
+    )
+    .returning({ id: interviewSchedule.id });
+  if (!updated) return { synced: false as const, reason: "stale_event" as const };
   await sendExternalChangeEmail("rescheduled", event.startsAt, event.endsAt, event.location);
   revalidatePath("/dashboard/interviews");
   await writeOperationAudit({

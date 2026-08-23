@@ -62,7 +62,7 @@ async function handleCalendarEventChanged(event: FeishuCalendarEventChangedEvent
       changeType: event.change_type,
     });
     if (!result.synced) {
-      logServerError("api:feishu:calendarEventChanged", new Error("calendar event sync skipped"), {
+      console.info("feishu calendar event sync skipped", {
         action: "skip-feishu-calendar-event-change",
         metadata: {
           calendarEventId: event.calendar_event_id,
