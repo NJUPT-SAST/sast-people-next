@@ -320,6 +320,7 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
   fkReviewedBy: integer("fk_reviewed_by"),
   /* Link 用户 ID — 面评撰写人 */
   fkUserId: integer("fk_user_id").notNull(),
+  feishuApprovalMessageId: varchar("feishu_approval_message_id", { length: 255 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()
