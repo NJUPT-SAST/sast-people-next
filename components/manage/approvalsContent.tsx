@@ -63,9 +63,11 @@ const InlineLink = ({ label, value }: { label: string; value: string }) => (
     href={externalHref(value)}
     target="_blank"
     rel="noopener noreferrer"
-    className="block max-w-full truncate text-xs text-blue-600 hover:underline dark:text-blue-400"
+    aria-label={`${label}：${value}`}
+    title={value}
+    className="block max-w-full break-all text-sm leading-5 text-blue-600 line-clamp-2 hover:underline dark:text-blue-400"
   >
-    {label}：{value}
+    {value}
   </a>
 );
 
@@ -77,9 +79,9 @@ const ReviewReference = ({
   value: string | null;
 }) => (
   <div className="min-w-0 space-y-1">
-    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+    <p className="text-xs text-muted-foreground">{label}</p>
     {value ? (
-      <InlineLink label="打开" value={value} />
+      <InlineLink label={label} value={value} />
     ) : (
       <p className="text-xs text-muted-foreground/70">未提供</p>
     )}
@@ -332,16 +334,16 @@ export const ApprovalsContent = ({
                 <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
-                <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                <div className="grid gap-x-8 gap-y-3 pt-1 sm:grid-cols-3">
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
-                  <ReviewReference label="会议连接" value={row.scheduleMeetingLink} />
-                  <div className="min-w-0 space-y-1 sm:col-span-2">
-                    <p className="text-xs font-medium text-muted-foreground">作品简介</p>
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
-                      {row.portfolioDescription || "未提供"}
-                    </p>
-                  </div>
+                  <ReviewReference label="会议链接" value={row.scheduleMeetingLink} />
                   <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />
+                </div>
+                <div className="space-y-1 pt-1">
+                  <p className="text-xs text-muted-foreground">作品简介</p>
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
+                    {row.portfolioDescription || "未提供"}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
