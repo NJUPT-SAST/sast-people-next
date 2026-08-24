@@ -33,6 +33,8 @@ import { mqClient } from "@/queue/client";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
 const feishuCalendarSubscriptionCache = new Set<number>();
 const interviewEmailTemplateKey = {
@@ -377,6 +379,7 @@ export async function createInterviewSchedule(
 
   try {
     session = await verifyRole(2);
+    const organizerId = session.uid;
 
     const startsAt = parseDate(input.startsAt, "开始");
     const endsAt = parseDate(input.endsAt, "结束");
@@ -391,6 +394,7 @@ export async function createInterviewSchedule(
         flowId: flow.id,
         flowTitle: flow.title,
         flowType: flow.type,
+        progressStatus: userFlow.progressStatus,
       })
       .from(userFlow)
       .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
@@ -402,6 +406,9 @@ export async function createInterviewSchedule(
     }
     if (target.flowType === "recruitment") {
       return { success: false, error: { message: "笔试流程不支持发起面试日程" } };
+    }
+    if (target.progressStatus !== "ongoing") {
+      return { success: false, error: { message: "只有进行中的面试流程可以预约日程" } };
     }
 
     const userMap = await listPeopleUsersByLinkIds(
@@ -531,9 +538,23 @@ export async function createInterviewSchedule(
       });
     }
 
-    const [schedule] = existingSchedule
-      ? await db
-          .update(interviewSchedule)
+    const scheduleWrite = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${input.userFlowId})`);
+      const [currentFlow] = await tx
+        .select({ progressStatus: userFlow.progressStatus })
+        .from(userFlow)
+        .where(eq(userFlow.id, input.userFlowId))
+        .limit(1);
+      if (currentFlow?.progressStatus !== "ongoing") {
+        return {
+          success: false as const,
+          error: { message: "该面试流程已结束或已退回，无法创建日程。" },
+        };
+      }
+
+      const [schedule] = existingSchedule
+        ? await tx
+            .update(interviewSchedule)
           .set({
             providerEventId: feishuSchedule.eventId,
             providerReserveId: feishuSchedule.reserveId,
@@ -552,13 +573,13 @@ export async function createInterviewSchedule(
             timezone: DEFAULT_TIMEZONE,
             updatedAt: new Date(),
           })
-          .where(eq(interviewSchedule.id, existingSchedule.id))
-          .returning({ id: interviewSchedule.id })
-      : await db
-          .insert(interviewSchedule)
+            .where(eq(interviewSchedule.id, existingSchedule.id))
+            .returning({ id: interviewSchedule.id })
+        : await tx
+            .insert(interviewSchedule)
           .values({
             fkUserFlowId: input.userFlowId,
-            fkOrganizerId: session.uid,
+            fkOrganizerId: organizerId,
             providerEventId: feishuSchedule.eventId,
             providerReserveId: feishuSchedule.reserveId,
             providerMeetingId: feishuSchedule.meetingId,
@@ -575,7 +596,32 @@ export async function createInterviewSchedule(
             timezone: DEFAULT_TIMEZONE,
             status: "created",
           })
-          .returning({ id: interviewSchedule.id });
+            .returning({ id: interviewSchedule.id });
+      return schedule
+        ? { success: true as const, data: schedule }
+        : {
+            success: false as const,
+            error: { message: "面试日程保存失败，请刷新后重试。" },
+          };
+    });
+
+    if (!scheduleWrite.success) {
+      try {
+        await cancelFeishuInterviewSchedule({
+          accessToken: credential.accessToken,
+          eventId: feishuSchedule.eventId,
+          reserveId: feishuSchedule.reserveId,
+        });
+      } catch (error) {
+        logServerError("interviewSchedule:orphanedFeishuEvent", error, {
+          action: "cancel-orphaned-feishu-interview-event",
+          userFlowId: input.userFlowId,
+          metadata: { eventId: feishuSchedule.eventId },
+        });
+      }
+      return scheduleWrite;
+    }
+    const schedule = scheduleWrite.data;
 
     const emailKind = existingSchedule ? "rescheduled" : "created";
     const emailResult = await sendInterviewEmailDelivery({
@@ -673,14 +719,15 @@ export async function createInterviewSchedule(
 
 export async function cancelInterviewSchedule(
   scheduleId: number,
-  options?: { allowAdmin?: boolean },
+  options?: { allowAdmin?: boolean; tx?: Tx },
 ): Promise<CancelInterviewScheduleResult> {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  const client = options?.tx ?? db;
 
   try {
     session = await verifyRole(2);
 
-    const [schedule] = await db
+    const [schedule] = await client
       .select({
         id: interviewSchedule.id,
         userFlowId: interviewSchedule.fkUserFlowId,
@@ -722,7 +769,7 @@ export async function cancelInterviewSchedule(
       reserveId: schedule.providerReserveId,
     });
 
-    await db
+    await client
       .update(interviewSchedule)
       .set({
         status: "cancelled",
@@ -730,7 +777,7 @@ export async function cancelInterviewSchedule(
       })
       .where(eq(interviewSchedule.id, schedule.id));
 
-    const [target] = await db
+    const [target] = await client
       .select({
         userFlowId: userFlow.id,
         candidateId: userFlow.fkUserId,
@@ -778,15 +825,23 @@ export async function cancelInterviewSchedule(
       }
     }
 
-    await sendInterviewCancelledCard({
-      openId: credential.openId,
-      flowName,
-      candidateName,
-      startsAt: schedule.startsAt,
-      endsAt: schedule.endsAt,
-      location: schedule.location,
-      scheduleId: schedule.id,
-    });
+    try {
+      await sendInterviewCancelledCard({
+        openId: credential.openId,
+        flowName,
+        candidateName,
+        startsAt: schedule.startsAt,
+        endsAt: schedule.endsAt,
+        location: schedule.location,
+        scheduleId: schedule.id,
+      });
+    } catch (error) {
+      logServerError("interviewSchedule:feishuMessage", error, {
+        action: "send-interview-cancel-feishu-message",
+        userFlowId: schedule.userFlowId,
+        metadata: { scheduleId: schedule.id },
+      });
+    }
     const chatId = process.env.FEISHU_INTERVIEW_CHAT_ID?.trim();
     if (chatId) {
       try {
@@ -810,18 +865,26 @@ export async function cancelInterviewSchedule(
     }
 
     revalidatePath("/dashboard/interviews");
-    await writeOperationAudit({
-      actorId: session.uid,
-      actorRole: session.role,
-      action: "interview_schedule.cancel",
-      resourceType: "interview_schedule",
-      resourceId: schedule.id,
-      metadata: {
+    try {
+      await writeOperationAudit({
+        actorId: session.uid,
+        actorRole: session.role,
+        action: "interview_schedule.cancel",
+        resourceType: "interview_schedule",
+        resourceId: schedule.id,
+        metadata: {
+          userFlowId: schedule.userFlowId,
+          provider: "feishu",
+          providerEventId: schedule.providerEventId,
+        },
+      });
+    } catch (error) {
+      logServerError("interviewSchedule:cancelAudit", error, {
+        action: "audit-interview-schedule-cancel",
         userFlowId: schedule.userFlowId,
-        provider: "feishu",
-        providerEventId: schedule.providerEventId,
-      },
-    });
+        metadata: { scheduleId: schedule.id },
+      });
+    }
 
     return { success: true, emailWarning };
   } catch (error) {
@@ -918,6 +981,20 @@ export async function returnInterviewCandidate(userFlowId: number) {
         )
         .where(eq(userFlow.id, userFlowId))
         .limit(1);
+      const [currentSchedule] = await tx
+        .select({
+          id: interviewSchedule.id,
+          meetingStatus: interviewSchedule.meetingStatus,
+        })
+        .from(interviewSchedule)
+        .where(
+          and(
+            eq(interviewSchedule.fkUserFlowId, userFlowId),
+            eq(interviewSchedule.status, "created"),
+          ),
+        )
+        .orderBy(desc(interviewSchedule.updatedAt))
+        .limit(1);
 
       if (!current || current.progressStatus !== "ongoing") {
         return {
@@ -931,10 +1008,17 @@ export async function returnInterviewCandidate(userFlowId: number) {
           error: { message: "该面试已经提交面评，不能退回。" },
         };
       }
+      if (currentSchedule?.meetingStatus === "ended") {
+        return {
+          success: false as const,
+          error: { message: "该面试已经结束，不能退回。" },
+        };
+      }
 
-      if (candidate.scheduleId) {
-        const cancelResult = await cancelInterviewSchedule(candidate.scheduleId, {
+      if (currentSchedule) {
+        const cancelResult = await cancelInterviewSchedule(currentSchedule.id, {
           allowAdmin: true,
+          tx,
         });
         if (!cancelResult.success) return cancelResult;
       }
