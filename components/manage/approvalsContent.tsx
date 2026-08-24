@@ -27,6 +27,9 @@ export type EvaluationRow = {
   evaluation: InferSelectModel<typeof interviewEvaluation>;
   meetingLink: string | null;
   portfolioLink: string | null;
+  portfolioDescription: string | null;
+  scheduleMeetingLink: string | null;
+  meetingMinuteLink: string | null;
   authorName: string | null;
   reviewerName: string | null;
   candidateName: string | null;
@@ -64,6 +67,23 @@ const InlineLink = ({ label, value }: { label: string; value: string }) => (
   >
     {label}：{value}
   </a>
+);
+
+const ReviewReference = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null;
+}) => (
+  <div className="min-w-0 space-y-1">
+    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+    {value ? (
+      <InlineLink label="打开" value={value} />
+    ) : (
+      <p className="text-xs text-muted-foreground/70">未提供</p>
+    )}
+  </div>
 );
 
 export const ApprovalsContent = ({
@@ -312,16 +332,17 @@ export const ApprovalsContent = ({
                 <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
-                {(row.portfolioLink || row.meetingLink) && (
-                  <div className="space-y-1">
-                    {row.portfolioLink && (
-                      <InlineLink label="作品链接" value={row.portfolioLink} />
-                    )}
-                    {row.meetingLink && (
-                      <InlineLink label="妙记链接" value={row.meetingLink} />
-                    )}
+                <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                  <ReviewReference label="作品链接" value={row.portfolioLink} />
+                  <ReviewReference label="会议连接" value={row.scheduleMeetingLink} />
+                  <div className="min-w-0 space-y-1 sm:col-span-2">
+                    <p className="text-xs font-medium text-muted-foreground">作品简介</p>
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
+                      {row.portfolioDescription || "未提供"}
+                    </p>
                   </div>
-                )}
+                  <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />
+                </div>
                 <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
                     <span>面评人：{row.authorName ?? "历史记录未保存面评人"}</span>
