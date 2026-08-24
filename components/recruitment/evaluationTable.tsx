@@ -1158,7 +1158,7 @@ export const EvaluationTable = ({
                   const roomId = value === "none" ? "" : value;
                   setScheduleMeetingRoomId(roomId);
                   const room = getInterviewMeetingRoom(roomId);
-                  if (room) setScheduleLocation(room.name);
+                  setScheduleLocation(room?.name ?? "");
                 }}
               >
                 <SelectTrigger className="h-10" aria-label="会议室">

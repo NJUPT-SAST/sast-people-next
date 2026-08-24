@@ -368,6 +368,94 @@ async function removeFeishuCalendarMeetingRoom({
   }
 }
 
+async function updateFeishuMeetingReserve({
+  accessToken,
+  organizerOpenId,
+  reserveId,
+  summary,
+  endsAt,
+}: {
+  accessToken: string;
+  organizerOpenId: string;
+  reserveId: string;
+  summary: string;
+  endsAt: Date;
+}) {
+  const res = await getFeishuClient().vc.v1.reserve.update(
+    {
+      path: { reserve_id: reserveId },
+      params: { user_id_type: "open_id" },
+      data: {
+        end_time: toFeishuTimestamp(endsAt),
+        meeting_settings: {
+          topic: summary,
+          meeting_initial_type: 1,
+          meeting_connect: true,
+          assign_host_list: [{ user_type: 1, id: organizerOpenId }],
+        },
+      },
+    },
+    lark.withUserAccessToken(accessToken),
+  );
+  if (res.code && res.code !== 0) {
+    throw new Error(`update feishu meeting failed: ${res.msg ?? res.code}`);
+  }
+  return {
+    meetingLink: res.data?.reserve?.url,
+    meetingNo: res.data?.reserve?.meeting_no,
+  };
+}
+
+async function restoreFeishuCalendarEvent({
+  accessToken,
+  organizerOpenId,
+  event,
+  reserveId,
+}: {
+  accessToken: string;
+  organizerOpenId: string;
+  event: FeishuCalendarEventSnapshot;
+  reserveId?: string | null;
+}) {
+  let meetingLink = event.meetingLink;
+  if (reserveId) {
+    const reserve = await updateFeishuMeetingReserve({
+      accessToken,
+      organizerOpenId,
+      reserveId,
+      summary: event.summary ?? "线下面试",
+      endsAt: event.endsAt,
+    });
+    meetingLink = reserve.meetingLink ?? meetingLink;
+  }
+
+  const res = await getFeishuClient().calendar.v4.calendarEvent.patch(
+    {
+      path: { calendar_id: "primary", event_id: event.eventId },
+      params: { user_id_type: "open_id" },
+      data: {
+        summary: event.summary,
+        description: event.description,
+        location: event.location ? { name: event.location } : undefined,
+        need_notification: false,
+        start_time: {
+          timestamp: toFeishuTimestamp(event.startsAt),
+          timezone: event.timezone ?? DEFAULT_TIMEZONE,
+        },
+        end_time: {
+          timestamp: toFeishuTimestamp(event.endsAt),
+          timezone: event.timezone ?? DEFAULT_TIMEZONE,
+        },
+      },
+    },
+    lark.withUserAccessToken(accessToken),
+  );
+  if (res.code && res.code !== 0) {
+    throw new Error(`restore feishu calendar event failed: ${res.msg ?? res.code}`);
+  }
+  return meetingLink;
+}
+
 async function assertOrganizerIsAvailable({
   accessToken,
   organizerOpenId,
@@ -570,41 +658,21 @@ export async function updateFeishuInterviewSchedule({
 
   let meetingLink = currentMeetingLink;
   let meetingNo: string | undefined;
+  const roomChanged = meetingRoomId !== previousMeetingRoomId;
+  const previousEvent = roomChanged
+    ? await getFeishuCalendarEvent({ accessToken, eventId })
+    : null;
 
   if (reserveId) {
-    const reserveRes = await client.vc.v1.reserve.update(
-      {
-        path: {
-          reserve_id: reserveId,
-        },
-        params: {
-          user_id_type: "open_id",
-        },
-        data: {
-          end_time: toFeishuTimestamp(endsAt),
-          meeting_settings: {
-            topic: summary,
-            meeting_initial_type: 1,
-            meeting_connect: true,
-            assign_host_list: [
-              {
-                user_type: 1,
-                id: organizerOpenId,
-              },
-            ],
-          },
-        },
-      },
-      authOptions,
-    );
-
-    if (reserveRes.code && reserveRes.code !== 0) {
-      throw new Error(`update feishu meeting failed: ${reserveRes.msg ?? reserveRes.code}`);
-    }
-
-    const reserve = reserveRes.data?.reserve;
-    meetingLink = reserve?.url ?? meetingLink;
-    meetingNo = reserve?.meeting_no;
+    const reserve = await updateFeishuMeetingReserve({
+      accessToken,
+      organizerOpenId,
+      reserveId,
+      summary,
+      endsAt,
+    });
+    meetingLink = reserve.meetingLink ?? meetingLink;
+    meetingNo = reserve.meetingNo;
   }
 
   const eventDescription = [
@@ -672,15 +740,51 @@ export async function updateFeishuInterviewSchedule({
     eventId,
     openIds: [organizerOpenId, attendeeOpenId],
   });
-  if (meetingRoomId && meetingRoomId !== previousMeetingRoomId) {
-    await addFeishuCalendarMeetingRoom({ accessToken, eventId, meetingRoomId });
-  }
-  if (previousMeetingRoomId && previousMeetingRoomId !== meetingRoomId) {
-    await removeFeishuCalendarMeetingRoom({
-      accessToken,
-      eventId,
-      meetingRoomId: previousMeetingRoomId,
-    });
+  if (roomChanged) {
+    let newRoomAdded = false;
+    try {
+      if (meetingRoomId) {
+        await addFeishuCalendarMeetingRoom({ accessToken, eventId, meetingRoomId });
+        newRoomAdded = true;
+      }
+      if (previousMeetingRoomId) {
+        await removeFeishuCalendarMeetingRoom({
+          accessToken,
+          eventId,
+          meetingRoomId: previousMeetingRoomId,
+        });
+      }
+    } catch (error) {
+      if (newRoomAdded && meetingRoomId) {
+        try {
+          await removeFeishuCalendarMeetingRoom({
+            accessToken,
+            eventId,
+            meetingRoomId,
+          });
+        } catch (rollbackError) {
+          logServerError("feishu:calendarMeetingRoomRollback", rollbackError, {
+            action: "rollback-new-feishu-calendar-meeting-room",
+            metadata: { eventId },
+          });
+        }
+      } else if (previousEvent) {
+        try {
+          await restoreFeishuCalendarEvent({
+            accessToken,
+            organizerOpenId,
+            event: previousEvent,
+            reserveId,
+          });
+        } catch (rollbackError) {
+          logServerError("feishu:calendarEventRollback", rollbackError, {
+            action: "rollback-feishu-calendar-event-after-meeting-room-failure",
+            metadata: { eventId },
+          });
+        }
+      }
+      throw error;
+    }
   }
 
   return {
