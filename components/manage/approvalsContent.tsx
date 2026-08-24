@@ -336,7 +336,7 @@ export const ApprovalsContent = ({
                 </p>
                 <div className="grid gap-x-8 gap-y-3 pt-1 sm:grid-cols-3">
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
-                  <ReviewReference label="会议连接" value={row.scheduleMeetingLink} />
+                  <ReviewReference label="会议链接" value={row.scheduleMeetingLink} />
                   <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />
                 </div>
                 <div className="space-y-1 pt-1">

@@ -125,13 +125,13 @@ describe("ApprovalsContent", () => {
     expect(screen.getByText("作品链接")).toBeInTheDocument();
     expect(screen.getByText("作品简介")).toBeInTheDocument();
     expect(screen.getByText("负责校园活动报名系统。")).toBeInTheDocument();
-    expect(screen.getByText("会议连接")).toBeInTheDocument();
+    expect(screen.getByText("会议链接")).toBeInTheDocument();
     expect(screen.getByText("妙记链接")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "会议连接：https://example.com/meeting" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "会议链接：https://example.com/meeting" })).toHaveAttribute(
       "href",
       "https://example.com/meeting",
     );
-    expect(screen.getByRole("link", { name: "会议连接：https://example.com/meeting" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "会议链接：https://example.com/meeting" })).toHaveAttribute(
       "title",
       "https://example.com/meeting",
     );
