@@ -23,7 +23,7 @@ async function findStepIdByOrder(
   return step?.id ?? null;
 }
 
-const TERMINAL_STATUSES = ['passed', 'failed'] as const;
+const TERMINAL_STATUSES = ['passed', 'failed', 'withdrawn'] as const;
 
 const assertDirectOutcomeAllowed = async (userFlowId: number) => {
   const [record] = await db

@@ -25,7 +25,9 @@ export async function GET(request: NextRequest) {
     }
 
     const canReview =
-      userFlow.progressStatus !== 'passed' && userFlow.progressStatus !== 'failed';
+      userFlow.progressStatus !== 'passed' &&
+      userFlow.progressStatus !== 'failed' &&
+      userFlow.progressStatus !== 'withdrawn';
 
     return NextResponse.json({
       success: true,

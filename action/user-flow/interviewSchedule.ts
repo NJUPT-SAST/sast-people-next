@@ -3,6 +3,7 @@
 import { db } from "@/db/drizzle";
 import {
   flow,
+  interviewEvaluation,
   interviewSchedule,
   userFlow,
 } from "@/db/schema";
@@ -706,11 +707,11 @@ export async function cancelInterviewSchedule(
     if (schedule.meetingStatus === "ended") {
       return { success: false, error: { message: "该面试已经结束，不能取消。" } };
     }
-    if (schedule.organizerId !== session.uid) {
+    if (schedule.organizerId !== session.uid && session.role < 3) {
       return { success: false, error: { message: "只能由原预约讲师取消该面试。" } };
     }
 
-    const credential = await getValidFeishuUserCredential(session.uid);
+    const credential = await getValidFeishuUserCredential(schedule.organizerId);
     await cancelFeishuInterviewSchedule({
       accessToken: credential.accessToken,
       eventId: schedule.providerEventId,
@@ -737,12 +738,15 @@ export async function cancelInterviewSchedule(
       .where(eq(userFlow.id, schedule.userFlowId))
       .limit(1);
     const userMap = target
-      ? await listPeopleUsersByLinkIds([target.candidateId, session.uid], {
+      ? await listPeopleUsersByLinkIds(
+          [target.candidateId, schedule.organizerId, session.uid],
+          {
           canViewSensitiveInfo: true,
-        })
+          },
+        )
       : new Map();
     const candidate = target ? userMap.get(target.candidateId) : null;
-    const organizer = userMap.get(session.uid);
+    const organizer = userMap.get(schedule.organizerId);
     const candidateName = candidate?.name ?? "同学";
     const flowName = target?.flowTitle ?? schedule.summary;
     const organizerName = organizer?.name ?? session.name;
@@ -825,6 +829,98 @@ export async function cancelInterviewSchedule(
       metadata: {
         scheduleId,
       },
+    });
+    throw error;
+  }
+}
+
+export async function returnInterviewCandidate(userFlowId: number) {
+  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+
+  try {
+    session = await verifyRole(2);
+
+    const [candidate] = await db
+      .select({
+        userFlowId: userFlow.id,
+        progressStatus: userFlow.progressStatus,
+        evaluationStatus: interviewEvaluation.status,
+        scheduleId: interviewSchedule.id,
+        scheduleOrganizerId: interviewSchedule.fkOrganizerId,
+        scheduleMeetingStatus: interviewSchedule.meetingStatus,
+      })
+      .from(userFlow)
+      .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
+      .leftJoin(
+        interviewEvaluation,
+        and(
+          eq(interviewEvaluation.fkUserFlowId, userFlow.id),
+          eq(interviewEvaluation.status, "submitted"),
+        ),
+      )
+      .leftJoin(
+        interviewSchedule,
+        and(
+          eq(interviewSchedule.fkUserFlowId, userFlow.id),
+          eq(interviewSchedule.status, "created"),
+        ),
+      )
+      .where(eq(userFlow.id, userFlowId))
+      .orderBy(desc(interviewSchedule.updatedAt))
+      .limit(1);
+
+    if (!candidate) {
+      return { success: false, error: { message: "找不到该面试报名。" } };
+    }
+    if (candidate.progressStatus !== "ongoing") {
+      return { success: false, error: { message: "只有进行中的面试流程可以退回。" } };
+    }
+    if (candidate.evaluationStatus) {
+      return { success: false, error: { message: "该面试已经提交面评，不能退回。" } };
+    }
+    if (
+      candidate.scheduleId &&
+      candidate.scheduleMeetingStatus === "ended"
+    ) {
+      return { success: false, error: { message: "该面试已经结束，不能退回。" } };
+    }
+    if (
+      candidate.scheduleOrganizerId &&
+      candidate.scheduleOrganizerId !== session.uid &&
+      session.role < 3
+    ) {
+      return { success: false, error: { message: "只能由原预约讲师或管理员退回。" } };
+    }
+
+    if (candidate.scheduleId) {
+      const cancelResult = await cancelInterviewSchedule(candidate.scheduleId);
+      if (!cancelResult.success) return cancelResult;
+    }
+
+    await db
+      .update(userFlow)
+      .set({ progressStatus: "withdrawn", updatedAt: new Date() })
+      .where(eq(userFlow.id, userFlowId));
+
+    revalidatePath("/dashboard/interviews");
+    revalidatePath("/dashboard/user-flow");
+    await writeOperationAudit({
+      actorId: session.uid,
+      actorRole: session.role,
+      action: "user_flow.withdraw",
+      resourceType: "user_flow",
+      resourceId: userFlowId,
+      metadata: { scheduleId: candidate.scheduleId ?? null },
+    });
+
+    return { success: true };
+  } catch (error) {
+    logServerError("user-flow:withdraw", error, {
+      path: "/dashboard/interviews",
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "withdraw-interview-candidate",
+      userFlowId,
     });
     throw error;
   }

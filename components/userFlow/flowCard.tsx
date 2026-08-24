@@ -27,6 +27,7 @@ const statusIcons = {
   failed: Clock,
   accepted: CheckCircle,
   rejected: XCircle,
+  withdrawn: AlertCircle,
 };
 
 const statusName = {
@@ -77,8 +78,10 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
       : safeFlow.status === "ongoing"
         ? "流程进行中"
         : safeFlow.status === "passed"
-          ? "已通过考核"
-          : "未通过考核";
+        ? "已通过考核"
+          : safeFlow.status === "withdrawn"
+            ? "已退回，请重新报名"
+            : "未通过考核";
 
   return (
     <Card className="w-full">
@@ -101,6 +104,8 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                 ? "secondary"
                 : safeFlow.status === "passed"
                   ? "default"
+                  : safeFlow.status === "withdrawn"
+                    ? "outline"
                   : "destructive"
             }
           >
@@ -122,6 +127,8 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                         : step.order === activeStepOrder
                           ? "rejected"
                           : "pending"
+                      : safeFlow.status === "withdrawn"
+                        ? "pending"
                       : step.order < activeStepOrder
                         ? "accepted"
                         : step.order === activeStepOrder
@@ -136,6 +143,8 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                       ? step.order < activeStepOrder
                         ? "accepted"
                         : "pending"
+                      : safeFlow.status === "withdrawn"
+                        ? "pending"
                       : step.order < activeStepOrder
                         ? "accepted"
                         : "pending";
@@ -220,4 +229,3 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
     </Card>
   );
 };
-

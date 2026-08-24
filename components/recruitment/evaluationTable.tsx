@@ -27,6 +27,7 @@ import {
   confirmInterviewScheduleEnded,
   createInterviewSchedule,
   previewInterviewScheduleEmail,
+  returnInterviewCandidate,
 } from "@/action/user-flow/interviewSchedule";
 import {
   Dialog,
@@ -643,6 +644,24 @@ export const EvaluationTable = ({
     }
   };
 
+  const handleReturnCandidate = async (candidate: Candidate) => {
+    setLoadingId(candidate.userFlowId);
+    try {
+      const result = await returnInterviewCandidate(candidate.userFlowId);
+      if (!result.success) {
+        toast.error(result.error?.message ?? "退回失败");
+        return;
+      }
+      toast.success("已退回该报名，候选人可以重新选择流程");
+      cancelSchedule();
+      onRefresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "退回失败");
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
   if (safeCandidates.length === 0) {
     return (
       <div className="rounded-lg border bg-card p-10 text-center">
@@ -779,6 +798,14 @@ export const EvaluationTable = ({
                               {busy ? "处理中" : "取消"}
                             </ActionButton>
                           )}
+                          {canManageSchedule && (
+                            <ActionButton
+                              disabled={busy}
+                              onClick={() => handleReturnCandidate(c)}
+                            >
+                              {busy ? "处理中" : "退回"}
+                            </ActionButton>
+                          )}
                           {canConfirmScheduleEnded && canManageSchedule && (
                             <ActionButton
                               disabled={busy}
@@ -895,6 +922,14 @@ export const EvaluationTable = ({
                         onClick={() => handleCancelSchedule(c)}
                       >
                         {busy ? "处理中" : "取消"}
+                      </ActionButton>
+                    )}
+                    {canManageSchedule && (
+                      <ActionButton
+                        disabled={busy}
+                        onClick={() => handleReturnCandidate(c)}
+                      >
+                        {busy ? "处理中" : "退回"}
                       </ActionButton>
                     )}
                     {canConfirmScheduleEnded && canManageSchedule && (

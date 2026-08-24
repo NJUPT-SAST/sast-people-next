@@ -19,7 +19,7 @@ import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 
@@ -660,7 +660,12 @@ export const getEvaluationCandidates = async (flowId: number) => {
         interviewEvaluation,
         eq(interviewEvaluation.fkUserFlowId, userFlow.id),
       )
-      .where(eq(userFlow.fkFlowId, flowId));
+      .where(
+        and(
+          eq(userFlow.fkFlowId, flowId),
+          ne(userFlow.progressStatus, "withdrawn"),
+        ),
+      );
 
     const dedupedCandidates = dedupeEvaluationCandidateRows(candidates);
 
@@ -724,7 +729,9 @@ export const getEvaluationCandidates = async (flowId: number) => {
             ? userMap.get(schedule.organizerId)?.name ?? null
             : null,
           canManageSchedule:
-            !schedule || schedule.organizerId === session!.uid,
+            !schedule ||
+            schedule.organizerId === session!.uid ||
+            session!.role >= 3,
           canEditEvaluation:
             candidate.evalId === null
               ? !schedule || schedule.organizerId === session!.uid

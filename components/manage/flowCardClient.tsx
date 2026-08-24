@@ -31,6 +31,7 @@ const statusIcons = {
   failed: Clock,
   accepted: CheckCircle,
   rejected: XCircle,
+  withdrawn: AlertCircle,
 };
 
 const statusName: Record<string, string> = {
@@ -71,7 +72,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
   const isLastStep = useMemo(() => {
     return currentStepIndex === steps.length - 1;
   }, [currentStepIndex, steps.length]);
-  const isFinalLocked = flow.status === 'passed' || flow.status === 'failed';
+  const isFinalLocked = flow.status === 'passed' || flow.status === 'failed' || flow.status === 'withdrawn';
 
   const [loading, setLoading] = React.useState(false);
 
@@ -137,6 +138,8 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                 ? 'secondary'
                 : flow.status === 'passed'
                   ? 'default'
+                  : flow.status === 'withdrawn'
+                    ? 'outline'
                   : 'destructive'
             }
           >
@@ -144,6 +147,8 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
               ? '流程进行中'
               : flow.status === 'passed'
                 ? '已通过考核'
+                : flow.status === 'withdrawn'
+                  ? '已退回，请重新报名'
                 : '未通过考核'}
           </Badge>
         </div>
@@ -162,6 +167,8 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                   : step.order === activeStepOrder
                   ? 'rejected'
                   : 'pending'
+                : flow.status === 'withdrawn'
+                ? 'pending'
                 : step.order < activeStepOrder
                 ? 'accepted'
                 : step.order === activeStepOrder
@@ -267,6 +274,5 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
     </Card>
   );
 };
-
 
 

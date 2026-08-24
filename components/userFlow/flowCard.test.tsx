@@ -50,4 +50,20 @@ describe("FlowCard", () => {
     expect(screen.getByText("当前步骤：报名")).toBeInTheDocument();
     expect(screen.getByText("待开启")).toBeInTheDocument();
   });
+
+  it("explains that a withdrawn interview can be registered again", async () => {
+    const ui = await FlowCard({
+      flow: {
+        id: 3,
+        title: "SOC 面试",
+        status: "withdrawn",
+        currentStepOrder: 1,
+        steps: [{ id: 1, order: 1, title: "报名", description: "重新选择流程" }],
+      } as never,
+    });
+
+    render(ui);
+
+    expect(screen.getByText("已退回，请重新报名")).toBeInTheDocument();
+  });
 });

@@ -12,6 +12,7 @@ jest.mock("@/action/user-flow/interviewSchedule", () => ({
   confirmInterviewScheduleEnded: jest.fn(),
   createInterviewSchedule: jest.fn(),
   previewInterviewScheduleEmail: jest.fn(),
+  returnInterviewCandidate: jest.fn(),
 }));
 
 jest.mock("@/components/feishu-oauth-status", () => ({
@@ -75,6 +76,7 @@ describe("EvaluationTable", () => {
       "text-sky-700",
       "dark:text-sky-300",
     );
+    expect(screen.getAllByRole("button", { name: "退回" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "预约" })[0]).toHaveClass(
       "text-foreground",
     );
