@@ -63,9 +63,10 @@ const InlineLink = ({ label, value }: { label: string; value: string }) => (
     href={externalHref(value)}
     target="_blank"
     rel="noopener noreferrer"
-    className="block max-w-full truncate text-xs text-blue-600 hover:underline dark:text-blue-400"
+    aria-label={`${label}：${value}`}
+    className="block max-w-full truncate text-sm text-blue-600 hover:underline dark:text-blue-400"
   >
-    {label}：{value}
+    {value}
   </a>
 );
 
@@ -77,9 +78,9 @@ const ReviewReference = ({
   value: string | null;
 }) => (
   <div className="min-w-0 space-y-1">
-    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+    <p className="text-xs text-muted-foreground">{label}</p>
     {value ? (
-      <InlineLink label="打开" value={value} />
+      <InlineLink label={label} value={value} />
     ) : (
       <p className="text-xs text-muted-foreground/70">未提供</p>
     )}
@@ -332,11 +333,11 @@ export const ApprovalsContent = ({
                 <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
-                <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                <div className="grid gap-x-8 gap-y-3 border-t border-border/60 pt-3 sm:grid-cols-2">
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
                   <ReviewReference label="会议连接" value={row.scheduleMeetingLink} />
                   <div className="min-w-0 space-y-1 sm:col-span-2">
-                    <p className="text-xs font-medium text-muted-foreground">作品简介</p>
+                    <p className="text-xs text-muted-foreground">作品简介</p>
                     <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
                       {row.portfolioDescription || "未提供"}
                     </p>
