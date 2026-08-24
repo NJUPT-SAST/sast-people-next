@@ -41,6 +41,7 @@ function row({
       status,
       fkReviewedBy: status === "submitted" ? null : 1,
       fkUserId: 2,
+      feishuApprovalMessageId: null,
       createdAt: timestamp,
       updatedAt: timestamp,
     },
