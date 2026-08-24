@@ -19,7 +19,7 @@ import { verifyRole } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 
@@ -179,6 +179,7 @@ export const createEvaluation = async (
     const link = hasMeetingLinkArg ? meetingLink.trim() || null : undefined;
 
     const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${userFlowId})`);
       const [currentFlow] = await tx
         .select({ progressStatus: userFlow.progressStatus })
         .from(userFlow)

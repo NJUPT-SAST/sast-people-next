@@ -900,36 +900,71 @@ export async function returnInterviewCandidate(userFlowId: number) {
       return { success: false, error: { message: "只能由原预约讲师或管理员退回。" } };
     }
 
-    if (candidate.scheduleId) {
-      const cancelResult = await cancelInterviewSchedule(candidate.scheduleId, {
-        allowAdmin: true,
-      });
-      if (!cancelResult.success) return cancelResult;
-    }
+    const withdrawalResult = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${userFlowId})`);
 
-    const [updated] = await db
-      .update(userFlow)
-      .set({ progressStatus: "withdrawn", updatedAt: new Date() })
-      .where(
-        and(
-          eq(userFlow.id, userFlowId),
-          eq(userFlow.progressStatus, "ongoing"),
-          sql`not exists (
-            select 1
-            from ${interviewEvaluation}
-            where ${interviewEvaluation.fkUserFlowId} = ${userFlow.id}
-              and ${interviewEvaluation.status} = 'submitted'
-          )`,
-        ),
-      )
-      .returning({ id: userFlow.id });
+      const [current] = await tx
+        .select({
+          progressStatus: userFlow.progressStatus,
+          evaluationStatus: interviewEvaluation.status,
+        })
+        .from(userFlow)
+        .leftJoin(
+          interviewEvaluation,
+          and(
+            eq(interviewEvaluation.fkUserFlowId, userFlow.id),
+            eq(interviewEvaluation.status, "submitted"),
+          ),
+        )
+        .where(eq(userFlow.id, userFlowId))
+        .limit(1);
 
-    if (!updated) {
-      return {
-        success: false,
-        error: { message: "该面试状态已发生变化，请刷新后重试。" },
-      };
-    }
+      if (!current || current.progressStatus !== "ongoing") {
+        return {
+          success: false as const,
+          error: { message: "该面试状态已发生变化，请刷新后重试。" },
+        };
+      }
+      if (current.evaluationStatus) {
+        return {
+          success: false as const,
+          error: { message: "该面试已经提交面评，不能退回。" },
+        };
+      }
+
+      if (candidate.scheduleId) {
+        const cancelResult = await cancelInterviewSchedule(candidate.scheduleId, {
+          allowAdmin: true,
+        });
+        if (!cancelResult.success) return cancelResult;
+      }
+
+      const [updated] = await tx
+        .update(userFlow)
+        .set({ progressStatus: "withdrawn", updatedAt: new Date() })
+        .where(
+          and(
+            eq(userFlow.id, userFlowId),
+            eq(userFlow.progressStatus, "ongoing"),
+            sql`not exists (
+              select 1
+              from ${interviewEvaluation}
+              where ${interviewEvaluation.fkUserFlowId} = ${userFlow.id}
+                and ${interviewEvaluation.status} = 'submitted'
+            )`,
+          ),
+        )
+        .returning({ id: userFlow.id });
+
+      return updated
+        ? { success: true as const }
+        : {
+            success: false as const,
+            error: { message: "该面试状态已发生变化，请刷新后重试。" },
+          };
+    });
+
+    if (!withdrawalResult.success) return withdrawalResult;
 
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/user-flow");
