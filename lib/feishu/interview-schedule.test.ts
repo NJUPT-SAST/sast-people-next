@@ -8,6 +8,7 @@ jest.mock("@larksuiteoapi/node-sdk", () => ({
 
 import { getFeishuClient } from "@/lib/feishu/client";
 import {
+  createFeishuInterviewSchedule,
   isFeishuEventNotFoundError,
   updateFeishuInterviewSchedule,
 } from "@/lib/feishu/interview-schedule";
@@ -19,6 +20,16 @@ function createMockClient() {
     calendar: {
       v4: {
         calendarEvent: {
+          create: jest.fn().mockResolvedValue({
+            code: 0,
+            data: {
+              event: {
+                event_id: "event-1",
+                vchat: { meeting_url: "https://meet.example/new" },
+              },
+            },
+          }),
+          delete: jest.fn().mockResolvedValue({ code: 0 }),
           get: jest.fn().mockResolvedValue({
             code: 0,
             data: {
@@ -65,6 +76,22 @@ function createMockClient() {
       },
     },
   } as unknown as ReturnType<typeof getFeishuClient>;
+}
+
+function createCreateInput(overrides: Partial<Parameters<typeof createFeishuInterviewSchedule>[0]> = {}) {
+  return {
+    accessToken: "token",
+    organizerOpenId: "organizer",
+    calendarId: "shared-calendar",
+    summary: "新面试",
+    description: "新描述",
+    location: "新会议室",
+    startsAt: new Date("2026-08-24T06:00:00.000Z"),
+    endsAt: new Date("2026-08-24T06:30:00.000Z"),
+    attendeeOpenId: "candidate",
+    idempotencyKey: "create-1",
+    ...overrides,
+  };
 }
 
 function createUpdateInput(overrides: Partial<Parameters<typeof updateFeishuInterviewSchedule>[0]> = {}) {
@@ -195,5 +222,85 @@ describe("Feishu interview schedule room update rollback", () => {
     );
     expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(2);
     expect(client.vc.v1.reserve.update).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Feishu interview schedule organizer attendance", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("propagates a non-zero organizer attendee response when updating", async () => {
+    const client = createMockClient();
+    const createAttendee = client.calendar.v4.calendarEventAttendee.create as jest.Mock;
+    createAttendee.mockImplementation(async (request: { data?: { attendees?: Array<{ user_id?: string }> } }) => {
+      if (request.data?.attendees?.[0]?.user_id === "organizer") {
+        return { code: 999, msg: "attendee failed" };
+      }
+      return { code: 0, data: { attendees: [] } };
+    });
+    getFeishuClientMock.mockReturnValue(client);
+
+    await expect(updateFeishuInterviewSchedule(createUpdateInput())).rejects.toThrow(
+      "add feishu calendar organizer failed: attendee failed",
+    );
+
+    expect(client.calendar.v4.calendarEvent.reply).not.toHaveBeenCalled();
+    expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates a non-zero organizer RSVP response when updating", async () => {
+    const client = createMockClient();
+    const reply = client.calendar.v4.calendarEvent.reply as jest.Mock;
+    reply.mockResolvedValue({ code: 999, msg: "RSVP failed" });
+    getFeishuClientMock.mockReturnValue(client);
+
+    await expect(updateFeishuInterviewSchedule(createUpdateInput())).rejects.toThrow(
+      "accept feishu calendar organizer failed: RSVP failed",
+    );
+
+    expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates organizer invitation request failures when updating", async () => {
+    const client = createMockClient();
+    const createAttendee = client.calendar.v4.calendarEventAttendee.create as jest.Mock;
+    createAttendee.mockImplementation(async (request: { data?: { attendees?: Array<{ user_id?: string }> } }) => {
+      if (request.data?.attendees?.[0]?.user_id === "organizer") {
+        throw new Error("organizer invitation failed");
+      }
+      return { code: 0, data: { attendees: [] } };
+    });
+    getFeishuClientMock.mockReturnValue(client);
+
+    await expect(updateFeishuInterviewSchedule(createUpdateInput())).rejects.toThrow(
+      "organizer invitation failed",
+    );
+
+    expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes a newly created event when organizer setup fails", async () => {
+    const client = createMockClient();
+    const createAttendee = client.calendar.v4.calendarEventAttendee.create as jest.Mock;
+    createAttendee.mockImplementation(async (request: { data?: { attendees?: Array<{ user_id?: string }> } }) => {
+      if (request.data?.attendees?.[0]?.user_id === "organizer") {
+        return { code: 999, msg: "attendee failed" };
+      }
+      return { code: 0, data: { attendees: [] } };
+    });
+    getFeishuClientMock.mockReturnValue(client);
+
+    await expect(createFeishuInterviewSchedule(createCreateInput())).rejects.toThrow(
+      "add feishu calendar organizer failed: attendee failed",
+    );
+
+    expect(client.calendar.v4.calendarEvent.delete).toHaveBeenCalledWith(
+      {
+        path: { calendar_id: "shared-calendar", event_id: "event-1" },
+        params: { need_notification: "false" },
+      },
+      expect.anything(),
+    );
   });
 });

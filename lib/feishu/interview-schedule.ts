@@ -356,6 +356,7 @@ async function addFeishuCalendarOrganizer({
       action: "add-and-accept-feishu-calendar-organizer",
       metadata: { eventId },
     });
+    throw error;
   }
 }
 
@@ -677,6 +678,18 @@ export async function createFeishuInterviewSchedule({
       eventId: event.event_id,
       meetingRoomId,
     });
+    await addFeishuCalendarUserAttendees({
+      accessToken,
+      calendarId,
+      eventId: event.event_id,
+      openIds: [attendeeOpenId],
+    });
+    await addFeishuCalendarOrganizer({
+      accessToken,
+      calendarId,
+      eventId: event.event_id,
+      organizerOpenId,
+    });
   } catch (error) {
     try {
       await client.calendar.v4.calendarEvent.delete(
@@ -688,24 +701,12 @@ export async function createFeishuInterviewSchedule({
       );
     } catch (cleanupError) {
       logServerError("feishu:calendarEventCleanup", cleanupError, {
-        action: "delete-calendar-event-after-meeting-room-failure",
+        action: "delete-calendar-event-after-setup-failure",
         metadata: { eventId: event.event_id },
       });
     }
     throw error;
   }
-  await addFeishuCalendarUserAttendees({
-    accessToken,
-    calendarId,
-    eventId: event.event_id,
-    openIds: [attendeeOpenId],
-  });
-  await addFeishuCalendarOrganizer({
-    accessToken,
-    calendarId,
-    eventId: event.event_id,
-    organizerOpenId,
-  });
 
   return {
     eventId: event.event_id,

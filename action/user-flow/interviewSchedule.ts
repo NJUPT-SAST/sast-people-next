@@ -33,11 +33,12 @@ import { verifyRole } from "@/lib/dal";
 import { mqClient } from "@/queue/client";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getFeishuCalendarSubscriptionCacheKey } from "./interviewSchedule-utils";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
-const feishuCalendarSubscriptionCache = new Set<number>();
+const feishuCalendarSubscriptionCache = new Set<string>();
 const interviewEmailTemplateKey = {
   created: "interview.schedule.created",
   rescheduled: "interview.schedule.rescheduled",
@@ -466,10 +467,11 @@ export async function createInterviewSchedule(
       };
     }
 
-    if (!feishuCalendarSubscriptionCache.has(session.uid)) {
+    const subscriptionCacheKey = getFeishuCalendarSubscriptionCacheKey(session.uid, calendarId);
+    if (!feishuCalendarSubscriptionCache.has(subscriptionCacheKey)) {
       try {
         await subscribeFeishuCalendarEventChanges(credential.accessToken, calendarId);
-        feishuCalendarSubscriptionCache.add(session.uid);
+        feishuCalendarSubscriptionCache.add(subscriptionCacheKey);
       } catch (error) {
         // Calendar change events are an enhancement; scheduling must still work
         // when the tenant has not enabled this subscription capability yet.
