@@ -21,7 +21,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import originalDayjs from "@/lib/dayjs";
 import type { listOperationAudit } from "@/lib/operation-audit-list";
 
 type AuditLogResult = Awaited<ReturnType<typeof listOperationAudit>>;
@@ -34,6 +33,24 @@ const actionGroups = [
   { value: "flow", label: "流程" },
   { value: "user", label: "用户" },
 ];
+
+const auditDateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+function formatAuditDateTime(value: Date | string) {
+  const parts = Object.fromEntries(
+    auditDateTimeFormatter.formatToParts(new Date(value)).map((part) => [part.type, part.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
 
 const actionLabels: Record<string, string> = {
   "review.score.upsert": "保存评分",
@@ -300,7 +317,7 @@ function AuditDetailDialog({ item }: { item: AuditLogItem }) {
         <DialogHeader>
           <DialogTitle>{getActionLabel(item.action)}</DialogTitle>
           <DialogDescription>
-            {originalDayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss")}
+            {formatAuditDateTime(item.createdAt)}（北京时间）
           </DialogDescription>
         </DialogHeader>
         <MetadataDetails item={item} />
@@ -318,8 +335,8 @@ function AuditLogMobileItem({ item }: { item: AuditLogItem }) {
           <p className="mt-1 truncate text-sm text-muted-foreground">{getAuditSummary(item)}</p>
         </div>
         <div className="shrink-0 text-right font-mono text-xs text-muted-foreground">
-          <p>{originalDayjs(item.createdAt).format("MM-DD")}</p>
-          <p>{originalDayjs(item.createdAt).format("HH:mm:ss")}</p>
+          <p>{formatAuditDateTime(item.createdAt).slice(5, 10)}</p>
+          <p>{formatAuditDateTime(item.createdAt).slice(11)}</p>
         </div>
       </div>
       <div className="flex items-center justify-between gap-3">
@@ -421,8 +438,8 @@ export function AuditLogTable({
                   <TableRow key={item.id} className="h-14 hover:bg-muted/25">
                     <TableCell className="px-4 py-2 align-middle">
                       <div className="font-mono text-xs leading-4 text-muted-foreground">
-                        <p>{originalDayjs(item.createdAt).format("YYYY-MM-DD")}</p>
-                        <p>{originalDayjs(item.createdAt).format("HH:mm:ss")}</p>
+                        <p>{formatAuditDateTime(item.createdAt).slice(0, 10)}</p>
+                        <p>{formatAuditDateTime(item.createdAt).slice(11)}</p>
                       </div>
                     </TableCell>
                     <TableCell className="px-4 py-2 align-middle">

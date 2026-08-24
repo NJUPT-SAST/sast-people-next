@@ -135,18 +135,28 @@ export function normalizeOperationAuditListParams(
   };
 }
 
+export function parseOperationAuditDate(value: string, endOfDay = false) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return null;
+
+  const calendarDate = new Date(Date.UTC(year, month, 0));
+  if (calendarDate.getUTCDate() < day) return null;
+
+  const time = endOfDay ? "23:59:59.999" : "00:00:00.000";
+  return new Date(`${value}T${time}+08:00`);
+}
+
 function getDateStart(value: string) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return value ? parseOperationAuditDate(value) : null;
 }
 
 function getDateEnd(value: string) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setHours(23, 59, 59, 999);
-  return date;
+  return value ? parseOperationAuditDate(value, true) : null;
 }
 
 async function buildWhereConditions({

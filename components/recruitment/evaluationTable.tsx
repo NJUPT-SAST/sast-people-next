@@ -13,6 +13,13 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createEvaluation } from "@/action/user-flow/evaluation";
 import {
@@ -31,6 +38,10 @@ import {
 } from "@/components/ui/dialog";
 import { externalHref } from "@/lib/link";
 import { FeishuOAuthStatus } from "@/components/feishu-oauth-status";
+import {
+  getInterviewMeetingRoom,
+  interviewMeetingRooms,
+} from "@/lib/interview-meeting-rooms";
 
 type Candidate = {
   userFlowId: number;
@@ -55,6 +66,7 @@ type Candidate = {
   scheduleLink: string | null;
   scheduleMeetingMinuteLink: string | null;
   scheduleLocation: string | null;
+  scheduleMeetingRoomId: string | null;
   scheduleStartsAt: Date | string | null;
   scheduleEndsAt: Date | string | null;
   scheduleStatus: string | null;
@@ -402,6 +414,7 @@ export const EvaluationTable = ({
   const [scheduleStartsAt, setScheduleStartsAt] = useState("");
   const [scheduleEndsAt, setScheduleEndsAt] = useState("");
   const [scheduleLocation, setScheduleLocation] = useState("");
+  const [scheduleMeetingRoomId, setScheduleMeetingRoomId] = useState("");
   const [scheduleNote, setScheduleNote] = useState("");
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [emailPreviewLoading, setEmailPreviewLoading] = useState(false);
@@ -440,6 +453,7 @@ export const EvaluationTable = ({
     setScheduleStartsAt(range.startsAt);
     setScheduleEndsAt(range.endsAt);
     setScheduleLocation(c.scheduleLocation ?? "");
+    setScheduleMeetingRoomId(c.scheduleMeetingRoomId ?? "");
     setScheduleNote("");
   };
 
@@ -456,6 +470,7 @@ export const EvaluationTable = ({
     setScheduleStartsAt("");
     setScheduleEndsAt("");
     setScheduleLocation("");
+    setScheduleMeetingRoomId("");
     setScheduleNote("");
     setScheduleLoading(false);
     setFeishuBound(null);
@@ -535,6 +550,7 @@ export const EvaluationTable = ({
         startsAt: scheduleStartsAt,
         endsAt: scheduleEndsAt,
         location: scheduleLocation,
+        meetingRoomId: scheduleMeetingRoomId || undefined,
         note: scheduleNote,
       });
       if (!result.success) {
@@ -568,6 +584,7 @@ export const EvaluationTable = ({
         startsAt: scheduleStartsAt,
         endsAt: scheduleEndsAt,
         location: scheduleLocation,
+        meetingRoomId: scheduleMeetingRoomId || undefined,
         note: scheduleNote,
       });
       if (!result.success) {
@@ -1134,12 +1151,40 @@ export const EvaluationTable = ({
               </div>
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">会议室</label>
+              <Select
+                value={scheduleMeetingRoomId || "none"}
+                onValueChange={(value) => {
+                  const roomId = value === "none" ? "" : value;
+                  setScheduleMeetingRoomId(roomId);
+                  const room = getInterviewMeetingRoom(roomId);
+                  setScheduleLocation(room?.name ?? "");
+                }}
+              >
+                <SelectTrigger className="h-10" aria-label="会议室">
+                  <SelectValue placeholder="不预约会议室" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">不预约会议室</SelectItem>
+                  {interviewMeetingRooms.map((room) => (
+                    <SelectItem key={room.id} value={room.id}>
+                      {room.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs leading-5 text-muted-foreground">
+                选择后会在飞书日程中预约该会议室，冲突时无法创建日程。
+              </p>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">地点</label>
               <Input
                 placeholder="例如：仙林校区大学生活动中心 101"
                 value={scheduleLocation}
                 onChange={(e) => setScheduleLocation(e.target.value)}
                 className="h-10"
+                disabled={Boolean(scheduleMeetingRoomId)}
               />
             </div>
             <div className="space-y-2">

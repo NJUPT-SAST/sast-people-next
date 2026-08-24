@@ -37,6 +37,7 @@ export async function syncInterviewScheduleFromFeishuEvent({
       summary: interviewSchedule.summary,
       description: interviewSchedule.description,
       location: interviewSchedule.location,
+      meetingRoomId: interviewSchedule.meetingRoomId,
       startsAt: interviewSchedule.startsAt,
       endsAt: interviewSchedule.endsAt,
       meetingLink: interviewSchedule.meetingLink,
@@ -149,6 +150,7 @@ export async function syncInterviewScheduleFromFeishuEvent({
     event.startsAt.getTime() !== schedule.startsAt.getTime() ||
     event.endsAt.getTime() !== schedule.endsAt.getTime() ||
     (event.location ?? null) !== schedule.location ||
+    (event.meetingRoomId ?? null) !== schedule.meetingRoomId ||
     (event.summary ?? schedule.summary) !== schedule.summary ||
     (event.meetingLink ?? "") !== schedule.meetingLink ||
     (event.scheduleLink ?? null) !== schedule.scheduleLink ||
@@ -167,6 +169,7 @@ export async function syncInterviewScheduleFromFeishuEvent({
       summary: event.summary ?? schedule.summary,
       description: event.description ?? schedule.description,
       location: event.location ?? null,
+      meetingRoomId: event.meetingRoomId ?? null,
       startsAt: event.startsAt,
       endsAt: event.endsAt,
       timezone: event.timezone ?? DEFAULT_TIMEZONE,

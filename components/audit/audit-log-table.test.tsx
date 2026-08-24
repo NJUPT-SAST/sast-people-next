@@ -54,6 +54,8 @@ describe('AuditLogTable', () => {
     );
 
     expect(screen.getAllByText(/同学乙（2026001） · 算法题 60 → 88 分/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2026-08-19").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("20:00:00").length).toBeGreaterThan(0);
 
     await user.click(screen.getAllByRole('button', { name: '查看详情' })[0]);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
