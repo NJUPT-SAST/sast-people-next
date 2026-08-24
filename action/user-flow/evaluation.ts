@@ -25,8 +25,6 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { mqClient } from "@/queue/client";
-import type { ApprovalReminderEventData } from "@/queue/approvalReminder";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -163,14 +161,12 @@ async function safeSyncUserRole(uid: number, context: {
   }
 }
 
-type ApprovalNotificationResult = ApprovalReminderEventData | null;
-
-async function notifyFeishuApprovalGroup(evaluationId: number): Promise<ApprovalNotificationResult> {
+async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
   const chatId = process.env.FEISHU_APPROVAL_CHAT_ID?.trim();
-  if (!chatId) return null;
+  if (!chatId) return;
 
   const record = await loadFeishuApprovalNotificationRecord(evaluationId);
-  if (!record) return null;
+  if (!record) return;
 
   const userMap = await listPeopleUsersByLinkIds(
     [record.candidateId, record.authorId],
@@ -206,12 +202,6 @@ async function notifyFeishuApprovalGroup(evaluationId: number): Promise<Approval
       .where(eq(interviewEvaluation.id, evaluationId));
   }
 
-  return {
-    evaluationId,
-    candidateName: candidate?.name ?? "同学",
-    flowTitle: record.flowTitle,
-    submittedAt: record.submittedAt.toISOString(),
-  };
 }
 
 async function safeNotifyFeishuApprovalGroup(
@@ -229,27 +219,6 @@ async function safeNotifyFeishuApprovalGroup(
       metadata: { evaluationId },
     });
     return null;
-  }
-}
-
-async function enqueueApprovalReminder(
-  notification: ApprovalReminderEventData,
-  session: NonNullable<Awaited<ReturnType<typeof verifyRole>>>,
-) {
-  try {
-    await mqClient.send({
-      name: "approval/evaluation.reminder",
-      id: `people-approval-reminder-${notification.evaluationId}`,
-      data: notification,
-    });
-  } catch (error) {
-    logServerError("evaluation:approval-reminder", error, {
-      path: "/dashboard/interviews",
-      userId: session.uid,
-      role: session.role,
-      action: "enqueue-approval-reminder",
-      metadata: { evaluationId: notification.evaluationId },
-    });
   }
 }
 
@@ -470,13 +439,10 @@ export const createEvaluation = async (
       },
     });
 
-    const notification = await safeNotifyFeishuApprovalGroup(
+    await safeNotifyFeishuApprovalGroup(
       result.evaluationId,
       session,
     );
-    if (notification && result.auditAction === "evaluation.create") {
-      await enqueueApprovalReminder(notification, session);
-    }
 
     return { success: true, data: result.data };
   } catch (error) {
