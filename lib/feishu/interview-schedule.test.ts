@@ -249,7 +249,22 @@ describe("Feishu interview schedule organizer attendance", () => {
     expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(1);
   });
 
-  it("propagates a non-zero organizer RSVP response when updating", async () => {
+  it("keeps the schedule when shared-calendar RSVP is forbidden", async () => {
+    const client = createMockClient();
+    const reply = client.calendar.v4.calendarEvent.reply as jest.Mock;
+    reply.mockRejectedValue({ response: { status: 403 } });
+    getFeishuClientMock.mockReturnValue(client);
+
+    await expect(updateFeishuInterviewSchedule(createUpdateInput())).resolves.toMatchObject({
+      eventId: "event-1",
+      meetingLink: "https://meet.example/new",
+    });
+
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates an unexpected organizer RSVP response when updating", async () => {
     const client = createMockClient();
     const reply = client.calendar.v4.calendarEvent.reply as jest.Mock;
     reply.mockResolvedValue({ code: 999, msg: "RSVP failed" });

@@ -125,6 +125,17 @@ function getFeishuErrorPayload(error: unknown) {
   return { code: direct.code, msg: direct.msg };
 }
 
+function isFeishuForbiddenError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const value = error as {
+    code?: number;
+    response?: { status?: number; data?: { code?: number } };
+  };
+  return value.code === 403
+    || value.response?.status === 403
+    || value.response?.data?.code === 403;
+}
+
 export function isFeishuEventNotFoundError(error: unknown) {
   const payload = getFeishuErrorPayload(error);
   return (
@@ -341,15 +352,23 @@ async function addFeishuCalendarOrganizer({
       throw new Error(`add feishu calendar organizer failed: ${attendeeRes.msg ?? attendeeRes.code}`);
     }
 
-    const replyRes = await client.calendar.v4.calendarEvent.reply(
-      {
-        path: { calendar_id: calendarId, event_id: eventId },
-        data: { rsvp_status: "accept" },
-      },
-      authOptions,
-    );
-    if (replyRes.code && replyRes.code !== 0) {
-      throw new Error(`accept feishu calendar organizer failed: ${replyRes.msg ?? replyRes.code}`);
+    try {
+      const replyRes = await client.calendar.v4.calendarEvent.reply(
+        {
+          path: { calendar_id: calendarId, event_id: eventId },
+          data: { rsvp_status: "accept" },
+        },
+        authOptions,
+      );
+      if (replyRes.code && replyRes.code !== 0) {
+        if (replyRes.code === 403) return;
+        throw new Error(`accept feishu calendar organizer failed: ${replyRes.msg ?? replyRes.code}`);
+      }
+    } catch (error) {
+      // Shared calendars may allow adding the organizer but forbid changing
+      // the attendee RSVP. The event remains valid in that case.
+      if (isFeishuForbiddenError(error)) return;
+      throw error;
     }
   } catch (error) {
     logServerError("feishu:calendarEventOrganizer", error, {

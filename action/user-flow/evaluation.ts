@@ -16,6 +16,10 @@ import {
   type EvaluationFlowStepType,
 } from "@/lib/evaluation-state";
 import { verifyRole } from "@/lib/dal";
+import {
+  loadFeishuApprovalNotificationRecord,
+  sendOrUpdateFeishuApprovalCard,
+} from "@/lib/feishu/approval-notification";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
@@ -154,6 +158,67 @@ async function safeSyncUserRole(uid: number, context: {
       action: context.action,
       metadata: context.metadata,
     });
+  }
+}
+
+async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
+  const chatId = process.env.FEISHU_APPROVAL_CHAT_ID?.trim();
+  if (!chatId) return;
+
+  const record = await loadFeishuApprovalNotificationRecord(evaluationId);
+  if (!record) return;
+
+  const userMap = await listPeopleUsersByLinkIds(
+    [record.candidateId, record.authorId],
+    { canViewSensitiveInfo: true },
+  );
+  const candidate = userMap.get(record.candidateId);
+  const author = userMap.get(record.authorId);
+
+  const result = await sendOrUpdateFeishuApprovalCard({
+    chatId,
+    context: {
+      evaluationId: record.evaluationId,
+      messageId: record.messageId,
+      candidateName: candidate?.name ?? "同学",
+      candidateStudentId: candidate?.studentId ?? null,
+      authorName: author?.name ?? "讲师",
+      flowTitle: record.flowTitle,
+      recommendation: record.recommendation,
+      content: record.content,
+      portfolioDescription: record.portfolioDescription,
+      portfolioLink: record.portfolioLink,
+      meetingLink: record.meetingLink,
+      minuteLink: record.minuteLink,
+      submittedAt: record.submittedAt,
+      updatedAt: record.updatedAt,
+    },
+  });
+
+  if (!result.updated) {
+    await db
+      .update(interviewEvaluation)
+      .set({ feishuApprovalMessageId: result.messageId, updatedAt: new Date() })
+      .where(eq(interviewEvaluation.id, evaluationId));
+  }
+
+}
+
+async function safeNotifyFeishuApprovalGroup(
+  evaluationId: number,
+  session: NonNullable<Awaited<ReturnType<typeof verifyRole>>>,
+) {
+  try {
+    return await notifyFeishuApprovalGroup(evaluationId);
+  } catch (error) {
+    logServerError("evaluation:approval-notification", error, {
+      path: "/dashboard/interviews",
+      userId: session.uid,
+      role: session.role,
+      action: "notify-feishu-approval-group",
+      metadata: { evaluationId },
+    });
+    return null;
   }
 }
 
@@ -373,6 +438,12 @@ export const createEvaluation = async (
         recommendation,
       },
     });
+
+    await safeNotifyFeishuApprovalGroup(
+      result.evaluationId,
+      session,
+    );
+
     return { success: true, data: result.data };
   } catch (error) {
     logServerError("evaluation:create", error, {
