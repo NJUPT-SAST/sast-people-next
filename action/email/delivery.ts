@@ -40,6 +40,7 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
 
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "email.delivery_retry",
       resourceType: "email_delivery",
       resourceId: delivery.id,

@@ -98,6 +98,9 @@ export const operationAuditActionGroups = {
   user: [
     "user.update_role",
     "user.ban",
+    "user_flow.register",
+    "user_flow.unregister",
+    "user_flow.portfolio.update",
     "user_flow.forward",
     "user_flow.finish",
     "user_flow.reject",
@@ -255,6 +258,8 @@ export async function listOperationAudit(params: OperationAuditListParams) {
       .select({
         id: operationAudit.id,
         actorId: operationAudit.actorId,
+        actorRole: operationAudit.actorRole,
+        actorType: operationAudit.actorType,
         action: operationAudit.action,
         resourceType: operationAudit.resourceType,
         resourceId: operationAudit.resourceId,
@@ -375,6 +380,7 @@ export async function listOperationAudit(params: OperationAuditListParams) {
       ...log,
       actorName: peopleMap.get(log.actorId)?.name ?? null,
       actorStudentId: peopleMap.get(log.actorId)?.studentId ?? null,
+      actorRole: log.actorRole ?? peopleMap.get(log.actorId)?.role ?? null,
       resourceLabel: resourceLabelByKey.get(resourceKey) ?? null,
       targetUser:
         typeof targetUserId === 'number'

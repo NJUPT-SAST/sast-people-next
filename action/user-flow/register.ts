@@ -7,6 +7,7 @@ import { logServerError } from "@/lib/server-error-log";
 import { verifySession } from "@/lib/dal";
 import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 import { isValidExternalUrl } from "@/lib/link";
+import { writeOperationAudit } from "@/lib/operation-audit";
 
 /** 查找 flow 下指定 order 的步骤 ID */
 async function findStepIdByOrder(
@@ -29,6 +30,7 @@ export const register = async (
 ) => {
   try {
     const session = await verifySession();
+    let createdUserFlowId: number | null = null;
     if (session.uid !== uid) {
       return {
         success: false,
@@ -70,7 +72,7 @@ export const register = async (
       };
     }
 
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       // 检查用户是否已经报名
       const existingFlow = await tx
         .select({ id: userFlow.id })
@@ -145,7 +147,7 @@ export const register = async (
 
       const stepId = await findStepIdByOrder(flowId, 2);
 
-      const [_newFlow] = await tx
+      const [newFlow] = await tx
         .insert(userFlow)
         .values({
           fkUserId: uid,
@@ -156,13 +158,31 @@ export const register = async (
           portfolioDescription: normalizedPortfolioDescription,
         })
         .returning();
-
-      revalidatePath("/dashboard/user-flow");
+      createdUserFlowId = newFlow.id;
 
       return {
         success: true,
       };
     });
+
+    if (result.success && createdUserFlowId !== null) {
+      await writeOperationAudit({
+        actorId: session.uid,
+        actorRole: session.role,
+        action: "user_flow.register",
+        resourceType: "user_flow",
+        resourceId: createdUserFlowId,
+        metadata: {
+          flowId,
+          targetUserId: session.uid,
+          hasPortfolioLink: Boolean(portfolioLink?.trim()),
+          hasPortfolioDescription: Boolean(portfolioDescription?.trim()),
+        },
+      });
+      revalidatePath("/dashboard/user-flow");
+    }
+
+    return result;
   } catch (error) {
     logServerError("user-flow:register", error, {
       path: "/dashboard/user-flow",

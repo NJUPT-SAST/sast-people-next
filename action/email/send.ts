@@ -20,6 +20,7 @@ export async function sendEmailBatch(batchIdInput: unknown) {
 
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "email.batch_send",
       resourceType: "email_batch",
       resourceId: batchId,
@@ -52,6 +53,7 @@ export async function recoverStaleEmailBatch(batchIdInput: unknown) {
 
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "email.recover_stale",
       resourceType: "email_batch",
       resourceId: batchId,

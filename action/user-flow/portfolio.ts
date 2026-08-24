@@ -7,6 +7,7 @@ import { logServerError } from "@/lib/server-error-log";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { isValidExternalUrl } from "@/lib/link";
+import { writeOperationAudit } from "@/lib/operation-audit";
 
 const editableStatuses = new Set(["not_started", "ongoing"]);
 
@@ -23,6 +24,7 @@ export const updatePortfolioLink = async (
     const [record] = await db
       .select({
         id: userFlow.id,
+        flowId: userFlow.fkFlowId,
         flowType: flow.type,
         progressStatus: userFlow.progressStatus,
       })
@@ -66,6 +68,20 @@ export const updatePortfolioLink = async (
         portfolioDescription: portfolioDescription.trim() || null,
       })
       .where(eq(userFlow.id, userFlowId));
+
+    await writeOperationAudit({
+      actorId: session.uid,
+      actorRole: session.role,
+      action: "user_flow.portfolio.update",
+      resourceType: "user_flow",
+      resourceId: userFlowId,
+      metadata: {
+        flowId: record.flowId,
+        targetUserId: session.uid,
+        hasPortfolioLink: Boolean(portfolioLink.trim()),
+        hasPortfolioDescription: Boolean(portfolioDescription.trim()),
+      },
+    });
 
     revalidatePath("/dashboard/user-flow");
     return { success: true };

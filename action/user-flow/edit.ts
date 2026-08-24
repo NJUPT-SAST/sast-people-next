@@ -80,7 +80,7 @@ export const forward = async (userFlowId: number) => {
     if (!uf) throw new Error("User flow not found");
     const nextStepId = await findStepIdByOrder(uf.flowId, uf.currentOrder + 1);
     await db.update(userFlow).set({ fkCurrentStepId: nextStepId, updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
-    await writeOperationAudit({ actorId: session.uid, action: 'user_flow.forward', resourceType: 'user_flow', resourceId: userFlowId });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.forward', resourceType: 'user_flow', resourceId: userFlowId });
   } catch (error) {
     logServerError("user-flow:forward", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "forward-user-flow", userFlowId });
     throw error;
@@ -98,7 +98,7 @@ export const finish = async (userFlowId: number) => {
     const { fkUserId } = record[0];
     await db.update(userFlow).set({ progressStatus: "passed", updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
     await syncUserRoleFromAcceptedFlows(fkUserId);
-    await writeOperationAudit({ actorId: session.uid, action: 'user_flow.finish', resourceType: 'user_flow', resourceId: userFlowId, metadata: { userId: fkUserId } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.finish', resourceType: 'user_flow', resourceId: userFlowId, metadata: { userId: fkUserId } });
   } catch (error) {
     logServerError("user-flow:finish", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "finish-user-flow", userFlowId });
     throw error;
@@ -114,7 +114,7 @@ export const reject = async (userFlowId: number) => {
     const [record] = await db.select({ fkUserId: userFlow.fkUserId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     await db.update(userFlow).set({ progressStatus: "failed", updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
     if (record) await syncUserRoleFromAcceptedFlows(record.fkUserId);
-    await writeOperationAudit({ actorId: session.uid, action: 'user_flow.reject', resourceType: 'user_flow', resourceId: userFlowId, metadata: { userId: record?.fkUserId ?? null } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.reject', resourceType: 'user_flow', resourceId: userFlowId, metadata: { userId: record?.fkUserId ?? null } });
   } catch (error) {
     logServerError("user-flow:reject", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "reject-user-flow", userFlowId });
     throw error;
@@ -127,7 +127,7 @@ export const reopen = async (userFlowId: number) => {
     session = await verifyRole(3);
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     await db.update(userFlow).set({ progressStatus: "ongoing", updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
-    await writeOperationAudit({ actorId: session.uid, action: 'user_flow.reopen', resourceType: 'user_flow', resourceId: userFlowId });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.reopen', resourceType: 'user_flow', resourceId: userFlowId });
   } catch (error) {
     logServerError("user-flow:reopen", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "reopen-user-flow", userFlowId });
     throw error;
@@ -143,7 +143,7 @@ export const backward = async (userFlowId: number) => {
     if (!uf) throw new Error("User flow not found");
     const prevStepId = await findStepIdByOrder(uf.flowId, uf.currentOrder - 1);
     await db.update(userFlow).set({ fkCurrentStepId: prevStepId, updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
-    await writeOperationAudit({ actorId: session.uid, action: 'user_flow.backward', resourceType: 'user_flow', resourceId: userFlowId });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.backward', resourceType: 'user_flow', resourceId: userFlowId });
   } catch (error) {
     logServerError("user-flow:backward", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "backward-user-flow", userFlowId });
     throw error;
@@ -156,7 +156,7 @@ export const batchUpdate = async (flowId: number, stepOrder: number) => {
     session = await verifyRole(3);
     const stepId = await findStepIdByOrder(flowId, stepOrder);
     await db.update(userFlow).set({ fkCurrentStepId: stepId, updatedAt: new Date() }).where(eq(userFlow.fkFlowId, flowId));
-    await writeOperationAudit({ actorId: session.uid, action: 'user_flow.batch_update_step', resourceType: 'flow', resourceId: flowId, metadata: { stepOrder } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.batch_update_step', resourceType: 'flow', resourceId: flowId, metadata: { stepOrder } });
   } catch (error) {
     logServerError("user-flow:batchUpdate", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "batch-update-user-flow-step", flowId, metadata: { stepOrder } });
     throw error;
@@ -177,7 +177,7 @@ export const batchEndByUid = async (
     const progressStatus = statusStr === 'accepted' ? 'passed' : 'failed';
     await db.update(userFlow).set({ progressStatus, fkCurrentStepId: stepId, updatedAt: new Date() }).where(and(eq(userFlow.fkFlowId, flowId), inArray(userFlow.fkUserId, uids)));
     await syncUserRolesFromAcceptedFlows(uids);
-    await writeOperationAudit({ actorId: session.uid, action: 'user_flow.batch_end', resourceType: 'flow', resourceId: flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.batch_end', resourceType: 'flow', resourceId: flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
   } catch (error) {
     logServerError("user-flow:batchEndByUid", error, { path: "/dashboard/review", userId: session?.uid ?? null, role: session?.role ?? null, action: "batch-end-user-flow", flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
     throw error;
@@ -222,6 +222,7 @@ export const batchSetOutcomeByUid = async (
     const updatedUserIdSet = new Set(updatedUserIds);
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: 'user_flow.batch_set_outcome',
       resourceType: 'flow',
       resourceId: flowId,

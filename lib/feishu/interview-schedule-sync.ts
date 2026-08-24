@@ -119,6 +119,7 @@ export async function syncInterviewScheduleFromFeishuEvent({
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: schedule.organizerId,
+      actorType: "provider",
       action: "interview_schedule.sync.cancelled",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
@@ -192,6 +193,7 @@ export async function syncInterviewScheduleFromFeishuEvent({
   revalidatePath("/dashboard/interviews");
   await writeOperationAudit({
     actorId: schedule.organizerId,
+    actorType: "provider",
     action: "interview_schedule.sync.updated",
     resourceType: "interview_schedule",
     resourceId: schedule.id,

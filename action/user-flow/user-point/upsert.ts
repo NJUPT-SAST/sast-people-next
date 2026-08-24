@@ -213,6 +213,7 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
 
     await writeOperationAudit({
       actorId: actor.uid,
+      actorRole: actor.role,
       action: "review.score.upsert",
       resourceType: "user_flow",
       resourceId: userFlowId,
@@ -278,6 +279,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
 
     await writeOperationAudit({
       actorId,
+      actorRole: session.role,
       action: "review.score.batch_upsert",
       resourceType: "user_flow",
       resourceId: normalized.userFlowId,

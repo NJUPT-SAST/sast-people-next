@@ -15,6 +15,7 @@ export const banUser = async (uid: number)=>{
         await banLinkUser(accessToken, uid)
         await writeOperationAudit({
             actorId: session.uid,
+            actorRole: session.role,
             action: "user.ban",
             resourceType: "link_user",
             resourceId: uid,

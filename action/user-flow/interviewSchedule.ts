@@ -613,6 +613,7 @@ export async function createInterviewSchedule(
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: existingSchedule ? "interview_schedule.update" : "interview_schedule.create",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
@@ -781,6 +782,7 @@ export async function cancelInterviewSchedule(
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "interview_schedule.cancel",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
@@ -924,6 +926,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: schedule.organizerId,
+      actorType: "provider",
       action: "interview_schedule.sync.cancelled",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
@@ -948,6 +951,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: schedule.organizerId,
+      actorType: "provider",
       action: "interview_schedule.sync.cancelled",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
@@ -986,6 +990,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
 
   await writeOperationAudit({
     actorId: schedule.organizerId,
+    actorType: "provider",
     action: "interview_schedule.sync.updated",
     resourceType: "interview_schedule",
     resourceId: schedule.id,
@@ -1051,6 +1056,7 @@ export async function confirmInterviewScheduleEnded(
 
   await writeOperationAudit({
     actorId: session.uid,
+    actorRole: session.role,
     action: "interview_schedule.meeting.ended_manual",
     resourceType: "interview_schedule",
     resourceId: schedule.id,

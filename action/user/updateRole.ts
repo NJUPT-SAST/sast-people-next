@@ -27,6 +27,7 @@ export const updateUserRole = async (uid: number, role: number) => {
     await updateLinkUserRole(accessToken, uid, peopleRoleToLinkRole(role));
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "user.update_role",
       resourceType: "link_user",
       resourceId: uid,

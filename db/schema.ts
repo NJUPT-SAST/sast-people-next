@@ -422,6 +422,9 @@ export const interviewSchedule = pgTable("interview_schedule", {
 export const operationAudit = pgTable("operation_audit", {
   id: serial("id").primaryKey(),
   actorId: integer("actor_id").notNull(),
+  // Role at the time of the operation. It is intentionally nullable for legacy records.
+  actorRole: integer("actor_role"),
+  actorType: varchar("actor_type", { length: 32 }).notNull().default("user"),
   action: varchar("action", { length: 80 }).notNull(),
   resourceType: varchar("resource_type", { length: 80 }).notNull(),
   resourceId: integer("resource_id"),

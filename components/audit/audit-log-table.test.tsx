@@ -26,6 +26,8 @@ describe('AuditLogTable', () => {
           {
             id: 1,
             actorId: 10,
+            actorRole: 2,
+            actorType: 'user',
             actorName: '讲师甲',
             actorStudentId: 'T001',
             action: 'review.score.upsert',
@@ -69,6 +71,8 @@ describe('AuditLogTable', () => {
           {
             id: 2,
             actorId: 10,
+            actorRole: 3,
+            actorType: 'user',
             actorName: '管理员',
             actorStudentId: 'T001',
             action: 'flow.update',
