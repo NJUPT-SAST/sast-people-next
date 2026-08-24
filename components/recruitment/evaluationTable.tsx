@@ -744,6 +744,8 @@ export const EvaluationTable = ({
                 (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
               const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
               const canManageSchedule = !c.scheduleMeetingLink || c.canManageSchedule;
+              const canReturnCandidate =
+                !c.scheduleMeetingLink || c.canManageSchedule || role >= 3;
               const canSubmitEvaluation =
                 c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
 
@@ -798,7 +800,7 @@ export const EvaluationTable = ({
                               {busy ? "处理中" : "取消"}
                             </ActionButton>
                           )}
-                          {canManageSchedule && (
+                          {canReturnCandidate && (
                             <ActionButton
                               disabled={busy}
                               onClick={() => handleReturnCandidate(c)}
@@ -814,7 +816,7 @@ export const EvaluationTable = ({
                               {busy ? "处理中" : "确认结束"}
                             </ActionButton>
                           )}
-                          {!canManageSchedule && (
+                          {!canManageSchedule && role < 3 && (
                             <span className="text-sm text-muted-foreground">
                               等待预约讲师面试
                             </span>
@@ -847,7 +849,7 @@ export const EvaluationTable = ({
                             <ActionButton tone="primary" onClick={() => startEdit(c)}>填写面评</ActionButton>
                           ) : (
                             <span className="text-sm text-muted-foreground">
-                              等待预约讲师面评
+                              等待预约讲师提交面评
                             </span>
                           )}
                         </div>
@@ -875,6 +877,8 @@ export const EvaluationTable = ({
             (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
           const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
           const canManageSchedule = !c.scheduleMeetingLink || c.canManageSchedule;
+          const canReturnCandidate =
+            !c.scheduleMeetingLink || c.canManageSchedule || role >= 3;
           const canSubmitEvaluation =
             c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
 
@@ -924,7 +928,7 @@ export const EvaluationTable = ({
                         {busy ? "处理中" : "取消"}
                       </ActionButton>
                     )}
-                    {canManageSchedule && (
+                    {canReturnCandidate && (
                       <ActionButton
                         disabled={busy}
                         onClick={() => handleReturnCandidate(c)}
@@ -940,7 +944,7 @@ export const EvaluationTable = ({
                         {busy ? "处理中" : "确认结束"}
                       </ActionButton>
                     )}
-                    {!canManageSchedule && (
+                    {!canManageSchedule && role < 3 && (
                       <span className="text-sm text-muted-foreground">
                         等待预约讲师面试
                       </span>
@@ -975,7 +979,7 @@ export const EvaluationTable = ({
                       <ActionButton tone="primary" onClick={() => startEdit(c)}>填写面评</ActionButton>
                     ) : (
                       <span className="text-sm text-muted-foreground">
-                        等待预约讲师面评
+                        等待预约讲师提交面评
                       </span>
                     )}
                   </div>

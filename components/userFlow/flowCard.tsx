@@ -37,6 +37,7 @@ const statusName = {
   failed: "结果待通知",
   accepted: "已通过",
   rejected: "未通过",
+  withdrawn: "已退回",
 };
 
 const flowTypeLabel: Record<string, string> = {
@@ -158,8 +159,10 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                           aria-label={`${step.title}，${statusName[status as keyof typeof statusName] ?? status}。点击查看详情`}
                           className={cn(
                             "flex size-11 shrink-0 items-center justify-center rounded-full text-sm transition-colors touch-manipulation md:size-12",
-                            step.order <= activeStepOrder
-                              ? `${getStatusColor(status || "")} text-white`
+                            status === "accepted" ||
+                            status === "rejected" ||
+                            status === "ongoing"
+                              ? `${getStatusColor(status)} text-white`
                               : "bg-muted text-muted-foreground",
                           )}
                         >

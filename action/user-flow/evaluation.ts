@@ -730,8 +730,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
             : null,
           canManageSchedule:
             !schedule ||
-            schedule.organizerId === session!.uid ||
-            session!.role >= 3,
+            schedule.organizerId === session!.uid,
           canEditEvaluation:
             candidate.evalId === null
               ? !schedule || schedule.organizerId === session!.uid

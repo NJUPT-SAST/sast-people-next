@@ -33,7 +33,11 @@ export async function GET(request: NextRequest) {
       success: true,
       userFlowId: userFlow.id,
       canReview,
-      message: canReview ? undefined : '该考生笔试结果已确认，不能再修改评分',
+      message: canReview
+        ? undefined
+        : userFlow.progressStatus === 'withdrawn'
+          ? '该考生已退回当前流程，不能再修改评分'
+          : '该考生笔试结果已确认，不能再修改评分',
     });
   } catch (error) {
     const { searchParams } = new URL(request.url);

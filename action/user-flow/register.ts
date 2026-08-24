@@ -1,7 +1,7 @@
 "use server";
 import { db } from "@/db/drizzle";
 import { flow, flowStep, userFlow } from "@/db/schema";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logServerError } from "@/lib/server-error-log";
 import { verifySession } from "@/lib/dal";
@@ -118,6 +118,9 @@ export const register = async (
         "soc",
       ] as const;
       if (interviewFlowTypes.includes(type as (typeof interviewFlowTypes)[number])) {
+        // Serialize registrations for the same user so the mutual-exclusion
+        // check and the following insert/update cannot race each other.
+        await tx.execute(sql`select pg_advisory_xact_lock(${uid})`);
         const [activeInterviewFlow] = await tx
           .select({ title: flow.title })
           .from(userFlow)

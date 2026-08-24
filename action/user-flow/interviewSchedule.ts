@@ -30,7 +30,7 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { verifyRole } from "@/lib/dal";
 import { mqClient } from "@/queue/client";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
@@ -673,6 +673,7 @@ export async function createInterviewSchedule(
 
 export async function cancelInterviewSchedule(
   scheduleId: number,
+  options?: { allowAdmin?: boolean },
 ): Promise<CancelInterviewScheduleResult> {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
@@ -707,7 +708,10 @@ export async function cancelInterviewSchedule(
     if (schedule.meetingStatus === "ended") {
       return { success: false, error: { message: "该面试已经结束，不能取消。" } };
     }
-    if (schedule.organizerId !== session.uid && session.role < 3) {
+    if (
+      schedule.organizerId !== session.uid &&
+      !(options?.allowAdmin && session.role >= 3)
+    ) {
       return { success: false, error: { message: "只能由原预约讲师取消该面试。" } };
     }
 
@@ -844,6 +848,7 @@ export async function returnInterviewCandidate(userFlowId: number) {
       .select({
         userFlowId: userFlow.id,
         progressStatus: userFlow.progressStatus,
+        flowType: flow.type,
         evaluationStatus: interviewEvaluation.status,
         scheduleId: interviewSchedule.id,
         scheduleOrganizerId: interviewSchedule.fkOrganizerId,
@@ -872,6 +877,9 @@ export async function returnInterviewCandidate(userFlowId: number) {
     if (!candidate) {
       return { success: false, error: { message: "找不到该面试报名。" } };
     }
+    if (candidate.flowType === "recruitment") {
+      return { success: false, error: { message: "笔试流程不支持退回面试报名。" } };
+    }
     if (candidate.progressStatus !== "ongoing") {
       return { success: false, error: { message: "只有进行中的面试流程可以退回。" } };
     }
@@ -893,14 +901,35 @@ export async function returnInterviewCandidate(userFlowId: number) {
     }
 
     if (candidate.scheduleId) {
-      const cancelResult = await cancelInterviewSchedule(candidate.scheduleId);
+      const cancelResult = await cancelInterviewSchedule(candidate.scheduleId, {
+        allowAdmin: true,
+      });
       if (!cancelResult.success) return cancelResult;
     }
 
-    await db
+    const [updated] = await db
       .update(userFlow)
       .set({ progressStatus: "withdrawn", updatedAt: new Date() })
-      .where(eq(userFlow.id, userFlowId));
+      .where(
+        and(
+          eq(userFlow.id, userFlowId),
+          eq(userFlow.progressStatus, "ongoing"),
+          sql`not exists (
+            select 1
+            from ${interviewEvaluation}
+            where ${interviewEvaluation.fkUserFlowId} = ${userFlow.id}
+              and ${interviewEvaluation.status} = 'submitted'
+          )`,
+        ),
+      )
+      .returning({ id: userFlow.id });
+
+    if (!updated) {
+      return {
+        success: false,
+        error: { message: "该面试状态已发生变化，请刷新后重试。" },
+      };
+    }
 
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/user-flow");

@@ -41,6 +41,7 @@ const statusName: Record<string, string> = {
   failed: '不通过',
   accepted: '已通过',
   rejected: '未通过',
+  withdrawn: '已退回',
 };
 
 interface FlowCardProps {
@@ -186,7 +187,9 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                       aria-label={`${step.title}，${statusName[stepStatus] || stepStatus}。点击查看详情`}
                       className={`z-30 flex size-11 shrink-0 items-center justify-center rounded-full text-sm touch-manipulation sm:size-14
                         ${
-                          index <= currentStepIndex
+                          stepStatus === 'accepted' ||
+                          stepStatus === 'rejected' ||
+                          stepStatus === 'ongoing'
                             ? getStatusColor(stepStatus) + ' text-white'
                             : 'bg-muted text-muted-foreground'
                         }`}
@@ -234,7 +237,11 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {role >= 3 && isFinalLocked ? (
+            {role >= 3 && flow.status === 'withdrawn' ? (
+              <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+                流程已退回
+              </Badge>
+            ) : role >= 3 && isFinalLocked ? (
               <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
                 结果已通知
               </Badge>
@@ -274,5 +281,3 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
     </Card>
   );
 };
-
-
