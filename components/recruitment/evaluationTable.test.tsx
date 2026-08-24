@@ -71,6 +71,10 @@ describe("EvaluationTable", () => {
     expect(document.getElementById("user-flow-42-desktop")).toBeInTheDocument();
     expect(document.getElementById("user-flow-42-mobile")).toBeInTheDocument();
     expect(document.getElementById("user-flow-42")).not.toBeInTheDocument();
+    expect(screen.getAllByText("待预约")[0]).toHaveClass(
+      "text-sky-700",
+      "dark:text-sky-300",
+    );
     expect(screen.getAllByRole("button", { name: "预约" })[0]).toHaveClass(
       "text-foreground",
     );

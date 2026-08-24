@@ -46,13 +46,16 @@ function row({
     },
     meetingLink: null,
     portfolioLink: null,
+    portfolioDescription: null,
+    scheduleMeetingLink: null,
+    meetingMinuteLink: null,
     authorName: "讲师",
     reviewerName,
     candidateName,
     candidateStudentId: `B26${id}`,
     flowTitle: "2026 免试招新",
     flowType: "recruitment_exemption",
-  } as never;
+  };
 }
 
 describe("ApprovalsContent", () => {
@@ -104,5 +107,26 @@ describe("ApprovalsContent", () => {
     await user.type(screen.getByLabelText("搜索归档面评"), "管理员甲");
 
     expect(screen.getByText("王五")).toBeInTheDocument();
+  });
+
+  it("shows portfolio and interview references on the approval card", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[{
+          ...row({ id: 4, candidateName: "赵六", status: "submitted", recommendation: "passed" }),
+          portfolioLink: "https://example.com/portfolio",
+          portfolioDescription: "负责校园活动报名系统。",
+          scheduleMeetingLink: "https://example.com/meeting",
+          meetingMinuteLink: "https://example.com/minute",
+        }]}
+      />,
+    );
+
+    expect(screen.getByText("作品链接")).toBeInTheDocument();
+    expect(screen.getByText("作品简介")).toBeInTheDocument();
+    expect(screen.getByText("负责校园活动报名系统。")).toBeInTheDocument();
+    expect(screen.getByText("会议连接")).toBeInTheDocument();
+    expect(screen.getByText("妙记链接")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /打开：https:\/\/example\.com\/meeting/ })).toBeInTheDocument();
   });
 });

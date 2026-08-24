@@ -537,6 +537,7 @@ export const getAllEvaluations = async () => {
         evaluation: interviewEvaluation,
         meetingLink: interviewEvaluation.meetingLink,
         portfolioLink: userFlow.portfolioLink,
+        portfolioDescription: userFlow.portfolioDescription,
         authorId: interviewEvaluation.fkUserId,
         candidateId: userFlow.fkUserId,
         flowTitle: flow.title,
@@ -556,6 +557,7 @@ export const getAllEvaluations = async () => {
           .select({
             evaluationId: interviewSchedule.fkEvaluationId,
             userFlowId: interviewSchedule.fkUserFlowId,
+            scheduleMeetingLink: interviewSchedule.meetingLink,
             minuteLink: interviewSchedule.meetingMinuteLink,
             updatedAt: interviewSchedule.updatedAt,
           })
@@ -564,13 +566,24 @@ export const getAllEvaluations = async () => {
           .orderBy(desc(interviewSchedule.updatedAt));
     const minuteByEvaluation = new Map<number, string>();
     const minuteByUserFlow = new Map<number, string>();
+    const meetingByEvaluation = new Map<number, string>();
+    const meetingByUserFlow = new Map<number, string>();
     for (const schedule of schedules) {
-      if (!schedule.minuteLink) continue;
-      if (schedule.evaluationId && !minuteByEvaluation.has(schedule.evaluationId)) {
-        minuteByEvaluation.set(schedule.evaluationId, schedule.minuteLink);
+      if (schedule.scheduleMeetingLink) {
+        if (schedule.evaluationId && !meetingByEvaluation.has(schedule.evaluationId)) {
+          meetingByEvaluation.set(schedule.evaluationId, schedule.scheduleMeetingLink);
+        }
+        if (!meetingByUserFlow.has(schedule.userFlowId)) {
+          meetingByUserFlow.set(schedule.userFlowId, schedule.scheduleMeetingLink);
+        }
       }
-      if (!minuteByUserFlow.has(schedule.userFlowId)) {
-        minuteByUserFlow.set(schedule.userFlowId, schedule.minuteLink);
+      if (schedule.minuteLink) {
+        if (schedule.evaluationId && !minuteByEvaluation.has(schedule.evaluationId)) {
+          minuteByEvaluation.set(schedule.evaluationId, schedule.minuteLink);
+        }
+        if (!minuteByUserFlow.has(schedule.userFlowId)) {
+          minuteByUserFlow.set(schedule.userFlowId, schedule.minuteLink);
+        }
       }
     }
 
@@ -590,6 +603,15 @@ export const getAllEvaluations = async () => {
         row.meetingLink ??
         minuteByEvaluation.get(row.evaluation.id) ??
         minuteByUserFlow.get(row.evaluation.fkUserFlowId) ??
+        null,
+      meetingMinuteLink:
+        row.meetingLink ??
+        minuteByEvaluation.get(row.evaluation.id) ??
+        minuteByUserFlow.get(row.evaluation.fkUserFlowId) ??
+        null,
+      scheduleMeetingLink:
+        meetingByEvaluation.get(row.evaluation.id) ??
+        meetingByUserFlow.get(row.evaluation.fkUserFlowId) ??
         null,
       authorName: userMap.get(row.authorId)?.name ?? null,
       reviewerName: row.evaluation.fkReviewedBy

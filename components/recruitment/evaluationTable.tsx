@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ExternalLink, Eye } from "lucide-react";
+import { ExternalLink, Eye, FileText, FileX2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -83,42 +83,49 @@ const evalStatusLabel = (
   if (evalStatus === "approved" || flowStatus === "passed") {
     return {
       text: "已通过",
-      className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+      className:
+        "border-emerald-600/30 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300",
     };
   }
   if (evalStatus === "rejected") {
     return {
       text: "不通过",
-      className: "border-rose-400/30 bg-rose-400/10 text-rose-300",
+      className:
+        "border-rose-600/30 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300",
     };
   }
   if (evalStatus === "submitted") {
     return {
       text: "待审核",
-      className: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+      className:
+        "border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300",
     };
   }
   if (flowStatus === "failed") {
     return {
       text: "不通过",
-      className: "border-rose-400/30 bg-rose-400/10 text-rose-300",
+      className:
+        "border-rose-600/30 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300",
     };
   }
   if (!scheduleMeetingLink) {
     return {
       text: "待预约",
-      className: "border-sky-400/30 bg-sky-400/10 text-sky-300",
+      className:
+        "border-sky-600/30 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300",
     };
   }
   if (!scheduleEnded) {
     return {
       text: "待面试",
-      className: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
+      className:
+        "border-cyan-600/30 bg-cyan-50 text-cyan-700 dark:border-cyan-400/30 dark:bg-cyan-400/10 dark:text-cyan-300",
     };
   }
   return {
     text: "待评估",
-    className: "border-orange-400/30 bg-orange-400/10 text-orange-300",
+    className:
+      "border-orange-600/30 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300",
   };
 };
 
@@ -285,19 +292,29 @@ const PortfolioLink = ({
   onOpen: () => void;
 }) => {
   if (!value && !description) {
-    return <span className="text-sm text-muted-foreground">未提供</span>;
+    return (
+      <span className="inline-flex h-8 items-center gap-2 text-xs text-muted-foreground">
+        <span className="flex size-6 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20">
+          <FileX2 className="size-3.5 opacity-70" />
+        </span>
+        未提供
+      </span>
+    );
   }
 
   return (
     <Button
       type="button"
-      variant="ghost"
+      variant="outline"
       size="sm"
       onClick={onOpen}
-      className="h-8 px-2 text-sm font-normal text-primary shadow-none hover:text-primary"
+      className="group h-8 max-w-full gap-2 border-border/70 bg-transparent px-2 text-xs font-medium text-foreground/80 shadow-none hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
     >
-      <Eye className="size-3.5" />
-      查看作品
+      <span className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
+        <FileText className="size-3.5" />
+      </span>
+      <span className="truncate">查看作品</span>
+      <Eye className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
     </Button>
   );
 };
