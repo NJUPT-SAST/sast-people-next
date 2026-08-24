@@ -388,6 +388,9 @@ export const interviewSchedule = pgTable("interview_schedule", {
   /* Link 用户 ID — 日程发起讲师 */
   fkOrganizerId: integer("fk_organizer_id").notNull(),
   provider: varchar("provider", { length: 32 }).notNull().default("feishu"),
+  providerCalendarId: varchar("provider_calendar_id", { length: 255 })
+    .notNull()
+    .default("primary"),
   providerEventId: varchar("provider_event_id", { length: 255 }),
   providerReserveId: varchar("provider_reserve_id", { length: 255 }),
   providerMeetingNo: varchar("provider_meeting_no", { length: 255 }),
