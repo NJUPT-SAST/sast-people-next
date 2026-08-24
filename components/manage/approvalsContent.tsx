@@ -64,7 +64,8 @@ const InlineLink = ({ label, value }: { label: string; value: string }) => (
     target="_blank"
     rel="noopener noreferrer"
     aria-label={`${label}：${value}`}
-    className="block max-w-full truncate text-sm text-blue-600 hover:underline dark:text-blue-400"
+    title={value}
+    className="block max-w-full break-all text-sm leading-5 text-blue-600 line-clamp-2 hover:underline dark:text-blue-400"
   >
     {value}
   </a>
@@ -333,12 +334,12 @@ export const ApprovalsContent = ({
                 <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
-                <div className="grid gap-x-8 gap-y-3 border-t border-border/60 pt-3 sm:grid-cols-3">
+                <div className="grid gap-x-8 gap-y-3 pt-1 sm:grid-cols-3">
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
                   <ReviewReference label="会议连接" value={row.scheduleMeetingLink} />
                   <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />
                 </div>
-                <div className="space-y-1 border-t border-border/60 pt-3">
+                <div className="space-y-1 pt-1">
                   <p className="text-xs text-muted-foreground">作品简介</p>
                   <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
                     {row.portfolioDescription || "未提供"}

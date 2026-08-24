@@ -131,5 +131,9 @@ describe("ApprovalsContent", () => {
       "href",
       "https://example.com/meeting",
     );
+    expect(screen.getByRole("link", { name: "会议连接：https://example.com/meeting" })).toHaveAttribute(
+      "title",
+      "https://example.com/meeting",
+    );
   });
 });
