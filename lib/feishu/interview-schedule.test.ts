@@ -159,5 +159,7 @@ describe("Feishu interview schedule room update rollback", () => {
       }),
       expect.anything(),
     );
+    expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(2);
+    expect(client.vc.v1.reserve.update).toHaveBeenCalledTimes(2);
   });
 });

@@ -436,7 +436,7 @@ async function restoreFeishuCalendarEvent({
       data: {
         summary: event.summary,
         description: event.description,
-        location: event.location ? { name: event.location } : undefined,
+        location: event.location ? { name: event.location } : {},
         need_notification: false,
         start_time: {
           timestamp: toFeishuTimestamp(event.startsAt),
@@ -658,7 +658,9 @@ export async function updateFeishuInterviewSchedule({
 
   let meetingLink = currentMeetingLink;
   let meetingNo: string | undefined;
-  const roomChanged = meetingRoomId !== previousMeetingRoomId;
+  const normalizedMeetingRoomId = meetingRoomId ?? "";
+  const normalizedPreviousMeetingRoomId = previousMeetingRoomId ?? "";
+  const roomChanged = normalizedMeetingRoomId !== normalizedPreviousMeetingRoomId;
   const previousEvent = roomChanged
     ? await getFeishuCalendarEvent({ accessToken, eventId })
     : null;
@@ -768,7 +770,8 @@ export async function updateFeishuInterviewSchedule({
             metadata: { eventId },
           });
         }
-      } else if (previousEvent) {
+      }
+      if (previousEvent) {
         try {
           await restoreFeishuCalendarEvent({
             accessToken,
