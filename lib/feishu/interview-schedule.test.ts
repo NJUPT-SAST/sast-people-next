@@ -260,6 +260,7 @@ describe("Feishu interview schedule organizer attendance", () => {
       meetingLink: "https://meet.example/new",
     });
 
+    expect(reply).toHaveBeenCalledTimes(1);
     expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(1);
   });
 
