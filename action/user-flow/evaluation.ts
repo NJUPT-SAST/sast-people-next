@@ -360,6 +360,7 @@ export const createEvaluation = async (
     revalidatePath("/dashboard/approvals");
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: result.auditAction,
       resourceType: "interview_evaluation",
       resourceId: result.evaluationId,
@@ -447,6 +448,7 @@ export const approveEvaluation = async (evaluationId: number) => {
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "evaluation.approve",
       resourceType: "interview_evaluation",
       resourceId: evaluationId,
@@ -506,6 +508,7 @@ export const rejectEvaluation = async (evaluationId: number) => {
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "evaluation.reject",
       resourceType: "interview_evaluation",
       resourceId: evaluationId,

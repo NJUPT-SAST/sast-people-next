@@ -175,6 +175,7 @@ export async function updateEmailTemplateSetting(
 
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "email.template.update",
       resourceType: "email_template_setting",
       resourceId: templateSettingId,

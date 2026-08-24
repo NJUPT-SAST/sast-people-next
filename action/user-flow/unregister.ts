@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { verifySession } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
+import { writeOperationAudit } from "@/lib/operation-audit";
 
 export const unregister = async (userFlowId: number) => {
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
@@ -14,7 +15,7 @@ export const unregister = async (userFlowId: number) => {
     session = await verifySession();
 
     const record = await db
-      .select({ id: userFlow.id, fkUserId: userFlow.fkUserId })
+      .select({ id: userFlow.id, fkUserId: userFlow.fkUserId, flowId: userFlow.fkFlowId })
       .from(userFlow)
       .where(eq(userFlow.id, userFlowId))
       .limit(1);
@@ -24,6 +25,17 @@ export const unregister = async (userFlowId: number) => {
     }
 
     await db.delete(userFlow).where(eq(userFlow.id, userFlowId));
+    await writeOperationAudit({
+      actorId: session.uid,
+      actorRole: session.role,
+      action: "user_flow.unregister",
+      resourceType: "user_flow",
+      resourceId: userFlowId,
+      metadata: {
+        flowId: record[0].flowId,
+        targetUserId: session.uid,
+      },
+    });
     revalidatePath("/user-flow");
     return { success: true };
   } catch (error) {

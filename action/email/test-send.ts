@@ -76,6 +76,7 @@ export async function sendEmailTest(
 
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "email.test_send",
       resourceType: "email_delivery",
       resourceId: result.deliveryId,

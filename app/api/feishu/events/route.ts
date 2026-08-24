@@ -138,6 +138,7 @@ async function handleMeetingEnded(event: FeishuMeetingEndedEvent) {
 
   await writeOperationAudit({
     actorId: schedule.organizerId,
+    actorType: "provider",
     action: "interview_schedule.meeting.ended",
     resourceType: "interview_schedule",
     resourceId: schedule.id,
@@ -255,6 +256,7 @@ async function handleMinuteGenerated(event: FeishuMinuteGeneratedEvent) {
 
   await writeOperationAudit({
     actorId: schedule.organizerId,
+    actorType: "provider",
     action: "interview_schedule.meeting_minute.generated",
     resourceType: "interview_schedule",
     resourceId: schedule.id,

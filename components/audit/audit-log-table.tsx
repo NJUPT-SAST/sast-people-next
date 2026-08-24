@@ -53,6 +53,9 @@ const actionLabels: Record<string, string> = {
   "flow.update_steps": "更新流程步骤",
   "user.update_role": "修改用户角色",
   "user.ban": "禁用用户",
+  "user_flow.register": "报名流程",
+  "user_flow.unregister": "取消报名",
+  "user_flow.portfolio.update": "修改作品集",
   "user_flow.forward": "推进考生流程",
   "user_flow.finish": "设置考生通过",
   "user_flow.reject": "设置考生不通过",
@@ -119,6 +122,19 @@ const metadataValueLabels: Record<string, string> = {
   rejected: "不通过",
   update: "更新",
 };
+
+const actorRoleLabels: Record<number, string> = {
+  0: "普通用户",
+  1: "成员",
+  2: "讲师",
+  3: "管理员",
+};
+
+function getActorLabel(item: AuditLogItem) {
+  if (item.actorType === "provider") return "飞书回调";
+  if (item.actorType === "system") return "系统任务";
+  return actorRoleLabels[item.actorRole ?? -1] ?? "用户";
+}
 
 function getActionLabel(action: string) {
   return actionLabels[action] ?? `未命名操作（${action}）`;
@@ -218,7 +234,7 @@ function MetadataDetails({ item }: { item: AuditLogItem }) {
     <div className="flex flex-col gap-5">
       <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[max-content_minmax(0,1fr)]">
         <dt className="text-muted-foreground">操作者</dt>
-        <dd>{item.actorName ?? "未知用户"}{item.actorStudentId ? `（${item.actorStudentId}）` : ""}</dd>
+        <dd>{item.actorName ?? "未知用户"}{item.actorStudentId ? `（${item.actorStudentId}）` : ""} · {getActorLabel(item)}</dd>
         <dt className="text-muted-foreground">操作</dt>
         <dd>{getActionLabel(item.action)}</dd>
         <dt className="text-muted-foreground">资源</dt>
@@ -308,7 +324,7 @@ function AuditLogMobileItem({ item }: { item: AuditLogItem }) {
       </div>
       <div className="flex items-center justify-between gap-3">
         <span className="truncate text-xs text-muted-foreground">
-          {item.actorName ?? "未知用户"} · {item.resourceLabel ?? item.resourceType}
+          {item.actorName ?? "未知用户"}（{getActorLabel(item)}） · {item.resourceLabel ?? item.resourceType}
         </span>
         <AuditDetailDialog item={item} />
       </div>
@@ -413,7 +429,7 @@ export function AuditLogTable({
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{item.actorName ?? "未知用户"}</p>
                         <p className="truncate font-mono text-xs text-muted-foreground">
-                          {item.actorStudentId ?? `#${item.actorId}`}
+                          {item.actorStudentId ?? `#${item.actorId}`} · {getActorLabel(item)}
                         </p>
                       </div>
                     </TableCell>

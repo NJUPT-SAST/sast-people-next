@@ -32,6 +32,7 @@ export const updateFlow = async (
 
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: "flow.update",
       resourceType: "flow",
       resourceId: id,

@@ -94,6 +94,7 @@ export const updateProblems = async (
     revalidatePath(`/dashboard/flow/edit-exam?id=${flowId}`);
     await writeOperationAudit({
       actorId: session.uid,
+      actorRole: session.role,
       action: 'flow.update_problems',
       resourceType: 'flow',
       resourceId: flowId,

@@ -6,6 +6,8 @@ import { logServerError } from "@/lib/server-error-log";
 
 export type OperationAuditInput = {
   actorId: number;
+  actorRole?: number | null;
+  actorType?: "user" | "provider" | "system";
   action: string;
   resourceType: string;
   resourceId?: number | null;
@@ -14,6 +16,8 @@ export type OperationAuditInput = {
 
 export async function writeOperationAudit({
   actorId,
+  actorRole = null,
+  actorType = "user",
   action,
   resourceType,
   resourceId = null,
@@ -22,6 +26,8 @@ export async function writeOperationAudit({
   try {
     await db.insert(operationAudit).values({
       actorId,
+      actorRole,
+      actorType,
       action,
       resourceType,
       resourceId,
@@ -33,6 +39,7 @@ export async function writeOperationAudit({
       action: "write-operation-audit",
       metadata: {
         auditAction: action,
+        actorType,
         resourceType,
         resourceId,
       },

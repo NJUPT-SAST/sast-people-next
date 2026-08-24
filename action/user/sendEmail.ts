@@ -35,6 +35,7 @@ export const batchSendEmail = async (
     if (result.batchId) {
       await writeOperationAudit({
         actorId,
+        actorRole: session.role,
         action: "email.batch.create",
         resourceType: "email_batch",
         resourceId: result.batchId,
