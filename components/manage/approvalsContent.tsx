@@ -333,16 +333,16 @@ export const ApprovalsContent = ({
                 <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
-                <div className="grid gap-x-8 gap-y-3 border-t border-border/60 pt-3 sm:grid-cols-2">
+                <div className="grid gap-x-8 gap-y-3 border-t border-border/60 pt-3 sm:grid-cols-3">
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
                   <ReviewReference label="会议连接" value={row.scheduleMeetingLink} />
-                  <div className="min-w-0 space-y-1 sm:col-span-2">
-                    <p className="text-xs text-muted-foreground">作品简介</p>
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
-                      {row.portfolioDescription || "未提供"}
-                    </p>
-                  </div>
                   <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />
+                </div>
+                <div className="space-y-1 border-t border-border/60 pt-3">
+                  <p className="text-xs text-muted-foreground">作品简介</p>
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
+                    {row.portfolioDescription || "未提供"}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
