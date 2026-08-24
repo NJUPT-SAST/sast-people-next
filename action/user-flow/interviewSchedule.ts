@@ -14,6 +14,7 @@ import { getInterviewMeetingRoom } from "@/lib/interview-meeting-rooms";
 import {
   cancelFeishuInterviewSchedule,
   createFeishuInterviewSchedule,
+  getFeishuInterviewCalendarId,
   getFeishuCalendarEvent,
   isFeishuEventNotFoundError,
   isFeishuInternalServiceError,
@@ -443,6 +444,7 @@ export async function createInterviewSchedule(
       )
       .orderBy(desc(interviewSchedule.startsAt))
       .limit(1);
+    const calendarId = existingSchedule?.providerCalendarId ?? getFeishuInterviewCalendarId();
 
     if (existingSchedule && existingSchedule.fkOrganizerId !== session.uid) {
       return {
@@ -466,7 +468,7 @@ export async function createInterviewSchedule(
 
     if (!feishuCalendarSubscriptionCache.has(session.uid)) {
       try {
-        await subscribeFeishuCalendarEventChanges(credential.accessToken);
+        await subscribeFeishuCalendarEventChanges(credential.accessToken, calendarId);
         feishuCalendarSubscriptionCache.add(session.uid);
       } catch (error) {
         // Calendar change events are an enhancement; scheduling must still work
@@ -484,6 +486,7 @@ export async function createInterviewSchedule(
         feishuSchedule = await updateFeishuInterviewSchedule({
           accessToken: credential.accessToken,
           organizerOpenId: credential.openId,
+          calendarId,
           eventId: existingSchedule.providerEventId as string,
           reserveId: existingSchedule.providerReserveId,
           currentMeetingLink: existingSchedule.meetingLink,
@@ -513,6 +516,7 @@ export async function createInterviewSchedule(
         feishuSchedule = await createFeishuInterviewSchedule({
           accessToken: credential.accessToken,
           organizerOpenId: credential.openId,
+          calendarId,
           summary,
           description,
           location,
@@ -527,6 +531,7 @@ export async function createInterviewSchedule(
       feishuSchedule = await createFeishuInterviewSchedule({
         accessToken: credential.accessToken,
         organizerOpenId: credential.openId,
+        calendarId,
         summary,
         description,
         location,
@@ -557,6 +562,7 @@ export async function createInterviewSchedule(
             .update(interviewSchedule)
           .set({
             providerEventId: feishuSchedule.eventId,
+            providerCalendarId: calendarId,
             providerReserveId: feishuSchedule.reserveId,
             providerMeetingId:
               feishuSchedule.meetingId ?? existingSchedule.providerMeetingId,
@@ -580,6 +586,7 @@ export async function createInterviewSchedule(
           .values({
             fkUserFlowId: input.userFlowId,
             fkOrganizerId: organizerId,
+            providerCalendarId: calendarId,
             providerEventId: feishuSchedule.eventId,
             providerReserveId: feishuSchedule.reserveId,
             providerMeetingId: feishuSchedule.meetingId,
@@ -609,6 +616,7 @@ export async function createInterviewSchedule(
       try {
         await cancelFeishuInterviewSchedule({
           accessToken: credential.accessToken,
+          calendarId,
           eventId: feishuSchedule.eventId,
           reserveId: feishuSchedule.reserveId,
         });
@@ -733,6 +741,7 @@ export async function cancelInterviewSchedule(
         userFlowId: interviewSchedule.fkUserFlowId,
         organizerId: interviewSchedule.fkOrganizerId,
         providerEventId: interviewSchedule.providerEventId,
+        providerCalendarId: interviewSchedule.providerCalendarId,
         providerReserveId: interviewSchedule.providerReserveId,
         summary: interviewSchedule.summary,
         attendeeEmail: interviewSchedule.attendeeEmail,
@@ -765,6 +774,7 @@ export async function cancelInterviewSchedule(
     const credential = await getValidFeishuUserCredential(schedule.organizerId);
     await cancelFeishuInterviewSchedule({
       accessToken: credential.accessToken,
+      calendarId: schedule.providerCalendarId,
       eventId: schedule.providerEventId,
       reserveId: schedule.providerReserveId,
     });
@@ -1094,6 +1104,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
       userFlowId: interviewSchedule.fkUserFlowId,
       organizerId: interviewSchedule.fkOrganizerId,
       providerEventId: interviewSchedule.providerEventId,
+      providerCalendarId: interviewSchedule.providerCalendarId,
       attendeeEmail: interviewSchedule.attendeeEmail,
       summary: interviewSchedule.summary,
       description: interviewSchedule.description,
@@ -1173,6 +1184,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
   try {
     event = await getFeishuCalendarEvent({
       accessToken: credential.accessToken,
+      calendarId: schedule.providerCalendarId,
       eventId,
     });
   } catch (error) {

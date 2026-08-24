@@ -43,6 +43,7 @@ function createMockClient() {
               },
             },
           }),
+          reply: jest.fn().mockResolvedValue({ code: 0 }),
         },
         calendarEventAttendee: {
           create: jest.fn().mockResolvedValue({ code: 0, data: { attendees: [] } }),
@@ -70,6 +71,7 @@ function createUpdateInput(overrides: Partial<Parameters<typeof updateFeishuInte
   return {
     accessToken: "token",
     organizerOpenId: "organizer",
+    calendarId: "shared-calendar",
     eventId: "event-1",
     reserveId: "reserve-1",
     currentMeetingLink: "https://meet.example/old",
@@ -127,7 +129,39 @@ describe("Feishu interview schedule room update rollback", () => {
 
     await expect(updateFeishuInterviewSchedule(createUpdateInput())).rejects.toThrow("room unavailable");
 
+    expect(createAttendee).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: {
+          need_notification: true,
+          attendees: [{ type: "user", user_id: "candidate" }],
+        },
+      }),
+      expect.anything(),
+    );
+    expect(createAttendee).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: {
+          need_notification: false,
+          attendees: [{ type: "user", user_id: "organizer" }],
+        },
+      }),
+      expect.anything(),
+    );
+    expect(client.calendar.v4.calendarEvent.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { calendar_id: "shared-calendar", event_id: "event-1" },
+        data: { rsvp_status: "accept" },
+      }),
+      expect.anything(),
+    );
     expect(client.calendar.v4.calendarEvent.patch).toHaveBeenCalledTimes(2);
+    expect(client.calendar.v4.calendarEvent.patch).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ path: { calendar_id: "shared-calendar", event_id: "event-1" } }),
+      expect.anything(),
+    );
     expect(client.calendar.v4.calendarEvent.patch).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ summary: "原面试", location: { name: "旧会议室" } }),
