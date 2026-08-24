@@ -34,6 +34,7 @@ export const progressStatusEnum = pgEnum("progress_status_enum", [
   "ongoing",
   "passed",
   "failed",
+  "withdrawn",
 ]);
 
 export const evaluationStatusEnum = pgEnum("evaluation_status_enum", [
