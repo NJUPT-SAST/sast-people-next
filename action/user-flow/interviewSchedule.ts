@@ -9,6 +9,7 @@ import {
 import { createRenderedEmailDelivery } from "@/lib/email-center/delivery";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import { getEducationEmail } from "@/lib/email/address";
+import { getInterviewMeetingRoom } from "@/lib/interview-meeting-rooms";
 import {
   cancelFeishuInterviewSchedule,
   createFeishuInterviewSchedule,
@@ -44,6 +45,7 @@ type CreateInterviewScheduleInput = {
   startsAt: string;
   endsAt: string;
   location?: string;
+  meetingRoomId?: string;
   note?: string;
 };
 
@@ -107,6 +109,17 @@ function parseDate(value: string, fieldName: string) {
     throw new Error(`${fieldName} 时间格式不正确`);
   }
   return date;
+}
+
+function getScheduleRoom(input: CreateInterviewScheduleInput) {
+  const meetingRoomId = input.meetingRoomId?.trim();
+  if (!meetingRoomId) return undefined;
+
+  const room = getInterviewMeetingRoom(meetingRoomId);
+  if (!room) {
+    throw new Error("所选会议室不可用，请刷新页面后重试。");
+  }
+  return room;
 }
 
 async function sendInterviewEmailDelivery({
@@ -318,7 +331,8 @@ export async function previewInterviewScheduleEmail(
   const attendeeEmail = getEducationEmail(candidate?.studentId);
   const candidateName = candidate?.name ?? "同学";
   const organizerName = organizer?.name ?? session.name;
-  const location = input.location?.trim() || undefined;
+  const room = getScheduleRoom(input);
+  const location = (room?.name ?? input.location?.trim()) || undefined;
   const note = input.note?.trim() || undefined;
 
   const [existingSchedule] = await db
@@ -399,7 +413,8 @@ export async function createInterviewSchedule(
     const organizerName = organizer?.name ?? session.name;
     const candidateName = candidate?.name ?? "同学";
     const summary = `${target.flowTitle} 线下面试 - ${candidateName}`;
-    const location = input.location?.trim() || undefined;
+    const room = getScheduleRoom(input);
+    const location = (room?.name ?? input.location?.trim()) || undefined;
     const note = input.note?.trim() || undefined;
     const description = [
       `面试同学：${candidateName}`,
@@ -467,6 +482,8 @@ export async function createInterviewSchedule(
           summary,
           description,
           location,
+          meetingRoomId: room?.id,
+          previousMeetingRoomId: existingSchedule.meetingRoomId,
           startsAt,
           endsAt,
           timezone: DEFAULT_TIMEZONE,
@@ -491,6 +508,7 @@ export async function createInterviewSchedule(
           summary,
           description,
           location,
+          meetingRoomId: room?.id,
           startsAt,
           endsAt,
           timezone: DEFAULT_TIMEZONE,
@@ -504,6 +522,7 @@ export async function createInterviewSchedule(
         summary,
         description,
         location,
+        meetingRoomId: room?.id,
         startsAt,
         endsAt,
         timezone: DEFAULT_TIMEZONE,
@@ -525,6 +544,7 @@ export async function createInterviewSchedule(
             summary,
             description,
             location: location ?? null,
+            meetingRoomId: room?.id ?? null,
             attendeeEmail,
             startsAt,
             endsAt,
@@ -547,6 +567,7 @@ export async function createInterviewSchedule(
             summary,
             description,
             location: location ?? null,
+            meetingRoomId: room?.id ?? null,
             attendeeEmail,
             startsAt,
             endsAt,
@@ -622,6 +643,7 @@ export async function createInterviewSchedule(
         flowId: target.flowId,
         provider: "feishu",
         providerEventId: feishuSchedule.eventId,
+        meetingRoomId: room?.id ?? null,
       },
     });
 

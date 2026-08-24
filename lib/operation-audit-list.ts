@@ -137,15 +137,14 @@ export function normalizeOperationAuditListParams(
 
 function getDateStart(value: string) {
   if (!value) return null;
-  const date = new Date(value);
+  const date = new Date(`${value}T00:00:00+08:00`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function getDateEnd(value: string) {
   if (!value) return null;
-  const date = new Date(value);
+  const date = new Date(`${value}T23:59:59.999+08:00`);
   if (Number.isNaN(date.getTime())) return null;
-  date.setHours(23, 59, 59, 999);
   return date;
 }
 

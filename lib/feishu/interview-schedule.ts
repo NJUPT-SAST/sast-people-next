@@ -12,6 +12,7 @@ export type CreateFeishuInterviewScheduleInput = {
   summary: string;
   description?: string;
   location?: string | null;
+  meetingRoomId?: string;
   startsAt: Date;
   endsAt: Date;
   attendeeOpenId?: string | null;
@@ -37,6 +38,8 @@ export type UpdateFeishuInterviewScheduleInput = {
   summary: string;
   description?: string;
   location?: string | null;
+  meetingRoomId?: string;
+  previousMeetingRoomId?: string | null;
   startsAt: Date;
   endsAt: Date;
   attendeeOpenId?: string | null;
@@ -55,6 +58,7 @@ export type FeishuCalendarEventSnapshot = {
   summary?: string;
   description?: string;
   location?: string | null;
+  meetingRoomId?: string | null;
   startsAt: Date;
   endsAt: Date;
   timezone?: string;
@@ -113,7 +117,12 @@ function getFeishuErrorPayload(error: unknown) {
 
 export function isFeishuEventNotFoundError(error: unknown) {
   const payload = getFeishuErrorPayload(error);
-  return payload?.code === 193001 || payload?.msg === "event not found";
+  return (
+    payload?.code === 193001 ||
+    payload?.code === 193003 ||
+    payload?.msg === "event not found" ||
+    payload?.msg === "event is deleted"
+  );
 }
 
 export function isFeishuInternalServiceError(error: unknown) {
@@ -146,7 +155,7 @@ export async function getFeishuCalendarEvent({
   const res = await getFeishuClient().calendar.v4.calendarEvent.get(
     {
       path: { calendar_id: "primary", event_id: eventId },
-      params: { user_id_type: "open_id" },
+      params: { user_id_type: "open_id", need_attendee: true },
     },
     lark.withUserAccessToken(accessToken),
   );
@@ -170,6 +179,9 @@ export async function getFeishuCalendarEvent({
     summary: event.summary,
     description: event.description,
     location: event.location?.name ?? null,
+    meetingRoomId: event.attendees?.find(
+      (attendee) => attendee.type === "resource" && attendee.room_id,
+    )?.room_id ?? null,
     startsAt,
     endsAt,
     timezone: event.start_time?.timezone,
@@ -283,6 +295,79 @@ async function addFeishuCalendarUserAttendees({
   }
 }
 
+async function addFeishuCalendarMeetingRoom({
+  accessToken,
+  eventId,
+  meetingRoomId,
+}: {
+  accessToken: string;
+  eventId: string;
+  meetingRoomId?: string;
+}) {
+  if (!meetingRoomId) return;
+
+  const res = await getFeishuClient().calendar.v4.calendarEventAttendee.create(
+    {
+      path: {
+        calendar_id: "primary",
+        event_id: eventId,
+      },
+      params: {
+        user_id_type: "open_id",
+      },
+      data: {
+        need_notification: false,
+        attendees: [{ type: "resource", room_id: meetingRoomId }],
+      },
+    },
+    lark.withUserAccessToken(accessToken),
+  );
+  if (res.code && res.code !== 0) {
+    throw new Error(`会议室预约失败：${res.msg ?? res.code}`);
+  }
+  const roomAttendee = res.data?.attendees?.find(
+    (attendee) => attendee.type === "resource" && attendee.room_id === meetingRoomId,
+  );
+  if (
+    roomAttendee?.rsvp_status === "decline" ||
+    roomAttendee?.rsvp_status === "removed"
+  ) {
+    throw new Error("会议室已被占用，请选择其他时间或会议室。");
+  }
+}
+
+async function removeFeishuCalendarMeetingRoom({
+  accessToken,
+  eventId,
+  meetingRoomId,
+}: {
+  accessToken: string;
+  eventId: string;
+  meetingRoomId?: string | null;
+}) {
+  if (!meetingRoomId) return;
+
+  const res = await getFeishuClient().calendar.v4.calendarEventAttendee.batchDelete(
+    {
+      path: {
+        calendar_id: "primary",
+        event_id: eventId,
+      },
+      params: {
+        user_id_type: "open_id",
+      },
+      data: {
+        need_notification: false,
+        delete_ids: [{ type: "resource", room_id: meetingRoomId }],
+      },
+    },
+    lark.withUserAccessToken(accessToken),
+  );
+  if (res.code && res.code !== 0) {
+    throw new Error(`移除原会议室失败：${res.msg ?? res.code}`);
+  }
+}
+
 async function assertOrganizerIsAvailable({
   accessToken,
   organizerOpenId,
@@ -358,6 +443,7 @@ export async function createFeishuInterviewSchedule({
   summary,
   description,
   location,
+  meetingRoomId,
   startsAt,
   endsAt,
   attendeeOpenId,
@@ -425,6 +511,29 @@ export async function createFeishuInterviewSchedule({
   if (!meetingLink) {
     throw new Error("飞书日程已创建，但没有返回会议链接。请检查飞书日历会议能力是否已开通。");
   }
+  try {
+    await addFeishuCalendarMeetingRoom({
+      accessToken,
+      eventId: event.event_id,
+      meetingRoomId,
+    });
+  } catch (error) {
+    try {
+      await client.calendar.v4.calendarEvent.delete(
+        {
+          path: { calendar_id: "primary", event_id: event.event_id },
+          params: { need_notification: "false" },
+        },
+        authOptions,
+      );
+    } catch (cleanupError) {
+      logServerError("feishu:calendarEventCleanup", cleanupError, {
+        action: "delete-calendar-event-after-meeting-room-failure",
+        metadata: { eventId: event.event_id },
+      });
+    }
+    throw error;
+  }
   await addFeishuCalendarUserAttendees({
     accessToken,
     eventId: event.event_id,
@@ -449,6 +558,8 @@ export async function updateFeishuInterviewSchedule({
   summary,
   description,
   location,
+  meetingRoomId,
+  previousMeetingRoomId,
   startsAt,
   endsAt,
   attendeeOpenId,
@@ -561,6 +672,16 @@ export async function updateFeishuInterviewSchedule({
     eventId,
     openIds: [organizerOpenId, attendeeOpenId],
   });
+  if (meetingRoomId && meetingRoomId !== previousMeetingRoomId) {
+    await addFeishuCalendarMeetingRoom({ accessToken, eventId, meetingRoomId });
+  }
+  if (previousMeetingRoomId && previousMeetingRoomId !== meetingRoomId) {
+    await removeFeishuCalendarMeetingRoom({
+      accessToken,
+      eventId,
+      meetingRoomId: previousMeetingRoomId,
+    });
+  }
 
   return {
     eventId,
