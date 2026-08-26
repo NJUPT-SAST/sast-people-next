@@ -295,6 +295,20 @@
       "when": 1787548800004,
       "tag": "0041_user_flow_withdrawn_status",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1787582318295,
+      "tag": "0042_interview_schedule_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1787582318296,
+      "tag": "0043_interview_evaluation_feishu_approval_message",
+      "breakpoints": true
     }
   ]
 }
