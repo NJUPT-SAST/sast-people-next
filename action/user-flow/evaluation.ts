@@ -16,10 +16,14 @@ import {
   type EvaluationFlowStepType,
 } from "@/lib/evaluation-state";
 import { verifyRole } from "@/lib/dal";
+import {
+  loadFeishuApprovalNotificationRecord,
+  sendOrUpdateFeishuApprovalCard,
+} from "@/lib/feishu/approval-notification";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 
@@ -157,6 +161,67 @@ async function safeSyncUserRole(uid: number, context: {
   }
 }
 
+async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
+  const chatId = process.env.FEISHU_APPROVAL_CHAT_ID?.trim();
+  if (!chatId) return;
+
+  const record = await loadFeishuApprovalNotificationRecord(evaluationId);
+  if (!record) return;
+
+  const userMap = await listPeopleUsersByLinkIds(
+    [record.candidateId, record.authorId],
+    { canViewSensitiveInfo: true },
+  );
+  const candidate = userMap.get(record.candidateId);
+  const author = userMap.get(record.authorId);
+
+  const result = await sendOrUpdateFeishuApprovalCard({
+    chatId,
+    context: {
+      evaluationId: record.evaluationId,
+      messageId: record.messageId,
+      candidateName: candidate?.name ?? "同学",
+      candidateStudentId: candidate?.studentId ?? null,
+      authorName: author?.name ?? "讲师",
+      flowTitle: record.flowTitle,
+      recommendation: record.recommendation,
+      content: record.content,
+      portfolioDescription: record.portfolioDescription,
+      portfolioLink: record.portfolioLink,
+      meetingLink: record.meetingLink,
+      minuteLink: record.minuteLink,
+      submittedAt: record.submittedAt,
+      updatedAt: record.updatedAt,
+    },
+  });
+
+  if (!result.updated) {
+    await db
+      .update(interviewEvaluation)
+      .set({ feishuApprovalMessageId: result.messageId, updatedAt: new Date() })
+      .where(eq(interviewEvaluation.id, evaluationId));
+  }
+
+}
+
+async function safeNotifyFeishuApprovalGroup(
+  evaluationId: number,
+  session: NonNullable<Awaited<ReturnType<typeof verifyRole>>>,
+) {
+  try {
+    return await notifyFeishuApprovalGroup(evaluationId);
+  } catch (error) {
+    logServerError("evaluation:approval-notification", error, {
+      path: "/dashboard/interviews",
+      userId: session.uid,
+      role: session.role,
+      action: "notify-feishu-approval-group",
+      metadata: { evaluationId },
+    });
+    return null;
+  }
+}
+
 export const createEvaluation = async (
   userFlowId: number,
   content: string,
@@ -179,6 +244,7 @@ export const createEvaluation = async (
     const link = hasMeetingLinkArg ? meetingLink.trim() || null : undefined;
 
     const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${userFlowId})`);
       const [currentFlow] = await tx
         .select({ progressStatus: userFlow.progressStatus })
         .from(userFlow)
@@ -372,6 +438,12 @@ export const createEvaluation = async (
         recommendation,
       },
     });
+
+    await safeNotifyFeishuApprovalGroup(
+      result.evaluationId,
+      session,
+    );
+
     return { success: true, data: result.data };
   } catch (error) {
     logServerError("evaluation:create", error, {
@@ -660,7 +732,12 @@ export const getEvaluationCandidates = async (flowId: number) => {
         interviewEvaluation,
         eq(interviewEvaluation.fkUserFlowId, userFlow.id),
       )
-      .where(eq(userFlow.fkFlowId, flowId));
+      .where(
+        and(
+          eq(userFlow.fkFlowId, flowId),
+          ne(userFlow.progressStatus, "withdrawn"),
+        ),
+      );
 
     const dedupedCandidates = dedupeEvaluationCandidateRows(candidates);
 
@@ -724,7 +801,8 @@ export const getEvaluationCandidates = async (flowId: number) => {
             ? userMap.get(schedule.organizerId)?.name ?? null
             : null,
           canManageSchedule:
-            !schedule || schedule.organizerId === session!.uid,
+            !schedule ||
+            schedule.organizerId === session!.uid,
           canEditEvaluation:
             candidate.evalId === null
               ? !schedule || schedule.organizerId === session!.uid

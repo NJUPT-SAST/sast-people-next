@@ -71,3 +71,24 @@ export async function sendFeishuCardMessage({
     messageId: res.data?.message_id,
   };
 }
+
+export async function updateFeishuCardMessage({
+  messageId,
+  card,
+}: {
+  messageId: string;
+  card: FeishuCard;
+}) {
+  const res = await getFeishuClient().im.v1.message.patch({
+    path: {
+      message_id: messageId,
+    },
+    data: {
+      content: JSON.stringify(card),
+    },
+  });
+
+  if (res.code && res.code !== 0) {
+    throw new Error(`update feishu card failed: ${res.msg ?? res.code}`);
+  }
+}
