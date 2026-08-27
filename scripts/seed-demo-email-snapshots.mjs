@@ -11,8 +11,9 @@ require("ts-node").register({
   transpileOnly: true,
   compilerOptions: {
     jsx: "react-jsx",
-    module: "commonjs",
-    moduleResolution: "node",
+    module: "node16",
+    moduleResolution: "node16",
+    rootDir: ".",
   },
 });
 
