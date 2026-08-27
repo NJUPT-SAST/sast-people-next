@@ -50,7 +50,6 @@
 - [ ] `SERVER_HOST`（目标服务器域名或 IP）
 - [ ] `SERVER_USER`（服务的低权限部署账号）
 - [ ] `SSH_PRIVATE_KEY`（该部署账号专用私钥）
-- [ ] `SSH_HOST_FINGERPRINT`（目标服务器 SSH 主机公钥的 SHA256 指纹）
 
 ### 3.1 必填
 
