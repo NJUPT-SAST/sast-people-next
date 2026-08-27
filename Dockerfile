@@ -1,6 +1,6 @@
 # Stage 1: Install dependencies
 FROM node:22-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@11.20.0 --activate
+RUN corepack enable && corepack install --global pnpm@11.20.0
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
@@ -28,7 +28,7 @@ CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node server.js"]
 # Stage 4: One-shot production migration image
 # Keep this image independent from the full application/dev dependency tree.
 FROM node:22-alpine AS migrator
-RUN corepack enable && corepack prepare pnpm@11.20.0 --activate
+RUN corepack enable && corepack install --global pnpm@11.20.0
 WORKDIR /app
 ENV NODE_ENV=production
 COPY migrator/package.json migrator/pnpm-lock.yaml migrator/pnpm-workspace.yaml ./

@@ -46,6 +46,7 @@ CI/CD 包含代码质量检查、测试、以及 Docker 镜像构建与部署。
 | `SERVER_HOST` | 目标服务器 IP 或域名 |
 | `SERVER_USER` | SSH 用户名 |
 | `SSH_PRIVATE_KEY` | SSH 私钥 |
+| `SSH_HOST_FINGERPRINT` | 部署服务器 SSH 主机公钥的 SHA256 指纹 |
 | `NEXT_PUBLIC_SENTRY_DSN` | 构建期公开 Sentry DSN，会被 Next.js inline 到前端产物 |
 | `SENTRY_AUTH_TOKEN` | 可选；配置后 CI 构建会启用 Sentry build plugin |
 
