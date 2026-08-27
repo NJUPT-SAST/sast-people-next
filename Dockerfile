@@ -35,6 +35,7 @@ RUN addgroup -S migrator && adduser -S -G migrator migrator
 COPY drizzle.config.ts ./
 COPY migrations ./migrations
 COPY db ./db
+COPY scripts/check-db-permissions.mjs ./scripts/check-db-permissions.mjs
 RUN chown -R migrator:migrator /app
 USER migrator
 CMD ["sh", "-c", "test -n \"$DATABASE_MIGRATION_URL\" || { echo 'DATABASE_MIGRATION_URL is required for production migrations.' >&2; exit 1; }; exec pnpm db:migrate"]

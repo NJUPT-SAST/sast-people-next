@@ -309,6 +309,13 @@
       "when": 1787582318296,
       "tag": "0043_interview_evaluation_feishu_approval_message",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1787847108659,
+      "tag": "0044_regrant_people_runtime_permissions",
+      "breakpoints": true
     }
   ]
 }
