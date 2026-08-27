@@ -5,10 +5,18 @@ import { logServerError } from "@/lib/server-error-log";
 import * as lark from "@larksuiteoapi/node-sdk";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
+export const FEISHU_PRIMARY_CALENDAR_ID = "primary";
+const DEFAULT_INTERVIEW_CALENDAR_ID =
+  "feishu.cn_bWgasHpnP1fzY5JsrKU6Fh@group.calendar.feishu.cn";
+
+export function getFeishuInterviewCalendarId() {
+  return process.env.FEISHU_INTERVIEW_CALENDAR_ID?.trim() || DEFAULT_INTERVIEW_CALENDAR_ID;
+}
 
 export type CreateFeishuInterviewScheduleInput = {
   accessToken: string;
   organizerOpenId: string;
+  calendarId?: string;
   summary: string;
   description?: string;
   location?: string | null;
@@ -32,6 +40,7 @@ export type CreatedFeishuInterviewSchedule = {
 export type UpdateFeishuInterviewScheduleInput = {
   accessToken: string;
   organizerOpenId: string;
+  calendarId?: string;
   eventId: string;
   reserveId?: string | null;
   currentMeetingLink: string;
@@ -48,6 +57,7 @@ export type UpdateFeishuInterviewScheduleInput = {
 
 export type CancelFeishuInterviewScheduleInput = {
   accessToken: string;
+  calendarId?: string;
   eventId?: string | null;
   reserveId?: string | null;
 };
@@ -115,6 +125,17 @@ function getFeishuErrorPayload(error: unknown) {
   return { code: direct.code, msg: direct.msg };
 }
 
+function isFeishuForbiddenError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const value = error as {
+    code?: number;
+    response?: { status?: number; data?: { code?: number } };
+  };
+  return value.code === 403
+    || value.response?.status === 403
+    || value.response?.data?.code === 403;
+}
+
 export function isFeishuEventNotFoundError(error: unknown) {
   const payload = getFeishuErrorPayload(error);
   return (
@@ -148,13 +169,15 @@ function parseFeishuEventTime(value?: { timestamp?: string; date?: string }) {
 export async function getFeishuCalendarEvent({
   accessToken,
   eventId,
+  calendarId = FEISHU_PRIMARY_CALENDAR_ID,
 }: {
   accessToken: string;
   eventId: string;
+  calendarId?: string;
 }): Promise<FeishuCalendarEventSnapshot> {
   const res = await getFeishuClient().calendar.v4.calendarEvent.get(
     {
-      path: { calendar_id: "primary", event_id: eventId },
+      path: { calendar_id: calendarId, event_id: eventId },
       params: { user_id_type: "open_id", need_attendee: true },
     },
     lark.withUserAccessToken(accessToken),
@@ -192,10 +215,13 @@ export async function getFeishuCalendarEvent({
   };
 }
 
-export async function subscribeFeishuCalendarEventChanges(accessToken: string) {
+export async function subscribeFeishuCalendarEventChanges(
+  accessToken: string,
+  calendarId = FEISHU_PRIMARY_CALENDAR_ID,
+) {
   const res = await getFeishuClient().calendar.v4.calendarEvent.subscription(
     {
-      path: { calendar_id: "primary" },
+      path: { calendar_id: calendarId },
       params: { user_id_type: "open_id" },
     },
     lark.withUserAccessToken(accessToken),
@@ -253,10 +279,12 @@ export async function getFeishuOpenIdByMobile(mobile: string) {
 
 async function addFeishuCalendarUserAttendees({
   accessToken,
+  calendarId,
   eventId,
   openIds,
 }: {
   accessToken: string;
+  calendarId: string;
   eventId: string;
   openIds: Array<string | null | undefined>;
 }) {
@@ -271,7 +299,7 @@ async function addFeishuCalendarUserAttendees({
     await getFeishuClient().calendar.v4.calendarEventAttendee.create(
       {
         path: {
-          calendar_id: "primary",
+          calendar_id: calendarId,
           event_id: eventId,
         },
         params: {
@@ -295,12 +323,70 @@ async function addFeishuCalendarUserAttendees({
   }
 }
 
+async function addFeishuCalendarOrganizer({
+  accessToken,
+  calendarId,
+  eventId,
+  organizerOpenId,
+}: {
+  accessToken: string;
+  calendarId: string;
+  eventId: string;
+  organizerOpenId: string;
+}) {
+  try {
+    const client = getFeishuClient();
+    const authOptions = lark.withUserAccessToken(accessToken);
+    const attendeeRes = await client.calendar.v4.calendarEventAttendee.create(
+      {
+        path: { calendar_id: calendarId, event_id: eventId },
+        params: { user_id_type: "open_id" },
+        data: {
+          need_notification: false,
+          attendees: [{ type: "user", user_id: organizerOpenId }],
+        },
+      },
+      authOptions,
+    );
+    if (attendeeRes.code && attendeeRes.code !== 0) {
+      throw new Error(`add feishu calendar organizer failed: ${attendeeRes.msg ?? attendeeRes.code}`);
+    }
+
+    try {
+      const replyRes = await client.calendar.v4.calendarEvent.reply(
+        {
+          path: { calendar_id: calendarId, event_id: eventId },
+          data: { rsvp_status: "accept" },
+        },
+        authOptions,
+      );
+      if (replyRes.code && replyRes.code !== 0) {
+        if (replyRes.code === 403) return;
+        throw new Error(`accept feishu calendar organizer failed: ${replyRes.msg ?? replyRes.code}`);
+      }
+    } catch (error) {
+      // Shared calendars may allow adding the organizer but forbid changing
+      // the attendee RSVP. The event remains valid in that case.
+      if (isFeishuForbiddenError(error)) return;
+      throw error;
+    }
+  } catch (error) {
+    logServerError("feishu:calendarEventOrganizer", error, {
+      action: "add-and-accept-feishu-calendar-organizer",
+      metadata: { eventId },
+    });
+    throw error;
+  }
+}
+
 async function addFeishuCalendarMeetingRoom({
   accessToken,
+  calendarId,
   eventId,
   meetingRoomId,
 }: {
   accessToken: string;
+  calendarId: string;
   eventId: string;
   meetingRoomId?: string;
 }) {
@@ -309,7 +395,7 @@ async function addFeishuCalendarMeetingRoom({
   const res = await getFeishuClient().calendar.v4.calendarEventAttendee.create(
     {
       path: {
-        calendar_id: "primary",
+        calendar_id: calendarId,
         event_id: eventId,
       },
       params: {
@@ -338,10 +424,12 @@ async function addFeishuCalendarMeetingRoom({
 
 async function removeFeishuCalendarMeetingRoom({
   accessToken,
+  calendarId,
   eventId,
   meetingRoomId,
 }: {
   accessToken: string;
+  calendarId: string;
   eventId: string;
   meetingRoomId?: string | null;
 }) {
@@ -350,7 +438,7 @@ async function removeFeishuCalendarMeetingRoom({
   const res = await getFeishuClient().calendar.v4.calendarEventAttendee.batchDelete(
     {
       path: {
-        calendar_id: "primary",
+        calendar_id: calendarId,
         event_id: eventId,
       },
       params: {
@@ -408,11 +496,13 @@ async function updateFeishuMeetingReserve({
 
 async function restoreFeishuCalendarEvent({
   accessToken,
+  calendarId,
   organizerOpenId,
   event,
   reserveId,
 }: {
   accessToken: string;
+  calendarId: string;
   organizerOpenId: string;
   event: FeishuCalendarEventSnapshot;
   reserveId?: string | null;
@@ -431,7 +521,7 @@ async function restoreFeishuCalendarEvent({
 
   const res = await getFeishuClient().calendar.v4.calendarEvent.patch(
     {
-      path: { calendar_id: "primary", event_id: event.eventId },
+      path: { calendar_id: calendarId, event_id: event.eventId },
       params: { user_id_type: "open_id" },
       data: {
         summary: event.summary,
@@ -528,6 +618,7 @@ async function assertOrganizerIsAvailable({
 export async function createFeishuInterviewSchedule({
   accessToken,
   organizerOpenId,
+  calendarId = getFeishuInterviewCalendarId(),
   summary,
   description,
   location,
@@ -550,7 +641,7 @@ export async function createFeishuInterviewSchedule({
 
   const eventPayload = {
     path: {
-      calendar_id: "primary",
+      calendar_id: calendarId,
     },
     params: {
       idempotency_key: idempotencyKey,
@@ -572,7 +663,7 @@ export async function createFeishuInterviewSchedule({
         timestamp: toFeishuTimestamp(endsAt),
         timezone,
       },
-      attendee_ability: "none" as const,
+      attendee_ability: "can_see_others" as const,
       free_busy_status: "busy" as const,
       reminders: [{ minutes: 15 }],
       vchat: {
@@ -602,31 +693,39 @@ export async function createFeishuInterviewSchedule({
   try {
     await addFeishuCalendarMeetingRoom({
       accessToken,
+      calendarId,
       eventId: event.event_id,
       meetingRoomId,
+    });
+    await addFeishuCalendarUserAttendees({
+      accessToken,
+      calendarId,
+      eventId: event.event_id,
+      openIds: [attendeeOpenId],
+    });
+    await addFeishuCalendarOrganizer({
+      accessToken,
+      calendarId,
+      eventId: event.event_id,
+      organizerOpenId,
     });
   } catch (error) {
     try {
       await client.calendar.v4.calendarEvent.delete(
         {
-          path: { calendar_id: "primary", event_id: event.event_id },
+          path: { calendar_id: calendarId, event_id: event.event_id },
           params: { need_notification: "false" },
         },
         authOptions,
       );
     } catch (cleanupError) {
       logServerError("feishu:calendarEventCleanup", cleanupError, {
-        action: "delete-calendar-event-after-meeting-room-failure",
+        action: "delete-calendar-event-after-setup-failure",
         metadata: { eventId: event.event_id },
       });
     }
     throw error;
   }
-  await addFeishuCalendarUserAttendees({
-    accessToken,
-    eventId: event.event_id,
-    openIds: [organizerOpenId, attendeeOpenId],
-  });
 
   return {
     eventId: event.event_id,
@@ -640,6 +739,7 @@ export async function createFeishuInterviewSchedule({
 export async function updateFeishuInterviewSchedule({
   accessToken,
   organizerOpenId,
+  calendarId = FEISHU_PRIMARY_CALENDAR_ID,
   eventId,
   reserveId,
   currentMeetingLink,
@@ -662,7 +762,7 @@ export async function updateFeishuInterviewSchedule({
   const normalizedPreviousMeetingRoomId = previousMeetingRoomId ?? "";
   const roomChanged = normalizedMeetingRoomId !== normalizedPreviousMeetingRoomId;
   const previousEvent = roomChanged
-    ? await getFeishuCalendarEvent({ accessToken, eventId })
+    ? await getFeishuCalendarEvent({ accessToken, calendarId, eventId })
     : null;
 
   if (reserveId) {
@@ -687,6 +787,7 @@ export async function updateFeishuInterviewSchedule({
     description: eventDescription,
     location: location ? { name: location } : undefined,
     need_notification: true,
+    attendee_ability: "can_see_others" as const,
     start_time: {
       timestamp: toFeishuTimestamp(startsAt),
       timezone,
@@ -711,7 +812,7 @@ export async function updateFeishuInterviewSchedule({
     eventRes = await client.calendar.v4.calendarEvent.patch(
       {
         path: {
-          calendar_id: "primary",
+          calendar_id: calendarId,
           event_id: eventId,
         },
         params: {
@@ -739,19 +840,27 @@ export async function updateFeishuInterviewSchedule({
 
   await addFeishuCalendarUserAttendees({
     accessToken,
+    calendarId,
     eventId,
-    openIds: [organizerOpenId, attendeeOpenId],
+    openIds: [attendeeOpenId],
+  });
+  await addFeishuCalendarOrganizer({
+    accessToken,
+    calendarId,
+    eventId,
+    organizerOpenId,
   });
   if (roomChanged) {
     let newRoomAdded = false;
     try {
       if (meetingRoomId) {
-        await addFeishuCalendarMeetingRoom({ accessToken, eventId, meetingRoomId });
+        await addFeishuCalendarMeetingRoom({ accessToken, calendarId, eventId, meetingRoomId });
         newRoomAdded = true;
       }
       if (previousMeetingRoomId) {
         await removeFeishuCalendarMeetingRoom({
           accessToken,
+          calendarId,
           eventId,
           meetingRoomId: previousMeetingRoomId,
         });
@@ -761,6 +870,7 @@ export async function updateFeishuInterviewSchedule({
         try {
           await removeFeishuCalendarMeetingRoom({
             accessToken,
+            calendarId,
             eventId,
             meetingRoomId,
           });
@@ -775,6 +885,7 @@ export async function updateFeishuInterviewSchedule({
         try {
           await restoreFeishuCalendarEvent({
             accessToken,
+            calendarId,
             organizerOpenId,
             event: previousEvent,
             reserveId,
@@ -802,6 +913,7 @@ export async function updateFeishuInterviewSchedule({
 
 export async function cancelFeishuInterviewSchedule({
   accessToken,
+  calendarId = FEISHU_PRIMARY_CALENDAR_ID,
   eventId,
   reserveId,
 }: CancelFeishuInterviewScheduleInput) {
@@ -813,7 +925,7 @@ export async function cancelFeishuInterviewSchedule({
       const eventRes = await client.calendar.v4.calendarEvent.delete(
         {
           path: {
-            calendar_id: "primary",
+            calendar_id: calendarId,
             event_id: eventId,
           },
           params: {

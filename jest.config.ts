@@ -218,6 +218,7 @@ const config: Config = {
     "/.next/",
     "/.worktrees/",
     "/e2e/",
+    "/integration/",
     "/out/",
     "/tmp/",
   ],
