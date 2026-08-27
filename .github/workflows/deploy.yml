@@ -29,8 +29,8 @@ on:
   workflow_dispatch:
     inputs:
       database_backup_ref:
-        description: "Production database backup/snapshot reference created before this deployment"
-        required: true
+        description: "Optional external production backup/snapshot reference; a local backup is created automatically when omitted"
+        required: false
         type: string
 
 permissions:
@@ -152,11 +152,12 @@ jobs:
           TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
           TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
           DATABASE_BACKUP_REF: ${{ inputs.database_backup_ref }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: TCR_USERNAME,TCR_PASSWORD,DATABASE_BACKUP_REF
+          envs: TCR_USERNAME,TCR_PASSWORD,DATABASE_BACKUP_REF,DEPLOY_RUN_ID
           script: |
             set -e
 
@@ -170,11 +171,10 @@ jobs:
 
             echo "=========================================="
             echo "Deploying version: ${NEW_VERSION_TAG}"
-            echo "Database backup reference: ${DATABASE_BACKUP_REF}"
             echo "=========================================="
 
             echo ""
-            echo "[1/7] Pulling private images from TCR..."
+            echo "[1/9] Pulling private images from TCR..."
             DOCKER_CONFIG=$(mktemp -d)
             cleanup_docker_config() {
               rm -rf "$DOCKER_CONFIG"
@@ -211,7 +211,7 @@ jobs:
             docker tag "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator" "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator"
 
             echo ""
-            echo "[2/7] Checking runtime .env..."
+            echo "[2/9] Checking runtime .env..."
             if [ ! -f .env ]; then
               echo "Missing ${SERVICE_DIR}/.env"
               echo "Create it on the server before deploying. docker-compose.yml reads it through env_file."
@@ -220,7 +220,51 @@ jobs:
             chmod 600 .env
 
             echo ""
-            echo "[3/7] Applying database migrations..."
+            EXTERNAL_BACKUP_REF="${DATABASE_BACKUP_REF:-}"
+            if [ -n "$EXTERNAL_BACKUP_REF" ]; then
+              case "$EXTERNAL_BACKUP_REF" in
+                *[!a-zA-Z0-9._-]*)
+                  echo "Invalid external database backup reference: ${EXTERNAL_BACKUP_REF}" >&2
+                  exit 1
+                  ;;
+              esac
+              echo "External database backup reference: ${EXTERNAL_BACKUP_REF}"
+            else
+              echo "No external backup reference supplied; using the verified local backup below."
+            fi
+            LOCAL_BACKUP_REF="local-${NEW_VERSION_TAG}-$(date -u +%Y%m%dT%H%M%SZ)-run-${DEPLOY_RUN_ID:-manual}"
+            case "$LOCAL_BACKUP_REF" in
+              ""|*[!a-zA-Z0-9._-]*)
+                echo "Generated invalid local database backup reference: ${LOCAL_BACKUP_REF}" >&2
+                exit 1
+                ;;
+            esac
+
+            BACKUP_DIR="${SERVICE_DIR}/backups"
+            BACKUP_FILE="${LOCAL_BACKUP_REF}.dump"
+            install -m 700 -d "$BACKUP_DIR"
+
+            echo ""
+            echo "[3/9] Creating database backup (${LOCAL_BACKUP_REF})..."
+            docker run --rm \
+              --network postgres \
+              --env-file .env \
+              --user "$(id -u):$(id -g)" \
+              -e "BACKUP_FILE=${BACKUP_FILE}" \
+              -v "${BACKUP_DIR}:/backup" \
+              postgres:16-alpine \
+              sh -c 'pg_dump "$DATABASE_MIGRATION_URL" --format=custom --file="/backup/$BACKUP_FILE"'
+            test -s "${BACKUP_DIR}/${BACKUP_FILE}"
+            docker run --rm \
+              --network postgres \
+              -e "BACKUP_FILE=${BACKUP_FILE}" \
+              -v "${BACKUP_DIR}:/backup:ro" \
+              postgres:16-alpine \
+              sh -c 'pg_restore --list "/backup/$BACKUP_FILE" >/dev/null'
+            echo "Database backup created at ${BACKUP_DIR}/${BACKUP_FILE}"
+
+            echo ""
+            echo "[4/9] Applying database migrations..."
             if ! docker run --rm \
               --name sast-people-next-migrate \
               --env-file .env \
@@ -231,7 +275,7 @@ jobs:
             fi
 
             echo ""
-            echo "[4/8] Verifying application database permissions..."
+            echo "[5/9] Verifying application database permissions..."
             if ! docker run --rm \
               --name sast-people-next-permission-check \
               --env-file .env \
@@ -243,7 +287,7 @@ jobs:
             fi
 
             echo ""
-            echo "[5/8] Rotating image tags..."
+            echo "[6/9] Rotating image tags..."
             if docker image inspect "${IMAGE_NAME}:current" >/dev/null 2>&1; then
               if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
                 echo "  Removing old backup image..."
@@ -259,11 +303,11 @@ jobs:
             docker tag "${IMAGE_NAME}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:current"
 
             echo ""
-            echo "[6/8] Starting service..."
+            echo "[7/9] Starting service..."
             docker compose up -d --remove-orphans
 
             echo ""
-            echo "[7/8] Health check (timeout: 120s)..."
+            echo "[8/9] Health check (timeout: 120s)..."
             HEALTHY=0
             for i in $(seq 1 24); do
               STATUS=$(docker inspect --format='{{.State.Health.Status}}' sast-people-next 2>/dev/null || echo "starting")
@@ -316,7 +360,7 @@ jobs:
             fi
 
             echo ""
-            echo "[8/8] Cleaning up..."
+            echo "[9/9] Cleaning up..."
             docker rmi "${REMOTE_IMAGE}:${NEW_VERSION_TAG}" || true
             docker rmi "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator" || true
             docker rmi "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator" || true

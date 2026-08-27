@@ -27,16 +27,17 @@ CI/CD 包含代码质量检查、测试、以及 Docker 镜像构建与部署。
 | `deploy.yml` | 手动 `workflow_dispatch` |
 | `release.yml` | 推送 `v*` 标签 |
 
-手动触发 `deploy.yml` 时必须填写本次生产数据库备份/快照编号，作为迁移审计记录。
+手动触发 `deploy.yml` 时可填写外部生产数据库备份/快照编号作为审计标签；留空时部署会在服务器 `/data/sast-people-next/backups` 自动创建并校验一份 PostgreSQL custom-format 逻辑备份，自动生成编号。备份创建或校验失败会阻止迁移和应用切换。
 
 ## 部署流程
 
 1. **Quality + Test** — 必须先通过质量检查和测试
 2. **Docker Build** — 使用同一个 Git commit 构建应用镜像和一次性 migration 镜像
 3. **Private Registry Pull** — 服务器从 TCR 拉取两个镜像，数据库凭据仍只存在服务器 `.env`
-4. **Database Migration** — 使用 migration 镜像、生产 `.env` 和内网 `postgres` Docker network 执行 `pnpm db:migrate`
-5. **Application Deploy** — 只有迁移成功后才轮换 `backup/current` 标签并执行 `docker compose up -d`
-6. **Health Check / Rollback** — 健康检查失败时回滚应用镜像；数据库迁移不自动回滚
+4. **Database Backup** — 在服务器服务目录自动创建并校验 PostgreSQL custom-format 逻辑备份；可选输入仅作为外部快照审计标签
+5. **Database Migration** — 使用 migration 镜像、生产 `.env` 和内网 `postgres` Docker network 执行 `pnpm db:migrate`
+6. **Application Deploy** — 只有迁移和权限检查成功后才轮换 `backup/current` 标签并执行 `docker compose up -d`
+7. **Health Check / Rollback** — 健康检查失败时回滚应用镜像；数据库迁移不自动回滚
 
 ### 部署所需 Secrets
 
