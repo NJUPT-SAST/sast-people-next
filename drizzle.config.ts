@@ -23,6 +23,8 @@ export default defineConfig({
   out: "./migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    // Production deployments may provide a separate least-privilege migration
+    // connection while the application uses DATABASE_URL at runtime.
+    url: (process.env.DATABASE_MIGRATION_URL ?? process.env.DATABASE_URL)!,
   },
 });

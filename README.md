@@ -178,6 +178,7 @@ Keep secrets in `.env.local`. Do not commit real `.env*` files.
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string |
+| `DATABASE_MIGRATION_URL` | Optional migration connection string; production should use a separate DDL-capable release account |
 | `DATABASE_POOL_MAX` | Required in production: per-process PostgreSQL connection limit. The local default is `20`; calculate the production value across every web and worker process so their combined pools stay within the database budget. |
 | `DATABASE_POOL_IDLE_TIMEOUT_MS` / `DATABASE_POOL_CONNECTION_TIMEOUT_MS` | Optional pool timeouts in milliseconds (defaults: `30000` / `10000`; `0` disables that timeout). |
 | `SESSION_SECRET` | Cookie session encryption secret |
@@ -214,6 +215,8 @@ vim .env
 chmod 600 .env
 docker compose up -d --force-recreate
 ```
+
+Production schema migrations run automatically during `deploy.yml` before the new application image is activated. The migration image is built from the same commit as the application image and uses `DATABASE_MIGRATION_URL` when configured; keep `DATABASE_URL` restricted to the application runtime account.
 
 This does not require rebuilding or copying a new image. Build-time public variables such as `NEXT_PUBLIC_SENTRY_DSN` are still passed through GitHub Actions because Next.js inlines `NEXT_PUBLIC_*` values during `pnpm build`.
 
