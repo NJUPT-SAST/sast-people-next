@@ -231,7 +231,19 @@ jobs:
             fi
 
             echo ""
-            echo "[4/7] Rotating image tags..."
+            echo "[4/8] Verifying application database permissions..."
+            if ! docker run --rm \
+              --name sast-people-next-permission-check \
+              --env-file .env \
+              --network postgres \
+              "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator" \
+              node scripts/check-db-permissions.mjs; then
+              echo "Application database permission check failed; application image was not activated."
+              exit 1
+            fi
+
+            echo ""
+            echo "[5/8] Rotating image tags..."
             if docker image inspect "${IMAGE_NAME}:current" >/dev/null 2>&1; then
               if docker image inspect "${IMAGE_NAME}:backup" >/dev/null 2>&1; then
                 echo "  Removing old backup image..."
@@ -247,11 +259,11 @@ jobs:
             docker tag "${IMAGE_NAME}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:current"
 
             echo ""
-            echo "[5/7] Starting service..."
+            echo "[6/8] Starting service..."
             docker compose up -d --remove-orphans
 
             echo ""
-            echo "[6/7] Health check (timeout: 120s)..."
+            echo "[7/8] Health check (timeout: 120s)..."
             HEALTHY=0
             for i in $(seq 1 24); do
               STATUS=$(docker inspect --format='{{.State.Health.Status}}' sast-people-next 2>/dev/null || echo "starting")
@@ -304,7 +316,7 @@ jobs:
             fi
 
             echo ""
-            echo "[7/7] Cleaning up..."
+            echo "[8/8] Cleaning up..."
             docker rmi "${REMOTE_IMAGE}:${NEW_VERSION_TAG}" || true
             docker rmi "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator" || true
             docker rmi "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator" || true
