@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Search } from "lucide-react";
+import { CircleCheck, CircleX, Search } from "lucide-react";
 
 import { EmailBatchTasksSection } from "./EmailBatchTasksSection";
 import {
@@ -76,25 +76,31 @@ function SendLane({
   });
   const pending = preflight.remainingRecipients.length;
   const sent = laneDeliveries.filter((d) => d.status === "sent").length;
+  const StatusIcon = accept ? CircleCheck : CircleX;
 
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-3 rounded-lg border border-l-4 bg-card p-4",
-        accept ? "border-l-primary" : "border-l-destructive",
-      )}
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold">{resultLabel}</p>
-        <p className="text-xs tabular-nums text-muted-foreground">
-          待发 {pending}
-          {sent > 0 ? ` · 已发 ${sent}` : ""}
-        </p>
+    <div className="grid min-w-0 gap-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div className="flex min-w-0 items-start gap-3">
+        <StatusIcon
+          className={cn(
+            "mt-0.5 size-4 shrink-0",
+            accept ? "text-emerald-500" : "text-rose-500",
+          )}
+        />
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-sm font-semibold tracking-tight">{resultLabel}</p>
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {pending} 待发{sent > 0 ? ` · ${sent} 已发` : ""}
+            </p>
+          </div>
+          <p className="mt-1 truncate text-sm text-muted-foreground">
+            {subject || "未设置主题"}
+          </p>
+        </div>
       </div>
-      <p className="line-clamp-1 text-xs text-muted-foreground">
-        {subject || "未设置主题"}
-      </p>
-      <div className="mt-auto flex flex-wrap gap-2">
+
+      <div className="grid min-w-0 grid-cols-[auto_auto_minmax(7.5rem,1fr)] gap-2 md:flex md:items-center md:justify-end">
         <RecipientsDialog
           recipients={preflight.remainingRecipients}
           title={`${flow.title} · ${resultLabel} · 待发名单`}
@@ -106,7 +112,7 @@ function SendLane({
           triggerLabel="预览"
           triggerSize="sm"
         />
-        <div className="min-w-[5.5rem] flex-1">
+        <div className="min-w-0 md:flex-none">
           <SendConfirmDialog
             flow={flow}
             accept={accept}
@@ -142,7 +148,7 @@ export function EmailSendingTasksSection({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <section className="overflow-hidden rounded-lg border bg-card">
+      <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <div className="border-b p-4 lg:hidden">
           <select
             id="email-flow-picker"
@@ -214,11 +220,17 @@ export function EmailSendingTasksSection({
             </div>
           </aside>
 
-          <div className="p-4 sm:p-5">
+          <div className="min-w-0">
             {selectedFlow ? (
-              <div className="flex flex-col gap-3">
-                <h2 className="text-base font-semibold">{selectedFlow.title}</h2>
-                <div className="grid gap-3 md:grid-cols-2">
+              <div className="flex flex-col">
+                <div className="border-b px-4 py-4 sm:px-5">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-base font-semibold tracking-tight">
+                      {selectedFlow.title}
+                    </h2>
+                  </div>
+                </div>
+                <div className="divide-y px-4 sm:px-5">
                   <SendLane
                     flow={selectedFlow}
                     accept

@@ -117,11 +117,11 @@ function EmailDeliveryDetailDialog({
       </DialogTrigger>
       <DialogContent
         className={cn(
-          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-5xl overflow-y-auto",
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-5xl min-w-0 overflow-x-hidden overflow-y-auto",
           hiddenScrollbar,
         )}
       >
-        <DialogHeader className="pr-8">
+        <DialogHeader className="min-w-0 pr-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <DialogTitle className="break-words">{delivery.subject}</DialogTitle>
@@ -139,7 +139,7 @@ function EmailDeliveryDetailDialog({
         </DialogHeader>
 
         {delivery.errorMessage && (
-          <section className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <section className="min-w-0 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-destructive">失败原因</h3>
@@ -161,9 +161,9 @@ function EmailDeliveryDetailDialog({
           </section>
         )}
 
-        <section className="rounded-lg border bg-card p-4">
+        <section className="min-w-0 rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">投递信息</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <DetailItem
               label="邮件类型"
               value={emailCategoryText[delivery.category] ?? delivery.category}
@@ -199,7 +199,7 @@ function EmailDeliveryDetailDialog({
           </div>
         </section>
 
-        <section className="rounded-lg border bg-card p-4">
+        <section className="min-w-0 rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">发送尝试</h3>
           {delivery.attempts.length === 0 ? (
             <p className="mt-3 rounded-md border border-dashed bg-muted px-3 py-2 text-sm text-muted-foreground">
@@ -210,7 +210,7 @@ function EmailDeliveryDetailDialog({
               {delivery.attempts.map((attempt) => (
                 <div
                   key={attempt.id}
-                  className="grid gap-3 rounded-md border bg-muted/50 px-3 py-3 lg:grid-cols-[minmax(120px,0.8fr)_minmax(140px,1fr)_minmax(120px,0.8fr)_minmax(160px,1.2fr)]"
+                  className="grid min-w-0 gap-3 rounded-md border bg-muted/50 px-3 py-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)]"
                 >
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">状态</p>
@@ -259,9 +259,9 @@ function EmailDeliveryDetailDialog({
           )}
         </section>
 
-        <section className="rounded-lg border bg-card p-4">
+        <section className="min-w-0 rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">关联对象</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <DetailItem
               label="流程"
               value={delivery.flowTitle ?? delivery.batchName}
@@ -294,7 +294,7 @@ function EmailDeliveryDetailDialog({
           </div>
         </section>
 
-        <section className="rounded-lg border bg-card p-4">
+        <section className="min-w-0 rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">正文快照</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             这里展示发送前保存的正文快照，后续模板修改不会影响此内容。
@@ -303,7 +303,7 @@ function EmailDeliveryDetailDialog({
             title={`${delivery.subject} 邮件正文`}
             srcDoc={delivery.htmlSnapshot}
             sandbox=""
-            className="mt-3 h-[60vh] w-full rounded-md border bg-background"
+            className="mt-3 block h-[min(60vh,32rem)] min-h-64 w-full min-w-0 rounded-md border bg-background"
           />
         </section>
       </DialogContent>

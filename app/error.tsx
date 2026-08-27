@@ -2,17 +2,15 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Home, RotateCcw, ShieldQuestion } from "lucide-react";
+import { ArrowLeft, Home, ShieldQuestion } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function GlobalError({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
   const router = useRouter();
 
@@ -46,10 +44,6 @@ export default function GlobalError({
             <Home />
             回到控制台
           </Link>
-        </Button>
-        <Button onClick={() => reset()}>
-          <RotateCcw />
-          重试加载
         </Button>
       </div>
     </div>
