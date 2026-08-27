@@ -244,10 +244,19 @@ jobs:
                 ;;
             esac
 
-            BACKUP_DIR="${SERVICE_DIR}/backups"
-            BACKUP_FILE="${LOCAL_BACKUP_REF}.dump"
-            BACKUP_RETENTION_DAYS=14
-            install -m 700 -d "$BACKUP_DIR"
+BACKUP_DIR="${SERVICE_DIR}/backups"
+BACKUP_FILE="${LOCAL_BACKUP_REF}.dump"
+BACKUP_RETENTION_DAYS=14
+if [ -e "$BACKUP_DIR" ] && [ ! -d "$BACKUP_DIR" ]; then
+  echo "Backup path exists but is not a directory: ${BACKUP_DIR}" >&2
+  exit 1
+fi
+mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR" 2>/dev/null || true
+test -w "$BACKUP_DIR" || {
+  echo "Backup directory is not writable by the deployment user: ${BACKUP_DIR}" >&2
+  exit 1
+}
 
             echo ""
             echo "[3/9] Creating database backup (${LOCAL_BACKUP_REF})..."
