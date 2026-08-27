@@ -13,6 +13,7 @@ name: Deploy
 #   - SERVER_HOST:                Target server IP/hostname
 #   - SERVER_USER:                SSH user
 #   - SSH_PRIVATE_KEY:            SSH private key for authentication
+#   - SSH_HOST_FINGERPRINT:       SHA256 fingerprint of the deployment server host key
 #   - NEXT_PUBLIC_SENTRY_DSN:     Build-time public Sentry DSN
 #   - TCR_USERNAME:               Tencent Cloud account ID / UIN (organization secret)
 #   - TCR_PASSWORD:               TCR registry login password (organization secret)
@@ -95,6 +96,16 @@ jobs:
           set -euo pipefail
           printf '%s' "$TCR_PASSWORD" | docker login "$TCR_HOST" --username "$TCR_USERNAME" --password-stdin
 
+      - name: Validate SSH host fingerprint
+        env:
+          SSH_HOST_FINGERPRINT: ${{ secrets.SSH_HOST_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST_FINGERPRINT" || {
+            echo "SSH_HOST_FINGERPRINT secret is required for deployment host verification." >&2
+            exit 1
+          }
+
       - name: Build and push image to TCR
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
@@ -103,8 +114,10 @@ jobs:
           tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
           build-args: |
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha,scope=app
+            type=gha
+          cache-to: type=gha,mode=max,scope=app
 
       - name: Build and push migration image to TCR
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
@@ -113,8 +126,10 @@ jobs:
           target: migrator
           push: true
           tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}-migrator
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha,scope=migrator
+            type=gha
+          cache-to: type=gha,mode=max,scope=migrator
 
       - name: Log out from TCR
         if: always()
@@ -157,6 +172,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
           envs: TCR_USERNAME,TCR_PASSWORD,DATABASE_BACKUP_REF,DEPLOY_RUN_ID
           script: |
             set -e
@@ -242,6 +258,7 @@ jobs:
 
             BACKUP_DIR="${SERVICE_DIR}/backups"
             BACKUP_FILE="${LOCAL_BACKUP_REF}.dump"
+            BACKUP_RETENTION_DAYS=14
             install -m 700 -d "$BACKUP_DIR"
 
             echo ""
@@ -262,6 +279,9 @@ jobs:
               postgres:16-alpine \
               sh -c 'pg_restore --list "/backup/$BACKUP_FILE" >/dev/null'
             echo "Database backup created at ${BACKUP_DIR}/${BACKUP_FILE}"
+            echo "Removing local backups older than ${BACKUP_RETENTION_DAYS} days..."
+            find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' \
+              ! -name "$BACKUP_FILE" -mtime "+${BACKUP_RETENTION_DAYS}" -print -delete
 
             echo ""
             echo "[4/9] Applying database migrations..."
