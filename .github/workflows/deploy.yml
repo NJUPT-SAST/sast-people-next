@@ -103,8 +103,8 @@ jobs:
           tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
           build-args: |
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
 
       - name: Build and push migration image to TCR
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
@@ -113,8 +113,8 @@ jobs:
           target: migrator
           push: true
           tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}-migrator
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=migrator
+          cache-to: type=gha,mode=max,scope=migrator
 
       - name: Log out from TCR
         if: always()
