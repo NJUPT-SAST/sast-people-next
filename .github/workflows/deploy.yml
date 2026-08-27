@@ -252,7 +252,15 @@ jobs:
               exit 1
             fi
             mkdir -p "$BACKUP_DIR"
-            chmod 700 "$BACKUP_DIR" 2>/dev/null || true
+            if ! chmod 700 "$BACKUP_DIR"; then
+              echo "Unable to restrict backup directory permissions: ${BACKUP_DIR}" >&2
+              exit 1
+            fi
+            BACKUP_MODE=$(stat -c '%a' "$BACKUP_DIR")
+            test "$BACKUP_MODE" = 700 || {
+              echo "Backup directory must have mode 700 (found ${BACKUP_MODE}): ${BACKUP_DIR}" >&2
+              exit 1
+            }
             test -w "$BACKUP_DIR" || {
               echo "Backup directory is not writable by the deployment user: ${BACKUP_DIR}" >&2
               exit 1
