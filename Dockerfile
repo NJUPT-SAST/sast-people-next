@@ -9,16 +9,19 @@ RUN pnpm install --frozen-lockfile
 FROM builder AS app-builder
 COPY . .
 ARG NEXT_PUBLIC_SENTRY_DSN
-RUN rm -f /app/.codegraph && mkdir -p /app/.codegraph
+RUN rm -rf /app/.codegraph && mkdir -p /app/.codegraph
 RUN pnpm build
 
 # Stage 3: Runtime application image
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN addgroup -S app && adduser -S -G app app
 COPY --from=app-builder /app/.next/standalone ./
 COPY --from=app-builder /app/.next/static ./.next/static
 COPY --from=app-builder /app/public ./public
+RUN chown -R app:app /app
+USER app
 EXPOSE 3003
 ENV PORT=3003
 CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node server.js"]
@@ -28,7 +31,10 @@ CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node server.js"]
 FROM builder AS migrator
 WORKDIR /app
 ENV NODE_ENV=production
+RUN addgroup -S migrator && adduser -S -G migrator migrator
 COPY drizzle.config.ts ./
 COPY migrations ./migrations
 COPY db ./db
+RUN chown -R migrator:migrator /app
+USER migrator
 CMD ["sh", "-c", "test -n \"$DATABASE_MIGRATION_URL\" || { echo 'DATABASE_MIGRATION_URL is required for production migrations.' >&2; exit 1; }; exec pnpm db:migrate"]

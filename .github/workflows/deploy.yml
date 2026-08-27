@@ -197,7 +197,17 @@ jobs:
               exit 1
             }
             docker tag "${REMOTE_IMAGE}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:${NEW_VERSION_TAG}"
-            docker --config "$DOCKER_CONFIG" pull "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator"
+            for i in 1 2 3; do
+              if docker --config "$DOCKER_CONFIG" pull "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator"; then
+                break
+              fi
+              echo "  Migration image pull failed (${i}/3); retrying in 10 seconds..."
+              sleep 10
+            done
+            docker image inspect "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator" >/dev/null 2>&1 || {
+              echo "Migration image pull failed; aborting deployment."
+              exit 1
+            }
             docker tag "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator" "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator"
 
             echo ""
