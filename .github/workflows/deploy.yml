@@ -13,6 +13,7 @@ name: Deploy
 #   - SERVER_HOST:                Target server IP/hostname
 #   - SERVER_USER:                SSH user
 #   - SSH_PRIVATE_KEY:            SSH private key for authentication
+#   - SSH_HOST_FINGERPRINT:       SHA256 fingerprint of the deployment server host key
 #   - NEXT_PUBLIC_SENTRY_DSN:     Build-time public Sentry DSN
 #   - TCR_USERNAME:               Tencent Cloud account ID / UIN (organization secret)
 #   - TCR_PASSWORD:               TCR registry login password (organization secret)
@@ -95,6 +96,16 @@ jobs:
           set -euo pipefail
           printf '%s' "$TCR_PASSWORD" | docker login "$TCR_HOST" --username "$TCR_USERNAME" --password-stdin
 
+      - name: Validate SSH host fingerprint
+        env:
+          SSH_HOST_FINGERPRINT: ${{ secrets.SSH_HOST_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST_FINGERPRINT" || {
+            echo "SSH_HOST_FINGERPRINT secret is required for deployment host verification." >&2
+            exit 1
+          }
+
       - name: Build and push image to TCR
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
@@ -161,6 +172,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
           envs: TCR_USERNAME,TCR_PASSWORD,DATABASE_BACKUP_REF,DEPLOY_RUN_ID
           script: |
             set -e
