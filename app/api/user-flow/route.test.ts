@@ -49,4 +49,17 @@ describe('user flow review eligibility', () => {
       canReview: true,
     });
   });
+
+  it('explains that withdrawn candidates cannot be reviewed', async () => {
+    findUserFlowId.mockResolvedValue({ id: 8, progressStatus: 'withdrawn' });
+
+    const response = await GET(requestFor() as never);
+
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      userFlowId: 8,
+      canReview: false,
+      message: '该考生已退回当前流程，不能再修改评分',
+    });
+  });
 });

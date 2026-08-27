@@ -260,10 +260,12 @@ export async function createFeishuInterviewEvent(params: {
 
 实现要点：
 
-- 使用飞书 Calendar v4 `calendarEvent.create` 创建主日历日程，并从日程 `vchat` 取得留档会议链接；候选人不是飞书日程参与人；
+- 使用飞书 Calendar v4 `calendarEvent.create` 创建“科协内部活动”共享日历日程（由 `FEISHU_INTERVIEW_CALENDAR_ID` 配置），并从日程 `vchat` 取得留档会议链接；候选人不是飞书日程参与人；
 - 飞书 VC v1 `reserve.apply` 在当前租户可能返回不支持时，不作为唯一会议创建路径；
-- 使用 Calendar v4 `freebusy.list` 在创建前检查讲师主日历忙闲状态；
-- 使用 Calendar v4 `calendarEventAttendee.create` 添加讲师本人作为参与者；候选人可能没有组织内飞书账号，因此候选人通知以 People 邮件为准。
+- 使用 Calendar v4 `freebusy.list` 在创建前检查讲师主日历忙闲状态；共享日历只承载 People 创建的面试日程；
+- 创建讲师会作为共享日历日程参与人自动接受，确保讲师个人日历同步已接受的日程而无需手动确认；候选人可能没有组织内飞书账号，因此候选人通知以 People 邮件为准。
+- 日程参与人可以互相查看，但不能编辑日程；对应 Calendar v4 的 `attendee_ability: can_see_others`。
+- `interview_schedule.provider_calendar_id` 保存每条日程实际使用的日历 ID；迁移前的历史记录默认为 `primary`，新建记录使用共享日历。
 
 官方参考：
 

@@ -72,6 +72,7 @@ const actionLabels: Record<string, string> = {
   "user.ban": "禁用用户",
   "user_flow.register": "报名流程",
   "user_flow.unregister": "取消报名",
+  "user_flow.withdraw": "退回面试报名",
   "user_flow.portfolio.update": "修改作品集",
   "user_flow.forward": "推进考生流程",
   "user_flow.finish": "设置考生通过",

@@ -1,7 +1,7 @@
 "use server";
 import { db } from "@/db/drizzle";
 import { flow, flowStep, userFlow } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logServerError } from "@/lib/server-error-log";
 import { verifySession } from "@/lib/dal";
@@ -75,12 +75,12 @@ export const register = async (
     const result = await db.transaction(async (tx) => {
       // 检查用户是否已经报名
       const existingFlow = await tx
-        .select({ id: userFlow.id })
+        .select({ id: userFlow.id, progressStatus: userFlow.progressStatus })
         .from(userFlow)
         .where(and(eq(userFlow.fkFlowId, flowId), eq(userFlow.fkUserId, uid)))
         .limit(1);
 
-      if (existingFlow.length > 0) {
+      if (existingFlow.length > 0 && existingFlow[0].progressStatus !== "withdrawn") {
         return {
           success: false,
           error: {
@@ -112,6 +112,37 @@ export const register = async (
 
       const now = new Date();
       const { startedAt, endedAt, title, type } = flowInfo[0];
+      const interviewFlowTypes = [
+        "recruitment_exemption",
+        "woc",
+        "soc",
+      ] as const;
+      if (interviewFlowTypes.includes(type as (typeof interviewFlowTypes)[number])) {
+        // Serialize registrations for the same user so the mutual-exclusion
+        // check and the following insert/update cannot race each other.
+        await tx.execute(sql`select pg_advisory_xact_lock(${uid})`);
+        const [activeInterviewFlow] = await tx
+          .select({ title: flow.title })
+          .from(userFlow)
+          .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+          .where(
+            and(
+              eq(userFlow.fkUserId, uid),
+              eq(userFlow.progressStatus, "ongoing"),
+              inArray(flow.type, interviewFlowTypes),
+              ne(userFlow.fkFlowId, flowId),
+            ),
+          )
+          .limit(1);
+        if (activeInterviewFlow) {
+          return {
+            success: false,
+            error: {
+              message: `您正在进行“${activeInterviewFlow.title}”，请先完成或退回当前面试流程。`,
+            },
+          };
+        }
+      }
       const normalizedPortfolioLink =
         type === "recruitment" ? null : portfolioLink?.trim() || null;
       const normalizedPortfolioDescription =
@@ -147,18 +178,32 @@ export const register = async (
 
       const stepId = await findStepIdByOrder(flowId, 2);
 
-      const [newFlow] = await tx
-        .insert(userFlow)
-        .values({
-          fkUserId: uid,
-          fkFlowId: flowId,
-          fkCurrentStepId: stepId,
-          progressStatus: "ongoing",
-          portfolioLink: normalizedPortfolioLink,
-          portfolioDescription: normalizedPortfolioDescription,
-        })
-        .returning();
-      createdUserFlowId = newFlow.id;
+      if (existingFlow[0]?.progressStatus === "withdrawn") {
+        await tx
+          .update(userFlow)
+          .set({
+            fkCurrentStepId: stepId,
+            progressStatus: "ongoing",
+            portfolioLink: normalizedPortfolioLink,
+            portfolioDescription: normalizedPortfolioDescription,
+            updatedAt: new Date(),
+          })
+          .where(eq(userFlow.id, existingFlow[0].id));
+        createdUserFlowId = existingFlow[0].id;
+      } else {
+        const [newFlow] = await tx
+          .insert(userFlow)
+          .values({
+            fkUserId: uid,
+            fkFlowId: flowId,
+            fkCurrentStepId: stepId,
+            progressStatus: "ongoing",
+            portfolioLink: normalizedPortfolioLink,
+            portfolioDescription: normalizedPortfolioDescription,
+          })
+          .returning();
+        createdUserFlowId = newFlow.id;
+      }
 
       return {
         success: true,

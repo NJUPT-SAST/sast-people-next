@@ -33,6 +33,7 @@ export async function syncInterviewScheduleFromFeishuEvent({
       id: interviewSchedule.id,
       userFlowId: interviewSchedule.fkUserFlowId,
       organizerId: interviewSchedule.fkOrganizerId,
+      providerCalendarId: interviewSchedule.providerCalendarId,
       attendeeEmail: interviewSchedule.attendeeEmail,
       summary: interviewSchedule.summary,
       description: interviewSchedule.description,
@@ -136,7 +137,11 @@ export async function syncInterviewScheduleFromFeishuEvent({
   const credential = await getValidFeishuUserCredential(schedule.organizerId);
   let event: Awaited<ReturnType<typeof getFeishuCalendarEvent>>;
   try {
-    event = await getFeishuCalendarEvent({ accessToken: credential.accessToken, eventId });
+    event = await getFeishuCalendarEvent({
+      accessToken: credential.accessToken,
+      calendarId: schedule.providerCalendarId,
+      eventId,
+    });
   } catch (error) {
     if (!isFeishuEventNotFoundError(error)) throw error;
     return cancelSchedule({ reason: "event_not_found" });

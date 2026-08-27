@@ -100,6 +100,7 @@ export const operationAuditActionGroups = {
     "user.ban",
     "user_flow.register",
     "user_flow.unregister",
+    "user_flow.withdraw",
     "user_flow.portfolio.update",
     "user_flow.forward",
     "user_flow.finish",

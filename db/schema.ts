@@ -34,6 +34,7 @@ export const progressStatusEnum = pgEnum("progress_status_enum", [
   "ongoing",
   "passed",
   "failed",
+  "withdrawn",
 ]);
 
 export const evaluationStatusEnum = pgEnum("evaluation_status_enum", [
@@ -319,6 +320,7 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
   fkReviewedBy: integer("fk_reviewed_by"),
   /* Link 用户 ID — 面评撰写人 */
   fkUserId: integer("fk_user_id").notNull(),
+  feishuApprovalMessageId: varchar("feishu_approval_message_id", { length: 255 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()
@@ -387,6 +389,9 @@ export const interviewSchedule = pgTable("interview_schedule", {
   /* Link 用户 ID — 日程发起讲师 */
   fkOrganizerId: integer("fk_organizer_id").notNull(),
   provider: varchar("provider", { length: 32 }).notNull().default("feishu"),
+  providerCalendarId: varchar("provider_calendar_id", { length: 255 })
+    .notNull()
+    .default("primary"),
   providerEventId: varchar("provider_event_id", { length: 255 }),
   providerReserveId: varchar("provider_reserve_id", { length: 255 }),
   providerMeetingNo: varchar("provider_meeting_no", { length: 255 }),

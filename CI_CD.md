@@ -9,6 +9,7 @@ CI/CD 包含代码质量检查、测试、以及 Docker 镜像构建与部署。
   - TypeScript 检查
 - `test.yml`
   - Jest 测试
+  - PostgreSQL 集成测试
   - Next.js 构建验证
   - Playwright 端到端测试
 - `ci.yml`
@@ -22,7 +23,7 @@ CI/CD 包含代码质量检查、测试、以及 Docker 镜像构建与部署。
 
 | 工作流 | 触发 |
 |--------|------|
-| `ci.yml` | 所有分支的 push / PR |
+| `ci.yml` | Pull Request |
 | `deploy.yml` | 手动 `workflow_dispatch` |
 | `release.yml` | 推送 `v*` 标签 |
 

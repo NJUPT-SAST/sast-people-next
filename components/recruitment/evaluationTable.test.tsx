@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { EvaluationTable } from "./evaluationTable";
+import { returnInterviewCandidate } from "@/action/user-flow/interviewSchedule";
 
 jest.mock("@/action/user-flow/evaluation", () => ({
   createEvaluation: jest.fn(),
@@ -12,6 +13,7 @@ jest.mock("@/action/user-flow/interviewSchedule", () => ({
   confirmInterviewScheduleEnded: jest.fn(),
   createInterviewSchedule: jest.fn(),
   previewInterviewScheduleEmail: jest.fn(),
+  returnInterviewCandidate: jest.fn(),
 }));
 
 jest.mock("@/components/feishu-oauth-status", () => ({
@@ -27,7 +29,9 @@ jest.mock("sonner", () => ({
 }));
 
 describe("EvaluationTable", () => {
-  it("uses distinct target ids for desktop and mobile render paths", () => {
+  it("uses distinct target ids for desktop and mobile render paths", async () => {
+    const user = userEvent.setup();
+    jest.mocked(returnInterviewCandidate).mockResolvedValue({ success: true });
     render(
       <EvaluationTable
         role={3}
@@ -75,6 +79,9 @@ describe("EvaluationTable", () => {
       "text-sky-700",
       "dark:text-sky-300",
     );
+    expect(screen.getAllByRole("button", { name: "退回" }).length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
+    expect(returnInterviewCandidate).toHaveBeenCalledWith(42);
     expect(screen.getAllByRole("button", { name: "预约" })[0]).toHaveClass(
       "text-foreground",
     );
