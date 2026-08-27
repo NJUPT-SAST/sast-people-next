@@ -103,7 +103,9 @@ jobs:
           tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
           build-args: |
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-          cache-from: type=gha,scope=app
+          cache-from: |
+            type=gha,scope=app
+            type=gha
           cache-to: type=gha,mode=max,scope=app
 
       - name: Build and push migration image to TCR
@@ -113,7 +115,9 @@ jobs:
           target: migrator
           push: true
           tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}-migrator
-          cache-from: type=gha,scope=migrator
+          cache-from: |
+            type=gha,scope=migrator
+            type=gha
           cache-to: type=gha,mode=max,scope=migrator
 
       - name: Log out from TCR
