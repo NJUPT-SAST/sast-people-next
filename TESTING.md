@@ -7,6 +7,7 @@ This document covers unit/integration tests (Jest) and end-to-end tests (Playwri
 | Layer | Tools |
 | --- | --- |
 | Unit / component | Jest 30.x, Testing Library, jsdom |
+| Database integration | Jest, PostgreSQL 16 |
 | Coverage | V8 provider, HTML / LCOV / JUnit reports |
 | End-to-end | Playwright (`e2e/`, `pnpm test:e2e`) |
 | CI | GitHub Actions (`quality.yml`, `test.yml`, `ci.yml`) |
@@ -131,6 +132,23 @@ Current suites cover:
 
 See [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) for the release-oriented e2e acceptance list.
 
+## PostgreSQL Integration Tests
+
+Database integration tests live under `integration/` and exercise the migrated
+schema against a real, disposable PostgreSQL database. They reject remote
+database hosts and database names that do not end in `_local` or `_test`.
+
+With the development database running and migrated:
+
+```bash
+pnpm db:dev:up
+pnpm db:migrate
+pnpm test:integration
+```
+
+Each test runs inside a transaction that is rolled back. In CI these tests use
+an isolated `sastpeople_test` database that is destroyed with the job.
+
 ## Coverage Reports
 
 After `pnpm test:coverage`, reports are written to `coverage/`:
@@ -174,7 +192,7 @@ xdg-open coverage/index.html
 
 Tests run through GitHub Actions on:
 
-- All pushes and pull requests via `.github/workflows/ci.yml`
+- Pull requests via `.github/workflows/ci.yml`
 - Version tags via `.github/workflows/release.yml`
 - Manual debugging via `workflow_dispatch` on reusable workflows
 
@@ -182,9 +200,10 @@ Typical pipeline:
 
 1. Install dependencies
 2. Lint and typecheck
-3. Run Jest
-4. Build the Next.js application
-5. Run Playwright end-to-end tests
+3. Run Jest unit/component tests
+4. Apply migrations and run PostgreSQL integration tests
+5. Build the Next.js application
+6. Run Playwright end-to-end tests
 
 Details live in [CI_CD.md](CI_CD.md).
 
