@@ -28,9 +28,9 @@
 
 ## 2. 数据库
 
-- [ ] 目标环境执行 `pnpm db:migrate`
+- [ ] 生产部署 workflow 已在应用切换前通过 migration image 执行 `pnpm db:migrate`
 - [ ] 应用账号 `sastpeople` 对 `public` schema 的业务表、序列和枚举类型具备所需权限
-- [ ] 迁移连接使用数据库对象所有者（或具备等效 `GRANT` 权限的发布账号），而非仅供应用运行的 `sastpeople` 账号
+- [ ] 迁移连接使用数据库对象所有者（或具备等效 `GRANT` 权限的独立发布账号），而非仅供应用运行的 `sastpeople` 账号
 - [ ] 已应用 `0031_grant_people_runtime_permissions` 与 `0032_default_people_runtime_permissions`
 - [ ] 确认邮件中心相关迁移已应用，至少到 `0026_email_center_production_hardening`
 - [ ] 确认关键表与字段存在：
@@ -54,6 +54,7 @@
 ### 3.1 必填
 
 - [ ] `DATABASE_URL`
+- [ ] `DATABASE_MIGRATION_URL` 已配置为独立的迁移发布账号连接串，且不与应用运行账号共用
 - [ ] `SESSION_SECRET`（足够强度的随机值）
 - [ ] `LINK_CLIENT_ID` / `LINK_CLIENT_SECRET`
 - [ ] `LINK_API_BASE_URL` / `LINK_AUTH_BASE_URL`
@@ -146,7 +147,8 @@
 ## 6. 发布与回滚
 
 - [ ] 发布说明包含迁移步骤、环境变量变更、验证步骤
-- [ ] 部署顺序：迁移 → 应用发布 → worker/配置确认
+- [ ] 手动触发 `deploy.yml` 时填写本次生产数据库备份/快照编号
+- [ ] 部署顺序：备份/快照 → migration image → 应用发布 → worker/配置确认
 - [ ] 回滚方案明确：
   - 应用回滚到上一稳定镜像/提交
   - 数据库仅回滚兼容的变更；不可逆迁移需提前标注

@@ -6,6 +6,7 @@ coverage
 out
 *.md
 .gitignore
+.codegraph
 .env*
 !.env.example
 .npm
