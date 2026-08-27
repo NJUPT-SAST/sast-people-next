@@ -2,15 +2,13 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/components/ui/button";
-import { Home, LogIn, RotateCcw, ShieldQuestion } from "lucide-react";
+import { Home, LogIn, ShieldQuestion } from "lucide-react";
 import { useEffect } from "react";
 
 export default function GlobalError({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
   useEffect(() => {
     Sentry.captureException(error);
@@ -46,10 +44,6 @@ export default function GlobalError({
                 <LogIn />
                 重新登录
               </a>
-            </Button>
-            <Button onClick={() => reset()}>
-              <RotateCcw />
-              重试加载
             </Button>
           </div>
         </div>
