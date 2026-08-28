@@ -247,7 +247,7 @@ describe("SubmitRegister", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("请至少选择一个投递组别");
     expect(mockRegister).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("checkbox", { name: "前端组" }));
+    await user.click(screen.getByRole("button", { name: "前端组" }));
     expect(screen.getAllByPlaceholderText("https://...").length).toBe(1);
     await user.type(screen.getAllByPlaceholderText("https://...")[0], "https://a.test");
     await user.type(
@@ -289,9 +289,10 @@ describe("SubmitRegister", () => {
     await user.click(screen.getByRole("button", { name: "提交报名" }));
     await user.click(screen.getByRole("button", { name: /免试流程/i }));
 
-    await user.click(screen.getByRole("checkbox", { name: "前端组" }));
+    await user.click(screen.getByRole("button", { name: "前端组" }));
     await user.type(screen.getAllByPlaceholderText("https://...")[0], "https://front.test");
-    await user.click(screen.getByRole("checkbox", { name: "后端组" }));
+    await user.click(screen.getByRole("button", { name: "还要投递其他组别" }));
+    await user.click(screen.getAllByRole("button", { name: "后端组" })[1]);
     const inputs = screen.getAllByPlaceholderText("https://...");
     await user.type(inputs[1], "https://backend.test");
     await user.click(screen.getByRole("button", { name: "确认报名" }));

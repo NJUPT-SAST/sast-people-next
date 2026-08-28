@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import { Checkbox } from '../ui/checkbox';
+import { Plus, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -45,7 +45,7 @@ const SubmitRegister = ({
   const [portfolioLink, setPortfolioLink] = useState("");
   const [portfolioDescription, setPortfolioDescription] = useState("");
   const [portfolioLinkError, setPortfolioLinkError] = useState<string | null>(null);
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [groupRows, setGroupRows] = useState<(string | null)[]>([null]);
   const [groupPortfolios, setGroupPortfolios] = useState<
     Record<string, { link: string; description: string }>
   >({});
@@ -62,7 +62,7 @@ const SubmitRegister = ({
     setPortfolioLink("");
     setPortfolioDescription("");
     setPortfolioLinkError(null);
-    setSelectedGroups([]);
+    setGroupRows([null]);
     setGroupPortfolios({});
     setApplyGroupError(null);
   };
@@ -75,18 +75,19 @@ const SubmitRegister = ({
         portfolioDescription?: string;
       }> = [];
       if (needsApplyGroup) {
-        if (selectedGroups.length === 0) {
+        const groups = groupRows.filter((g): g is string => Boolean(g));
+        if (groups.length === 0) {
           setApplyGroupError("请至少选择一个投递组别");
           return;
         }
-        for (const group of selectedGroups) {
+        for (const group of groups) {
           const link = groupPortfolios[group]?.link ?? "";
           if (link && !isValidExternalUrl(link)) {
             setApplyGroupError(`“${group}”的作品链接格式不正确，请填写有效的 URL`);
             return;
           }
         }
-        submissions = selectedGroups.map((group) => ({
+        submissions = groups.map((group) => ({
           group,
           portfolioLink: groupPortfolios[group]?.link ?? "",
           portfolioDescription: groupPortfolios[group]?.description ?? "",
@@ -140,18 +141,22 @@ const SubmitRegister = ({
     }
   };
 
-  const toggleGroup = (option: string, checked: boolean) => {
-    if (checked) {
-      setGroupPortfolios((portfolios) => ({
-        ...portfolios,
-        [option]: portfolios[option] ?? { link: "", description: "" },
-      }));
-      setSelectedGroups((prev) =>
-        prev.includes(option) ? prev : [...prev, option],
-      );
-    } else {
-      setSelectedGroups((prev) => prev.filter((group) => group !== option));
-    }
+  const setRowGroup = (index: number, group: string) => {
+    setGroupRows((rows) => rows.map((row, i) => (i === index ? group : row)));
+    setGroupPortfolios((portfolios) => ({
+      ...portfolios,
+      [group]: portfolios[group] ?? { link: "", description: "" },
+    }));
+    if (applyGroupError) setApplyGroupError(null);
+  };
+
+  const addGroupRow = () => {
+    setGroupRows((rows) => [...rows, null]);
+    if (applyGroupError) setApplyGroupError(null);
+  };
+
+  const removeGroupRow = (index: number) => {
+    setGroupRows((rows) => rows.filter((_, i) => i !== index));
     if (applyGroupError) setApplyGroupError(null);
   };
 
@@ -174,7 +179,7 @@ const SubmitRegister = ({
             setPortfolioLink("");
             setPortfolioDescription("");
             setPortfolioLinkError(null);
-            setSelectedGroups([]);
+            setGroupRows([null]);
             setGroupPortfolios({});
             setApplyGroupError(null);
           }}
@@ -215,44 +220,75 @@ const SubmitRegister = ({
         {needsPortfolioLink && (
           <div className="space-y-3">
             {needsApplyGroup ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">投递组别（可多选，每组独立填写作品）</p>
+              <div className="space-y-3">
                 <div className="space-y-2">
-                  {flowGroupOptions.map((option) => {
-                    const checked = selectedGroups.includes(option);
-                    const groupPortfolio = groupPortfolios[option] ?? {
-                      link: "",
-                      description: "",
-                    };
+                  <p className="text-sm font-medium">投递组别</p>
+                  {groupRows.map((rowGroup, index) => {
+                    const otherGroups = groupRows.filter(
+                      (_, i) => i !== index,
+                    );
+                    const rowOptions = flowGroupOptions.filter(
+                      (option) =>
+                        option === rowGroup || !otherGroups.includes(option),
+                    );
+                    const groupPortfolio = rowGroup
+                      ? (groupPortfolios[rowGroup] ?? { link: "", description: "" })
+                      : null;
                     return (
                       <div
-                        key={option}
-                        className="rounded-lg border p-3"
+                        key={index}
+                        className="space-y-3 rounded-lg border p-3"
                       >
                         <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`group-${option}`}
-                            checked={checked}
-                            onCheckedChange={(value) =>
-                              toggleGroup(option, value === true)
+                          <Select
+                            value={rowGroup ?? ""}
+                            onValueChange={(value) =>
+                              setRowGroup(index, value)
                             }
-                          />
-                          <Label htmlFor={`group-${option}`} className="font-medium">
-                            {option}
-                          </Label>
+                          >
+                            <SelectTrigger
+                              id={`apply-group-${index}`}
+                              aria-label={`选择投递组别（第 ${index + 1} 组）`}
+                              className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
+                            >
+                              <SelectValue placeholder="选择组别" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {rowOptions.map((option) => (
+                                <SelectItem
+                                  key={option}
+                                  value={option}
+                                  disabled={option !== rowGroup && otherGroups.includes(option)}
+                                >
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {groupRows.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`移除第 ${index + 1} 个组别`}
+                              onClick={() => removeGroupRow(index)}
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          )}
                         </div>
-                        {checked && (
-                          <div className="mt-3 space-y-3">
+                        {rowGroup && groupPortfolio && (
+                          <div className="space-y-3">
                             <div className="space-y-1">
-                              <Label htmlFor={`group-${option}-link`}>作品链接</Label>
+                              <Label htmlFor={`group-${rowGroup}-link`}>作品链接</Label>
                               <Input
-                                id={`group-${option}-link`}
+                                id={`group-${rowGroup}-link`}
                                 value={groupPortfolio.link}
                                 onChange={(event) =>
                                   setGroupPortfolios((portfolios) => ({
                                     ...portfolios,
-                                    [option]: {
-                                      ...portfolios[option],
+                                    [rowGroup]: {
+                                      ...portfolios[rowGroup],
                                       link: event.target.value,
                                     },
                                   }))
@@ -262,15 +298,15 @@ const SubmitRegister = ({
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label htmlFor={`group-${option}-description`}>作品简介</Label>
+                              <Label htmlFor={`group-${rowGroup}-description`}>作品简介</Label>
                               <Textarea
-                                id={`group-${option}-description`}
+                                id={`group-${rowGroup}-description`}
                                 value={groupPortfolio.description}
                                 onChange={(event) =>
                                   setGroupPortfolios((portfolios) => ({
                                     ...portfolios,
-                                    [option]: {
-                                      ...portfolios[option],
+                                    [rowGroup]: {
+                                      ...portfolios[rowGroup],
                                       description: event.target.value,
                                     },
                                   }))
@@ -284,12 +320,27 @@ const SubmitRegister = ({
                       </div>
                     );
                   })}
+                  {flowGroupOptions.length > 1 &&
+                    groupRows[groupRows.length - 1] !== null &&
+                    groupRows.filter(Boolean).length <
+                      flowGroupOptions.length && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 text-muted-foreground"
+                        onClick={addGroupRow}
+                      >
+                        <Plus className="size-4" />
+                        还要投递其他组别
+                      </Button>
+                    )}
+                  {applyGroupError && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {applyGroupError}
+                    </p>
+                  )}
                 </div>
-                {applyGroupError && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {applyGroupError}
-                  </p>
-                )}
               </div>
             ) : (
               <>
