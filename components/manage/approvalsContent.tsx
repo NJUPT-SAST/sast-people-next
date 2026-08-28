@@ -337,10 +337,10 @@ export const ApprovalsContent = ({
                       {recommendationLabel[row.evaluation.recommendation]}
                     </Badge>
                   )}
-                  <span className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="ml-auto inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
                     <span className="text-muted-foreground">投递组别</span>
                     {row.applyGroup ? (
-                      <span className="font-medium text-foreground">
+                      <span className="min-w-0 break-words font-medium text-foreground">
                         {row.applyGroup}
                       </span>
                     ) : (

@@ -1202,7 +1202,8 @@ export const EvaluationTable = ({
             <div className="grid gap-4 py-1">
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-muted-foreground">作品链接</p>
-                {portfolioCandidate.portfolioLink ? (
+                {portfolioCandidate.portfolioLink &&
+                externalHref(portfolioCandidate.portfolioLink) ? (
                   <a
                     href={externalHref(portfolioCandidate.portfolioLink)}
                     target="_blank"
