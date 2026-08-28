@@ -779,23 +779,15 @@ export const EvaluationTable = ({
 
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
-      <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="space-y-1">
+      <div className="hidden items-center border-b border-border/60 px-4 py-3 lg:flex">
+        <div className={role >= 2 ? "w-[22%]" : "w-[26%]"} min-w-0>
           <p className="text-sm font-medium">面评候选人</p>
           <p className="text-xs text-muted-foreground">
             预约面试后提交面评结果
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p className="text-xs text-muted-foreground">
-            {summaryItems
-              .map(
-                (item) =>
-                  `${item.label} ${statusCounts.get(item.key) ?? 0}`,
-              )
-              .join(" · ")}
-          </p>
-          {safeGroupOptions.length > 0 && (
+        {safeGroupOptions.length > 0 && (
+          <div className={role >= 2 ? "w-[12%]" : "w-[14%]"} px-3>
             <Select
               value={applyGroupFilter ?? "all"}
               onValueChange={(value) =>
@@ -803,7 +795,7 @@ export const EvaluationTable = ({
               }
             >
               <SelectTrigger
-                className="h-8 w-[10rem] text-xs"
+                className="h-8 w-full text-xs"
                 aria-label="按投递组别筛选候选人"
               >
                 <SelectValue placeholder="全部组别" />
@@ -817,8 +809,55 @@ export const EvaluationTable = ({
                 ))}
               </SelectContent>
             </Select>
-          )}
+          </div>
+        )}
+        <p className="ml-auto text-xs text-muted-foreground">
+          {summaryItems
+            .map(
+              (item) =>
+                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
+            )
+            .join(" · ")}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2 border-b border-border/60 px-4 py-3 lg:hidden">
+        <div className="space-y-1">
+          <p className="text-sm font-medium">面评候选人</p>
+          <p className="text-xs text-muted-foreground">
+            预约面试后提交面评结果
+          </p>
         </div>
+        {safeGroupOptions.length > 0 && (
+          <Select
+            value={applyGroupFilter ?? "all"}
+            onValueChange={(value) =>
+              setApplyGroupFilter(value === "all" ? null : value)
+            }
+          >
+            <SelectTrigger
+              className="h-8 w-full text-xs"
+              aria-label="按投递组别筛选候选人"
+            >
+              <SelectValue placeholder="全部组别" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部组别</SelectItem>
+              {safeGroupOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <p className="text-xs text-muted-foreground">
+          {summaryItems
+            .map(
+              (item) =>
+                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
+            )
+            .join(" · ")}
+        </p>
       </div>
       <div className="hidden min-w-0 lg:block">
         <Table className="w-full table-fixed" containerClassName="overflow-x-auto">

@@ -358,8 +358,7 @@ describe("EvaluationTable", () => {
     expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
     expect(screen.getAllByText("后端组").length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: "后端组" }));
-
+    await user.click(screen.getAllByRole("button", { name: "后端组" })[0]);
     expect(screen.getAllByRole("button", { name: "修改李四的投递组别" }).length).toBe(2);
     expect(
       screen.queryAllByRole("button", { name: "修改张三的投递组别" }).length,
