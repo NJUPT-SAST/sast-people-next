@@ -135,6 +135,9 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
     });
   }, [data.id, isWrittenRecruitment, savedSteps]);
   const [editableSteps, setEditableSteps] = useState<fullStepType[]>(fixedStepList);
+  const [groupOptionsText, setGroupOptionsText] = useState(() =>
+    (data.groupOptions ?? []).join('\n'),
+  );
 
   useEffect(() => {
     setEditableSteps(fixedStepList);
@@ -227,24 +230,15 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                 control={editFlowForm.control}
                 name="groupOptions"
                 disabled={isSubmitting}
-                render={({ field }) => (
+                render={() => (
                   <FormItem>
                     <FormLabel>投递组别选项</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'}
-                        value={(field.value ?? []).join('\n')}
+                        value={groupOptionsText}
                         onChange={(event) =>
-                          field.onChange(
-                            event.target.value
-                              .split(/\r?\n/)
-                              .map((line) => line.trim())
-                              .filter(
-                                (line, index, lines) =>
-                                  line !== '' &&
-                                  lines.indexOf(line) === index,
-                              ),
-                          )
+                          setGroupOptionsText(event.target.value)
                         }
                       />
                     </FormControl>
@@ -265,8 +259,18 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                 disabled={isSubmitting}
                 onClick={() => {
                   const values = editFlowForm.getValues();
+                  // 编辑态保留原始文本以支持自由换行，保存时再解析为组别数组
+                  const parsedGroups = groupOptionsText
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter((line) => line !== '')
+                    .filter((line, index, lines) => lines.indexOf(line) === index);
+                  setGroupOptionsText(parsedGroups.join('\n'));
                   toast.promise(
-                    updateFlow(values.id!, values),
+                    updateFlow(values.id!, {
+                      ...values,
+                      groupOptions: parsedGroups,
+                    }),
                     {
                       loading: '正在保存流程信息',
                       success: `${values.title} 的基本信息已保存`,
