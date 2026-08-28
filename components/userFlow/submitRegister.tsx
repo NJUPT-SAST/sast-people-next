@@ -167,6 +167,37 @@ const SubmitRegister = ({
         </Select>
         {needsPortfolioLink && (
           <div className="space-y-3">
+            {needsApplyGroup && (
+              <div className="space-y-2">
+                <Label htmlFor="apply-group">投递组别</Label>
+                <Select
+                  value={applyGroup}
+                  onValueChange={(value) => {
+                    setApplyGroup(value);
+                    if (applyGroupError) setApplyGroupError(null);
+                  }}
+                >
+                  <SelectTrigger
+                    id="apply-group"
+                    className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
+                  >
+                    <SelectValue placeholder="选择投递组别" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {flowGroupOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {applyGroupError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {applyGroupError}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="portfolio-link">作品链接</Label>
               <Input
@@ -199,37 +230,6 @@ const SubmitRegister = ({
                 让讲师快速了解这个仓库的用途和你的贡献。
               </p>
             </div>
-            {needsApplyGroup && (
-              <div className="space-y-2">
-                <Label htmlFor="apply-group">投递组别</Label>
-                <Select
-                  value={applyGroup}
-                  onValueChange={(value) => {
-                    setApplyGroup(value);
-                    if (applyGroupError) setApplyGroupError(null);
-                  }}
-                >
-                  <SelectTrigger
-                    id="apply-group"
-                    className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
-                  >
-                    <SelectValue placeholder="选择投递组别" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {flowGroupOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {applyGroupError && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {applyGroupError}
-                  </p>
-                )}
-              </div>
-            )}
           </div>
         )}
         <DialogFooter>
