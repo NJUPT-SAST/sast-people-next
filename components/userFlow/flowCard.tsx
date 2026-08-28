@@ -221,6 +221,8 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                 userFlowId={safeFlow.id}
                 initialValue={safeFlow.portfolioLink}
                 initialDescription={safeFlow.portfolioDescription}
+                applyGroup={safeFlow.applyGroup}
+                applyGroupOptions={safeFlow.groupOptions}
                 editable={
                   safeFlow.status === "not_started" ||
                   safeFlow.status === "ongoing"

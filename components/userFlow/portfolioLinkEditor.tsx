@@ -1,11 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Pencil, Save } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { updateApplyGroup } from "@/action/user-flow/apply-group";
 import { updatePortfolioLink } from "@/action/user-flow/portfolio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { externalHref, isValidExternalUrl } from "@/lib/link";
 
@@ -13,44 +23,84 @@ export const PortfolioLinkEditor = ({
   userFlowId,
   initialValue,
   initialDescription,
+  applyGroup,
+  applyGroupOptions,
   editable = true,
 }: {
   userFlowId: number;
   initialValue: string | null;
   initialDescription?: string | null;
+  applyGroup?: string | null;
+  applyGroupOptions?: string[] | null;
   editable?: boolean;
 }) => {
+  const router = useRouter();
   const [value, setValue] = useState(initialValue ?? "");
   const [description, setDescription] = useState(initialDescription ?? "");
   const [draft, setDraft] = useState(initialValue ?? "");
   const [draftDescription, setDraftDescription] = useState(initialDescription ?? "");
+  const [group, setGroup] = useState(applyGroup ?? "");
+  const [draftGroup, setDraftGroup] = useState(applyGroup ?? "");
   const [editing, setEditing] = useState(editable && !initialValue);
   const [saving, setSaving] = useState(false);
-  const [linkError, setLinkError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const hasGroupOptions =
+    Array.isArray(applyGroupOptions) && applyGroupOptions.length > 0;
   const hasLink = value.trim().length > 0;
   const href = externalHref(value);
 
+  const startEditing = () => {
+    setDraft(value);
+    setDraftDescription(description);
+    setDraftGroup(group);
+    setError(null);
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setDraft(value);
+    setDraftDescription(description);
+    setDraftGroup(group);
+    setError(null);
+    setEditing(false);
+  };
+
   const handleSave = async () => {
     if (!editable) {
-      toast.error("流程已结束，作品信息不可修改");
+      toast.error("流程已结束，报名信息不可修改");
       return;
     }
     if (!isValidExternalUrl(draft)) {
-      setLinkError("作品链接格式不正确，请填写有效的 URL");
+      setError("作品链接格式不正确，请填写有效的 URL");
       return;
     }
-    setLinkError(null);
+    if (hasGroupOptions && !draftGroup) {
+      setError("请选择投递组别");
+      return;
+    }
+    setError(null);
     setSaving(true);
     try {
-      const result = await updatePortfolioLink(userFlowId, draft, draftDescription);
-      if (!result.success) {
-        toast.error(result.error?.message ?? "保存失败");
+      const results = await Promise.all([
+        updatePortfolioLink(userFlowId, draft, draftDescription),
+        hasGroupOptions
+          ? updateApplyGroup(userFlowId, draftGroup)
+          : Promise.resolve({ success: true } as const),
+      ]);
+      const failed = results.find(
+        (result) => (result as { success: boolean }).success === false,
+      ) as { success: false; error?: { message?: string } } | undefined;
+      if (failed) {
+        setError(failed.error?.message ?? "保存失败");
+        toast.error(failed.error?.message ?? "保存失败");
         return;
       }
       setValue(draft.trim());
       setDescription(draftDescription.trim());
+      setGroup(draftGroup);
       setEditing(false);
-      toast.success("作品信息已保存");
+      toast.success("报名信息已保存");
+      router.refresh();
     } catch {
       toast.error("保存失败");
     } finally {
@@ -60,64 +110,118 @@ export const PortfolioLinkEditor = ({
 
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-1">
-          <p className="text-sm font-medium">作品链接</p>
-          {!editing && hasLink && href ? (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
+      {!editing ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-3">
+            {hasGroupOptions && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">投递组别</p>
+                <p className="text-xs text-muted-foreground">
+                  {group || (editable ? "暂未填写" : "未填写（流程已结束）")}
+                </p>
+              </div>
+            )}
+            <div className="space-y-1">
+              <p className="text-sm font-medium">作品链接</p>
+              {hasLink && href ? (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <span className="truncate">{value}</span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                </a>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {editable ? "暂未填写" : "未填写（流程已结束）"}
+                </p>
+              )}
+              {description && (
+                <p className="max-w-2xl whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                  {description}
+                </p>
+              )}
+            </div>
+            {!editable && (
+              <p className="text-xs text-muted-foreground">流程已结束，报名信息已锁定</p>
+            )}
+          </div>
+          {editable && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={startEditing}
             >
-              <span className="truncate">{value}</span>
-              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-            </a>
-          ) : !editing ? (
-            <p className="text-xs text-muted-foreground">
-              {editable ? "暂未填写" : "未填写（流程已结束）"}
-            </p>
-          ) : null}
-          {!editing && description && (
-            <p className="max-w-2xl whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
-              {description}
-            </p>
-          )}
-          {!editable && (
-            <p className="text-xs text-muted-foreground">流程已结束，作品信息已锁定</p>
+              修改
+            </Button>
           )}
         </div>
-        {editable && !editing && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => {
-              setDraft(value);
-              setDraftDescription(description);
-              setEditing(true);
-            }}
-          >
-            <Pencil className="h-4 w-4" />
-            修改
-          </Button>
-        )}
-      </div>
-      {editable && editing && (
-        <div className="mt-3 space-y-2">
-          <div className="flex flex-col gap-2 sm:flex-row">
+      ) : (
+        <div className="space-y-3">
+          {hasGroupOptions && (
+            <div className="space-y-1">
+              <Label htmlFor="apply-group">投递组别</Label>
+              <Select value={draftGroup} onValueChange={setDraftGroup}>
+                <SelectTrigger
+                  id="apply-group"
+                  className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
+                >
+                  <SelectValue placeholder="选择投递组别" />
+                </SelectTrigger>
+                <SelectContent>
+                  {applyGroupOptions!.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-1">
+            <Label htmlFor="portfolio-link">作品链接</Label>
             <Input
+              id="portfolio-link"
               value={draft}
               onChange={(event) => {
                 setDraft(event.target.value);
-                if (linkError) setLinkError(null);
+                if (error) setError(null);
               }}
               placeholder="https://..."
               inputMode="url"
-              className="min-w-0"
-              aria-invalid={Boolean(linkError)}
+              className="w-full"
+              aria-invalid={Boolean(error)}
             />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="portfolio-description">作品简介</Label>
+            <Textarea
+              id="portfolio-description"
+              value={draftDescription}
+              onChange={(event) => setDraftDescription(event.target.value)}
+              placeholder="简单介绍作品内容、你的负责部分和使用技术"
+              className="min-h-24 resize-y"
+            />
+          </div>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full sm:w-auto"
+              disabled={saving}
+              onClick={cancelEditing}
+            >
+              取消
+            </Button>
             <Button
               type="button"
               size="sm"
@@ -125,22 +229,9 @@ export const PortfolioLinkEditor = ({
               onClick={handleSave}
               loading={saving}
             >
-              <Save className="h-4 w-4" />
               保存
             </Button>
           </div>
-          {linkError && (
-            <p role="alert" className="text-sm text-destructive">
-              {linkError}
-            </p>
-          )}
-          <Textarea
-            value={draftDescription}
-            onChange={(event) => setDraftDescription(event.target.value)}
-            placeholder="简单介绍作品内容、你的负责部分和使用技术"
-            className="min-h-24 resize-y"
-            aria-label="作品简介"
-          />
         </div>
       )}
     </div>

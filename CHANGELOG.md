@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Interview flows accept a per-flow configurable list of apply groups (投递组别); candidates pick one when registering and it shows in the interview workspace and the candidate's flow card
+- Apply groups are editable after registration: candidates can change their own group while their interview flow is in progress, and lecturers/admins can mark or fix the group for any candidate from the interview workspace
 - Next.js 16 App Router application for SAST recruitment and review workflows
 - React 19 UI with Tailwind CSS v4 and shadcn/ui
 - PostgreSQL + Drizzle ORM schema, migrations, and local seed scripts

@@ -57,6 +57,8 @@ export const RecruitmentContent = ({
   const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
   const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
   const safeEvalData = Array.isArray(evalData) ? evalData : [];
+  const currentFlowGroupOptions =
+    safeFlowTypes.find((flow) => flow.id === Number(flowId))?.groupOptions ?? [];
 
   const isEvaluationWorkspace = mode === 'interview';
   const [interviewFlowType, setInterviewFlowType] = useState<InterviewFlowType>(
@@ -202,6 +204,7 @@ export const RecruitmentContent = ({
           <div className="space-y-4">
             <EvaluationTable
               candidates={safeEvalData}
+              groupOptions={currentFlowGroupOptions}
               role={role}
               targetUserFlowId={targetUserFlowId}
               targetScheduleId={targetScheduleId}

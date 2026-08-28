@@ -20,7 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { updateCandidateApplyGroup } from "@/action/user-flow/apply-group";
 import { createEvaluation } from "@/action/user-flow/evaluation";
 import {
   cancelInterviewSchedule,
@@ -53,6 +55,7 @@ type Candidate = {
   status: string | null;
   portfolioLink: string | null;
   portfolioDescription: string | null;
+  applyGroup: string | null;
   evalId: number | null;
   evalContent: string | null;
   evalMeetingLink: string | null;
@@ -251,6 +254,37 @@ function CandidateIdentity({
   );
 }
 
+const ApplyGroupText = ({
+  value,
+  editable,
+  onEdit,
+  editLabel,
+}: {
+  value: string | null;
+  editable?: boolean;
+  onEdit?: () => void;
+  editLabel?: string;
+}) => {
+  if (editable && onEdit) {
+    return (
+      <button
+        type="button"
+        aria-label={editLabel ?? "修改投递组别"}
+        title={value ? `投递组别：${value}，点击修改` : "未填写，点击标记投递组别"}
+        className="truncate text-sm text-foreground/85 transition-colors hover:text-foreground hover:underline"
+        onClick={onEdit}
+      >
+        {value || <span className="text-muted-foreground">未填写</span>}
+      </button>
+    );
+  }
+  return (
+    <span className="truncate text-sm text-foreground/85" title={value ?? undefined}>
+      {value || "未填写"}
+    </span>
+  );
+};
+
 const PortfolioDetails = ({
   value,
   description,
@@ -411,12 +445,14 @@ function ActionButton({
 
 export const EvaluationTable = ({
   candidates,
+  groupOptions,
   role,
   targetUserFlowId,
   targetScheduleId,
   onRefresh,
 }: {
   candidates: Candidate[];
+  groupOptions: string[];
   role: number;
   targetUserFlowId?: number;
   targetScheduleId?: number;
@@ -446,6 +482,10 @@ export const EvaluationTable = ({
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [evaluationError, setEvaluationError] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
+  const [groupEditingCandidate, setGroupEditingCandidate] = useState<Candidate | null>(null);
+  const [groupDraft, setGroupDraft] = useState("");
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
 
   useEffect(() => {
     setNow(Date.now());
@@ -493,6 +533,48 @@ export const EvaluationTable = ({
     setScheduleLoading(false);
     setFeishuBound(null);
     setFeishuStatusFailed(false);
+  };
+
+  const canEditApplyGroup = role >= 2 && groupOptions.length > 0;
+
+  const startGroupEdit = (c: Candidate) => {
+    setGroupEditingCandidate(c);
+    setGroupDraft(c.applyGroup ?? "");
+    setGroupError(null);
+  };
+
+  const cancelGroupEdit = () => {
+    setGroupEditingCandidate(null);
+    setGroupDraft("");
+    setGroupError(null);
+    setGroupSaving(false);
+  };
+
+  const handleSaveCandidateGroup = async () => {
+    if (!groupEditingCandidate) return;
+    if (!groupDraft) {
+      setGroupError("请选择投递组别");
+      return;
+    }
+    setGroupError(null);
+    setGroupSaving(true);
+    try {
+      const result = await updateCandidateApplyGroup(
+        groupEditingCandidate.userFlowId,
+        groupDraft,
+      );
+      if (!result.success) {
+        setGroupError(result.error?.message ?? "保存失败");
+        return;
+      }
+      cancelGroupEdit();
+      toast.success("投递组别已更新");
+      onRefresh();
+    } catch {
+      toast.error("保存失败");
+    } finally {
+      setGroupSaving(false);
+    }
   };
 
   const editingCandidate =
@@ -703,26 +785,29 @@ export const EvaluationTable = ({
         </p>
       </div>
       <div className="hidden min-w-0 lg:block">
-        <Table className="w-full table-fixed" containerClassName="overflow-x-visible">
+        <Table className="w-full table-fixed" containerClassName="overflow-x-auto">
           {role >= 2 ? (
             <colgroup>
-              <col className="w-[24%]" />
-              <col className="w-[15%]" />
-              <col className="w-[23%]" />
-              <col className="w-[14%]" />
-              <col className="w-[24%]" />
+              <col className="w-[22%]" />
+              <col className="w-[12%]" />
+              <col className="w-[19%]" />
+              <col className="w-[17%]" />
+              <col className="w-[13%]" />
+              <col className="w-[17%]" />
             </colgroup>
           ) : (
             <colgroup>
-              <col className="w-[30%]" />
-              <col className="w-[17%]" />
-              <col className="w-[29%]" />
-              <col className="w-[24%]" />
+              <col className="w-[26%]" />
+              <col className="w-[14%]" />
+              <col className="w-[23%]" />
+              <col className="w-[19%]" />
+              <col className="w-[18%]" />
             </colgroup>
           )}
           <TableHeader>
             <TableRow className="border-b border-border/60 hover:bg-transparent">
               <TableHead className="h-10 px-4 text-xs font-medium text-muted-foreground">候选人</TableHead>
+              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">会议</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">状态</TableHead>
@@ -768,6 +853,14 @@ export const EvaluationTable = ({
                       name={c.name}
                       studentId={c.studentId}
                       qq={c.qq}
+                    />
+                  </TableCell>
+                  <TableCell className="px-3 py-3 align-middle">
+                    <ApplyGroupText
+                      value={c.applyGroup}
+                      editable={canEditApplyGroup}
+                      onEdit={() => startGroupEdit(c)}
+                      editLabel={`修改${c.name}的投递组别`}
                     />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
@@ -905,6 +998,12 @@ export const EvaluationTable = ({
                 <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <ApplyGroupText
+                  value={c.applyGroup}
+                  editable={canEditApplyGroup}
+                  onEdit={() => startGroupEdit(c)}
+                  editLabel={`修改${c.name}的投递组别`}
+                />
                 <PortfolioLink
                   value={c.portfolioLink}
                   description={c.portfolioDescription}
@@ -1295,6 +1394,70 @@ export const EvaluationTable = ({
               }
             >
               {schedulingCandidate?.scheduleMeetingLink ? "保存改约" : "创建线下面试日程"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(groupEditingCandidate)}
+        onOpenChange={(open) => {
+          if (!open) cancelGroupEdit();
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>修改投递组别</DialogTitle>
+            <DialogDescription>
+              {groupEditingCandidate
+                ? `${groupEditingCandidate.name}（${groupEditingCandidate.studentId ?? "无学号"}）`
+                : "为候选人标记或修改投递组别。"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="candidate-apply-group">投递组别</Label>
+            <Select
+              value={groupDraft}
+              onValueChange={(value) => {
+                setGroupDraft(value);
+                if (groupError) setGroupError(null);
+              }}
+            >
+              <SelectTrigger
+                id="candidate-apply-group"
+                className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
+              >
+                <SelectValue placeholder="选择投递组别" />
+              </SelectTrigger>
+              <SelectContent>
+                {groupOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {groupError && (
+              <p role="alert" className="text-sm text-destructive">
+                {groupError}
+              </p>
+            )}
+          </div>
+          <DialogFooter className="mt-2 border-t pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cancelGroupEdit}
+              disabled={groupSaving}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveCandidateGroup}
+              loading={groupSaving}
+              disabled={groupSaving}
+            >
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>

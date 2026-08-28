@@ -108,6 +108,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
       description: data.description || '',
       startedAt: data.startedAt,
       endedAt: data.endedAt ?? null,
+      groupOptions: data.groupOptions ?? [],
       id: data.id,
     },
   });
@@ -220,6 +221,41 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                 </FormItem>
               )}
             />
+
+            {!isWrittenRecruitment && (
+              <FormField
+                control={editFlowForm.control}
+                name="groupOptions"
+                disabled={isSubmitting}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>投递组别选项</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'}
+                        value={(field.value ?? []).join('\n')}
+                        onChange={(event) =>
+                          field.onChange(
+                            event.target.value
+                              .split(/\r?\n/)
+                              .map((line) => line.trim())
+                              .filter(
+                                (line, index, lines) =>
+                                  line !== '' &&
+                                  lines.indexOf(line) === index,
+                              ),
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      报名该面试流程的候选人将在报名时从这些组别中选择；留空表示不启用投递组别。
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* 保存流程元数据按钮 */}
             <div className="flex justify-end mt-4 gap-2">

@@ -77,6 +77,16 @@ export const editFlowSchema = fullFlowSchema.pick({
 })
 .extend({
   endedAt: z.date().nullable().optional(),
+  groupOptions: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1, '组别不能为空')
+        .max(100, '组别名称不能超过 100 字'),
+    )
+    .max(30, '组别数量不能超过 30 个')
+    .optional(),
 })
 .superRefine((data, ctx) => {
   if (!data.startedAt) {

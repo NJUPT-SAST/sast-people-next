@@ -17,5 +17,7 @@ export type displayUserFlow = UserFlowRow & {
   currentStepOrder: number | null;
   title: string;
   flowType?: string;
+  /** 当前流程配置的投递组别选项 */
+  groupOptions?: string[] | null;
   steps: fullStepType[];
 };

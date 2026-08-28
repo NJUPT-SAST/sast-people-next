@@ -26,6 +26,10 @@ export const updateFlow = async (
         description: values.description,
         startedAt: values.startedAt,
         endedAt: values.endedAt,
+        groupOptions:
+          values.groupOptions && values.groupOptions.length > 0
+            ? values.groupOptions
+            : null,
         updatedAt: new Date(),
       })
       .where(eq(flow.id, id));

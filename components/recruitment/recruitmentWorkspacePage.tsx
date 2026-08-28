@@ -45,7 +45,12 @@ export async function RecruitmentWorkspacePage({
   const params = await searchParams;
   const isInterviewWorkspace = mode === "interview";
   const flowTypes = await db
-    .select({ id: flow.id, title: flow.title, type: flow.type })
+    .select({
+      id: flow.id,
+      title: flow.title,
+      type: flow.type,
+      groupOptions: flow.groupOptions,
+    })
     .from(flow)
     .where(
       and(
