@@ -795,8 +795,9 @@ export const EvaluationTable = ({
               }
             >
               <SelectTrigger
-                className="h-8 w-full text-xs"
+                className="h-8 w-full truncate text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
                 aria-label="按投递组别筛选候选人"
+                title={applyGroupFilter ?? "全部组别"}
               >
                 <SelectValue placeholder="全部组别" />
               </SelectTrigger>
@@ -835,8 +836,9 @@ export const EvaluationTable = ({
             }
           >
             <SelectTrigger
-              className="h-8 w-full text-xs"
-              aria-label="按投递组别筛选候选人"
+                              className="h-8 w-full truncate text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                              aria-label="按投递组别筛选候选人"
+                title={applyGroupFilter ?? "全部组别"}
             >
               <SelectValue placeholder="全部组别" />
             </SelectTrigger>
