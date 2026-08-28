@@ -779,15 +779,15 @@ export const EvaluationTable = ({
 
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
-      <div className="hidden items-center border-b border-border/60 px-4 py-3 lg:flex">
-        <div className={role >= 2 ? "w-[22%]" : "w-[26%]"} min-w-0>
+      <div className="hidden items-center border-b border-border/60 py-3 lg:flex">
+        <div className={`${role >= 2 ? "w-[22%]" : "w-[26%]"} min-w-0 px-4`}>
           <p className="text-sm font-medium">面评候选人</p>
           <p className="text-xs text-muted-foreground">
             预约面试后提交面评结果
           </p>
         </div>
         {safeGroupOptions.length > 0 && (
-          <div className={role >= 2 ? "w-[12%]" : "w-[14%]"} px-3>
+          <div className={`${role >= 2 ? "w-[12%]" : "w-[14%]"} pl-3`}>
             <Select
               value={applyGroupFilter ?? "all"}
               onValueChange={(value) =>
@@ -811,7 +811,7 @@ export const EvaluationTable = ({
             </Select>
           </div>
         )}
-        <p className="ml-auto text-xs text-muted-foreground">
+        <p className="ml-auto pr-4 text-xs text-muted-foreground">
           {summaryItems
             .map(
               (item) =>
