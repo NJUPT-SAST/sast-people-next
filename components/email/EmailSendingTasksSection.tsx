@@ -100,7 +100,7 @@ function SendLane({
         </div>
       </div>
 
-      <div className="grid min-w-0 grid-cols-[auto_auto_minmax(7.5rem,1fr)] gap-2 md:flex md:items-center md:justify-end">
+      <div className="flex min-w-0 flex-wrap gap-2 md:flex-nowrap md:items-center md:justify-end">
         <RecipientsDialog
           recipients={preflight.remainingRecipients}
           title={`${flow.title} · ${resultLabel} · 待发名单`}
@@ -111,6 +111,7 @@ function SendLane({
           html={previewHtml}
           triggerLabel="预览"
           triggerSize="sm"
+          triggerClassName="h-10 sm:h-8"
         />
         <div className="min-w-0 md:flex-none">
           <SendConfirmDialog

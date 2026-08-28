@@ -176,7 +176,7 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
                   onValueChange={(value) => setSelectedDevice(value)}
                 >
                   <SelectTrigger
-                    className="w-full h-8 text-xs bg-background/50"
+                    className="h-10 w-full text-xs bg-background/50 sm:h-8"
                     disabled={filteredDevices.length === 0}
                   >
                     <SelectValue placeholder="请选择摄像头" />
@@ -195,7 +195,7 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
                 </Select>
                 <Button
                   size="sm"
-                  className="w-full font-medium h-8 text-xs"
+                  className="h-10 w-full font-medium text-xs sm:h-8"
                   onClick={() => setPaused(false)}
                   disabled={!selectedDevice || filteredDevices.length === 0}
                 >
@@ -247,7 +247,7 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
               type="button"
               size="sm"
               variant="destructive"
-              className="shadow-lg shrink-0"
+              className="h-10 shadow-lg shrink-0 sm:h-8"
               onClick={() => setPaused(true)}
             >
               <Pause className="size-4" />

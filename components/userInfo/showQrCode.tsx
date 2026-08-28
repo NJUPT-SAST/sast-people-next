@@ -26,7 +26,7 @@ export const ShowQrCode = ({ uid }: { uid: string }) => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto">
           <QrCode data-icon="inline-start" />
           身份码
         </Button>

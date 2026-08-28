@@ -38,7 +38,7 @@ export const CancelRegistration = ({ userFlowId }: { userFlowId: number }) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-10 w-full text-destructive hover:text-destructive sm:h-8 sm:w-auto">
+        <Button variant="ghost" size="sm" className="h-10 px-2 text-destructive hover:text-destructive sm:h-8 sm:w-auto">
           取消报名
         </Button>
       </DialogTrigger>

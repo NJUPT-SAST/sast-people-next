@@ -53,6 +53,7 @@ export function RecipientsDialog({
         <Button
           variant="outline"
           size="sm"
+          className="h-10 sm:h-8"
           disabled={safeRecipients.length === 0}
         >
           <Users data-icon="inline-start" />
@@ -129,7 +130,7 @@ export function SendConfirmDialog({
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="w-full"
+          className="h-10 w-full sm:h-8"
           disabled={remaining === 0}
         >
           <Send data-icon="inline-start" />

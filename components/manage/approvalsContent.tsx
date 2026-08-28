@@ -337,6 +337,16 @@ export const ApprovalsContent = ({
                       {recommendationLabel[row.evaluation.recommendation]}
                     </Badge>
                   )}
+                  <span className="ml-auto inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+                    <span className="text-muted-foreground">投递组别</span>
+                    {row.applyGroup ? (
+                      <span className="min-w-0 break-words font-medium text-foreground">
+                        {row.applyGroup}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/70">未提供</span>
+                    )}
+                  </span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -344,7 +354,6 @@ export const ApprovalsContent = ({
                   {row.evaluation.content}
                 </p>
                 <div className="grid gap-x-8 gap-y-3 pt-1 sm:grid-cols-3">
-                  <ReviewReference label="投递组别" value={row.applyGroup} asText />
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
                   <ReviewReference label="会议链接" value={row.scheduleMeetingLink} />
                   <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />
@@ -381,7 +390,7 @@ export const ApprovalsContent = ({
                     <div className="grid grid-cols-2 gap-2 sm:flex">
                       <Button
                         size="sm"
-                        className="w-full sm:w-auto"
+                        className="h-10 w-full sm:h-8 sm:w-auto"
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -390,7 +399,7 @@ export const ApprovalsContent = ({
                       <Button
                         size="sm"
                         variant="destructive"
-                        className="w-full sm:w-auto"
+                        className="h-10 w-full sm:h-8 sm:w-auto"
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >

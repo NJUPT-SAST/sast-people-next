@@ -155,9 +155,8 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="relative my-5 flex min-w-0 items-center justify-between overflow-x-auto">
-          {/* 背景横线 */}
-          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted z-10"></div>
+        <div className="-mx-1 my-5 overflow-x-auto px-1">
+          <div className="flex items-center">
           {steps.map((step, index) => {
             const stepStatus =
               flow.status === 'passed'
@@ -185,7 +184,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                     <button
                       type="button"
                       aria-label={`${step.title}，${statusName[stepStatus] || stepStatus}。点击查看详情`}
-                      className={`z-30 flex size-11 shrink-0 items-center justify-center rounded-full text-sm touch-manipulation sm:size-14
+                      className={`flex size-11 shrink-0 items-center justify-center rounded-full text-sm touch-manipulation sm:size-14
                         ${
                           stepStatus === 'accepted' ||
                           stepStatus === 'rejected' ||
@@ -209,22 +208,15 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
                 </Popover>
                 {index < steps.length - 1 && (
                   <div
-                    className={`absolute top-1/2 h-0.5 z-20 ${getStatusColor(
+                    className={`mx-1 h-0.5 min-w-4 flex-1 ${getStatusColor(
                       stepStatus,
                     )}`}
-                    style={{
-                      left: `calc(${
-                        (index / (steps.length - 1)) * 100
-                      }% + 7px)`,
-                      width: `calc(${
-                        100 / (steps.length - 1)
-                      }% - 14px)`,
-                    }}
                   ></div>
                 )}
               </React.Fragment>
             );
           })}
+          </div>
         </div>
         <div className="flex justify-between md:items-end md:flex-row flex-col items-start gap-3">
           <div>

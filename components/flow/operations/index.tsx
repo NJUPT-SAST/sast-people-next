@@ -11,7 +11,7 @@ export const operationButtonClass =
 
 export const Operations = ({ data }: { data: displayFlow }) => {
   return (
-    <div className="inline-grid w-full grid-cols-4 items-center justify-items-end gap-x-1">
+    <div className="flex w-full flex-wrap items-center justify-end gap-x-1 gap-y-2 xl:inline-grid xl:grid-cols-4 xl:justify-items-end">
       <EditSteps data={data} />
       <Duplicate data={data} />
       {data.type === "recruitment" ? (

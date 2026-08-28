@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ExternalLink, Eye, FileText, FileX2 } from "lucide-react";
+import { ExternalLink, Eye, FileText, FileX2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -300,16 +300,16 @@ const PortfolioDetails = ({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex max-w-full items-center gap-1 text-sm text-primary hover:underline"
+          className="inline-flex max-w-full items-start gap-1 break-all text-sm leading-5 text-foreground/85 underline decoration-muted-foreground/40 underline-offset-4 hover:text-primary hover:decoration-primary"
         >
-          <span className="truncate">{value}</span>
-          <ExternalLink className="size-3.5 shrink-0" />
+          <span>{value}</span>
+          <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
         </a>
       ) : (
         <span className="text-sm text-muted-foreground">未提供</span>
       )}
       {description && (
-        <p className="max-w-[28rem] whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+        <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
           {description}
         </p>
       )}
@@ -461,6 +461,7 @@ export const EvaluationTable = ({
   const safeCandidates = Array.isArray(candidates) ? candidates : [];
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [portfolioCandidate, setPortfolioCandidate] = useState<Candidate | null>(null);
+  const [returnConfirmCandidate, setReturnConfirmCandidate] = useState<Candidate | null>(null);
   const [schedulingId, setSchedulingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
@@ -746,6 +747,7 @@ export const EvaluationTable = ({
         return;
       }
       toast.success("已退回该报名，候选人可以重新选择流程");
+      setReturnConfirmCandidate(null);
       cancelSchedule();
       onRefresh();
     } catch (error) {
@@ -983,7 +985,7 @@ export const EvaluationTable = ({
                           {canReturnCandidate && (
                             <ActionButton
                               disabled={busy}
-                              onClick={() => handleReturnCandidate(c)}
+                              onClick={() => setReturnConfirmCandidate(c)}
                             >
                               {busy ? "处理中" : "退回"}
                             </ActionButton>
@@ -1122,7 +1124,7 @@ export const EvaluationTable = ({
                     {canReturnCandidate && (
                       <ActionButton
                         disabled={busy}
-                        onClick={() => handleReturnCandidate(c)}
+                        onClick={() => setReturnConfirmCandidate(c)}
                       >
                         {busy ? "处理中" : "退回"}
                       </ActionButton>
@@ -1197,20 +1199,92 @@ export const EvaluationTable = ({
             </DialogDescription>
           </DialogHeader>
           {portfolioCandidate && (
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <PortfolioDetails
-                value={portfolioCandidate.portfolioLink}
-                description={portfolioCandidate.portfolioDescription}
-              />
+            <div className="grid gap-4 py-1">
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">作品链接</p>
+                {portfolioCandidate.portfolioLink &&
+                externalHref(portfolioCandidate.portfolioLink) ? (
+                  <a
+                    href={externalHref(portfolioCandidate.portfolioLink)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex min-h-11 items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-primary/5"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <Link2 className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1 break-all text-sm leading-5 text-foreground/85">
+                      {portfolioCandidate.portfolioLink}
+                    </span>
+                    <ExternalLink className="size-4 shrink-0 text-muted-foreground" />
+                  </a>
+                ) : (
+                  <p className="text-sm text-muted-foreground">未提供</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">作品简介</p>
+                {portfolioCandidate.portfolioDescription ? (
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/85">
+                    {portfolioCandidate.portfolioDescription}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">未提供</p>
+                )}
+              </div>
             </div>
           )}
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full sm:h-9 sm:w-auto"
+              onClick={() => setPortfolioCandidate(null)}
+            >
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(returnConfirmCandidate)}
+        onOpenChange={(open) => {
+          if (!open) setReturnConfirmCandidate(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认退回面试报名</DialogTitle>
+            <DialogDescription>
+              {returnConfirmCandidate
+                ? `退回后 ${returnConfirmCandidate.name} 的当前面试流程将作废，候选人需重新选择流程。此操作不可撤销，确定要退回吗？`
+                : "退回后候选人的当前面试流程将作废，需重新报名。"}
+            </DialogDescription>
+          </DialogHeader>
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setPortfolioCandidate(null)}
+              onClick={() => setReturnConfirmCandidate(null)}
+              disabled={loadingId !== null}
             >
-              关闭
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={loadingId !== null}
+              loading={
+                returnConfirmCandidate
+                  ? loadingId === returnConfirmCandidate.userFlowId
+                  : false
+              }
+              onClick={() => {
+                if (!returnConfirmCandidate) return;
+                return handleReturnCandidate(returnConfirmCandidate);
+              }}
+            >
+              确认退回
             </Button>
           </DialogFooter>
         </DialogContent>
