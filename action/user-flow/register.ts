@@ -27,6 +27,7 @@ export const register = async (
   uid: number,
   portfolioLink?: string,
   portfolioDescription?: string,
+  applyGroup?: string,
 ) => {
   try {
     const session = await verifySession();
@@ -96,6 +97,7 @@ export const register = async (
           endedAt: flow.endedAt,
           title: flow.title,
           type: flow.type,
+          groupOptions: flow.groupOptions,
         })
         .from(flow)
         .where(and(eq(flow.id, flowId), eq(flow.isDeleted, false)))
@@ -111,7 +113,7 @@ export const register = async (
       }
 
       const now = new Date();
-      const { startedAt, endedAt, title, type } = flowInfo[0];
+      const { startedAt, endedAt, title, type, groupOptions } = flowInfo[0];
       const interviewFlowTypes = [
         "recruitment_exemption",
         "woc",
@@ -147,6 +149,30 @@ export const register = async (
         type === "recruitment" ? null : portfolioLink?.trim() || null;
       const normalizedPortfolioDescription =
         type === "recruitment" ? null : portfolioDescription?.trim() || null;
+      const normalizedApplyGroup =
+        type === "recruitment" ? null : applyGroup?.trim() || null;
+      const configuredGroups = (groupOptions ?? [])
+        .map((option) => (typeof option === "string" ? option.trim() : ""))
+        .filter(Boolean);
+
+      if (type !== "recruitment" && configuredGroups.length > 0) {
+        if (!normalizedApplyGroup) {
+          return {
+            success: false,
+            error: {
+              message: "请选择投递组别",
+            },
+          };
+        }
+        if (!configuredGroups.includes(normalizedApplyGroup)) {
+          return {
+            success: false,
+            error: {
+              message: "投递组别不在该流程的选项内",
+            },
+          };
+        }
+      }
 
       if (
         normalizedPortfolioLink &&
@@ -186,6 +212,7 @@ export const register = async (
             progressStatus: "ongoing",
             portfolioLink: normalizedPortfolioLink,
             portfolioDescription: normalizedPortfolioDescription,
+            applyGroup: normalizedApplyGroup,
             updatedAt: new Date(),
           })
           .where(eq(userFlow.id, existingFlow[0].id));
@@ -200,6 +227,7 @@ export const register = async (
             progressStatus: "ongoing",
             portfolioLink: normalizedPortfolioLink,
             portfolioDescription: normalizedPortfolioDescription,
+            applyGroup: normalizedApplyGroup,
           })
           .returning();
         createdUserFlowId = newFlow.id;

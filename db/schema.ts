@@ -13,6 +13,17 @@ import {
   uniqueIndex,
   varchar
 } from "drizzle-orm/pg-core";
+import { z } from "zod/v4";
+
+export const flowGroupOptionsSchema = z
+  .array(
+    z
+      .string()
+      .trim()
+      .min(1, "组别不能为空")
+      .max(100, "组别名称不能超过 100 字"),
+  )
+  .max(30, "组别数量不能超过 30 个");
 
 export const flowStepTypeEnum = pgEnum("flow_step_type_enum", [
   "registering",
@@ -74,6 +85,10 @@ export const flow = pgTable("flow", {
   title: varchar("title", { length: 100 }).notNull(),
   description: varchar("description", { length: 1000 }),
   type: flowTypeEnum("type").notNull().default("recruitment"),
+  /* 面试流程可配置的投递组别选项（如 前端组/后端组） */
+  groupOptions: jsonb("group_options").$type<
+    z.infer<typeof flowGroupOptionsSchema>
+  >(),
   /* Link 用户 ID */
   ownerId: integer("owner_id").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -108,6 +123,8 @@ export const flowStep = pgTable("flow_step", {
 export const userFlow = pgTable("user_flow", {
   id: serial("id").primaryKey(),
   progressStatus: progressStatusEnum("progress_status"),
+  /* 候选人报名时选择的投递组别 */
+  applyGroup: varchar("apply_group", { length: 100 }),
   /* FK → flow_step.id。step 被物理删除时置 NULL */
   fkCurrentStepId: integer("fk_current_step_id")
     .references(() => flowStep.id, { onDelete: "set null" }),

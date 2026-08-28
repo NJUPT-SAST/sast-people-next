@@ -44,9 +44,14 @@ const SubmitRegister = ({
   const [portfolioLink, setPortfolioLink] = useState("");
   const [portfolioDescription, setPortfolioDescription] = useState("");
   const [portfolioLinkError, setPortfolioLinkError] = useState<string | null>(null);
+  const [applyGroup, setApplyGroup] = useState("");
+  const [applyGroupError, setApplyGroupError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const currentFlow = safeFlowList.find((flow) => flow.id === selectedFlow);
   const needsPortfolioLink = currentFlow?.type !== "recruitment" && !!currentFlow;
+  const flowGroupOptions = currentFlow?.groupOptions ?? [];
+  const needsApplyGroup =
+    needsPortfolioLink && flowGroupOptions.length > 0;
 
   const handleRegister = async () => {
     if (selectedFlow) {
@@ -55,6 +60,11 @@ const SubmitRegister = ({
         return;
       }
       setPortfolioLinkError(null);
+      if (needsApplyGroup && !applyGroup) {
+        setApplyGroupError("请选择投递组别");
+        return;
+      }
+      setApplyGroupError(null);
       setIsSubmitting(true);
       toast.promise(
         (async () => {
@@ -64,6 +74,7 @@ const SubmitRegister = ({
               uid,
               needsPortfolioLink ? portfolioLink : undefined,
               needsPortfolioLink ? portfolioDescription : undefined,
+              needsApplyGroup ? applyGroup : undefined,
             );
             if ((result?.success ?? false) === false) {
               throw Error(result?.error?.message ?? "服务器错误")
@@ -73,6 +84,8 @@ const SubmitRegister = ({
             setPortfolioLink("");
             setPortfolioDescription("");
             setPortfolioLinkError(null);
+            setApplyGroup("");
+            setApplyGroupError(null);
             router.refresh();
           } catch (error) {
             if (error instanceof Error) {
@@ -115,6 +128,8 @@ const SubmitRegister = ({
             setPortfolioLink("");
             setPortfolioDescription("");
             setPortfolioLinkError(null);
+            setApplyGroup("");
+            setApplyGroupError(null);
           }}
         >
           <SelectTrigger className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left">
@@ -184,6 +199,37 @@ const SubmitRegister = ({
                 让讲师快速了解这个仓库的用途和你的贡献。
               </p>
             </div>
+            {needsApplyGroup && (
+              <div className="space-y-2">
+                <Label htmlFor="apply-group">投递组别</Label>
+                <Select
+                  value={applyGroup}
+                  onValueChange={(value) => {
+                    setApplyGroup(value);
+                    if (applyGroupError) setApplyGroupError(null);
+                  }}
+                >
+                  <SelectTrigger
+                    id="apply-group"
+                    className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
+                  >
+                    <SelectValue placeholder="选择投递组别" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {flowGroupOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {applyGroupError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {applyGroupError}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
         <DialogFooter>

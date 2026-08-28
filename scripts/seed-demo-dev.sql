@@ -10,10 +10,11 @@ insert into flow (
   started_at,
   ended_at,
   updated_at,
-  is_deleted
+  is_deleted,
+  group_options
 ) values
-  (101, '2026 春季笔试招新 Demo', '覆盖报名、批卷、结果确认和邮件发送的本地演示流程。', 'recruitment', 1, now() - interval '10 days', now() - interval '7 days', now() + interval '14 days', now(), false),
-  (102, '2026 免试招新 Demo', '覆盖作品链接、讲师面评和管理员审批的本地演示流程。', 'recruitment_exemption', 1, now() - interval '9 days', now() - interval '7 days', now() + interval '14 days', now(), false)
+  (101, '2026 春季笔试招新 Demo', '覆盖报名、批卷、结果确认和邮件发送的本地演示流程。', 'recruitment', 1, now() - interval '10 days', now() - interval '7 days', now() + interval '14 days', now(), false, null),
+  (102, '2026 免试招新 Demo', '覆盖作品链接、讲师面评和管理员审批的本地演示流程。', 'recruitment_exemption', 1, now() - interval '9 days', now() - interval '7 days', now() + interval '14 days', now(), false, '["前端组","后端组","算法组"]'::jsonb)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -22,7 +23,8 @@ on conflict (id) do update set
   started_at = excluded.started_at,
   ended_at = excluded.ended_at,
   updated_at = now(),
-  is_deleted = false;
+  is_deleted = false,
+  group_options = excluded.group_options;
 
 insert into flow_step (
   id,
@@ -70,24 +72,26 @@ insert into user_flow (
   progress_status,
   fk_current_step_id,
   portfolio_link,
+  apply_group,
   fk_flow_id,
   fk_user_id
 ) values
-  (201, 'ongoing', 1012, null, 101, 4),
-  (202, 'passed', 1013, null, 101, 5),
-  (203, 'failed', 1013, null, 101, 6),
-  (204, 'passed', 1013, null, 101, 7),
-  (205, 'failed', 1013, null, 101, 8),
-  (206, 'ongoing', 1022, 'https://portfolio-a.example.com/project', 102, 4),
-  (207, 'ongoing', 1022, 'https://portfolio-b.example.com/project', 102, 5),
-  (208, 'ongoing', 1022, 'https://portfolio-c.example.com/project', 102, 6),
-  (209, 'ongoing', 1023, 'https://portfolio-d.example.com/project', 102, 7),
-  (210, 'failed', 1023, 'https://portfolio-e.example.com/project', 102, 8),
-  (211, 'passed', 1023, 'https://member.example.com/interview-project', 102, 3)
+  (201, 'ongoing', 1012, null, null, 101, 4),
+  (202, 'passed', 1013, null, null, 101, 5),
+  (203, 'failed', 1013, null, null, 101, 6),
+  (204, 'passed', 1013, null, null, 101, 7),
+  (205, 'failed', 1013, null, null, 101, 8),
+  (206, 'ongoing', 1022, 'https://portfolio-a.example.com/project', '前端组', 102, 4),
+  (207, 'ongoing', 1022, 'https://portfolio-b.example.com/project', '后端组', 102, 5),
+  (208, 'ongoing', 1022, 'https://portfolio-c.example.com/project', '算法组', 102, 6),
+  (209, 'ongoing', 1023, 'https://portfolio-d.example.com/project', '前端组', 102, 7),
+  (210, 'failed', 1023, 'https://portfolio-e.example.com/project', '后端组', 102, 8),
+  (211, 'passed', 1023, 'https://member.example.com/interview-project', '前端组', 102, 3)
 on conflict (id) do update set
   progress_status = excluded.progress_status,
   fk_current_step_id = excluded.fk_current_step_id,
   portfolio_link = excluded.portfolio_link,
+  apply_group = excluded.apply_group,
   fk_flow_id = excluded.fk_flow_id,
   fk_user_id = excluded.fk_user_id;
 

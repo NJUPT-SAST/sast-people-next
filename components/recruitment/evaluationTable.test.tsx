@@ -1,8 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import * as React from "react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { EvaluationTable } from "./evaluationTable";
 import { returnInterviewCandidate } from "@/action/user-flow/interviewSchedule";
+
+const mockUpdateCandidateApplyGroup = jest.fn();
+
+jest.mock("@/action/user-flow/apply-group", () => ({
+  updateCandidateApplyGroup: (...args: unknown[]) =>
+    mockUpdateCandidateApplyGroup(...args),
+}));
 
 jest.mock("@/action/user-flow/evaluation", () => ({
   createEvaluation: jest.fn(),
@@ -28,6 +36,49 @@ jest.mock("sonner", () => ({
   },
 }));
 
+jest.mock("@/components/ui/select", () => {
+  const SelectContext = React.createContext<{
+    onValueChange?: (value: string) => void;
+  }>({});
+
+  return {
+    Select: ({
+      children,
+      onValueChange,
+    }: {
+      children: React.ReactNode;
+      onValueChange?: (value: string) => void;
+    }) => (
+      <SelectContext.Provider value={{ onValueChange }}>
+        <div>{children}</div>
+      </SelectContext.Provider>
+    ),
+    SelectTrigger: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SelectValue: ({ placeholder }: { placeholder?: string }) => (
+      <span>{placeholder}</span>
+    ),
+    SelectContent: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SelectItem: ({
+      children,
+      value,
+    }: {
+      children: React.ReactNode;
+      value: string;
+    }) => {
+      const { onValueChange } = React.useContext(SelectContext);
+      return (
+        <button type="button" onClick={() => onValueChange?.(value)}>
+          {children}
+        </button>
+      );
+    },
+  };
+});
+
 describe("EvaluationTable", () => {
   it("uses distinct target ids for desktop and mobile render paths", async () => {
     const user = userEvent.setup();
@@ -36,6 +87,7 @@ describe("EvaluationTable", () => {
       <EvaluationTable
         role={3}
         targetUserFlowId={42}
+        groupOptions={[]}
         onRefresh={jest.fn()}
         candidates={[
           {
@@ -47,6 +99,7 @@ describe("EvaluationTable", () => {
             status: "ongoing",
             portfolioLink: null,
             portfolioDescription: null,
+            applyGroup: "前端组",
             evalId: null,
             evalContent: null,
             evalMeetingLink: null,
@@ -79,6 +132,7 @@ describe("EvaluationTable", () => {
       "text-sky-700",
       "dark:text-sky-300",
     );
+    expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "退回" }).length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
     expect(returnInterviewCandidate).toHaveBeenCalledWith(42);
@@ -92,6 +146,7 @@ describe("EvaluationTable", () => {
     render(
       <EvaluationTable
         role={2}
+        groupOptions={[]}
         onRefresh={jest.fn()}
         candidates={[{
           userFlowId: 1,
@@ -102,6 +157,7 @@ describe("EvaluationTable", () => {
           status: "ongoing",
           portfolioLink: null,
           portfolioDescription: null,
+          applyGroup: null,
           evalId: null,
           evalContent: null,
           evalMeetingLink: null,
@@ -136,6 +192,7 @@ describe("EvaluationTable", () => {
     render(
       <EvaluationTable
         role={2}
+        groupOptions={[]}
         onRefresh={jest.fn()}
         candidates={[{
           userFlowId: 2,
@@ -146,6 +203,7 @@ describe("EvaluationTable", () => {
           status: "ongoing",
           portfolioLink: null,
           portfolioDescription: null,
+          applyGroup: null,
           evalId: 9,
           evalContent: "已有面评",
           evalMeetingLink: null,
@@ -179,6 +237,7 @@ describe("EvaluationTable", () => {
     render(
       <EvaluationTable
         role={2}
+        groupOptions={[]}
         onRefresh={jest.fn()}
         candidates={[{
           userFlowId: 3,
@@ -189,6 +248,7 @@ describe("EvaluationTable", () => {
           status: "ongoing",
           portfolioLink: "https://example.com/project",
           portfolioDescription: "一个作品简介",
+          applyGroup: null,
           evalId: null,
           evalContent: null,
           evalMeetingLink: null,
@@ -218,5 +278,67 @@ describe("EvaluationTable", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("一个作品简介");
     expect(screen.getByRole("dialog").querySelector('a[href="https://example.com/project"]'))
       .toBeInTheDocument();
+  });
+
+  it("lets roles 2+ mark or change a candidate's apply group", async () => {
+    const user = userEvent.setup();
+    const onRefresh = jest.fn();
+    mockUpdateCandidateApplyGroup.mockReset().mockResolvedValue({ success: true });
+
+    render(
+      <EvaluationTable
+        role={2}
+        groupOptions={["前端组", "后端组"]}
+        onRefresh={onRefresh}
+        candidates={[{
+          userFlowId: 4,
+          uid: 4,
+          name: "赵六",
+          studentId: "B004",
+          qq: null,
+          status: "ongoing",
+          portfolioLink: null,
+          portfolioDescription: null,
+          applyGroup: null,
+          evalId: null,
+          evalContent: null,
+          evalMeetingLink: null,
+          evalRecommendation: null,
+          evalStatus: null,
+          evalAuthorId: null,
+          canEditEvaluation: true,
+          canManageSchedule: true,
+          scheduleId: null,
+          scheduleOrganizerName: null,
+          scheduleMeetingLink: null,
+          scheduleLink: null,
+          scheduleMeetingMinuteLink: null,
+          scheduleLocation: null,
+          scheduleMeetingRoomId: null,
+          scheduleStartsAt: null,
+          scheduleEndsAt: null,
+          scheduleStatus: null,
+          scheduleMeetingStatus: null,
+          scheduleMeetingEndedAt: null,
+        }]}
+      />,
+    );
+
+    expect(screen.getAllByText("未填写").length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: "修改赵六的投递组别" })[0]);
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("修改投递组别");
+
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("请选择投递组别");
+    expect(mockUpdateCandidateApplyGroup).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "后端组" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      expect(mockUpdateCandidateApplyGroup).toHaveBeenCalledWith(4, "后端组");
+      expect(onRefresh).toHaveBeenCalled();
+    });
   });
 });

@@ -7,5 +7,5 @@ export type displayFlow = InferSelectModel<typeof flow>;
 
 export type flowSelection = Pick<
   InferSelectModel<typeof flow>,
-  "id" | "title" | "type"
+  "id" | "title" | "type" | "groupOptions"
 >;

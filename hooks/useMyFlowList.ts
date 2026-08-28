@@ -45,6 +45,7 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
           : null,
         title: item.flow.title,
         flowType: item.flow.type,
+        groupOptions: item.flow.groupOptions,
         steps: [] as fullStepType[],
       });
     }

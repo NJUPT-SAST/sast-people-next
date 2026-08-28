@@ -1,6 +1,6 @@
 "use server";
 
-import { editFlowSchema } from "@/components/flow/add";
+import { editFlowSchema } from "@/lib/validation/flow";
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
@@ -15,17 +15,23 @@ export const updateFlow = async (
   values: z.infer<typeof editFlowSchema>
 ) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let parsedValues: z.infer<typeof editFlowSchema> | null = null;
 
   try {
     session = await verifyRole(3);
+    parsedValues = editFlowSchema.parse(values);
 
     await db
       .update(flow)
       .set({
-        title: values.title,
-        description: values.description,
-        startedAt: values.startedAt,
-        endedAt: values.endedAt,
+        title: parsedValues.title,
+        description: parsedValues.description,
+        startedAt: parsedValues.startedAt,
+        endedAt: parsedValues.endedAt,
+        groupOptions:
+          parsedValues.groupOptions && parsedValues.groupOptions.length > 0
+            ? parsedValues.groupOptions
+            : null,
         updatedAt: new Date(),
       })
       .where(eq(flow.id, id));
@@ -36,7 +42,7 @@ export const updateFlow = async (
       action: "flow.update",
       resourceType: "flow",
       resourceId: id,
-      metadata: { title: values.title },
+      metadata: { title: parsedValues.title },
     });
 
     revalidatePath("/dashboard/flow");
@@ -48,8 +54,8 @@ export const updateFlow = async (
       action: "update-flow",
       flowId: id,
       metadata: {
-        flowType: values.type,
-        title: values.title,
+        flowType: parsedValues?.type ?? null,
+        title: parsedValues?.title ?? null,
       },
     });
     throw error;

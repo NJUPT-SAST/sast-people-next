@@ -720,6 +720,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
         status: userFlow.progressStatus,
         portfolioLink: userFlow.portfolioLink,
         portfolioDescription: userFlow.portfolioDescription,
+        applyGroup: userFlow.applyGroup,
         evalId: interviewEvaluation.id,
         evalContent: interviewEvaluation.content,
         evalMeetingLink: interviewEvaluation.meetingLink,
