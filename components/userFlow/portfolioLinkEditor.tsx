@@ -127,51 +127,58 @@ export const PortfolioLinkEditor = ({
   };
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 border-t border-border/60 pt-4">
       {!editing ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-3">
-            {hasGroupOptions && (
-              <div className="space-y-1">
-                <p className="text-sm font-medium">投递组别</p>
-                <p className="text-xs text-muted-foreground">
-                  {group || (editable ? "暂未填写" : "未填写（流程已结束）")}
-                </p>
-              </div>
+          <dl className="grid min-w-0 flex-1 gap-x-6 gap-y-2 sm:grid-cols-[5.5rem_1fr]">
+          {hasGroupOptions && (
+            <>
+              <dt className="text-sm text-muted-foreground">投递组别</dt>
+              <dd className="min-w-0 text-sm text-foreground/85">
+                {group || (editable ? "暂未填写" : "未填写（流程已结束）")}
+              </dd>
+            </>
+          )}
+          <dt className="text-sm text-muted-foreground">作品链接</dt>
+          <dd className="min-w-0 text-sm">
+            {hasLink && href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex max-w-full items-start gap-1 break-all leading-5 text-foreground/85 underline decoration-muted-foreground/40 underline-offset-4 hover:text-primary hover:decoration-primary"
+              >
+                <span>{value}</span>
+                <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </a>
+            ) : (
+              <span className="text-muted-foreground">
+                {editable ? "暂未填写" : "未填写（流程已结束）"}
+              </span>
             )}
-            <div className="space-y-1">
-              <p className="text-sm font-medium">作品链接</p>
-              {hasLink && href ? (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex max-w-full items-start gap-1 break-all text-sm leading-5 text-foreground/85 underline decoration-muted-foreground/40 underline-offset-4 hover:text-primary hover:decoration-primary"
-                >
-                  <span>{value}</span>
-                  <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                </a>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {editable ? "暂未填写" : "未填写（流程已结束）"}
-                </p>
-              )}
-              {description && (
-                <p className="whitespace-pre-wrap text-sm leading-5 text-foreground/85">
-                  {description}
-                </p>
-              )}
-            </div>
-            {!editable && (
-              <p className="text-xs text-muted-foreground">流程已结束，报名信息已锁定</p>
+          </dd>
+          <dt className="text-sm text-muted-foreground">作品简介</dt>
+          <dd className="min-w-0 text-sm leading-5 text-foreground/85">
+            {description ? (
+              <p className="whitespace-pre-wrap">{description}</p>
+            ) : (
+              <span className="text-muted-foreground">
+                {editable ? "暂未填写" : "未填写（流程已结束）"}
+              </span>
             )}
-          </div>
+          </dd>
+          {!editable && (
+            <dd className="text-xs text-muted-foreground sm:col-start-2">
+              流程已结束，报名信息已锁定
+            </dd>
+          )}
+          </dl>
           {editable && (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="w-full sm:w-auto"
+              className="h-10 w-full shrink-0 sm:h-8 sm:w-auto"
               onClick={startEditing}
             >
               修改
