@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
+import { Checkbox } from '../ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -44,7 +45,10 @@ const SubmitRegister = ({
   const [portfolioLink, setPortfolioLink] = useState("");
   const [portfolioDescription, setPortfolioDescription] = useState("");
   const [portfolioLinkError, setPortfolioLinkError] = useState<string | null>(null);
-  const [applyGroup, setApplyGroup] = useState("");
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [groupPortfolios, setGroupPortfolios] = useState<
+    Record<string, { link: string; description: string }>
+  >({});
   const [applyGroupError, setApplyGroupError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const currentFlow = safeFlowList.find((flow) => flow.id === selectedFlow);
@@ -53,39 +57,66 @@ const SubmitRegister = ({
   const needsApplyGroup =
     needsPortfolioLink && flowGroupOptions.length > 0;
 
+  const resetForm = () => {
+    setSelectedFlow(null);
+    setPortfolioLink("");
+    setPortfolioDescription("");
+    setPortfolioLinkError(null);
+    setSelectedGroups([]);
+    setGroupPortfolios({});
+    setApplyGroupError(null);
+  };
+
   const handleRegister = async () => {
     if (selectedFlow) {
-      if (needsPortfolioLink && !isValidExternalUrl(portfolioLink)) {
-        setPortfolioLinkError("作品链接格式不正确，请填写有效的 URL");
-        return;
+      let submissions: Array<{
+        group?: string;
+        portfolioLink?: string;
+        portfolioDescription?: string;
+      }> = [];
+      if (needsApplyGroup) {
+        if (selectedGroups.length === 0) {
+          setApplyGroupError("请至少选择一个投递组别");
+          return;
+        }
+        for (const group of selectedGroups) {
+          const link = groupPortfolios[group]?.link ?? "";
+          if (link && !isValidExternalUrl(link)) {
+            setApplyGroupError(`“${group}”的作品链接格式不正确，请填写有效的 URL`);
+            return;
+          }
+        }
+        submissions = selectedGroups.map((group) => ({
+          group,
+          portfolioLink: groupPortfolios[group]?.link ?? "",
+          portfolioDescription: groupPortfolios[group]?.description ?? "",
+        }));
+      } else {
+        if (needsPortfolioLink && !isValidExternalUrl(portfolioLink)) {
+          setPortfolioLinkError("作品链接格式不正确，请填写有效的 URL");
+          return;
+        }
+        submissions = [
+          {
+            portfolioLink: needsPortfolioLink ? portfolioLink : undefined,
+            portfolioDescription: needsPortfolioLink
+              ? portfolioDescription
+              : undefined,
+          },
+        ];
       }
       setPortfolioLinkError(null);
-      if (needsApplyGroup && !applyGroup) {
-        setApplyGroupError("请选择投递组别");
-        return;
-      }
       setApplyGroupError(null);
       setIsSubmitting(true);
       toast.promise(
         (async () => {
           try {
-            const result = await register(
-              selectedFlow,
-              uid,
-              needsPortfolioLink ? portfolioLink : undefined,
-              needsPortfolioLink ? portfolioDescription : undefined,
-              needsApplyGroup ? applyGroup : undefined,
-            );
+            const result = await register(selectedFlow, uid, submissions);
             if ((result?.success ?? false) === false) {
               throw Error(result?.error?.message ?? "服务器错误")
             }
             setOpen(false);
-            setSelectedFlow(null);
-            setPortfolioLink("");
-            setPortfolioDescription("");
-            setPortfolioLinkError(null);
-            setApplyGroup("");
-            setApplyGroupError(null);
+            resetForm();
             router.refresh();
           } catch (error) {
             if (error instanceof Error) {
@@ -109,6 +140,21 @@ const SubmitRegister = ({
     }
   };
 
+  const toggleGroup = (option: string, checked: boolean) => {
+    setSelectedGroups((prev) => {
+      if (checked && !prev.includes(option)) {
+        setGroupPortfolios((portfolios) => ({
+          ...portfolios,
+          [option]: portfolios[option] ?? { link: "", description: "" },
+        }));
+        return [...prev, option];
+      }
+      if (!checked) return prev.filter((group) => group !== option);
+      return prev;
+    });
+    if (applyGroupError) setApplyGroupError(null);
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -128,7 +174,8 @@ const SubmitRegister = ({
             setPortfolioLink("");
             setPortfolioDescription("");
             setPortfolioLinkError(null);
-            setApplyGroup("");
+            setSelectedGroups([]);
+            setGroupPortfolios({});
             setApplyGroupError(null);
           }}
         >
@@ -167,69 +214,117 @@ const SubmitRegister = ({
         </Select>
         {needsPortfolioLink && (
           <div className="space-y-3">
-            {needsApplyGroup && (
+            {needsApplyGroup ? (
               <div className="space-y-2">
-                <Label htmlFor="apply-group">投递组别</Label>
-                <Select
-                  value={applyGroup}
-                  onValueChange={(value) => {
-                    setApplyGroup(value);
-                    if (applyGroupError) setApplyGroupError(null);
-                  }}
-                >
-                  <SelectTrigger
-                    id="apply-group"
-                    className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
-                  >
-                    <SelectValue placeholder="选择投递组别" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {flowGroupOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-sm font-medium">投递组别（可多选，每组独立填写作品）</p>
+                <div className="space-y-2">
+                  {flowGroupOptions.map((option) => {
+                    const checked = selectedGroups.includes(option);
+                    const groupPortfolio = groupPortfolios[option] ?? {
+                      link: "",
+                      description: "",
+                    };
+                    return (
+                      <div
+                        key={option}
+                        className="rounded-lg border p-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`group-${option}`}
+                            checked={checked}
+                            onCheckedChange={(value) =>
+                              toggleGroup(option, value === true)
+                            }
+                          />
+                          <Label htmlFor={`group-${option}`} className="font-medium">
+                            {option}
+                          </Label>
+                        </div>
+                        {checked && (
+                          <div className="mt-3 space-y-3">
+                            <div className="space-y-1">
+                              <Label>作品链接</Label>
+                              <Input
+                                value={groupPortfolio.link}
+                                onChange={(event) =>
+                                  setGroupPortfolios((portfolios) => ({
+                                    ...portfolios,
+                                    [option]: {
+                                      ...portfolios[option],
+                                      link: event.target.value,
+                                    },
+                                  }))
+                                }
+                                placeholder="https://..."
+                                inputMode="url"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>作品简介</Label>
+                              <Textarea
+                                value={groupPortfolio.description}
+                                onChange={(event) =>
+                                  setGroupPortfolios((portfolios) => ({
+                                    ...portfolios,
+                                    [option]: {
+                                      ...portfolios[option],
+                                      description: event.target.value,
+                                    },
+                                  }))
+                                }
+                                placeholder="简单介绍该项目内容、你的负责部分和使用技术"
+                                className="min-h-20 resize-y"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
                 {applyGroupError && (
                   <p role="alert" className="text-sm text-destructive">
                     {applyGroupError}
                   </p>
                 )}
               </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="portfolio-link">作品链接</Label>
+                  <Input
+                    id="portfolio-link"
+                    value={portfolioLink}
+                    onChange={(event) => {
+                      setPortfolioLink(event.target.value);
+                      if (portfolioLinkError) setPortfolioLinkError(null);
+                    }}
+                    placeholder="https://..."
+                    inputMode="url"
+                    aria-invalid={Boolean(portfolioLinkError)}
+                  />
+                  {portfolioLinkError && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {portfolioLinkError}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="portfolio-description">作品简介</Label>
+                  <Textarea
+                    id="portfolio-description"
+                    value={portfolioDescription}
+                    onChange={(event) => setPortfolioDescription(event.target.value)}
+                    placeholder="简单介绍作品内容、你的负责部分和使用技术"
+                    className="min-h-24 resize-y"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    让讲师快速了解这个仓库的用途和你的贡献。
+                  </p>
+                </div>
+              </>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="portfolio-link">作品链接</Label>
-              <Input
-                id="portfolio-link"
-                value={portfolioLink}
-                onChange={(event) => {
-                  setPortfolioLink(event.target.value);
-                  if (portfolioLinkError) setPortfolioLinkError(null);
-                }}
-                placeholder="https://..."
-                inputMode="url"
-                aria-invalid={Boolean(portfolioLinkError)}
-              />
-              {portfolioLinkError && (
-                <p role="alert" className="text-sm text-destructive">
-                  {portfolioLinkError}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="portfolio-description">作品简介</Label>
-              <Textarea
-                id="portfolio-description"
-                value={portfolioDescription}
-                onChange={(event) => setPortfolioDescription(event.target.value)}
-                placeholder="简单介绍作品内容、你的负责部分和使用技术"
-                className="min-h-24 resize-y"
-              />
-              <p className="text-xs text-muted-foreground">
-                让讲师快速了解这个仓库的用途和你的贡献。
-              </p>
-            </div>
           </div>
         )}
         <DialogFooter>

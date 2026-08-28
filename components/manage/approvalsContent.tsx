@@ -28,6 +28,7 @@ export type EvaluationRow = {
   meetingLink: string | null;
   portfolioLink: string | null;
   portfolioDescription: string | null;
+  applyGroup: string | null;
   scheduleMeetingLink: string | null;
   meetingMinuteLink: string | null;
   authorName: string | null;
@@ -335,6 +336,7 @@ export const ApprovalsContent = ({
                   {row.evaluation.content}
                 </p>
                 <div className="grid gap-x-8 gap-y-3 pt-1 sm:grid-cols-3">
+                  <ReviewReference label="投递组别" value={row.applyGroup} />
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
                   <ReviewReference label="会议链接" value={row.scheduleMeetingLink} />
                   <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />

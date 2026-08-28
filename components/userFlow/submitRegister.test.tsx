@@ -89,7 +89,7 @@ describe("SubmitRegister", () => {
     jest.useRealTimers();
   });
 
-  it("disables unavailable flows and submits the selected active flow", async () => {
+  it("disables unavailable flows and submits a single written-flow submission", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
     render(
@@ -122,7 +122,9 @@ describe("SubmitRegister", () => {
     await user.click(screen.getByRole("button", { name: "确认报名" }));
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith(2, 7, undefined, undefined, undefined);
+      expect(mockRegister).toHaveBeenCalledWith(2, 7, [
+        { portfolioLink: undefined, portfolioDescription: undefined },
+      ]);
       expect(mockToastPromise).toHaveBeenCalled();
     });
   });
@@ -159,7 +161,7 @@ describe("SubmitRegister", () => {
     expect(screen.getByRole("button", { name: "暂无开放报名" })).toBeDisabled();
   });
 
-  it("shows optional portfolio link for non-written flows", async () => {
+  it("submits optional portfolio fields for ungrouped interview flows", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
     render(
@@ -184,13 +186,12 @@ describe("SubmitRegister", () => {
     await user.click(screen.getByRole("button", { name: "确认报名" }));
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith(
-        3,
-        7,
-        "https://demo.test",
-        "一个演示项目",
-        undefined,
-      );
+      expect(mockRegister).toHaveBeenCalledWith(3, 7, [
+        {
+          portfolioLink: "https://demo.test",
+          portfolioDescription: "一个演示项目",
+        },
+      ]);
     });
   });
 
@@ -219,7 +220,7 @@ describe("SubmitRegister", () => {
     expect(mockRegister).not.toHaveBeenCalled();
   });
 
-  it("requires a configured apply group before submitting the selected group", async () => {
+  it("requires selecting at least one apply group with independent portfolio per group", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
     render(
@@ -241,18 +242,73 @@ describe("SubmitRegister", () => {
     await user.click(screen.getByRole("button", { name: "提交报名" }));
     await user.click(screen.getByRole("button", { name: /免试流程/i }));
 
-    expect(screen.getByText("选择投递组别")).toBeInTheDocument();
-
     await user.click(screen.getByRole("button", { name: "确认报名" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("请选择投递组别");
+    expect(screen.getByRole("alert")).toHaveTextContent("请至少选择一个投递组别");
     expect(mockRegister).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "前端组" }));
+    await user.click(screen.getByRole("checkbox", { name: "前端组" }));
+    expect(screen.getAllByPlaceholderText("https://...").length).toBe(1);
+    await user.type(screen.getAllByPlaceholderText("https://...")[0], "https://a.test");
+    await user.type(
+      screen.getByPlaceholderText("简单介绍该项目内容、你的负责部分和使用技术"),
+      "前端项目",
+    );
     await user.click(screen.getByRole("button", { name: "确认报名" }));
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith(3, 7, "", "", "前端组");
+      expect(mockRegister).toHaveBeenCalledWith(3, 7, [
+        {
+          group: "前端组",
+          portfolioLink: "https://a.test",
+          portfolioDescription: "前端项目",
+        },
+      ]);
+    });
+  });
+
+  it("submits one submission per selected group with its own portfolio", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[
+          {
+            id: 3,
+            title: "免试流程",
+            type: "recruitment_exemption",
+            groupOptions: ["前端组", "后端组"],
+            startedAt: new Date("2026-03-21T08:00:00.000Z"),
+            endedAt: new Date("2026-03-23T08:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "提交报名" }));
+    await user.click(screen.getByRole("button", { name: /免试流程/i }));
+
+    await user.click(screen.getByRole("checkbox", { name: "前端组" }));
+    await user.type(screen.getAllByPlaceholderText("https://...")[0], "https://front.test");
+    await user.click(screen.getByRole("checkbox", { name: "后端组" }));
+    const inputs = screen.getAllByPlaceholderText("https://...");
+    await user.type(inputs[1], "https://backend.test");
+    await user.click(screen.getByRole("button", { name: "确认报名" }));
+
+    await waitFor(() => {
+      expect(mockRegister).toHaveBeenCalledWith(3, 7, [
+        {
+          group: "前端组",
+          portfolioLink: "https://front.test",
+          portfolioDescription: "",
+        },
+        {
+          group: "后端组",
+          portfolioLink: "https://backend.test",
+          portfolioDescription: "",
+        },
+      ]);
     });
   });
 });

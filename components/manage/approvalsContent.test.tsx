@@ -48,6 +48,7 @@ function row({
     meetingLink: null,
     portfolioLink: null,
     portfolioDescription: null,
+    applyGroup: null,
     scheduleMeetingLink: null,
     meetingMinuteLink: null,
     authorName: "讲师",
@@ -77,6 +78,7 @@ describe("ApprovalsContent", () => {
     expect(screen.getByText("张三")).toBeInTheDocument();
     expect(screen.getByText("李四")).toBeInTheDocument();
     expect(screen.getByText("讲师建议不通过")).toBeInTheDocument();
+    expect(screen.getAllByText("投递组别").length).toBeGreaterThan(0);
 
     await user.type(screen.getByLabelText("搜索归档面评"), "李四");
 
@@ -115,6 +117,7 @@ describe("ApprovalsContent", () => {
       <ApprovalsContent
         initialEvaluations={[{
           ...row({ id: 4, candidateName: "赵六", status: "submitted", recommendation: "passed" }),
+          applyGroup: "前端组",
           portfolioLink: "https://example.com/portfolio",
           portfolioDescription: "负责校园活动报名系统。",
           scheduleMeetingLink: "https://example.com/meeting",
