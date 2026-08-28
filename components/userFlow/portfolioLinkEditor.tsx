@@ -127,7 +127,7 @@ export const PortfolioLinkEditor = ({
   };
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-3">
+    <div className="min-w-0">
       {!editing ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-3">
