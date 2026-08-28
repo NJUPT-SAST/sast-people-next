@@ -28,6 +28,7 @@ export type EvaluationRow = {
   meetingLink: string | null;
   portfolioLink: string | null;
   portfolioDescription: string | null;
+  applyGroup: string | null;
   scheduleMeetingLink: string | null;
   meetingMinuteLink: string | null;
   authorName: string | null;
@@ -74,14 +75,22 @@ const InlineLink = ({ label, value }: { label: string; value: string }) => (
 const ReviewReference = ({
   label,
   value,
+  asText = false,
 }: {
   label: string;
   value: string | null;
+  asText?: boolean;
 }) => (
   <div className="min-w-0 space-y-1">
     <p className="text-xs text-muted-foreground">{label}</p>
     {value ? (
-      <InlineLink label={label} value={value} />
+      asText ? (
+        <p className="block max-w-full break-all text-sm leading-5 line-clamp-2">
+          {value}
+        </p>
+      ) : (
+        <InlineLink label={label} value={value} />
+      )
     ) : (
       <p className="text-xs text-muted-foreground/70">未提供</p>
     )}
@@ -335,6 +344,7 @@ export const ApprovalsContent = ({
                   {row.evaluation.content}
                 </p>
                 <div className="grid gap-x-8 gap-y-3 pt-1 sm:grid-cols-3">
+                  <ReviewReference label="投递组别" value={row.applyGroup} asText />
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
                   <ReviewReference label="会议链接" value={row.scheduleMeetingLink} />
                   <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />

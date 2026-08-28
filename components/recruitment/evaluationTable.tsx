@@ -486,6 +486,13 @@ export const EvaluationTable = ({
   const [groupDraft, setGroupDraft] = useState("");
   const [groupSaving, setGroupSaving] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
+  const [applyGroupFilter, setApplyGroupFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Reset the filter when the flow changes so a stale group value
+    // cannot hide every candidate under the new flow.
+    setApplyGroupFilter(null);
+  }, [groupOptions]);
 
   useEffect(() => {
     setNow(Date.now());
@@ -536,6 +543,10 @@ export const EvaluationTable = ({
   };
 
   const canEditApplyGroup = role >= 2 && groupOptions.length > 0;
+  const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
+  const visibleCandidates = applyGroupFilter
+    ? safeCandidates.filter((candidate) => candidate.applyGroup === applyGroupFilter)
+    : safeCandidates;
 
   const startGroupEdit = (c: Candidate) => {
     setGroupEditingCandidate(c);
@@ -756,7 +767,7 @@ export const EvaluationTable = ({
   }
 
   const statusCounts = new Map<string, number>();
-  for (const candidate of safeCandidates) {
+  for (const candidate of visibleCandidates) {
     const key = getCandidateStatusKey(candidate);
     statusCounts.set(key, (statusCounts.get(key) ?? 0) + 1);
   }
@@ -768,13 +779,79 @@ export const EvaluationTable = ({
 
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
-      <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+      <div className="hidden items-center border-b border-border/60 py-3 lg:flex">
+        <div className={`${role >= 2 ? "w-[22%]" : "w-[26%]"} min-w-0 px-4`}>
+          <p className="text-sm font-medium">面评候选人</p>
+          <p className="text-xs text-muted-foreground">
+            预约面试后提交面评结果
+          </p>
+        </div>
+        {safeGroupOptions.length > 0 && (
+          <div className={`${role >= 2 ? "w-[12%]" : "w-[14%]"} pl-3`}>
+            <Select
+              value={applyGroupFilter ?? "all"}
+              onValueChange={(value) =>
+                setApplyGroupFilter(value === "all" ? null : value)
+              }
+            >
+              <SelectTrigger
+                className="h-8 w-full truncate text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                aria-label="按投递组别筛选候选人"
+                title={applyGroupFilter ?? "全部组别"}
+              >
+                <SelectValue placeholder="全部组别" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部组别</SelectItem>
+                {safeGroupOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <p className="ml-auto pr-4 text-xs text-muted-foreground">
+          {summaryItems
+            .map(
+              (item) =>
+                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
+            )
+            .join(" · ")}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2 border-b border-border/60 px-4 py-3 lg:hidden">
         <div className="space-y-1">
           <p className="text-sm font-medium">面评候选人</p>
           <p className="text-xs text-muted-foreground">
             预约面试后提交面评结果
           </p>
         </div>
+        {safeGroupOptions.length > 0 && (
+          <Select
+            value={applyGroupFilter ?? "all"}
+            onValueChange={(value) =>
+              setApplyGroupFilter(value === "all" ? null : value)
+            }
+          >
+            <SelectTrigger
+                              className="h-8 w-full truncate text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                              aria-label="按投递组别筛选候选人"
+                title={applyGroupFilter ?? "全部组别"}
+            >
+              <SelectValue placeholder="全部组别" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部组别</SelectItem>
+              {safeGroupOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <p className="text-xs text-muted-foreground">
           {summaryItems
             .map(
@@ -817,7 +894,17 @@ export const EvaluationTable = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {safeCandidates.map((c) => {
+            {visibleCandidates.length === 0 && (
+              <TableRow className="border-b-0">
+                <TableCell
+                  colSpan={role >= 2 ? 6 : 5}
+                  className="h-24 text-center text-sm text-muted-foreground"
+                >
+                  该组别暂无候选人
+                </TableCell>
+              </TableRow>
+            )}
+            {visibleCandidates.map((c) => {
               const isEditing = evaluatingId === c.userFlowId;
               const isRejected = c.status === "failed";
               const busy = loadingId === c.userFlowId;
@@ -958,7 +1045,12 @@ export const EvaluationTable = ({
 
       {/* Mobile card view */}
       <div className="flex flex-col divide-y divide-border lg:hidden">
-        {safeCandidates.map((c) => {
+        {visibleCandidates.length === 0 ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            该组别暂无候选人
+          </div>
+        ) : (
+          visibleCandidates.map((c) => {
           const isEditing = evaluatingId === c.userFlowId;
           const isRejected = c.status === "failed";
           const busy = loadingId === c.userFlowId;
@@ -1086,7 +1178,8 @@ export const EvaluationTable = ({
               )}
             </div>
           );
-        })}
+          })
+        )}
       </div>
       <Dialog
         open={Boolean(portfolioCandidate)}
@@ -1094,7 +1187,7 @@ export const EvaluationTable = ({
           if (!open) setPortfolioCandidate(null);
         }}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>作品信息</DialogTitle>
             <DialogDescription>

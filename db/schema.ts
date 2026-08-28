@@ -141,7 +141,14 @@ export const userFlow = pgTable("user_flow", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
 }, (table) => ({
-  uniqueFlowUser: unique().on(table.fkFlowId, table.fkUserId),
+  /* 笔试/无组别流程：同一用户同流程只允许一条记录 */
+  noGroupFlowUserUnique: uniqueIndex("uq_user_flow_flow_user_no_group")
+    .on(table.fkFlowId, table.fkUserId)
+    .where(sql`${table.applyGroup} IS NULL`),
+  /* 面试流程：按组别独立投递，同一用户同流程可报多个组别 */
+  groupFlowUserUnique: uniqueIndex("uq_user_flow_flow_user_group")
+    .on(table.fkFlowId, table.fkUserId, table.applyGroup)
+    .where(sql`${table.applyGroup} IS NOT NULL`),
   userIdIdx: index("user_flow_fk_user_id_idx").on(table.fkUserId),
 }));
 

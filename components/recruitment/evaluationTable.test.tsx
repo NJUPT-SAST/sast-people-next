@@ -280,6 +280,92 @@ describe("EvaluationTable", () => {
       .toBeInTheDocument();
   });
 
+  it("filters candidates by apply group", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <EvaluationTable
+        role={2}
+        groupOptions={["前端组", "后端组"]}
+        onRefresh={jest.fn()}
+        candidates={[
+          {
+            userFlowId: 21,
+            uid: 21,
+            name: "张三",
+            studentId: "B021",
+            qq: null,
+            status: "ongoing",
+            portfolioLink: null,
+            portfolioDescription: null,
+            applyGroup: "前端组",
+            evalId: null,
+            evalContent: null,
+            evalMeetingLink: null,
+            evalRecommendation: null,
+            evalStatus: null,
+            evalAuthorId: null,
+            canEditEvaluation: true,
+            canManageSchedule: true,
+            scheduleId: null,
+            scheduleOrganizerName: null,
+            scheduleMeetingLink: null,
+            scheduleLink: null,
+            scheduleMeetingMinuteLink: null,
+            scheduleLocation: null,
+            scheduleMeetingRoomId: null,
+            scheduleStartsAt: null,
+            scheduleEndsAt: null,
+            scheduleStatus: null,
+            scheduleMeetingStatus: null,
+            scheduleMeetingEndedAt: null,
+          },
+          {
+            userFlowId: 22,
+            uid: 22,
+            name: "李四",
+            studentId: "B022",
+            qq: null,
+            status: "ongoing",
+            portfolioLink: null,
+            portfolioDescription: null,
+            applyGroup: "后端组",
+            evalId: null,
+            evalContent: null,
+            evalMeetingLink: null,
+            evalRecommendation: null,
+            evalStatus: null,
+            evalAuthorId: null,
+            canEditEvaluation: true,
+            canManageSchedule: true,
+            scheduleId: null,
+            scheduleOrganizerName: null,
+            scheduleMeetingLink: null,
+            scheduleLink: null,
+            scheduleMeetingMinuteLink: null,
+            scheduleLocation: null,
+            scheduleMeetingRoomId: null,
+            scheduleStartsAt: null,
+            scheduleEndsAt: null,
+            scheduleStatus: null,
+            scheduleMeetingStatus: null,
+            scheduleMeetingEndedAt: null,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("后端组").length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole("button", { name: "后端组" })[0]);
+    expect(screen.getAllByRole("button", { name: "修改李四的投递组别" }).length).toBe(2);
+    expect(
+      screen.queryAllByRole("button", { name: "修改张三的投递组别" }).length,
+    ).toBe(0);
+    expect(screen.queryByText("该组别暂无候选人")).not.toBeInTheDocument();
+  });
+
   it("lets roles 2+ mark or change a candidate's apply group", async () => {
     const user = userEvent.setup();
     const onRefresh = jest.fn();

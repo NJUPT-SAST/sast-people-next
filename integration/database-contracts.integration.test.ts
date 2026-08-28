@@ -38,14 +38,18 @@ async function createFlow() {
   return result.rows[0].id;
 }
 
-async function createUserFlow(flowId: number, userId = 900002) {
+async function createUserFlow(
+  flowId: number,
+  userId = 900002,
+  applyGroup: string | null = null,
+) {
   const result = await client.query<{ id: number }>(
     `
-      insert into user_flow (progress_status, fk_flow_id, fk_user_id)
-      values ('ongoing', $1, $2)
+      insert into user_flow (progress_status, fk_flow_id, fk_user_id, apply_group)
+      values ('ongoing', $1, $2, $3)
       returning id
     `,
-    [flowId, userId],
+    [flowId, userId, applyGroup],
   );
   return result.rows[0].id;
 }
@@ -73,7 +77,20 @@ describe("PostgreSQL migration contracts", () => {
 
     await expect(createUserFlow(flowId)).rejects.toMatchObject({
       code: "23505",
-      constraint: "uq_user_flow_flow_user",
+      constraint: "uq_user_flow_flow_user_no_group",
+    });
+  });
+
+  it("allows separate registrations per apply group", async () => {
+    const flowId = await createFlow();
+    await createUserFlow(flowId, 900003, "前端组");
+    await createUserFlow(flowId, 900003, "后端组");
+
+    await expect(
+      createUserFlow(flowId, 900003, "前端组"),
+    ).rejects.toMatchObject({
+      code: "23505",
+      constraint: "uq_user_flow_flow_user_group",
     });
   });
 

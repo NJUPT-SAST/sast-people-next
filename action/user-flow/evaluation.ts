@@ -610,6 +610,7 @@ export const getAllEvaluations = async () => {
         meetingLink: interviewEvaluation.meetingLink,
         portfolioLink: userFlow.portfolioLink,
         portfolioDescription: userFlow.portfolioDescription,
+        applyGroup: userFlow.applyGroup,
         authorId: interviewEvaluation.fkUserId,
         candidateId: userFlow.fkUserId,
         flowTitle: flow.title,
