@@ -78,6 +78,7 @@ import { PortfolioLinkEditor } from "./portfolioLinkEditor";
 describe("PortfolioLinkEditor", () => {
   beforeEach(() => {
     mockUpdatePortfolioLink.mockReset().mockResolvedValue({ success: true });
+    mockUpdateApplyGroup.mockReset().mockResolvedValue({ success: true });
   });
 
   it("allows editing while the flow is in progress", async () => {
@@ -203,13 +204,61 @@ describe("PortfolioLinkEditor", () => {
 
     await waitFor(() => {
       expect(mockUpdateApplyGroup).toHaveBeenCalledWith(1, "后端组");
+      expect(mockUpdatePortfolioLink).not.toHaveBeenCalled();
+    });
+    expect(screen.getByText("后端组")).toBeInTheDocument();
+  });
+
+  it("only saves portfolio fields when the group is unchanged", async () => {
+    const user = userEvent.setup();
+    render(
+      <PortfolioLinkEditor
+        userFlowId={1}
+        initialValue="https://example.com/work"
+        applyGroup="前端组"
+        applyGroupOptions={["前端组", "后端组"]}
+        editable
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /修改/ }));
+    const description = screen.getByLabelText("作品简介");
+    await user.type(description, "新简介");
+    await user.click(screen.getByRole("button", { name: /保存/ }));
+
+    await waitFor(() => {
       expect(mockUpdatePortfolioLink).toHaveBeenCalledWith(
         1,
         "https://example.com/work",
-        "",
+        "新简介",
       );
+      expect(mockUpdateApplyGroup).not.toHaveBeenCalled();
     });
-    expect(screen.getByText("后端组")).toBeInTheDocument();
+  });
+
+  it("treats normalized unchanged values as a successful no-op", async () => {
+    const user = userEvent.setup();
+    render(
+      <PortfolioLinkEditor
+        userFlowId={1}
+        initialValue="https://example.com/work"
+        initialDescription="作品简介"
+        applyGroup="前端组"
+        applyGroupOptions={["前端组", "后端组"]}
+        editable
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /修改/ }));
+    await user.type(screen.getByLabelText("作品链接"), "  ");
+    await user.type(screen.getByLabelText("作品简介"), "  ");
+    await user.click(screen.getByRole("button", { name: /保存/ }));
+
+    await waitFor(() => {
+      expect(mockUpdatePortfolioLink).not.toHaveBeenCalled();
+      expect(mockUpdateApplyGroup).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: /修改/ })).toBeInTheDocument();
+    });
   });
 
   it("cancels editing and restores the previous values", async () => {

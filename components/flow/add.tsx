@@ -11,8 +11,6 @@ import {
 } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { createInsertSchema } from 'drizzle-zod';
-import { flow } from '@/db/schema';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -35,70 +33,13 @@ import {
 import { toast } from 'sonner';
 import { addFlow } from '@/action/flow/add';
 import { DateTimeInput } from '../ui/datetime-input';
+import {
+  addFlowSchema,
+  editFlowSchema,
+  fullFlowSchema,
+} from '@/lib/validation/flow';
 
-export const fullFlowSchema = createInsertSchema(flow, {
-  title: z.string().min(1, '请输入流程名称').trim(),
-  description: z.string().min(1, '请输入流程描述').trim(),
-  startedAt: z.date({ error: '请选择开始时间' }),
-  endedAt: z.date({ error: '请选择结束时间' }),
-});
-
-export const addFlowSchema = fullFlowSchema.pick({
-  title: true,
-  description: true,
-  type: true,
-  startedAt: true,
-  endedAt: true,
-})
-.superRefine((data, ctx) => {
-  // 若任一缺失，单独报错（required_error已覆盖，superRefine兜底）
-  if (!data.startedAt) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请选择开始时间', path: ['startedAt'] });
-  }
-  if (!data.endedAt) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请选择结束时间', path: ['endedAt'] });
-  }
-
-  if (data.startedAt && data.endedAt) {
-    // 按毫秒比较，允许同一天同一时刻或结束晚于开始
-    if (data.endedAt.getTime() < data.startedAt.getTime()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束时间不能早于开始时间', path: ['endedAt'] });
-    }
-  }
-});
-
-export const editFlowSchema = fullFlowSchema.pick({
-  id: true,
-  title: true,
-  description: true,
-  type: true,
-  startedAt: true,
-  endedAt: true,
-})
-.extend({
-  endedAt: z.date().nullable().optional(),
-  groupOptions: z
-    .array(
-      z
-        .string()
-        .trim()
-        .min(1, '组别不能为空')
-        .max(100, '组别名称不能超过 100 字'),
-    )
-    .max(30, '组别数量不能超过 30 个')
-    .optional(),
-})
-.superRefine((data, ctx) => {
-  if (!data.startedAt) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请选择开始时间', path: ['startedAt'] });
-  }
-
-  if (data.startedAt && data.endedAt) {
-    if (data.endedAt.getTime() < data.startedAt.getTime()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '结束时间不能早于开始时间', path: ['endedAt'] });
-    }
-  }
-});
+export { addFlowSchema, editFlowSchema, fullFlowSchema };
 
 export const AddFlow = () => {
   const addFlowForm = useForm<z.infer<typeof addFlowSchema>>({
@@ -244,4 +185,3 @@ export const AddFlow = () => {
     </Dialog>
   );
 };
-

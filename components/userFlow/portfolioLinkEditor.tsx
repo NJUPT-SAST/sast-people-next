@@ -81,12 +81,30 @@ export const PortfolioLinkEditor = ({
     setError(null);
     setSaving(true);
     try {
-      const results = await Promise.all([
-        updatePortfolioLink(userFlowId, draft, draftDescription),
-        hasGroupOptions
-          ? updateApplyGroup(userFlowId, draftGroup)
-          : Promise.resolve({ success: true } as const),
-      ]);
+      const normalizedDraft = draft.trim();
+      const normalizedDescription = draftDescription.trim();
+      const normalizedGroup = draftGroup.trim();
+      const portfolioChanged =
+        normalizedDraft !== value.trim() ||
+        normalizedDescription !== description.trim();
+      const groupChanged =
+        hasGroupOptions && normalizedGroup !== group.trim();
+      const operations = [];
+
+      if (portfolioChanged) {
+        operations.push(
+          updatePortfolioLink(
+            userFlowId,
+            normalizedDraft,
+            normalizedDescription,
+          ),
+        );
+      }
+      if (groupChanged) {
+        operations.push(updateApplyGroup(userFlowId, normalizedGroup));
+      }
+
+      const results = await Promise.all(operations);
       const failed = results.find(
         (result) => (result as { success: boolean }).success === false,
       ) as { success: false; error?: { message?: string } } | undefined;
@@ -95,9 +113,9 @@ export const PortfolioLinkEditor = ({
         toast.error(failed.error?.message ?? "保存失败");
         return;
       }
-      setValue(draft.trim());
-      setDescription(draftDescription.trim());
-      setGroup(draftGroup);
+      setValue(normalizedDraft);
+      setDescription(normalizedDescription);
+      setGroup(normalizedGroup);
       setEditing(false);
       toast.success("报名信息已保存");
       router.refresh();
