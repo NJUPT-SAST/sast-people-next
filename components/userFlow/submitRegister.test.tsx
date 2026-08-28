@@ -312,4 +312,33 @@ describe("SubmitRegister", () => {
       ]);
     });
   });
+
+  it("clears the draft when the dialog is closed", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[{
+          id: 3,
+          title: "免试流程",
+          type: "recruitment_exemption",
+          groupOptions: ["前端组", "后端组"],
+          startedAt: new Date("2026-03-21T08:00:00.000Z"),
+          endedAt: new Date("2026-03-23T08:00:00.000Z"),
+        }] as never}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "提交报名" }));
+    await user.click(screen.getByRole("button", { name: /免试流程/i }));
+    await user.click(screen.getByRole("button", { name: "前端组" }));
+    expect(screen.getAllByPlaceholderText("https://...").length).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "提交报名" }));
+
+    expect(screen.queryByPlaceholderText("https://...")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认报名" })).toBeDisabled();
+  });
 });

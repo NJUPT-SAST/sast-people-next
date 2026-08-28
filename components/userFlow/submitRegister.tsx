@@ -161,7 +161,13 @@ const SubmitRegister = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) resetForm();
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm" className="h-10 w-full sm:h-8 sm:w-auto" disabled={!hasOpenFlows}>
           {hasFlows && !hasOpenFlows ? "暂无开放报名" : "提交报名"}
@@ -174,6 +180,7 @@ const SubmitRegister = ({
         </DialogHeader>
         <Select
           disabled={!hasFlows}
+          value={selectedFlow?.toString() ?? ""}
           onValueChange={(value) => {
             setSelectedFlow(Number(value));
             setPortfolioLink("");
@@ -237,7 +244,11 @@ const SubmitRegister = ({
                     return (
                       <div
                         key={index}
-                        className="space-y-3 rounded-lg border p-3"
+                        className={
+                          index > 0
+                            ? "space-y-3 border-t border-border/60 pt-4"
+                            : "space-y-3"
+                        }
                       >
                         <div className="flex items-center gap-2">
                           <Select
