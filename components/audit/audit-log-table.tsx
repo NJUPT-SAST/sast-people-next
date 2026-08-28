@@ -310,7 +310,7 @@ function AuditDetailDialog({ item }: { item: AuditLogItem }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 px-3 text-xs">
+        <Button variant="outline" size="sm" className="h-10 px-3 text-xs sm:h-8">
           查看详情
         </Button>
       </DialogTrigger>

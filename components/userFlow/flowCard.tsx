@@ -208,7 +208,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
           {typeof safeFlow.id === "number" &&
             (safeFlow.status === "not_started" ||
               safeFlow.status === "ongoing") && (
-              <div className="shrink-0 self-stretch sm:self-auto">
+              <div className="shrink-0 self-start sm:self-auto">
                 <CancelRegistration userFlowId={safeFlow.id} />
               </div>
             )}

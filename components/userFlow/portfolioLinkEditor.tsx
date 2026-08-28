@@ -146,18 +146,18 @@ export const PortfolioLinkEditor = ({
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
+                  className="inline-flex max-w-full items-start gap-1 break-all text-sm leading-5 text-foreground/85 underline decoration-muted-foreground/40 underline-offset-4 hover:text-primary hover:decoration-primary"
                 >
-                  <span className="truncate">{value}</span>
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                  <span>{value}</span>
+                  <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 </a>
               ) : (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {editable ? "暂未填写" : "未填写（流程已结束）"}
                 </p>
               )}
               {description && (
-                <p className="max-w-2xl whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                <p className="whitespace-pre-wrap text-sm leading-5 text-foreground/85">
                   {description}
                 </p>
               )}
@@ -230,7 +230,7 @@ export const PortfolioLinkEditor = ({
               {error}
             </p>
           )}
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="ghost"

@@ -156,10 +156,10 @@ export function EmailRecordsSection({
           </div>
 
           <div className="flex gap-2">
-            <Button type="submit" size="sm">
+            <Button type="submit" size="sm" className="h-10 sm:h-8">
               筛选
             </Button>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className="h-10 sm:h-8">
               <Link href="/dashboard/emails?tab=records">重置</Link>
             </Button>
           </div>
@@ -191,7 +191,7 @@ export function EmailRecordsSection({
                     {templateLabel(delivery.templateKey, templateDefinitions)}
                   </span>
                 </div>
-                <p className="mt-1 truncate text-sm font-medium">
+                <p className="mt-1 truncate text-sm font-medium" title={delivery.subject ?? undefined}>
                   {delivery.subject}
                 </p>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">

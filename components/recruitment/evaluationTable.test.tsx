@@ -135,10 +135,60 @@ describe("EvaluationTable", () => {
     expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "退回" }).length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
+    expect(screen.getByRole("dialog")).toHaveTextContent("确认退回面试报名");
+    await user.click(screen.getByRole("button", { name: "确认退回" }));
     expect(returnInterviewCandidate).toHaveBeenCalledWith(42);
     expect(screen.getAllByRole("button", { name: "预约" })[0]).toHaveClass(
       "text-foreground",
     );
+  });
+
+  it("does not return a candidate when the confirm dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    render(
+      <EvaluationTable
+        role={3}
+        groupOptions={[]}
+        onRefresh={jest.fn()}
+        candidates={[{
+          userFlowId: 43,
+          uid: 4,
+          name: "赵六",
+          studentId: "B004",
+          qq: null,
+          status: "ongoing",
+          portfolioLink: null,
+          portfolioDescription: null,
+          applyGroup: null,
+          evalId: null,
+          evalContent: null,
+          evalMeetingLink: null,
+          evalRecommendation: null,
+          evalStatus: null,
+          evalAuthorId: null,
+          canEditEvaluation: true,
+          canManageSchedule: true,
+          scheduleId: null,
+          scheduleOrganizerName: null,
+          scheduleMeetingLink: null,
+          scheduleLink: null,
+          scheduleMeetingMinuteLink: null,
+          scheduleLocation: null,
+          scheduleMeetingRoomId: null,
+          scheduleStartsAt: null,
+          scheduleEndsAt: null,
+          scheduleStatus: null,
+          scheduleMeetingStatus: null,
+          scheduleMeetingEndedAt: null,
+        }]}
+      />,
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
+    expect(screen.getByRole("dialog")).toHaveTextContent("确认退回面试报名");
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(returnInterviewCandidate).not.toHaveBeenCalled();
   });
 
   it("requires evaluation content before submission", async () => {

@@ -20,6 +20,7 @@ function RecoverStaleBatchButton({ batchId }: { batchId: number }) {
     <Button
       variant="outline"
       size="sm"
+      className="h-10 sm:h-8"
       onClick={() => {
         toast.promise(
           recoverStaleEmailBatch(batchId).then((result) => {
@@ -56,6 +57,7 @@ function RetryBatchButton({
     <Button
       variant="outline"
       size="sm"
+      className="h-10 sm:h-8"
       disabled={disabled}
       onClick={() => {
         toast.promise(
