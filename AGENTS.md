@@ -6,7 +6,7 @@
 - `action/` Server Actions for mutations and workflow operations.
 - `components/` Feature UI; `components/ui/` holds shadcn/ui primitives.
 - `db/` Drizzle schema and database client; SQL migrations live in `migrations/`.
-- `lib/` Shared server utilities (session, Link, Feishu, email, AI, Sentry, DAL).
+- `lib/` Shared server utilities (session, Link, Feishu, email, Sentry, DAL).
 - `queue/` Inngest background jobs; `emails/` react-email templates.
 - `e2e/` Playwright end-to-end specs; unit tests colocate as `*.test.ts(x)`.
 - `docs/` Product, schema, and integration documentation.
@@ -22,6 +22,7 @@
 - `pnpm build` / `pnpm start` — Production build and serve.
 - `pnpm lint` — Run ESLint. Use `--fix` to auto-fix.
 - `pnpm test` / `pnpm test:watch` / `pnpm test:coverage` — Jest.
+- `pnpm test:integration` — Integration tests against PostgreSQL (`integration/*.integration.test.ts`).
 - `pnpm test:e2e` — Playwright end-to-end suites.
 - `pnpm exec tsc --noEmit` — Typecheck.
 
