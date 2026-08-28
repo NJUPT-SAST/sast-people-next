@@ -1,7 +1,7 @@
 "use server";
 import { db } from "@/db/drizzle";
 import { flow, flowStep, userFlow } from "@/db/schema";
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logServerError } from "@/lib/server-error-log";
 import { verifySession } from "@/lib/dal";
@@ -172,56 +172,105 @@ export const register = async (
       const configuredGroups = normalizeGroupOptions(groupOptions);
       const isWrittenRecruitment = type === "recruitment";
 
-      // 归一化并校验每组投递
-      const normalized = submissions.map((submission) => {
+      // 归一化并校验每组投递（校验失败直接返回结构化错误，避免 Server Action 吞消息）
+      const normalized: Array<{
+        group?: string;
+        portfolioLink: string | null;
+        portfolioDescription: string | null;
+      }> = [];
+      for (const submission of submissions) {
         const group = submission.group?.trim() || undefined;
         if (isWrittenRecruitment) {
           if (group) {
-            throw new Error(
-              "笔试流程不支持投递组别，请重新填写报名信息",
-            );
+            return {
+              success: false,
+              error: {
+                message: "笔试流程不支持投递组别，请重新填写报名信息",
+              },
+            };
           }
-          return {
+          normalized.push({
             group: undefined,
             portfolioLink: null,
             portfolioDescription: null,
-          };
+          });
+          continue;
         }
         if (configuredGroups.length === 0) {
           if (group) {
-            throw new Error("该流程未配置投递组别，暂不支持分组投递");
+            return {
+              success: false,
+              error: {
+                message: "该流程未配置投递组别，暂不支持分组投递",
+              },
+            };
           }
-          return {
+          normalized.push({
             group: undefined,
             portfolioLink: submission.portfolioLink?.trim() || null,
             portfolioDescription:
               submission.portfolioDescription?.trim() || null,
-          };
+          });
+          continue;
         }
         if (!group) {
-          throw new Error("请选择投递组别");
+          return {
+            success: false,
+            error: {
+              message: "请选择投递组别",
+            },
+          };
         }
         if (!configuredGroups.includes(group)) {
-          throw new Error(`投递组别“${group}”不在该流程的选项内`);
+          return {
+            success: false,
+            error: {
+              message: `投递组别“${group}”不在该流程的选项内`,
+            },
+          };
         }
-        return {
+        normalized.push({
           group,
           portfolioLink: submission.portfolioLink?.trim() || null,
           portfolioDescription:
             submission.portfolioDescription?.trim() || null,
-        };
-      });
+        });
+      }
 
       const seenGroups = new Set<string>();
+      let ungroupedCount = 0;
       for (const submission of normalized) {
-        if (submission.group && seenGroups.has(submission.group)) {
-          throw new Error(`投递组别“${submission.group}”重复，请合并后再提交`);
+        if (submission.group) {
+          if (seenGroups.has(submission.group)) {
+            return {
+              success: false,
+              error: {
+                message: `投递组别“${submission.group}”重复，请合并后再提交`,
+              },
+            };
+          }
+          seenGroups.add(submission.group);
+        } else {
+          ungroupedCount += 1;
         }
-        if (submission.group) seenGroups.add(submission.group);
+      }
+      // 无组别（笔试/未配置组别）的流程只允许一条投递，防止越过部分唯一索引
+      if (ungroupedCount > 1) {
+        return {
+          success: false,
+          error: {
+            message: "该流程只支持提交一条报名信息",
+          },
+        };
       }
       if (!isWrittenRecruitment && configuredGroups.length > 0) {
         if (normalized.every((s) => !s.group)) {
-          throw new Error("请至少选择一个投递组别");
+          return {
+            success: false,
+            error: {
+              message: "请至少选择一个投递组别",
+            },
+          };
         }
       }
 
@@ -230,37 +279,43 @@ export const register = async (
           submission.portfolioLink &&
           !isValidExternalUrl(submission.portfolioLink)
         ) {
-          throw new Error(
-            submission.group
-              ? `“${submission.group}”的作品链接格式不正确，请填写有效的 URL`
-              : "作品链接格式不正确，请填写有效的 URL",
-          );
+          return {
+            success: false,
+            error: {
+              message: submission.group
+                ? `“${submission.group}”的作品链接格式不正确，请填写有效的 URL`
+                : "作品链接格式不正确，请填写有效的 URL",
+            },
+          };
         }
       }
 
       const stepId = await findStepIdByOrder(flowId, 2);
 
-      // 检查每个投递是否已存在
+      // 一次查询所有已有记录，重复检查与恢复共用一个索引
+      const existingFlows = await tx
+        .select({
+          id: userFlow.id,
+          progressStatus: userFlow.progressStatus,
+          applyGroup: userFlow.applyGroup,
+        })
+        .from(userFlow)
+        .where(
+          and(eq(userFlow.fkFlowId, flowId), eq(userFlow.fkUserId, uid)),
+        );
+      const existingByGroup = new Map<
+        string | null,
+        (typeof existingFlows)[number]
+      >();
+      for (const existing of existingFlows) {
+        existingByGroup.set(existing.applyGroup, existing);
+      }
+
+      // 检查每个投递是否已存在（先查全再写入，事务失败时不产生半成品）
       const duplicates: string[] = [];
       for (const submission of normalized) {
-        const groupCondition = submission.group
-          ? eq(userFlow.applyGroup, submission.group)
-          : isNull(userFlow.applyGroup);
-        const [existingFlow] = await tx
-          .select({ id: userFlow.id, progressStatus: userFlow.progressStatus })
-          .from(userFlow)
-          .where(
-            and(
-              eq(userFlow.fkFlowId, flowId),
-              eq(userFlow.fkUserId, uid),
-              groupCondition,
-            ),
-          )
-          .limit(1);
-        if (
-          existingFlow &&
-          existingFlow.progressStatus !== "withdrawn"
-        ) {
+        const existing = existingByGroup.get(submission.group ?? null);
+        if (existing && existing.progressStatus !== "withdrawn") {
           duplicates.push(submission.group ?? "未分组投递");
         }
       }
@@ -275,22 +330,8 @@ export const register = async (
 
       // 逐组创建/恢复
       for (const submission of normalized) {
-        const groupCondition = submission.group
-          ? eq(userFlow.applyGroup, submission.group)
-          : isNull(userFlow.applyGroup);
-        const [existingFlow] = await tx
-          .select({ id: userFlow.id, progressStatus: userFlow.progressStatus })
-          .from(userFlow)
-          .where(
-            and(
-              eq(userFlow.fkFlowId, flowId),
-              eq(userFlow.fkUserId, uid),
-              groupCondition,
-            ),
-          )
-          .limit(1);
-
-        if (existingFlow?.progressStatus === "withdrawn") {
+        const existing = existingByGroup.get(submission.group ?? null);
+        if (existing) {
           await tx
             .update(userFlow)
             .set({
@@ -301,8 +342,8 @@ export const register = async (
               applyGroup: submission.group ?? null,
               updatedAt: new Date(),
             })
-            .where(eq(userFlow.id, existingFlow.id));
-          createdUserFlowIds.push(existingFlow.id);
+            .where(eq(userFlow.id, existing.id));
+          createdUserFlowIds.push(existing.id);
         } else {
           const [newFlow] = await tx
             .insert(userFlow)

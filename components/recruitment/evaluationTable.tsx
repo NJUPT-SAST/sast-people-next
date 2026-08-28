@@ -894,7 +894,10 @@ export const EvaluationTable = ({
           <TableBody>
             {visibleCandidates.length === 0 && (
               <TableRow className="border-b-0">
-                <TableCell colSpan={6} className="h-24 text-center text-sm text-muted-foreground">
+                <TableCell
+                  colSpan={role >= 2 ? 6 : 5}
+                  className="h-24 text-center text-sm text-muted-foreground"
+                >
                   该组别暂无候选人
                 </TableCell>
               </TableRow>

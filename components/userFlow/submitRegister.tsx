@@ -141,17 +141,17 @@ const SubmitRegister = ({
   };
 
   const toggleGroup = (option: string, checked: boolean) => {
-    setSelectedGroups((prev) => {
-      if (checked && !prev.includes(option)) {
-        setGroupPortfolios((portfolios) => ({
-          ...portfolios,
-          [option]: portfolios[option] ?? { link: "", description: "" },
-        }));
-        return [...prev, option];
-      }
-      if (!checked) return prev.filter((group) => group !== option);
-      return prev;
-    });
+    if (checked) {
+      setGroupPortfolios((portfolios) => ({
+        ...portfolios,
+        [option]: portfolios[option] ?? { link: "", description: "" },
+      }));
+      setSelectedGroups((prev) =>
+        prev.includes(option) ? prev : [...prev, option],
+      );
+    } else {
+      setSelectedGroups((prev) => prev.filter((group) => group !== option));
+    }
     if (applyGroupError) setApplyGroupError(null);
   };
 
@@ -244,8 +244,9 @@ const SubmitRegister = ({
                         {checked && (
                           <div className="mt-3 space-y-3">
                             <div className="space-y-1">
-                              <Label>作品链接</Label>
+                              <Label htmlFor={`group-${option}-link`}>作品链接</Label>
                               <Input
+                                id={`group-${option}-link`}
                                 value={groupPortfolio.link}
                                 onChange={(event) =>
                                   setGroupPortfolios((portfolios) => ({
@@ -261,8 +262,9 @@ const SubmitRegister = ({
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label>作品简介</Label>
+                              <Label htmlFor={`group-${option}-description`}>作品简介</Label>
                               <Textarea
+                                id={`group-${option}-description`}
                                 value={groupPortfolio.description}
                                 onChange={(event) =>
                                   setGroupPortfolios((portfolios) => ({
