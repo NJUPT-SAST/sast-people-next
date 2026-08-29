@@ -18,7 +18,15 @@ import { logServerError } from "@/lib/server-error-log";
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
+  const oauthError = searchParams.get("error");
   const state = searchParams.get("state");
+  if (!code && oauthError) {
+    // OAuth failure (e.g. user denied the authorization) → show the login page
+    // with a friendly banner instead of a raw JSON error.
+    const loginUrl = new URL(`/login`, request.nextUrl.origin);
+    loginUrl.searchParams.set("reason", "link-denied");
+    return NextResponse.redirect(loginUrl);
+  }
   if (!code) {
     return NextResponse.json({ message: "code is required" }, { status: 400 });
   }

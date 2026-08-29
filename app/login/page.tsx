@@ -17,6 +17,7 @@ const Login = async ({
   const awaitedSearchParams = await searchParams;
   const linkAuthorizationExpired =
     awaitedSearchParams.reason === "link-authorization";
+  const linkDenied = awaitedSearchParams.reason === "link-denied";
   return (
     <main className="min-h-dvh bg-[#f5f7f3] px-safe text-[#18231d]">
       <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
@@ -99,6 +100,11 @@ const Login = async ({
                   {linkAuthorizationExpired && (
                     <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900">
                       SAST Link 授权已失效，请重新登录。
+                    </p>
+                  )}
+                  {linkDenied && (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900">
+                      您已取消 SAST Link 登录授权，请重新登录。
                     </p>
                   )}
                   <p className="text-xs font-medium tracking-wide text-[#18A058]">
