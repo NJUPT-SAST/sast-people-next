@@ -373,7 +373,16 @@ const PortfolioLink = ({
 };
 const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
   if (!candidate.scheduleMeetingLink) {
-    return <span className="text-sm text-muted-foreground">未预约</span>;
+    return (
+      <div className="min-w-0 space-y-0.5">
+        <span className="text-sm text-muted-foreground">未预约</span>
+        {candidate.status === "withdrawn" && candidate.withdrawReason && (
+          <p className="truncate text-xs text-destructive" title={candidate.withdrawReason}>
+            退回理由：{candidate.withdrawReason}
+          </p>
+        )}
+      </div>
+    );
   }
 
   const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
@@ -1297,49 +1306,6 @@ export const EvaluationTable = ({
               onClick={() => setPortfolioCandidate(null)}
             >
               关闭
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={Boolean(returnConfirmCandidate)}
-        onOpenChange={(open) => {
-          if (!open) setReturnConfirmCandidate(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>确认退回面试报名</DialogTitle>
-            <DialogDescription>
-              {returnConfirmCandidate
-                ? `退回后 ${returnConfirmCandidate.name} 的当前面试流程将作废，候选人需重新选择流程。此操作不可撤销，确定要退回吗？`
-                : "退回后候选人的当前面试流程将作废，需重新报名。"}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setReturnConfirmCandidate(null)}
-              disabled={loadingId !== null}
-            >
-              取消
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={loadingId !== null}
-              loading={
-                returnConfirmCandidate
-                  ? loadingId === returnConfirmCandidate.userFlowId
-                  : false
-              }
-              onClick={() => {
-                if (!returnConfirmCandidate) return;
-                return handleReturnCandidate(returnConfirmCandidate);
-              }}
-            >
-              确认退回
             </Button>
           </DialogFooter>
         </DialogContent>

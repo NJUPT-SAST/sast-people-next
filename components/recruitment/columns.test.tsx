@@ -7,7 +7,7 @@ jest.mock("@/components/manage/viewUserInfoSheet", () => ({
   ),
 }));
 
-import { makeColumns } from "./columns";
+import { makeColumns } from "@/components/recruitment/columns";
 
 const columns = makeColumns(3);
 
