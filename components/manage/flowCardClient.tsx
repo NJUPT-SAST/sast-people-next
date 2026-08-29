@@ -227,6 +227,11 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
               {activeStep?.description ||
                 '流程已结束'}
             </p>
+            {flow.status === 'withdrawn' && flow.withdrawReason && (
+              <p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm text-destructive">
+                退回理由：{flow.withdrawReason}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {role >= 3 && flow.status === 'withdrawn' ? (

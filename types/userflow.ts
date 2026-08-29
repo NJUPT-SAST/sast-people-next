@@ -11,6 +11,8 @@ export function computeStatus(prog: string | null | undefined): string {
 
 // 用户关联的流程，用于展示层
 export type displayUserFlow = UserFlowRow & {
+  /** 退回当前面试流程时由讲师或管理员填写的理由 */
+  withdrawReason: string | null;
   /** 兼容旧 status 字段，由 progressStatus 映射 */
   status: string;
   /** 兼容旧 currentStepOrder，由 fkCurrentStepId → flow_step.order 计算 */

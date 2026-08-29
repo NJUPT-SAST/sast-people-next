@@ -30,6 +30,7 @@ import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { verifyRole } from "@/lib/dal";
+import { normalizeWithdrawalReason } from "@/lib/validation/user-flow";
 import { mqClient } from "@/queue/client";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -44,7 +45,6 @@ const interviewEmailTemplateKey = {
   rescheduled: "interview.schedule.rescheduled",
   cancelled: "interview.schedule.cancelled",
 } as const;
-
 type CreateInterviewScheduleInput = {
   userFlowId: number;
   startsAt: string;
@@ -912,12 +912,19 @@ export async function cancelInterviewSchedule(
     throw error;
   }
 }
-
-export async function returnInterviewCandidate(userFlowId: number) {
+export async function returnInterviewCandidate(
+  userFlowId: number,
+  reason: string,
+) {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
     session = await verifyRole(2);
+    const validatedReason = normalizeWithdrawalReason(reason);
+    if (!validatedReason.success) {
+      return { success: false, error: { message: validatedReason.error } };
+    }
+    const normalizedReason = validatedReason.value;
 
     const [candidate] = await db
       .select({
@@ -1037,7 +1044,11 @@ export async function returnInterviewCandidate(userFlowId: number) {
 
       const [updated] = await tx
         .update(userFlow)
-        .set({ progressStatus: "withdrawn", updatedAt: new Date() })
+        .set({
+          progressStatus: "withdrawn",
+          withdrawReason: normalizedReason,
+          updatedAt: new Date(),
+        })
         .where(
           and(
             eq(userFlow.id, userFlowId),
@@ -1059,18 +1070,21 @@ export async function returnInterviewCandidate(userFlowId: number) {
             error: { message: "该面试状态已发生变化，请刷新后重试。" },
           };
     });
-
     if (!withdrawalResult.success) return withdrawalResult;
 
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/user-flow");
+
     await writeOperationAudit({
       actorId: session.uid,
       actorRole: session.role,
       action: "user_flow.withdraw",
       resourceType: "user_flow",
       resourceId: userFlowId,
-      metadata: { scheduleId: candidate.scheduleId ?? null },
+      metadata: {
+        scheduleId: candidate.scheduleId ?? null,
+        reason: normalizedReason,
+      },
     });
 
     return { success: true };

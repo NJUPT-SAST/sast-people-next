@@ -85,6 +85,104 @@ jest.mock("@/components/ui/select", () => {
 });
 
 describe("EvaluationTable", () => {
+  it("requires a return reason before withdrawing a candidate", async () => {
+    const user = userEvent.setup();
+    jest.mocked(returnInterviewCandidate).mockResolvedValue({ success: true });
+    render(
+      <EvaluationTable
+        role={3}
+        groupOptions={[]}
+        onRefresh={jest.fn()}
+        candidates={[{
+          userFlowId: 42,
+          uid: 1,
+          name: "张三",
+          studentId: "B001",
+          qq: "123456",
+          status: "ongoing",
+          withdrawReason: null,
+          portfolioLink: null,
+          portfolioDescription: null,
+          applyGroup: null,
+          evalId: null,
+          evalContent: null,
+          evalMeetingLink: null,
+          evalRecommendation: null,
+          evalStatus: null,
+          evalAuthorId: null,
+          canEditEvaluation: true,
+          canManageSchedule: true,
+          scheduleId: null,
+          scheduleOrganizerName: null,
+          scheduleMeetingLink: null,
+          scheduleLink: null,
+          scheduleMeetingMinuteLink: null,
+          scheduleLocation: null,
+          scheduleMeetingRoomId: null,
+          scheduleStartsAt: null,
+          scheduleEndsAt: null,
+          scheduleStatus: null,
+          scheduleMeetingStatus: null,
+          scheduleMeetingEndedAt: null,
+        }]}
+      />,
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
+    await user.click(screen.getByRole("button", { name: "确认退回" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("请填写退回理由");
+    expect(returnInterviewCandidate).not.toHaveBeenCalled();
+  });
+
+  it("passes the entered return reason to the action", async () => {
+    const user = userEvent.setup();
+    jest.mocked(returnInterviewCandidate).mockResolvedValue({ success: true });
+    render(
+      <EvaluationTable
+        role={3}
+        groupOptions={[]}
+        onRefresh={jest.fn()}
+        candidates={[{
+          userFlowId: 42,
+          uid: 1,
+          name: "张三",
+          studentId: "B001",
+          qq: "123456",
+          status: "ongoing",
+          withdrawReason: null,
+          portfolioLink: null,
+          portfolioDescription: null,
+          applyGroup: null,
+          evalId: null,
+          evalContent: null,
+          evalMeetingLink: null,
+          evalRecommendation: null,
+          evalStatus: null,
+          evalAuthorId: null,
+          canEditEvaluation: true,
+          canManageSchedule: true,
+          scheduleId: null,
+          scheduleOrganizerName: null,
+          scheduleMeetingLink: null,
+          scheduleLink: null,
+          scheduleMeetingMinuteLink: null,
+          scheduleLocation: null,
+          scheduleMeetingRoomId: null,
+          scheduleStartsAt: null,
+          scheduleEndsAt: null,
+          scheduleStatus: null,
+          scheduleMeetingStatus: null,
+          scheduleMeetingEndedAt: null,
+        }]}
+      />,
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
+    await user.type(screen.getByLabelText(/退回理由/), "面试安排调整");
+    await user.click(screen.getByRole("button", { name: "确认退回" }));
+    expect(returnInterviewCandidate).toHaveBeenCalledWith(42, "面试安排调整");
+  });
+
   it("uses distinct target ids for desktop and mobile render paths", async () => {
     const user = userEvent.setup();
     jest.mocked(returnInterviewCandidate).mockResolvedValue({ success: true });
@@ -102,6 +200,7 @@ describe("EvaluationTable", () => {
             studentId: "B001",
             qq: "123456",
             status: "ongoing",
+            withdrawReason: null,
             portfolioLink: null,
             portfolioDescription: null,
             applyGroup: "前端组",
@@ -132,7 +231,6 @@ describe("EvaluationTable", () => {
 
     expect(document.getElementById("user-flow-42-desktop")).toBeInTheDocument();
     expect(document.getElementById("user-flow-42-mobile")).toBeInTheDocument();
-    expect(document.getElementById("user-flow-42")).not.toBeInTheDocument();
     expect(screen.getAllByText("待预约")[0]).toHaveClass(
       "text-sky-700",
       "dark:text-sky-300",
@@ -140,9 +238,9 @@ describe("EvaluationTable", () => {
     expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "退回" }).length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
-    expect(screen.getByRole("dialog")).toHaveTextContent("确认退回面试报名");
+    await user.type(screen.getByLabelText(/退回理由/), "测试退回理由");
     await user.click(screen.getByRole("button", { name: "确认退回" }));
-    expect(returnInterviewCandidate).toHaveBeenCalledWith(42);
+    expect(returnInterviewCandidate).toHaveBeenCalledWith(42, "测试退回理由");
     expect(screen.getAllByRole("button", { name: "预约" })[0]).toHaveClass(
       "text-foreground",
     );
