@@ -330,17 +330,11 @@ function InterviewTemplateDialog({
           <div className="rounded-lg border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
             <p>
               正文建议保留 <span className="font-mono text-foreground">{"{candidateName}"}</span>
-              {" "}和 <span className="font-mono text-foreground">{"{flowName}"}</span>
-              {isWithdrawalTemplate && (
-                <>
-                  {" "}以及 <span className="font-mono text-foreground">{"{reason}"}</span>。
-                </>
-              )}
-              {!isWithdrawalTemplate && "。"}
+              {" "}和 <span className="font-mono text-foreground">{"{flowName}"}</span>。
             </p>
             <p className="mt-1">
               {isWithdrawalTemplate
-                ? "退回理由和“查看我的流程”入口会自动出现在邮件中。"
+                ? "退回理由会自动显示在下方信息卡中，请不要在正文重复填写退回理由。"
                 : "时间、地点、讲师、备注、飞书会议和飞书日程按钮会自动出现在邮件信息卡片里，通常不用重复写进正文。"}
             </p>
           </div>

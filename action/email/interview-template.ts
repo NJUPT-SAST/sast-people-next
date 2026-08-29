@@ -96,17 +96,20 @@ export async function updateInterviewScheduleEmailTemplate(
   if (!normalized.footerText) {
     return { ok: false, message: "落款不能为空。" };
   }
-  const requiredBodyVariables =
-    normalizedTemplateKey === INTERVIEW_WITHDRAWAL_TEMPLATE_KEY
-      ? ["candidateName", "flowName", "reason"]
-      : ["candidateName", "flowName"];
+  const requiredBodyVariables = ["candidateName", "flowName"];
   if (!hasRequiredVariables(normalized.bodyTemplate, requiredBodyVariables)) {
     return {
       ok: false,
-      message:
-        normalizedTemplateKey === INTERVIEW_WITHDRAWAL_TEMPLATE_KEY
-          ? "正文里需要包含 {candidateName}、{flowName} 和 {reason}，方便系统替换候选人、流程名称和退回理由。"
-          : "正文里需要包含 {candidateName} 和 {flowName}，方便系统替换同学姓名和流程名称。",
+      message: "正文里需要包含 {candidateName} 和 {flowName}，方便系统替换候选人和流程名称。",
+    };
+  }
+  if (
+    normalizedTemplateKey === INTERVIEW_WITHDRAWAL_TEMPLATE_KEY &&
+    normalized.bodyTemplate.includes("{reason}")
+  ) {
+    return {
+      ok: false,
+      message: "退回理由会自动显示在下方信息卡中，请不要在正文重复填写 {reason}。",
     };
   }
 

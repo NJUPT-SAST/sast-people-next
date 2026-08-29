@@ -39,7 +39,7 @@ export const defaultInterviewWithdrawalTemplateSetting: InterviewScheduleTemplat
   subjectTemplate: "{flowName} 面试报名退回通知",
   titleTemplate: "报名已退回",
   bodyTemplate:
-    "{candidateName} 同学，你好。你的 {flowName} 面试报名已被退回。退回理由：{reason} 请根据说明补充或调整报名信息后重新报名。",
+    "{candidateName} 同学，你好。你的 {flowName} 面试报名已被退回，请根据说明补充或调整报名信息后重新报名。",
   footerText: "南京邮电大学大学生科学技术协会",
 };
 
