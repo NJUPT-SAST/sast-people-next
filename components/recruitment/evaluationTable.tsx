@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { externalHref } from "@/lib/link";
 import { FeishuOAuthStatus } from "@/components/feishu-oauth-status";
+import { ViewUserInfoSheet } from "@/components/manage/viewUserInfoSheet";
 import {
   getInterviewMeetingRoom,
   interviewMeetingRooms,
@@ -233,18 +234,33 @@ function CandidateIdentity({
   name,
   studentId,
   qq,
+  uid,
+  role,
 }: {
   name: string;
   studentId: string | null;
   qq: string | null;
+  uid: number;
+  role: number;
 }) {
   const meta = [studentId || null, qq ? `QQ ${qq}` : null].filter(Boolean);
 
   return (
     <div className="min-w-0 space-y-0.5">
-      <p className="truncate text-sm font-medium leading-5 text-foreground" title={name}>
-        {name}
-      </p>
+      <ViewUserInfoSheet
+        userInfo={{ id: uid, name, studentId }}
+        currentUserRole={role}
+        readOnly
+        trigger={
+          <button
+            type="button"
+            title={name}
+            className="max-w-full truncate text-left text-sm font-medium leading-5 text-foreground underline-offset-4 hover:text-primary hover:underline"
+          >
+            {name}
+          </button>
+        }
+      />
       {meta.length > 0 && (
         <p className="truncate text-xs tabular-nums text-muted-foreground" title={meta.join(" · ")}>
           {meta.join(" · ")}
@@ -939,10 +955,12 @@ export const EvaluationTable = ({
                 >
                   <TableCell className="px-4 py-3 align-middle">
                     <CandidateIdentity
-                      name={c.name}
-                      studentId={c.studentId}
-                      qq={c.qq}
-                    />
+                       name={c.name}
+                       studentId={c.studentId}
+                       qq={c.qq}
+                       uid={c.uid}
+                       role={role}
+                     />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
                     <ApplyGroupText
@@ -1084,11 +1102,13 @@ export const EvaluationTable = ({
               }
             >
               <div className="flex items-start justify-between gap-3">
-                <CandidateIdentity
-                  name={c.name}
-                  studentId={c.studentId}
-                  qq={c.qq}
-                />
+                    <CandidateIdentity
+                       name={c.name}
+                       studentId={c.studentId}
+                       qq={c.qq}
+                       uid={c.uid}
+                       role={role}
+                     />
                 <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
               </div>
               <div className="flex flex-wrap items-center gap-2">

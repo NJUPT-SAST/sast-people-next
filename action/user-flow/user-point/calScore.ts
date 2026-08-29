@@ -94,3 +94,4 @@ export const calScore = async (flowId: number) => {
     throw error;
   }
 };
+export type ScoreRow = Awaited<ReturnType<typeof calScore>>[number];

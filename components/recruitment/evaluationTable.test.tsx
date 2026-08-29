@@ -27,6 +27,11 @@ jest.mock("@/action/user-flow/interviewSchedule", () => ({
 jest.mock("@/components/feishu-oauth-status", () => ({
   FeishuOAuthStatus: () => null,
 }));
+jest.mock("@/components/manage/viewUserInfoSheet", () => ({
+  ViewUserInfoSheet: ({ trigger }: { trigger?: React.ReactNode }) => (
+    <div>{trigger}</div>
+  ),
+}));
 
 jest.mock("sonner", () => ({
   toast: {

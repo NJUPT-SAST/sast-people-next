@@ -135,20 +135,27 @@ function IdentityList({ identities }: { identities: userType['identities'] }) {
   );
 }
 
+type UserInfoInput = Pick<userType, "id" | "name"> &
+  Partial<Omit<userType, "id" | "name">>;
+
 export const ViewUserInfoSheet = ({
   userInfo,
   currentUserRole,
+  readOnly = false,
+  trigger,
 }: {
-  userInfo: userType;
+  userInfo: UserInfoInput;
   currentUserRole: number;
+  readOnly?: boolean;
+  trigger?: React.ReactNode;
 }) => {
   const [role, setRole] = useState<number>(userInfo.role ?? 0);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
-  const [detailUserInfo, setDetailUserInfo] = useState<userType | null>(null);
+  const [detailUserInfo, setDetailUserInfo] = useState<UserInfoInput | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const displayUserInfo = detailUserInfo ?? userInfo;
-  const canUpdateRole = currentUserRole >= 3 && displayUserInfo.role !== 3;
-
+  const departments = displayUserInfo.departments ?? [];
+  const canUpdateRole = !readOnly && currentUserRole >= 3 && displayUserInfo.role !== 3;
   const handleRoleChange = async (newRole: string) => {
     const roleNum = Number(newRole);
     setRole(roleNum);
@@ -184,9 +191,11 @@ export const ViewUserInfoSheet = ({
   return (
     <Sheet onOpenChange={(open) => void handleOpenChange(open)}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-10 sm:size-9">
-          <User className="h-4 w-4" />
-        </Button>
+        {trigger ?? (
+          <Button variant="ghost" size="icon" className="size-10 sm:size-9">
+            <User className="h-4 w-4" />
+          </Button>
+        )}
       </SheetTrigger>
       <SheetContent className="flex w-full flex-col overflow-y-auto p-0 sm:max-w-xl">
         <SheetHeader className="border-b px-5 py-5 sm:px-6">
@@ -239,8 +248,8 @@ export const ViewUserInfoSheet = ({
             <InfoRow label="方向">
               <TextValue
                 value={
-                  displayUserInfo.departments.length > 0
-                    ? displayUserInfo.departments.join('、')
+                  departments.length > 0
+                    ? departments.join('、')
                     : '-'
                 }
               />

@@ -1,5 +1,5 @@
 'use client';
-import { calScore } from '@/action/user-flow/user-point/calScore';
+import type { ScoreRow } from '@/action/user-flow/user-point/calScore';
 import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { Checkbox } from '../ui/checkbox';
@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '../ui/dialog';
+import { ViewUserInfoSheet } from '@/components/manage/viewUserInfoSheet';
 
 const statusLabel: Record<string, string> = {
   pending: '未开始',
@@ -46,9 +47,7 @@ const statusClassName: Record<string, string> = {
   rejected: 'border-destructive/30 bg-destructive/10 text-destructive',
 };
 
-export const columns: ColumnDef<
-  Awaited<ReturnType<typeof calScore>>[number]
->[] = [
+export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
   {
     id: 'select',
     header: ({ table }) => {
@@ -94,7 +93,29 @@ export const columns: ColumnDef<
   {
     accessorKey: 'name',
     header: '姓名',
-    cell: ({ getValue }) => <div>{getValue() as string}</div>,
+    cell: ({ row }) => {
+      const original = row.original;
+      return (
+        <ViewUserInfoSheet
+          userInfo={{
+            id: original.uid,
+            name: original.name,
+            studentId: original.studentId,
+          }}
+          currentUserRole={role}
+          readOnly
+          trigger={
+            <button
+              type="button"
+              title={original.name}
+              className="max-w-full truncate text-left font-medium text-foreground underline-offset-4 hover:text-primary hover:underline"
+            >
+              {original.name}
+            </button>
+          }
+        />
+      );
+    },
   },
   {
     accessorKey: 'status',

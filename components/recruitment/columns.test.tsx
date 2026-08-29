@@ -1,11 +1,42 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 
-import { columns } from "./columns";
+jest.mock("@/components/manage/viewUserInfoSheet", () => ({
+  ViewUserInfoSheet: ({ trigger }: { trigger?: ReactNode }) => (
+    <div>{trigger}</div>
+  ),
+}));
+
+import { makeColumns } from "./columns";
+
+const columns = makeColumns(3);
+
+const nameColumn = columns.find(
+  (column) => "accessorKey" in column && column.accessorKey === "name",
+);
 
 const getColumnKey = (column: (typeof columns)[number]) =>
   column.id ?? ("accessorKey" in column ? column.accessorKey : undefined);
 
 describe("recruitment columns", () => {
+  it("renders the candidate name as a clickable details trigger", () => {
+    const cell = nameColumn?.cell as
+      | ((props: never) => ReactNode)
+      | undefined;
+    expect(typeof cell).toBe("function");
+
+    render(
+      <>
+        {cell?.({
+          row: { original: { uid: 42, name: "张三", studentId: "2026001" } },
+          getValue: () => "张三",
+        } as never)}
+      </>,
+    );
+
+    expect(screen.getByRole("button", { name: "张三" })).toBeInTheDocument();
+  });
+
   it("exposes the expected data columns", () => {
     expect(columns.map(getColumnKey)).toEqual([
       "select",

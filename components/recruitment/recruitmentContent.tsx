@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
 import { EvaluationTable } from '@/components/recruitment/evaluationTable';
-import { columns } from '@/components/recruitment/columns';
+import { makeColumns } from '@/components/recruitment/columns';
 import { calScore } from '@/action/user-flow/user-point/calScore';
 import { getEvaluationCandidates } from '@/action/user-flow/evaluation';
 import { Loading } from '@/components/loading';
@@ -214,7 +214,7 @@ export const RecruitmentContent = ({
         ) : (
           <div className="space-y-4">
             <DataTable
-              columns={columns}
+              columns={makeColumns(role)}
               data={safeScoreData}
               flowTypeId={parseInt(flowId)}
               targetUserFlowId={targetUserFlowId}
