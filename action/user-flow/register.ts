@@ -337,6 +337,7 @@ export const register = async (
             .set({
               fkCurrentStepId: stepId,
               progressStatus: "ongoing",
+              withdrawReason: null,
               portfolioLink: submission.portfolioLink,
               portfolioDescription: submission.portfolioDescription,
               applyGroup: submission.group ?? null,

@@ -12,10 +12,21 @@ jest.mock("@/lib/email/interview-schedule", () => ({
   ),
 }));
 
+jest.mock("@/lib/email-center/interview-withdrawal", () => ({
+  renderInterviewWithdrawalEmail: jest.fn(async () => "<html>withdrawal</html>"),
+  renderInterviewWithdrawalEmailSubject: jest.fn(
+    (flowName: string) => `${flowName} withdrawn`,
+  ),
+}));
+
 import {
   renderInterviewScheduleEmail,
   renderInterviewScheduleEmailSubject,
 } from "@/lib/email/interview-schedule";
+import {
+  renderInterviewWithdrawalEmail,
+  renderInterviewWithdrawalEmailSubject,
+} from "@/lib/email-center/interview-withdrawal";
 import {
   renderResultEmail,
   renderResultEmailSubject,
@@ -91,5 +102,29 @@ describe("renderEmailTemplate", () => {
         kind: "cancelled",
       }),
     );
+  });
+
+  it("renders the withdrawal notification with its reason", async () => {
+    const rendered = await renderEmailTemplate({
+      templateKey: "interview.application.withdrawn",
+      variables: {
+        candidateName: "王五",
+        flowName: "2026 免试招新",
+        reason: "请补充作品集后重新报名。",
+      },
+    });
+
+    expect(rendered).toEqual({
+      subject: "2026 免试招新 withdrawn",
+      html: "<html>withdrawal</html>",
+    });
+    expect(renderInterviewWithdrawalEmailSubject).toHaveBeenCalledWith(
+      "2026 免试招新",
+    );
+    expect(renderInterviewWithdrawalEmail).toHaveBeenCalledWith({
+      candidateName: "王五",
+      flowName: "2026 免试招新",
+      reason: "请补充作品集后重新报名。",
+    });
   });
 });

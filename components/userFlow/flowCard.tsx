@@ -204,6 +204,11 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
             <p className="mt-1 text-xs text-muted-foreground">
               {activeStep?.description || "前面的区域以后再来探索吧"}
             </p>
+            {safeFlow.status === "withdrawn" && safeFlow.withdrawReason && (
+              <p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm text-destructive">
+                退回理由：{safeFlow.withdrawReason}
+              </p>
+            )}
           </div>
           {typeof safeFlow.id === "number" &&
             (safeFlow.status === "not_started" ||

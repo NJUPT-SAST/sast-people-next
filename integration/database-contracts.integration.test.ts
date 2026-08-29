@@ -146,6 +146,23 @@ describe("PostgreSQL migration contracts", () => {
     });
   });
 
+  it("stores and updates a withdrawal reason", async () => {
+    const flowId = await createFlow();
+    const userFlowId = await createUserFlow(flowId);
+
+    await client.query(
+      "update user_flow set progress_status = 'withdrawn', withdraw_reason = $1 where id = $2",
+      ["测试退回理由", userFlowId],
+    );
+
+    const result = await client.query<{ withdraw_reason: string }>(
+      "select withdraw_reason from user_flow where id = $1",
+      [userFlowId],
+    );
+
+    expect(result.rows[0]?.withdraw_reason).toBe("测试退回理由");
+  });
+
   it("enforces email delivery idempotency keys", async () => {
     const idempotencyKey = `integration:${crypto.randomUUID()}`;
     const insertDelivery = () =>

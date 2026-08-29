@@ -250,6 +250,8 @@ function InterviewTemplateDialog({
   previewHtml: string | null;
 }) {
   const router = useRouter();
+  const isWithdrawalTemplate =
+    setting.templateKey === "interview.application.withdrawn";
 
   return (
     <Dialog>
@@ -268,7 +270,9 @@ function InterviewTemplateDialog({
         <DialogHeader className="pr-8">
           <DialogTitle>{definition.name}</DialogTitle>
           <DialogDescription>
-            编辑邮件开头的提示语。预约时间、地点和讲师会自动生成在邮件信息卡片里；候选人邮件不包含飞书会议入口。
+            {isWithdrawalTemplate
+              ? "编辑候选人报名被退回后的通知内容；退回理由会自动显示在邮件的信息卡片里。"
+              : "编辑邮件开头的提示语。预约时间、地点和讲师会自动生成在邮件信息卡片里；候选人邮件不包含飞书会议入口。"}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -329,7 +333,9 @@ function InterviewTemplateDialog({
               {" "}和 <span className="font-mono text-foreground">{"{flowName}"}</span>。
             </p>
             <p className="mt-1">
-              时间、地点、讲师、备注、飞书会议和飞书日程按钮会自动出现在邮件信息卡片里，通常不用重复写进正文。
+              {isWithdrawalTemplate
+                ? "退回理由会自动显示在下方信息卡中，请不要在正文重复填写退回理由。"
+                : "时间、地点、讲师、备注、飞书会议和飞书日程按钮会自动出现在邮件信息卡片里，通常不用重复写进正文。"}
             </p>
           </div>
 
@@ -357,7 +363,11 @@ function InterviewTemplateDialog({
                 title={`${definition.name}样张`}
                 html={previewHtml}
                 triggerLabel="预览"
-                description="样张使用固定示例数据；真实发送时会替换为预约信息。"
+                description={
+                  isWithdrawalTemplate
+                    ? "样张使用固定示例退回理由；真实发送时会替换为讲师填写的理由。"
+                    : "样张使用固定示例数据；真实发送时会替换为预约信息。"
+                }
               />
               <Button type="submit">
                 <Save data-icon="inline-start" />
@@ -506,8 +516,7 @@ export function EmailTemplateManagementSection({
   );
   const interviewCards = interviewDefinitions
     .map((definition) => {
-      const templateKey =
-        definition.key as InterviewScheduleTemplates[number]["templateKey"];
+      const templateKey = definition.key as keyof InterviewSchedulePreviews;
       const setting = interviewTemplateSettingsMap.get(templateKey);
       if (!setting) return null;
       return { definition, setting, templateKey };

@@ -30,7 +30,9 @@ jest.mock("@/components/recruitment/evaluationTable", () => ({
   EvaluationTable: () => null,
 }));
 
-jest.mock("@/components/recruitment/columns", () => ({ columns: [] }));
+jest.mock("@/components/recruitment/columns", () => ({
+  makeColumns: () => [],
+}));
 jest.mock("@/components/loading", () => ({ Loading: () => <div>Loading</div> }));
 
 const mockCalScore = jest.mocked(calScore);

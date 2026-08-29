@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { normalizeWithdrawalReason, WITHDRAWAL_REASON_MAX_LENGTH } from "@/lib/validation/user-flow";
 import { updateCandidateApplyGroup } from "@/action/user-flow/apply-group";
 import { createEvaluation } from "@/action/user-flow/evaluation";
 import {
@@ -41,6 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { externalHref } from "@/lib/link";
 import { FeishuOAuthStatus } from "@/components/feishu-oauth-status";
+import { ViewUserInfoSheet } from "@/components/manage/viewUserInfoSheet";
 import {
   getInterviewMeetingRoom,
   interviewMeetingRooms,
@@ -53,6 +55,7 @@ type Candidate = {
   studentId: string | null;
   qq: string | null;
   status: string | null;
+  withdrawReason?: string | null;
   portfolioLink: string | null;
   portfolioDescription: string | null;
   applyGroup: string | null;
@@ -233,18 +236,33 @@ function CandidateIdentity({
   name,
   studentId,
   qq,
+  uid,
+  role,
 }: {
   name: string;
   studentId: string | null;
   qq: string | null;
+  uid: number;
+  role: number;
 }) {
   const meta = [studentId || null, qq ? `QQ ${qq}` : null].filter(Boolean);
 
   return (
     <div className="min-w-0 space-y-0.5">
-      <p className="truncate text-sm font-medium leading-5 text-foreground" title={name}>
-        {name}
-      </p>
+      <ViewUserInfoSheet
+        userInfo={{ id: uid, name, studentId }}
+        currentUserRole={role}
+        readOnly
+        trigger={
+          <button
+            type="button"
+            title={name}
+            className="max-w-full truncate text-left text-sm font-medium leading-5 text-foreground underline-offset-4 hover:text-primary hover:underline"
+          >
+            {name}
+          </button>
+        }
+      />
       {meta.length > 0 && (
         <p className="truncate text-xs tabular-nums text-muted-foreground" title={meta.join(" · ")}>
           {meta.join(" · ")}
@@ -355,7 +373,16 @@ const PortfolioLink = ({
 };
 const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
   if (!candidate.scheduleMeetingLink) {
-    return <span className="text-sm text-muted-foreground">未预约</span>;
+    return (
+      <div className="min-w-0 space-y-0.5">
+        <span className="text-sm text-muted-foreground">未预约</span>
+        {candidate.status === "withdrawn" && candidate.withdrawReason && (
+          <p className="truncate text-xs text-destructive" title={candidate.withdrawReason}>
+            退回理由：{candidate.withdrawReason}
+          </p>
+        )}
+      </div>
+    );
   }
 
   const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
@@ -405,6 +432,11 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
       {candidate.scheduleOrganizerName && (
         <p className="truncate text-xs text-muted-foreground" title={`预约讲师：${candidate.scheduleOrganizerName}`}>
           预约讲师：{candidate.scheduleOrganizerName}
+        </p>
+      )}
+      {candidate.status === "withdrawn" && candidate.withdrawReason && (
+        <p className="truncate text-xs text-destructive" title={candidate.withdrawReason}>
+          退回理由：{candidate.withdrawReason}
         </p>
       )}
     </div>
@@ -462,6 +494,8 @@ export const EvaluationTable = ({
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [portfolioCandidate, setPortfolioCandidate] = useState<Candidate | null>(null);
   const [returnConfirmCandidate, setReturnConfirmCandidate] = useState<Candidate | null>(null);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnError, setReturnError] = useState<string | null>(null);
   const [schedulingId, setSchedulingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
@@ -541,6 +575,12 @@ export const EvaluationTable = ({
     setScheduleLoading(false);
     setFeishuBound(null);
     setFeishuStatusFailed(false);
+  };
+
+  const cancelReturn = () => {
+    setReturnConfirmCandidate(null);
+    setReturnReason("");
+    setReturnError(null);
   };
 
   const canEditApplyGroup = role >= 2 && groupOptions.length > 0;
@@ -737,21 +777,33 @@ export const EvaluationTable = ({
       setLoadingId(null);
     }
   };
-
   const handleReturnCandidate = async (candidate: Candidate) => {
+    const validation = normalizeWithdrawalReason(returnReason);
+    if (!validation.success) {
+      setReturnError(validation.error);
+      return;
+    }
+
     setLoadingId(candidate.userFlowId);
     try {
-      const result = await returnInterviewCandidate(candidate.userFlowId);
+      const result = await returnInterviewCandidate(
+        candidate.userFlowId,
+        validation.value,
+      );
       if (!result.success) {
-        toast.error(result.error?.message ?? "退回失败");
+        setReturnError(result.error?.message ?? "退回失败");
         return;
       }
-      toast.success("已退回该报名，候选人可以重新选择流程");
-      setReturnConfirmCandidate(null);
+      if (result.emailWarning) {
+        toast.warning(result.emailWarning);
+      } else {
+        toast.success("已退回该报名，候选人可以重新选择流程");
+      }
+      cancelReturn();
       cancelSchedule();
       onRefresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "退回失败");
+      setReturnError(error instanceof Error ? error.message : "退回失败");
     } finally {
       setLoadingId(null);
     }
@@ -939,10 +991,12 @@ export const EvaluationTable = ({
                 >
                   <TableCell className="px-4 py-3 align-middle">
                     <CandidateIdentity
-                      name={c.name}
-                      studentId={c.studentId}
-                      qq={c.qq}
-                    />
+                       name={c.name}
+                       studentId={c.studentId}
+                       qq={c.qq}
+                       uid={c.uid}
+                       role={role}
+                     />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
                     <ApplyGroupText
@@ -985,7 +1039,11 @@ export const EvaluationTable = ({
                           {canReturnCandidate && (
                             <ActionButton
                               disabled={busy}
-                              onClick={() => setReturnConfirmCandidate(c)}
+                              onClick={() => {
+                                setReturnConfirmCandidate(c);
+                                setReturnReason("");
+                                setReturnError(null);
+                              }}
                             >
                               {busy ? "处理中" : "退回"}
                             </ActionButton>
@@ -1084,11 +1142,13 @@ export const EvaluationTable = ({
               }
             >
               <div className="flex items-start justify-between gap-3">
-                <CandidateIdentity
-                  name={c.name}
-                  studentId={c.studentId}
-                  qq={c.qq}
-                />
+                    <CandidateIdentity
+                       name={c.name}
+                       studentId={c.studentId}
+                       qq={c.qq}
+                       uid={c.uid}
+                       role={role}
+                     />
                 <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1124,7 +1184,11 @@ export const EvaluationTable = ({
                     {canReturnCandidate && (
                       <ActionButton
                         disabled={busy}
-                        onClick={() => setReturnConfirmCandidate(c)}
+                        onClick={() => {
+                          setReturnConfirmCandidate(c);
+                          setReturnReason("");
+                          setReturnError(null);
+                        }}
                       >
                         {busy ? "处理中" : "退回"}
                       </ActionButton>
@@ -1247,49 +1311,6 @@ export const EvaluationTable = ({
         </DialogContent>
       </Dialog>
       <Dialog
-        open={Boolean(returnConfirmCandidate)}
-        onOpenChange={(open) => {
-          if (!open) setReturnConfirmCandidate(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>确认退回面试报名</DialogTitle>
-            <DialogDescription>
-              {returnConfirmCandidate
-                ? `退回后 ${returnConfirmCandidate.name} 的当前面试流程将作废，候选人需重新选择流程。此操作不可撤销，确定要退回吗？`
-                : "退回后候选人的当前面试流程将作废，需重新报名。"}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setReturnConfirmCandidate(null)}
-              disabled={loadingId !== null}
-            >
-              取消
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={loadingId !== null}
-              loading={
-                returnConfirmCandidate
-                  ? loadingId === returnConfirmCandidate.userFlowId
-                  : false
-              }
-              onClick={() => {
-                if (!returnConfirmCandidate) return;
-                return handleReturnCandidate(returnConfirmCandidate);
-              }}
-            >
-              确认退回
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
         open={!!editingCandidate}
         onOpenChange={(open) => {
           if (!open) cancelEdit();
@@ -1407,6 +1428,76 @@ export const EvaluationTable = ({
                 提交面评
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(returnConfirmCandidate)}
+        onOpenChange={(open) => {
+          if (!open) cancelReturn();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认退回面试报名</DialogTitle>
+            <DialogDescription>
+              {returnConfirmCandidate
+                ? `退回后 ${returnConfirmCandidate.name} 的当前面试流程将作废，候选人需重新选择流程。此操作不可撤销，请填写退回理由。`
+                : "退回后候选人的当前面试流程将作废，需重新报名。"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="withdraw-reason">
+              退回理由 <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="withdraw-reason"
+              placeholder="请输入退回理由"
+              value={returnReason}
+              onChange={(event) => {
+                setReturnReason(event.target.value);
+                if (returnError) setReturnError(null);
+              }}
+              maxLength={WITHDRAWAL_REASON_MAX_LENGTH}
+              aria-invalid={Boolean(returnError)}
+              aria-describedby={returnError ? "withdraw-reason-error" : undefined}
+              className="min-h-28 resize-y"
+            />
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>必填，最多 {WITHDRAWAL_REASON_MAX_LENGTH} 字</span>
+              <span>{returnReason.length}/{WITHDRAWAL_REASON_MAX_LENGTH}</span>
+            </div>
+            {returnError && (
+              <p id="withdraw-reason-error" role="alert" className="text-sm text-destructive">
+                {returnError}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cancelReturn}
+              disabled={loadingId !== null}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={loadingId !== null}
+              loading={
+                returnConfirmCandidate
+                  ? loadingId === returnConfirmCandidate.userFlowId
+                  : false
+              }
+              onClick={() => {
+                if (!returnConfirmCandidate) return;
+                return handleReturnCandidate(returnConfirmCandidate);
+              }}
+            >
+              确认退回
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -719,6 +719,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
         userFlowId: userFlow.id,
         uid: userFlow.fkUserId,
         status: userFlow.progressStatus,
+        withdrawReason: userFlow.withdrawReason,
         portfolioLink: userFlow.portfolioLink,
         portfolioDescription: userFlow.portfolioDescription,
         applyGroup: userFlow.applyGroup,

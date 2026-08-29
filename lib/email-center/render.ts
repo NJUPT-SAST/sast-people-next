@@ -5,6 +5,10 @@ import {
   renderInterviewScheduleEmailSubject,
 } from "@/lib/email/interview-schedule";
 import {
+  renderInterviewWithdrawalEmail,
+  renderInterviewWithdrawalEmailSubject,
+} from "@/lib/email-center/interview-withdrawal";
+import {
   renderResultEmail,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
@@ -96,5 +100,12 @@ export async function renderEmailTemplate(
         }),
       };
     }
+    case "interview.application.withdrawn":
+      return {
+        subject: await renderInterviewWithdrawalEmailSubject(
+          request.variables.flowName,
+        ),
+        html: await renderInterviewWithdrawalEmail(request.variables),
+      };
   }
 }

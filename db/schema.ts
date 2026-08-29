@@ -125,6 +125,8 @@ export const userFlow = pgTable("user_flow", {
   progressStatus: progressStatusEnum("progress_status"),
   /* 候选人报名时选择的投递组别 */
   applyGroup: varchar("apply_group", { length: 100 }),
+  /* 讲师/管理员退回面试时填写的理由 */
+  withdrawReason: text("withdraw_reason"),
   /* FK → flow_step.id。step 被物理删除时置 NULL */
   fkCurrentStepId: integer("fk_current_step_id")
     .references(() => flowStep.id, { onDelete: "set null" }),

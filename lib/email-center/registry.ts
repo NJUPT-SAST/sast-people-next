@@ -73,6 +73,18 @@ export const emailTemplateDefinitions = [
       { key: "location", label: "地点", required: false, example: "仙林校区大学生活动中心 101" },
     ],
   },
+  {
+    key: "interview.application.withdrawn",
+    category: "interview",
+    name: "面试报名退回通知",
+    description: "面试报名被退回后发送给候选人，说明退回理由并提示重新报名。",
+    defaultSubject: "{flowName} 面试报名退回通知",
+    variables: [
+      { key: "candidateName", label: "候选人姓名", required: true, example: "张三" },
+      { key: "flowName", label: "流程名称", required: true, example: "2026 免试招新" },
+      { key: "reason", label: "退回理由", required: true, example: "请补充作品集后重新报名" },
+    ],
+  },
 ] satisfies EmailTemplateDefinition[];
 
 export function getEmailTemplateDefinition(templateKey: EmailTemplateKey) {

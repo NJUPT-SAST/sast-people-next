@@ -1,4 +1,5 @@
 import type { InterviewScheduleEmailVariables } from "@/lib/email/interview-schedule";
+import type { InterviewWithdrawalEmailVariables } from "@/lib/email-center/interview-withdrawal";
 import type { ResultEmailTemplateSetting } from "@/lib/email/template-settings";
 
 export type EmailCategory = "result" | "interview" | "test";
@@ -7,10 +8,16 @@ export type ResultEmailTemplateKey =
   | "recruitment.result.accepted"
   | "recruitment.result.rejected";
 
-export type InterviewEmailTemplateKey =
+export type InterviewScheduleEmailTemplateKey =
   | "interview.schedule.created"
   | "interview.schedule.rescheduled"
   | "interview.schedule.cancelled";
+
+export type InterviewWithdrawalEmailTemplateKey = "interview.application.withdrawn";
+
+export type InterviewEmailTemplateKey =
+  | InterviewScheduleEmailTemplateKey
+  | InterviewWithdrawalEmailTemplateKey;
 
 export type EmailTemplateKey = ResultEmailTemplateKey | InterviewEmailTemplateKey;
 
@@ -43,10 +50,14 @@ export type ResultEmailRenderVariables = {
   genericGreeting?: boolean;
 };
 
-export type InterviewEmailRenderVariables = Omit<
+export type InterviewScheduleEmailRenderVariables = Omit<
   InterviewScheduleEmailVariables,
   "kind"
 >;
+
+export type InterviewEmailRenderVariables =
+  | InterviewScheduleEmailRenderVariables
+  | InterviewWithdrawalEmailVariables;
 
 export type EmailTemplateRenderRequest =
   | {
@@ -54,8 +65,12 @@ export type EmailTemplateRenderRequest =
       variables: ResultEmailRenderVariables;
     }
   | {
-      templateKey: InterviewEmailTemplateKey;
-      variables: InterviewEmailRenderVariables;
+      templateKey: InterviewScheduleEmailTemplateKey;
+      variables: InterviewScheduleEmailRenderVariables;
+    }
+  | {
+      templateKey: InterviewWithdrawalEmailTemplateKey;
+      variables: InterviewWithdrawalEmailVariables;
     };
 
 export type CreateRenderedEmailDeliveryInput = EmailTemplateRenderRequest & {
