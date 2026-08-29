@@ -102,7 +102,9 @@ export async function renderEmailTemplate(
     }
     case "interview.application.withdrawn":
       return {
-        subject: renderInterviewWithdrawalEmailSubject(request.variables.flowName),
+        subject: await renderInterviewWithdrawalEmailSubject(
+          request.variables.flowName,
+        ),
         html: await renderInterviewWithdrawalEmail(request.variables),
       };
   }

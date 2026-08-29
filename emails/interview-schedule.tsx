@@ -38,18 +38,23 @@ const Preview = ({ children }: { children: React.ReactNode }) => (
 const Img = ({ alt = "", ...props }: ElementProps<"img">) => (
   <img alt={alt} {...props} />
 );
+const Link = ({ children, ...props }: ElementProps<"a">) => (
+  <a {...props}>{children}</a>
+);
 
-type InterviewScheduleEmailProps = {
-  kind?: "created" | "rescheduled" | "cancelled";
+export type InterviewScheduleEmailProps = {
+  kind?: "created" | "rescheduled" | "cancelled" | "withdrawn";
   candidateName: string;
   flowName: string;
   titleText?: string;
   bodyText?: string;
-  organizerName: string;
-  startsAtText: string;
-  endsAtText: string;
+  organizerName?: string;
+  startsAtText?: string;
+  endsAtText?: string;
   location?: string;
   note?: string;
+  reason?: string;
+  flowUrl?: string;
   footerText?: string;
   logoUrl?: string;
 };
@@ -63,6 +68,7 @@ const statusLabel = {
   created: "已预约",
   rescheduled: "已改约",
   cancelled: "已取消",
+  withdrawn: "已退回",
 } as const;
 
 type MetaItem = {
@@ -81,14 +87,16 @@ export const InterviewScheduleEmail = ({
   endsAtText,
   location,
   note,
+  reason,
+  flowUrl,
   footerText = "南京邮电大学大学生科学技术协会",
   logoUrl = "https://storage.sast.fun/sast-logo.png",
 }: InterviewScheduleEmailProps) => {
   const label = statusLabel[kind];
-  const meta: MetaItem[] = [
-    { label: "流程", value: flowName },
-    { label: "讲师", value: organizerName },
-  ];
+  const meta: MetaItem[] = [{ label: "流程", value: flowName }];
+  if (organizerName) {
+    meta.push({ label: "讲师", value: organizerName });
+  }
   if (location) {
     meta.push({ label: "地点", value: location });
   }
@@ -97,16 +105,18 @@ export const InterviewScheduleEmail = ({
   }
 
   const defaultBody =
-    kind === "cancelled"
-      ? `${candidateName} 同学，你好。你的 ${flowName} 面试预约已取消，后续安排请关注新的通知。`
-      : kind === "rescheduled"
-        ? `${candidateName} 同学，你好。你的 ${flowName} 面试时间已调整，请以本邮件中的新时间为准。`
-        : `${candidateName} 同学，你好。${flowName} 的线下面试安排已确认，请查看下方时间和地点并按时到达。`;
+    kind === "withdrawn"
+      ? `${candidateName} 同学，你好。你的 ${flowName} 面试报名已被退回，请根据退回理由补充或调整报名信息后重新报名。`
+      : kind === "cancelled"
+        ? `${candidateName} 同学，你好。你的 ${flowName} 面试预约已取消，后续安排请关注新的通知。`
+        : kind === "rescheduled"
+          ? `${candidateName} 同学，你好。你的 ${flowName} 面试时间已调整，请以本邮件中的新时间为准。`
+          : `${candidateName} 同学，你好。${flowName} 的线下面试安排已确认，请查看下方时间和地点并按时到达。`;
 
   return (
     <Html>
       <Preview>
-        {flowName} {label} {startsAtText}
+        {flowName} {label} {kind === "withdrawn" ? "" : startsAtText ?? ""}
       </Preview>
       <Body style={main}>
         <Container style={container}>
@@ -132,7 +142,7 @@ export const InterviewScheduleEmail = ({
           </Section>
 
           <Section style={bodySection}>
-            <Text style={eyebrow}>面试日程</Text>
+            <Text style={eyebrow}>{kind === "withdrawn" ? "面试报名" : "面试日程"}</Text>
             <Heading style={title}>{titleText}</Heading>
             <Text style={intro}>{bodyText ?? defaultBody}</Text>
 
@@ -146,15 +156,26 @@ export const InterviewScheduleEmail = ({
                 <tbody>
                   <tr>
                     <td style={scheduleContent}>
-                      <Text style={scheduleLabel}>面试时间</Text>
-                      <Text style={scheduleStart}>{startsAtText}</Text>
-                      <Text style={scheduleEnd}>至 {endsAtText}</Text>
+                      <Text style={scheduleLabel}>
+                        {kind === "withdrawn" ? "退回理由" : "面试时间"}
+                      </Text>
+                      <Text style={scheduleStart}>
+                        {kind === "withdrawn" ? reason : startsAtText}
+                      </Text>
+                      {kind !== "withdrawn" && (
+                        <Text style={scheduleEnd}>至 {endsAtText}</Text>
+                      )}
                     </td>
                   </tr>
                 </tbody>
               </table>
             </Section>
 
+            {kind === "withdrawn" && flowUrl && (
+              <Link href={flowUrl} style={flowLink}>
+                查看我的流程
+              </Link>
+            )}
             <Section style={metaList}>
               {meta.map((item, index) => (
                 <Section
@@ -401,4 +422,17 @@ const footerMeta = {
   fontFamily: fontStack,
   fontSize: "11px",
   lineHeight: "16px",
+};
+const flowLink = {
+  display: "inline-block",
+  margin: "0 0 22px",
+  padding: "10px 16px",
+  color: "#ffffff",
+  backgroundColor: "#0f172a",
+  borderRadius: "6px",
+  fontFamily: fontStack,
+  fontSize: "14px",
+  fontWeight: 600,
+  lineHeight: "20px",
+  textDecoration: "none",
 };

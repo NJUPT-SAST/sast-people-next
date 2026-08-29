@@ -4,15 +4,17 @@ import { db } from "@/db/drizzle";
 import { emailTemplateContent } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import {
+  getInterviewNotificationTemplateDefault,
   getInterviewScheduleEmailKindByTemplateKey,
-  getInterviewScheduleTemplateDefault,
   getInterviewScheduleTemplateSetting,
+  INTERVIEW_WITHDRAWAL_TEMPLATE_KEY,
   interviewScheduleTemplateKeys,
   listInterviewScheduleTemplateSettings,
-  type InterviewScheduleTemplateKey,
+  type InterviewNotificationTemplateKey,
   type InterviewScheduleTemplateSetting,
 } from "@/lib/email/interview-template-settings";
 import { renderInterviewScheduleEmailPreview } from "@/lib/email/interview-schedule";
+import { renderInterviewWithdrawalEmailPreview } from "@/lib/email-center/interview-withdrawal";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { eq } from "drizzle-orm";
@@ -28,10 +30,13 @@ const hasRequiredVariables = (value: string, variables: readonly string[]) =>
 
 function normalizeInterviewTemplateKey(
   templateKey: string,
-): InterviewScheduleTemplateKey {
-  const allowedKeys = Object.values(interviewScheduleTemplateKeys);
-  return allowedKeys.includes(templateKey as InterviewScheduleTemplateKey)
-    ? (templateKey as InterviewScheduleTemplateKey)
+): InterviewNotificationTemplateKey {
+  const allowedKeys = [
+    ...Object.values(interviewScheduleTemplateKeys),
+    INTERVIEW_WITHDRAWAL_TEMPLATE_KEY,
+  ];
+  return allowedKeys.includes(templateKey as InterviewNotificationTemplateKey)
+    ? (templateKey as InterviewNotificationTemplateKey)
     : interviewScheduleTemplateKeys.created;
 }
 
@@ -52,13 +57,17 @@ export async function getInterviewScheduleEmailPreview() {
 
 export async function getInterviewScheduleEmailPreviews() {
   await verifyRole(3);
-  const entries = await Promise.all(
+  const scheduleEntries = await Promise.all(
     Object.values(interviewScheduleTemplateKeys).map(async (templateKey) => {
       const kind = getInterviewScheduleEmailKindByTemplateKey(templateKey);
       return [templateKey, await renderInterviewScheduleEmailPreview(kind)] as const;
     }),
   );
-  return Object.fromEntries(entries) as Record<InterviewScheduleTemplateKey, string>;
+  const withdrawalPreview = await renderInterviewWithdrawalEmailPreview();
+  return Object.fromEntries([
+    ...scheduleEntries,
+    [INTERVIEW_WITHDRAWAL_TEMPLATE_KEY, withdrawalPreview],
+  ]) as Record<InterviewNotificationTemplateKey, string>;
 }
 
 export async function updateInterviewScheduleEmailTemplate(
@@ -87,18 +96,17 @@ export async function updateInterviewScheduleEmailTemplate(
   if (!normalized.footerText) {
     return { ok: false, message: "落款不能为空。" };
   }
-  if (!hasRequiredVariables(normalized.subjectTemplate, ["flowName"])) {
-    return { ok: false, message: "邮件标题需要包含 {flowName}，用于替换招新流程名称。" };
-  }
-  if (
-    !hasRequiredVariables(
-      normalized.bodyTemplate,
-      ["candidateName", "flowName"],
-    )
-  ) {
+  const requiredBodyVariables =
+    normalizedTemplateKey === INTERVIEW_WITHDRAWAL_TEMPLATE_KEY
+      ? ["candidateName", "flowName", "reason"]
+      : ["candidateName", "flowName"];
+  if (!hasRequiredVariables(normalized.bodyTemplate, requiredBodyVariables)) {
     return {
       ok: false,
-      message: "正文里需要包含 {candidateName} 和 {flowName}，方便系统替换同学姓名和流程名称。",
+      message:
+        normalizedTemplateKey === INTERVIEW_WITHDRAWAL_TEMPLATE_KEY
+          ? "正文里需要包含 {candidateName}、{flowName} 和 {reason}，方便系统替换候选人、流程名称和退回理由。"
+          : "正文里需要包含 {candidateName} 和 {flowName}，方便系统替换同学姓名和流程名称。",
     };
   }
 
@@ -171,5 +179,5 @@ export async function resetInterviewScheduleEmailTemplate(templateKey: string) {
     },
   });
   revalidatePath("/dashboard/emails");
-  return getInterviewScheduleTemplateDefault(normalizedTemplateKey);
+  return getInterviewNotificationTemplateDefault(normalizedTemplateKey);
 }

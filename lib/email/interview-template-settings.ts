@@ -12,6 +12,8 @@ export const interviewScheduleTemplateKeys = {
   cancelled: "interview.schedule.cancelled",
 } as const;
 
+export const INTERVIEW_WITHDRAWAL_TEMPLATE_KEY = "interview.application.withdrawn";
+
 export type InterviewScheduleEmailKind =
   keyof typeof interviewScheduleTemplateKeys;
 
@@ -25,6 +27,22 @@ export type InterviewScheduleTemplateSetting = {
   bodyTemplate: string;
   footerText: string;
 };
+
+export type InterviewNotificationTemplateKey =
+  | InterviewScheduleTemplateKey
+  | typeof INTERVIEW_WITHDRAWAL_TEMPLATE_KEY;
+
+export type InterviewNotificationTemplateSetting = InterviewScheduleTemplateSetting;
+
+export const defaultInterviewWithdrawalTemplateSetting: InterviewScheduleTemplateSetting = {
+  templateKey: INTERVIEW_WITHDRAWAL_TEMPLATE_KEY,
+  subjectTemplate: "{flowName} 面试报名退回通知",
+  titleTemplate: "报名已退回",
+  bodyTemplate:
+    "{candidateName} 同学，你好。你的 {flowName} 面试报名已被退回。退回理由：{reason} 请根据说明补充或调整报名信息后重新报名。",
+  footerText: "南京邮电大学大学生科学技术协会",
+};
+
 
 export const defaultInterviewScheduleTemplateSettings: Record<
   InterviewScheduleTemplateKey,
@@ -98,18 +116,26 @@ export async function listInterviewScheduleTemplateSettings() {
     .where(inArray(emailTemplateContent.templateKey, [
       ...templateKeys,
       INTERVIEW_SCHEDULE_TEMPLATE_KEY,
+      INTERVIEW_WITHDRAWAL_TEMPLATE_KEY,
     ]));
   const savedByKey = new Map(rows.map((row) => [row.templateKey, row]));
   const legacyCreated = savedByKey.get(INTERVIEW_SCHEDULE_TEMPLATE_KEY);
 
-  return templateKeys.map((templateKey) => ({
-    ...defaultInterviewScheduleTemplateSettings[templateKey],
-    ...(templateKey === interviewScheduleTemplateKeys.created
-      ? legacyCreated
-      : null),
-    ...savedByKey.get(templateKey),
-    templateKey,
-  }));
+  return [
+    ...templateKeys.map((templateKey) => ({
+      ...defaultInterviewScheduleTemplateSettings[templateKey],
+      ...(templateKey === interviewScheduleTemplateKeys.created
+        ? legacyCreated
+        : null),
+      ...savedByKey.get(templateKey),
+      templateKey,
+    })),
+    {
+      ...defaultInterviewWithdrawalTemplateSetting,
+      ...savedByKey.get(INTERVIEW_WITHDRAWAL_TEMPLATE_KEY),
+      templateKey: INTERVIEW_WITHDRAWAL_TEMPLATE_KEY,
+    },
+  ];
 }
 
 export async function getInterviewScheduleTemplateSetting(
@@ -138,9 +164,33 @@ export async function getInterviewScheduleTemplateSetting(
   };
 }
 
+export async function getInterviewWithdrawalTemplateSetting() {
+  const [saved] = await db
+    .select()
+    .from(emailTemplateContent)
+    .where(eq(emailTemplateContent.templateKey, INTERVIEW_WITHDRAWAL_TEMPLATE_KEY))
+    .limit(1);
+
+  return {
+    ...defaultInterviewWithdrawalTemplateSetting,
+    ...saved,
+    templateKey: INTERVIEW_WITHDRAWAL_TEMPLATE_KEY,
+  };
+}
+
+export function getInterviewNotificationTemplateDefault(
+  templateKey: InterviewNotificationTemplateKey,
+) {
+  return templateKey === INTERVIEW_WITHDRAWAL_TEMPLATE_KEY
+    ? defaultInterviewWithdrawalTemplateSetting
+    : defaultInterviewScheduleTemplateSettings[templateKey];
+}
+
 export function renderInterviewScheduleTemplateText(
   template: string,
   variables: Record<(typeof interviewScheduleTemplateVariables)[number], string>,
 ) {
   return renderTemplateText(template, variables);
 }
+
+export const renderInterviewWithdrawalTemplateText = renderTemplateText;

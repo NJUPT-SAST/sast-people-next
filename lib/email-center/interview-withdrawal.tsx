@@ -1,8 +1,12 @@
 import "server-only";
 
 import { render } from "@react-email/render";
-import InterviewWithdrawalEmail from "@/emails/interview-withdrawal";
+import InterviewScheduleEmail from "@/emails/interview-schedule";
 import { getPeopleUrl } from "@/lib/app-url";
+import {
+  getInterviewWithdrawalTemplateSetting,
+  renderInterviewWithdrawalTemplateText,
+} from "@/lib/email/interview-template-settings";
 
 export type InterviewWithdrawalEmailVariables = {
   candidateName: string;
@@ -11,8 +15,13 @@ export type InterviewWithdrawalEmailVariables = {
   flowUrl?: string;
 };
 
-export function renderInterviewWithdrawalEmailSubject(flowName: string) {
-  return `${flowName} 面试报名退回通知`;
+export async function renderInterviewWithdrawalEmailSubject(flowName: string) {
+  const setting = await getInterviewWithdrawalTemplateSetting();
+  return renderInterviewWithdrawalTemplateText(setting.subjectTemplate, {
+    candidateName: "同学",
+    flowName,
+    reason: "",
+  });
 }
 
 export async function renderInterviewWithdrawalEmail({
@@ -21,12 +30,19 @@ export async function renderInterviewWithdrawalEmail({
   reason,
   flowUrl = getPeopleUrl("/dashboard/user-flow"),
 }: InterviewWithdrawalEmailVariables) {
+  const setting = await getInterviewWithdrawalTemplateSetting();
+  const variables = { candidateName, flowName, reason };
+
   return render(
-    <InterviewWithdrawalEmail
+    <InterviewScheduleEmail
+      kind="withdrawn"
       candidateName={candidateName}
       flowName={flowName}
       reason={reason}
       flowUrl={flowUrl}
+      titleText={renderInterviewWithdrawalTemplateText(setting.titleTemplate, variables)}
+      bodyText={renderInterviewWithdrawalTemplateText(setting.bodyTemplate, variables)}
+      footerText={setting.footerText}
     />,
   );
 }
