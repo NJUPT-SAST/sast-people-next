@@ -11,7 +11,7 @@ import { getEmailTemplateDefinition } from "@/lib/email-center/registry";
 import type {
   EmailTemplateKey,
   EmailTemplateRenderRequest,
-  InterviewEmailTemplateKey,
+  InterviewScheduleEmailTemplateKey,
   ResultEmailTemplateKey,
 } from "@/lib/email-center/types";
 import { getEducationEmail, normalizeEducationEmailInput } from "@/lib/email/address";
@@ -114,7 +114,10 @@ async function createTestRenderRequest({
   flowName: string;
   name: string;
 }): Promise<EmailTemplateRenderRequest> {
-  if (templateKey === "recruitment.result.accepted" || templateKey === "recruitment.result.rejected") {
+  if (
+    templateKey === "recruitment.result.accepted" ||
+    templateKey === "recruitment.result.rejected"
+  ) {
     const setting = await getEmailTemplateSetting(templateKey);
     return {
       templateKey: templateKey as ResultEmailTemplateKey,
@@ -127,9 +130,20 @@ async function createTestRenderRequest({
     };
   }
 
+  if (templateKey === "interview.application.withdrawn") {
+    return {
+      templateKey,
+      variables: {
+        candidateName: name,
+        flowName,
+        reason: "请补充作品集后重新报名。",
+      },
+    };
+  }
+
   const startsAt = new Date("2026-06-06T16:00:00+08:00");
   return {
-    templateKey: templateKey as InterviewEmailTemplateKey,
+    templateKey: templateKey as InterviewScheduleEmailTemplateKey,
     variables: {
       candidateName: name,
       flowName,

@@ -129,8 +129,12 @@ describe("EvaluationTable", () => {
     );
 
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
-    await user.click(screen.getByRole("button", { name: "确认退回" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("请填写退回理由");
+    await user.click(
+      screen.getAllByRole("button", { name: "确认退回", hidden: true }).at(-1)!,
+    );
+    expect(screen.getAllByRole("alert", { hidden: true }).at(-1)!).toHaveTextContent(
+      "请填写退回理由",
+    );
     expect(returnInterviewCandidate).not.toHaveBeenCalled();
   });
 
@@ -178,8 +182,13 @@ describe("EvaluationTable", () => {
     );
 
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
-    await user.type(screen.getByLabelText(/退回理由/), "面试安排调整");
-    await user.click(screen.getByRole("button", { name: "确认退回" }));
+    await user.type(
+      screen.getAllByRole("textbox", { name: /退回理由/, hidden: true }).at(-1)!,
+      "面试安排调整",
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "确认退回", hidden: true }).at(-1)!,
+    );
     expect(returnInterviewCandidate).toHaveBeenCalledWith(42, "面试安排调整");
   });
 
@@ -238,8 +247,13 @@ describe("EvaluationTable", () => {
     expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "退回" }).length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
-    await user.type(screen.getByLabelText(/退回理由/), "测试退回理由");
-    await user.click(screen.getByRole("button", { name: "确认退回" }));
+    await user.type(
+      screen.getAllByRole("textbox", { name: /退回理由/, hidden: true }).at(-1)!,
+      "测试退回理由",
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "确认退回", hidden: true }).at(-1)!,
+    );
     expect(returnInterviewCandidate).toHaveBeenCalledWith(42, "测试退回理由");
     expect(screen.getAllByRole("button", { name: "预约" })[0]).toHaveClass(
       "text-foreground",
@@ -288,9 +302,13 @@ describe("EvaluationTable", () => {
     );
 
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
-    expect(screen.getByRole("dialog")).toHaveTextContent("确认退回面试报名");
-    await user.click(screen.getByRole("button", { name: "取消" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("dialog", { hidden: true }).at(-1)!).toHaveTextContent(
+      "确认退回面试报名",
+    );
+    await user.click(screen.getAllByRole("button", { name: "取消", hidden: true }).at(-1)!);
+    await waitFor(() => {
+      expect(screen.queryAllByRole("dialog", { hidden: true })).toHaveLength(0);
+    });
     expect(returnInterviewCandidate).not.toHaveBeenCalled();
   });
 

@@ -9,7 +9,7 @@ describe("email template registry", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("covers the first-phase email center templates", () => {
+  it("covers the email center templates", () => {
     expect(emailTemplateDefinitions.map((definition) => definition.key)).toEqual(
       expect.arrayContaining([
         "recruitment.result.accepted",
@@ -17,17 +17,18 @@ describe("email template registry", () => {
         "interview.schedule.created",
         "interview.schedule.rescheduled",
         "interview.schedule.cancelled",
+        "interview.application.withdrawn",
       ]),
     );
   });
 
-  it("requires core interview variables for every interview template", () => {
-    const interviewDefinitions = emailTemplateDefinitions.filter(
-      (definition) => definition.category === "interview",
+  it("requires schedule details for schedule templates", () => {
+    const scheduleDefinitions = emailTemplateDefinitions.filter((definition) =>
+      definition.key.startsWith("interview.schedule."),
     );
 
-    expect(interviewDefinitions).toHaveLength(3);
-    for (const definition of interviewDefinitions) {
+    expect(scheduleDefinitions).toHaveLength(3);
+    for (const definition of scheduleDefinitions) {
       const requiredKeys = definition.variables
         .filter((variable) => variable.required)
         .map((variable) => variable.key);
@@ -42,5 +43,19 @@ describe("email template registry", () => {
         ]),
       );
     }
+  });
+
+  it("requires a reason for the withdrawal notification", () => {
+    const definition = emailTemplateDefinitions.find(
+      (item) => item.key === "interview.application.withdrawn",
+    );
+
+    expect(definition?.variables.filter((variable) => variable.required)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "candidateName" }),
+        expect.objectContaining({ key: "flowName" }),
+        expect.objectContaining({ key: "reason" }),
+      ]),
+    );
   });
 });

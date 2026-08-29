@@ -99,6 +99,15 @@ type CancelInterviewScheduleResult =
       };
     };
 
+type ReturnInterviewCandidateResult =
+  | { success: true; emailWarning?: string }
+  | {
+      success: false;
+      error: {
+        message: string;
+      };
+    };
+
 type ConfirmInterviewScheduleEndedResult =
   | { success: true }
   | {
@@ -182,6 +191,62 @@ async function sendInterviewEmailDelivery({
         flowId: flowId ?? null,
         scheduleId,
       },
+    });
+    return { ok: false, message };
+  }
+}
+
+async function sendInterviewWithdrawalEmailDelivery({
+  toAddress,
+  recipientUserId,
+  userFlowId,
+  flowId,
+  relatedScheduleId,
+  createdBy,
+  candidateName,
+  flowName,
+  reason,
+}: {
+  toAddress: string;
+  recipientUserId: number;
+  userFlowId: number;
+  flowId: number;
+  relatedScheduleId?: number | null;
+  createdBy: number;
+  candidateName: string;
+  flowName: string;
+  reason: string;
+}): Promise<
+  | { ok: true; deliveryId: number }
+  | { ok: false; message: string }
+> {
+  try {
+    const result = await createRenderedEmailDelivery({
+      templateKey: "interview.application.withdrawn",
+      toAddress,
+      recipientUserId,
+      userFlowId,
+      flowId,
+      relatedScheduleId,
+      createdBy,
+      variables: {
+        candidateName,
+        flowName,
+        reason,
+      },
+      metadata: {
+        reason,
+      },
+      sendImmediately: true,
+    });
+    return { ok: true, deliveryId: result.deliveryId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "邮件发送失败";
+    logServerError("email-center:interviewWithdrawal", error, {
+      action: "send-interview-withdrawal-email",
+      userFlowId,
+      targetUserId: recipientUserId,
+      metadata: { flowId, relatedScheduleId: relatedScheduleId ?? null },
     });
     return { ok: false, message };
   }
@@ -729,7 +794,7 @@ export async function createInterviewSchedule(
 
 export async function cancelInterviewSchedule(
   scheduleId: number,
-  options?: { allowAdmin?: boolean; tx?: Tx },
+  options?: { allowAdmin?: boolean; notifyCandidate?: boolean; tx?: Tx },
 ): Promise<CancelInterviewScheduleResult> {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
   const client = options?.tx ?? db;
@@ -814,7 +879,7 @@ export async function cancelInterviewSchedule(
     const flowName = target?.flowTitle ?? schedule.summary;
     const organizerName = organizer?.name ?? session.name;
     let emailWarning: string | undefined;
-    if (schedule.attendeeEmail && target) {
+    if (options?.notifyCandidate !== false && schedule.attendeeEmail && target) {
       const emailResult = await sendInterviewEmailDelivery({
         kind: "cancelled",
         toAddress: schedule.attendeeEmail,
@@ -915,7 +980,7 @@ export async function cancelInterviewSchedule(
 export async function returnInterviewCandidate(
   userFlowId: number,
   reason: string,
-) {
+): Promise<ReturnInterviewCandidateResult> {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
@@ -929,6 +994,9 @@ export async function returnInterviewCandidate(
     const [candidate] = await db
       .select({
         userFlowId: userFlow.id,
+        candidateId: userFlow.fkUserId,
+        flowId: flow.id,
+        flowTitle: flow.title,
         progressStatus: userFlow.progressStatus,
         flowType: flow.type,
         evaluationStatus: interviewEvaluation.status,
@@ -968,10 +1036,7 @@ export async function returnInterviewCandidate(
     if (candidate.evaluationStatus) {
       return { success: false, error: { message: "该面试已经提交面评，不能退回。" } };
     }
-    if (
-      candidate.scheduleId &&
-      candidate.scheduleMeetingStatus === "ended"
-    ) {
+    if (candidate.scheduleId && candidate.scheduleMeetingStatus === "ended") {
       return { success: false, error: { message: "该面试已经结束，不能退回。" } };
     }
     if (
@@ -1037,6 +1102,7 @@ export async function returnInterviewCandidate(
       if (currentSchedule) {
         const cancelResult = await cancelInterviewSchedule(currentSchedule.id, {
           allowAdmin: true,
+          notifyCandidate: false,
           tx,
         });
         if (!cancelResult.success) return cancelResult;
@@ -1075,6 +1141,43 @@ export async function returnInterviewCandidate(
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/user-flow");
 
+    let emailWarning: string | undefined;
+    let emailDeliveryId: number | undefined;
+    try {
+      const userMap = await listPeopleUsersByLinkIds(
+        [candidate.candidateId],
+        { canViewSensitiveInfo: true },
+      );
+      const candidateUser = userMap.get(candidate.candidateId);
+      if (!candidateUser?.studentId) {
+        emailWarning = "已退回该报名，但候选人没有可用学号，退回通知邮件未发送。";
+      } else {
+        const emailResult = await sendInterviewWithdrawalEmailDelivery({
+          toAddress: getEducationEmail(candidateUser.studentId),
+          recipientUserId: candidate.candidateId,
+          userFlowId,
+          flowId: candidate.flowId,
+          relatedScheduleId: candidate.scheduleId,
+          createdBy: session.uid,
+          candidateName: candidateUser.name,
+          flowName: candidate.flowTitle,
+          reason: normalizedReason,
+        });
+        if (emailResult.ok) {
+          emailDeliveryId = emailResult.deliveryId;
+        } else {
+          emailWarning = `已退回该报名，但退回通知邮件发送失败：${emailResult.message}`;
+        }
+      }
+    } catch (error) {
+      logServerError("email-center:interviewWithdrawal", error, {
+        action: "send-interview-withdrawal-email",
+        userFlowId,
+        targetUserId: candidate.candidateId,
+      });
+      emailWarning = "已退回该报名，但退回通知邮件发送失败。";
+    }
+
     await writeOperationAudit({
       actorId: session.uid,
       actorRole: session.role,
@@ -1084,10 +1187,12 @@ export async function returnInterviewCandidate(
       metadata: {
         scheduleId: candidate.scheduleId ?? null,
         reason: normalizedReason,
+        emailDeliveryId: emailDeliveryId ?? null,
+        emailWarning: emailWarning ?? null,
       },
     });
 
-    return { success: true };
+    return { success: true, emailWarning };
   } catch (error) {
     logServerError("user-flow:withdraw", error, {
       path: "/dashboard/interviews",

@@ -785,7 +785,11 @@ export const EvaluationTable = ({
         setReturnError(result.error?.message ?? "退回失败");
         return;
       }
-      toast.success("已退回该报名，候选人可以重新选择流程");
+      if (result.emailWarning) {
+        toast.warning(result.emailWarning);
+      } else {
+        toast.success("已退回该报名，候选人可以重新选择流程");
+      }
       cancelReturn();
       cancelSchedule();
       onRefresh();
