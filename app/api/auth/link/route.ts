@@ -5,6 +5,7 @@ import {
 import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import { getPublicBaseUrl } from "@/lib/app-url";
+import { getLinkOAuthRedirectUri } from "@/lib/link/oauth-flow";
 import { exchangeLinkOAuthCode } from "@/lib/link/oauth";
 import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
 import { createSession } from "@/lib/session";
