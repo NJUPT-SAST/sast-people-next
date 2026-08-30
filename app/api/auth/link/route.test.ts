@@ -8,6 +8,9 @@ const mockCookieStore = {
 jest.mock("next/headers", () => ({
   cookies: jest.fn(async () => mockCookieStore),
 }));
+jest.mock("@/lib/app-url", () => ({
+  getPublicBaseUrl: () => "https://people.example",
+}));
 jest.mock("@/lib/link/oauth-flow", () => ({
   getLinkOAuthRedirectUri: () => "http://localhost:3001/api/auth/link",
 }));
@@ -40,14 +43,14 @@ describe("Link OAuth callback", () => {
 
   it("redirects denied OAuth authorization to the login error page", async () => {
     const request = new NextRequest(
-      "http://localhost:3001/api/auth/link?error=access_denied&error_description=%E7%94%A8%E6%88%B7%E6%8B%92%E7%BB%9D%E6%8E%88%E6%9D%83&state=test-state",
+      "https://0.0.0.0:3003/api/auth/link?error=access_denied&error_description=%E7%94%A8%E6%88%B7%E6%8B%92%E7%BB%9D%E6%8E%88%E6%9D%83&state=test-state",
     );
 
     const response = await GET(request);
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "http://localhost:3001/login?reason=link-denied",
+      "https://people.example/login?reason=link-denied",
     );
     expect(mockCookieStore.get).not.toHaveBeenCalled();
   });
