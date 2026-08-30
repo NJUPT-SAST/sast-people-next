@@ -4,6 +4,7 @@ import {
 } from "@/const/cookie";
 import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { getCurrentUserProfile } from "@/lib/link/user";
+import { getPublicBaseUrl } from "@/lib/app-url";
 import { getLinkOAuthRedirectUri } from "@/lib/link/oauth-flow";
 import { exchangeLinkOAuthCode } from "@/lib/link/oauth";
 import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
@@ -20,10 +21,10 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const oauthError = searchParams.get("error");
   const state = searchParams.get("state");
-  if (!code && oauthError) {
+  if (!code && oauthError === "access_denied") {
     // OAuth failure (e.g. user denied the authorization) → show the login page
     // with a friendly banner instead of a raw JSON error.
-    const loginUrl = new URL(`/login`, request.nextUrl.origin);
+    const loginUrl = new URL(`/login`, getPublicBaseUrl());
     loginUrl.searchParams.set("reason", "link-denied");
     return NextResponse.redirect(loginUrl);
   }
