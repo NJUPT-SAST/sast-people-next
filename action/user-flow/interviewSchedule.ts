@@ -1100,12 +1100,22 @@ export async function returnInterviewCandidate(
       }
 
       if (currentSchedule) {
-        const cancelResult = await cancelInterviewSchedule(currentSchedule.id, {
-          allowAdmin: true,
-          notifyCandidate: false,
-          tx,
-        });
-        if (!cancelResult.success) return cancelResult;
+        const [cancelledSchedule] = await tx
+          .update(interviewSchedule)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(
+            and(
+              eq(interviewSchedule.id, currentSchedule.id),
+              eq(interviewSchedule.status, "created"),
+            ),
+          )
+          .returning({ id: interviewSchedule.id });
+        if (!cancelledSchedule) {
+          return {
+            success: false as const,
+            error: { message: "该面试状态已发生变化，请刷新后重试。" },
+          };
+        }
       }
 
       const [updated] = await tx
@@ -1130,13 +1140,32 @@ export async function returnInterviewCandidate(
         .returning({ id: userFlow.id });
 
       return updated
-        ? { success: true as const }
+        ? { success: true as const, scheduleId: currentSchedule?.id }
         : {
             success: false as const,
             error: { message: "该面试状态已发生变化，请刷新后重试。" },
           };
     });
     if (!withdrawalResult.success) return withdrawalResult;
+
+    let scheduleCancellationWarning: string | undefined;
+    if (withdrawalResult.scheduleId) {
+      try {
+        await mqClient.send({
+          name: "interview/schedule.cancel",
+          data: { scheduleId: withdrawalResult.scheduleId },
+          id: `people-interview-withdrawal-cancel-${withdrawalResult.scheduleId}`,
+        });
+      } catch (error) {
+        logServerError("interviewSchedule:enqueueCancellation", error, {
+          action: "enqueue-interview-schedule-cancellation",
+          userFlowId,
+          metadata: { scheduleId: withdrawalResult.scheduleId },
+        });
+        scheduleCancellationWarning = "面试报名已退回，但面试日程取消任务暂未排队。";
+      }
+    }
+
 
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/user-flow");
@@ -1178,6 +1207,9 @@ export async function returnInterviewCandidate(
       emailWarning = "已退回该报名，但退回通知邮件发送失败。";
     }
 
+    const warnings = [scheduleCancellationWarning, emailWarning].filter(
+      (warning): warning is string => Boolean(warning),
+    );
     await writeOperationAudit({
       actorId: session.uid,
       actorRole: session.role,
@@ -1188,11 +1220,14 @@ export async function returnInterviewCandidate(
         scheduleId: candidate.scheduleId ?? null,
         reason: normalizedReason,
         emailDeliveryId: emailDeliveryId ?? null,
-        emailWarning: emailWarning ?? null,
+        emailWarning: warnings.length > 0 ? warnings.join("；") : null,
       },
     });
 
-    return { success: true, emailWarning };
+    return {
+      success: true,
+      emailWarning: warnings.length > 0 ? warnings.join("；") : undefined,
+    };
   } catch (error) {
     logServerError("user-flow:withdraw", error, {
       path: "/dashboard/interviews",

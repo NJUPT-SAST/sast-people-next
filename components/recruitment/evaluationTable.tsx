@@ -87,6 +87,13 @@ const evalStatusLabel = (
   scheduleMeetingLink: string | null,
   scheduleEnded: boolean,
 ) => {
+  if (flowStatus === "withdrawn") {
+    return {
+      text: "已退回",
+      className:
+        "border-violet-600/30 bg-violet-50 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/10 dark:text-violet-300",
+    };
+  }
   if (evalStatus === "approved" || flowStatus === "passed") {
     return {
       text: "已通过",
@@ -167,6 +174,7 @@ const EvalStatusText = ({
 
 
 const getCandidateStatusKey = (candidate: Candidate) => {
+  if (candidate.status === "withdrawn") return "withdrawn";
   if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
   if (candidate.evalStatus === "rejected") return "evalRejected";
   if (candidate.status === "failed") return "rejected";
@@ -180,6 +188,7 @@ const summaryItems = [
   { key: "accepted", label: "已通过" },
   { key: "evalRejected", label: "不通过" },
   { key: "rejected", label: "不通过" },
+  { key: "withdrawn", label: "已退回" },
 ];
 
 const formatDateTimeLocal = (date: Date) => {

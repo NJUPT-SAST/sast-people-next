@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const oauthError = searchParams.get("error");
   const state = searchParams.get("state");
-  if (!code && oauthError) {
+  if (!code && oauthError === "access_denied") {
     // OAuth failure (e.g. user denied the authorization) → show the login page
     // with a friendly banner instead of a raw JSON error.
     const loginUrl = new URL(`/login`, getPublicBaseUrl());

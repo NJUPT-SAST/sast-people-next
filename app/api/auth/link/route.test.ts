@@ -65,4 +65,16 @@ describe("Link OAuth callback", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ message: "code is required" });
   });
+
+  it("does not treat other OAuth errors as an authorization denial", async () => {
+    const request = new NextRequest(
+      "https://0.0.0.0:3003/api/auth/link?error=server_error&state=test-state",
+    );
+
+    const response = await GET(request);
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("location")).toBeNull();
+    expect(await response.json()).toEqual({ message: "code is required" });
+  });
 });

@@ -260,6 +260,52 @@ describe("EvaluationTable", () => {
     );
   });
 
+  it("shows withdrawn candidates as withdrawn instead of waiting", () => {
+    render(
+      <EvaluationTable
+        role={3}
+        groupOptions={[]}
+        onRefresh={jest.fn()}
+        candidates={[{
+          userFlowId: 44,
+          uid: 44,
+          name: "周七",
+          studentId: "B044",
+          qq: null,
+          status: "withdrawn",
+          withdrawReason: "时间冲突",
+          portfolioLink: null,
+          portfolioDescription: null,
+          applyGroup: null,
+          evalId: null,
+          evalContent: null,
+          evalMeetingLink: null,
+          evalRecommendation: null,
+          evalStatus: null,
+          evalAuthorId: null,
+          canEditEvaluation: false,
+          canManageSchedule: false,
+          scheduleId: null,
+          scheduleOrganizerName: null,
+          scheduleMeetingLink: null,
+          scheduleLink: null,
+          scheduleMeetingMinuteLink: null,
+          scheduleLocation: null,
+          scheduleMeetingRoomId: null,
+          scheduleStartsAt: null,
+          scheduleEndsAt: null,
+          scheduleStatus: null,
+          scheduleMeetingStatus: null,
+          scheduleMeetingEndedAt: null,
+        }]}
+      />,
+    );
+
+    expect(screen.getAllByText("已退回").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/已退回 1/).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("待预约")).toHaveLength(0);
+  });
+
   it("does not return a candidate when the confirm dialog is cancelled", async () => {
     const user = userEvent.setup();
     render(
