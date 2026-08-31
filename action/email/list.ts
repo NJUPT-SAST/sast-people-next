@@ -23,7 +23,7 @@ import {
   ilike,
   inArray,
   isNotNull,
-  lte,
+  lt,
   or,
   sql,
   type SQL,
@@ -94,7 +94,7 @@ function getDateStart(value: string) {
 function getDateEnd(value: string) {
   if (!value) return null;
   const start = parseBeijingDateOnly(value);
-  return start ? new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1) : null;
+  return start ? new Date(start.getTime() + 24 * 60 * 60 * 1000) : null;
 }
 
 async function buildEmailDeliveryWhereConditions({
@@ -129,7 +129,7 @@ async function buildEmailDeliveryWhereConditions({
   if (fromDate) conditions.push(gte(emailDelivery.createdAt, fromDate));
 
   const toDate = getDateEnd(to);
-  if (toDate) conditions.push(lte(emailDelivery.createdAt, toDate));
+  if (toDate) conditions.push(lt(emailDelivery.createdAt, toDate));
 
   if (query) {
     const pattern = `%${query}%`;
@@ -417,7 +417,7 @@ export async function getEmailStatusOverview() {
           and(
             eq(emailDelivery.status, "sent"),
             gte(emailDelivery.sentAt, todayStart),
-            lte(emailDelivery.sentAt, todayEnd),
+            lt(emailDelivery.sentAt, todayEnd),
           ),
         ),
       db
@@ -428,12 +428,12 @@ export async function getEmailStatusOverview() {
             and(
               eq(emailDelivery.status, "failed"),
               gte(emailDelivery.lastAttemptAt, todayStart),
-              lte(emailDelivery.lastAttemptAt, todayEnd),
+              lt(emailDelivery.lastAttemptAt, todayEnd),
             ),
             and(
               eq(emailDelivery.status, "dead"),
               gte(emailDelivery.deadLetteredAt, todayStart),
-              lte(emailDelivery.deadLetteredAt, todayEnd),
+              lt(emailDelivery.deadLetteredAt, todayEnd),
             ),
           ),
         ),

@@ -33,6 +33,6 @@ describe("Beijing business time", () => {
   it("builds the Beijing calendar-day range", () => {
     const range = getBeijingDayRange(new Date("2026-08-31T15:59:59.000Z"));
     expect(range.start.toISOString()).toBe("2026-08-30T16:00:00.000Z");
-    expect(range.end.toISOString()).toBe("2026-08-31T15:59:59.999Z");
+    expect(range.end.toISOString()).toBe("2026-08-31T16:00:00.000Z");
   });
 });

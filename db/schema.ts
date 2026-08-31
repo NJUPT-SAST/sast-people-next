@@ -451,6 +451,34 @@ export const interviewSchedule = pgTable("interview_schedule", {
     .on(table.provider, table.providerEventId),
 }));
 
+export const interviewScheduleCancellationOutbox = pgTable(
+  "interview_schedule_cancellation_outbox",
+  {
+    id: serial("id").primaryKey(),
+    fkInterviewScheduleId: integer("fk_interview_schedule_id")
+      .references(() => interviewSchedule.id, { onDelete: "cascade" })
+      .notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at").notNull().defaultNow(),
+    lockedUntil: timestamp("locked_until"),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    lastError: text("last_error"),
+    publishedAt: timestamp("published_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => sql`now()`),
+  },
+  (table) => ({
+    scheduleUnique: unique("interview_schedule_cancellation_outbox_schedule_uidx")
+      .on(table.fkInterviewScheduleId),
+    pendingIdx: index("interview_schedule_cancellation_outbox_pending_idx")
+      .on(table.nextAttemptAt)
+      .where(sql`${table.publishedAt} IS NULL`),
+  }),
+);
+
 export const operationAudit = pgTable("operation_audit", {
   id: serial("id").primaryKey(),
   actorId: integer("actor_id").notNull(),

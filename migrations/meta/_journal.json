@@ -337,6 +337,13 @@
       "when": 1788003216489,
       "tag": "0047_user_flow_withdraw_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1788134400000,
+      "tag": "0048_interview_schedule_cancellation_outbox",
+      "breakpoints": true
     }
   ]
 }

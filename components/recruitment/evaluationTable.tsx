@@ -978,9 +978,12 @@ export const EvaluationTable = ({
                 !scheduleEnded &&
                 (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
               const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
-              const canManageSchedule = !c.scheduleMeetingLink || c.canManageSchedule;
+              const canManageSchedule =
+                c.status !== "withdrawn" &&
+                (!c.scheduleMeetingLink || c.canManageSchedule);
               const canReturnCandidate =
-                !c.scheduleMeetingLink || c.canManageSchedule || role >= 3;
+                c.status !== "withdrawn" &&
+                (!c.scheduleMeetingLink || c.canManageSchedule || role >= 3);
               const canSubmitEvaluation =
                 c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
 
@@ -1130,9 +1133,12 @@ export const EvaluationTable = ({
             !scheduleEnded &&
             (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
           const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
-          const canManageSchedule = !c.scheduleMeetingLink || c.canManageSchedule;
+          const canManageSchedule =
+            c.status !== "withdrawn" &&
+            (!c.scheduleMeetingLink || c.canManageSchedule);
           const canReturnCandidate =
-            !c.scheduleMeetingLink || c.canManageSchedule || role >= 3;
+            c.status !== "withdrawn" &&
+            (!c.scheduleMeetingLink || c.canManageSchedule || role >= 3);
           const canSubmitEvaluation =
             c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
 

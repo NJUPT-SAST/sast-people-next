@@ -109,7 +109,7 @@ export function getBeijingDayRange(now = new Date()) {
   });
   return {
     start,
-    end: new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1),
+    end: new Date(start.getTime() + 24 * 60 * 60 * 1000),
   };
 }
 

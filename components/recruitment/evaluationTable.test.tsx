@@ -304,6 +304,8 @@ describe("EvaluationTable", () => {
     expect(screen.getAllByText("已退回").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/已退回 1/).length).toBeGreaterThan(0);
     expect(screen.queryAllByText("待预约")).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "预约" })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "退回" })).toHaveLength(0);
   });
 
   it("does not return a candidate when the confirm dialog is cancelled", async () => {

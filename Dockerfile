@@ -15,6 +15,7 @@ RUN pnpm build
 # Stage 3: Runtime application image
 FROM node:22-alpine AS runner
 WORKDIR /app
+RUN addgroup -S app && adduser -S -G app app
 ENV NODE_ENV=production
 ENV TZ=Asia/Shanghai
 COPY --from=app-builder --chown=app:app /app/.next/standalone ./

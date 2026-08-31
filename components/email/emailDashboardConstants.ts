@@ -53,7 +53,7 @@ export function isToday(value: Date | string | null) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return false;
   const { start, end } = getBeijingDayRange();
-  return date >= start && date <= end;
+  return date >= start && date < end;
 }
 
 export function getBatchStatusBadgeClass(status: string) {
