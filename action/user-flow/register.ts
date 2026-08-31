@@ -7,6 +7,7 @@ import { logServerError } from "@/lib/server-error-log";
 import { verifySession } from "@/lib/dal";
 import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 import { isValidExternalUrl } from "@/lib/link";
+import { formatBeijingDateTime } from "@/lib/timezone";
 import { writeOperationAudit } from "@/lib/operation-audit";
 
 /** 查找 flow 下指定 order 的步骤 ID */
@@ -155,7 +156,7 @@ export const register = async (
         return {
           success: false,
           error: {
-            message: `流程"${title}"尚未开始，开始时间为 ${startedAt.toLocaleString("zh-CN")}`,
+              message: `流程"${title}"尚未开始，开始时间为 ${formatBeijingDateTime(startedAt)}`,
           },
         };
       }
@@ -164,7 +165,7 @@ export const register = async (
         return {
           success: false,
           error: {
-            message: `流程"${title}"已结束，结束时间为 ${endedAt.toLocaleString("zh-CN")}`,
+              message: `流程"${title}"已结束，结束时间为 ${formatBeijingDateTime(endedAt)}`,
           },
         };
       }

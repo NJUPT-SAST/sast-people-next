@@ -14,7 +14,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 0' INT TERM
 
-pnpm db:dev:up
+TZ=Asia/Shanghai pnpm db:dev:up
 database_exit=$?
 if [ "$database_exit" -ne 0 ]; then
   exit "$database_exit"
@@ -23,7 +23,7 @@ fi
 pnpm exec inngest-cli dev --no-discovery -u http://localhost:3000/api/inngest &
 inngest_pid=$!
 
-INNGEST_DEV=1 pnpm dev
+TZ=Asia/Shanghai INNGEST_DEV=1 pnpm dev
 web_exit=$?
 
 # Ctrl+C is an intentional local-development shutdown, not a script failure.

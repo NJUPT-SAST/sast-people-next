@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db/drizzle";
+import { getBeijingDayRange, parseBeijingDateOnly } from "@/lib/timezone";
 import {
   emailBatch,
   emailDelivery,
@@ -87,16 +88,13 @@ function normalizeEmailDeliveryListParams(
 
 function getDateStart(value: string) {
   if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseBeijingDateOnly(value);
 }
 
 function getDateEnd(value: string) {
   if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setHours(23, 59, 59, 999);
-  return date;
+  const start = parseBeijingDateOnly(value);
+  return start ? new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1) : null;
 }
 
 async function buildEmailDeliveryWhereConditions({
@@ -409,12 +407,7 @@ export async function listResultEmailDeliveryStates() {
 export async function getEmailStatusOverview() {
   await verifyRole(3);
 
-  const now = new Date();
-  const todayStart = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  );
+  const { start: todayStart, end: todayEnd } = getBeijingDayRange();
   const [todaySent, todayFailed, pendingOrSending, recentFailures] =
     await Promise.all([
       db
@@ -424,6 +417,7 @@ export async function getEmailStatusOverview() {
           and(
             eq(emailDelivery.status, "sent"),
             gte(emailDelivery.sentAt, todayStart),
+            lte(emailDelivery.sentAt, todayEnd),
           ),
         ),
       db
@@ -434,10 +428,12 @@ export async function getEmailStatusOverview() {
             and(
               eq(emailDelivery.status, "failed"),
               gte(emailDelivery.lastAttemptAt, todayStart),
+              lte(emailDelivery.lastAttemptAt, todayEnd),
             ),
             and(
               eq(emailDelivery.status, "dead"),
               gte(emailDelivery.deadLetteredAt, todayStart),
+              lte(emailDelivery.deadLetteredAt, todayEnd),
             ),
           ),
         ),

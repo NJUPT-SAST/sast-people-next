@@ -1,3 +1,4 @@
+import { getBeijingDayRange, formatBeijingDateTime } from "@/lib/timezone";
 export const batchStatusText: Record<string, string> = {
   draft: "待发送",
   queued: "发送中",
@@ -51,12 +52,8 @@ export function isToday(value: Date | string | null) {
   if (!value) return false;
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return false;
-  const now = new Date();
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
+  const { start, end } = getBeijingDayRange();
+  return date >= start && date <= end;
 }
 
 export function getBatchStatusBadgeClass(status: string) {
@@ -87,15 +84,8 @@ export function getDeliveryStatusBadgeClass(status: string) {
 
 export function formatDate(value: Date | string | null) {
   if (!value) return "-";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  const formatted = formatBeijingDateTime(value);
+  return formatted === "-" ? formatted : formatted.slice(0, 16);
 }
 
 export function getSettingLabel(templateKey: string) {

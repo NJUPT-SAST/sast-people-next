@@ -1,6 +1,10 @@
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
+import {
+  fromBeijingDateParts,
+  toBeijingWallClockDate,
+} from '@/lib/timezone';
 import { format, parse, isValid, getYear } from 'date-fns';
 import { useRef, useState, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
 import { CalendarIcon, CircleAlert, CircleCheck } from 'lucide-react';
@@ -62,7 +66,7 @@ const segmentConfigs = [
 ];
 
 function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
-  const { format: formatProp, onChange, value: _value, timezone } = options;
+  const { format: formatProp, onChange, value: _value } = options;
   const value = useMemo(() => _value ? new Date(_value) : undefined, [_value]);
   const form = useFormContext();
   const formatStr = React.useMemo(() => formatProp || 'yyyy-MM-dd HH:mm:ss', [formatProp]);
@@ -73,13 +77,14 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
   const [selectedSegmentAt, setSelectedSegmentAt] = useState<number | undefined>(undefined);
 
   useEffect(() => {
+    const wallClockValue = value ? toBeijingWallClockDate(value) : undefined;
     if (form?.formState.isSubmitted) {
-      setSegments(parseFormat(formatStr, value));
+      setSegments(parseFormat(formatStr, wallClockValue));
     }
   }, [form?.formState.isSubmitted, formatStr, value]);
   useEffect(() => {
-    // console.error('valueChanged', {formatStr, inputStr, value});
-    setSegments(parseFormat(formatStr, value));
+    const wallClockValue = value ? toBeijingWallClockDate(value) : undefined;
+    setSegments(parseFormat(formatStr, wallClockValue));
   }, [formatStr, value]);
 
   const curSegment = useMemo(() => {
@@ -106,17 +111,26 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
   const inputValue = useMemo(() => {
     const allHasValue = !validSegments.some((s) => !s.value);
     if (!allHasValue) return;
-    const date = parse(inputStr, formatStr, value || new Date());
-    const year = getYear(date);
-    // console.log('inputValue', {allHasValue, validSegments, inputStr, formatStr, date, year});
-    if (isValid(date) && year > 1900 && year < 2100) {
-      return date;
+    const wallClockDate = parse(
+      inputStr,
+      formatStr,
+      value ? toBeijingWallClockDate(value) : new Date(2000, 0, 1),
+    );
+    const year = getYear(wallClockDate);
+    if (isValid(wallClockDate) && year > 1900 && year < 2100) {
+      return fromBeijingDateParts({
+        year,
+        month: wallClockDate.getMonth() + 1,
+        day: wallClockDate.getDate(),
+        hour: wallClockDate.getHours(),
+        minute: wallClockDate.getMinutes(),
+        second: wallClockDate.getSeconds(),
+      });
     }
   }, [validSegments, inputStr, formatStr, value]);
   useEffect(() => {
     if (!inputValue) return;
     if (value?.getTime() !== inputValue.getTime()) {
-      // console.log('inputValueChanged', {formatStr, inputStr, value, inputValue, });
       onChange?.(inputValue);
     }
   }, [inputValue, onChange, value]);
@@ -168,10 +182,10 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         const length = segment.symbols.length;
         const rawValue = parseInt(segment.value).toString();
         let newValue = rawValue.length < length ? rawValue + num : num;
-        let parsedDate = parse(newValue.padStart(length, '0'), segment.symbols, safeDate(timezone));
+        let parsedDate = parse(newValue.padStart(length, '0'), segment.symbols, safeDate());
         if (!isValid(parsedDate) && newValue.length > 1) {
           newValue = num;
-          parsedDate = parse(newValue, segment.symbols, safeDate(timezone));
+          parsedDate = parse(newValue, segment.symbols, safeDate());
         }
         const updatedSegments = segments.map((s) => (s.index === segment.index ? { ...segment, value: newValue } : s));
         setSegments(updatedSegments);
@@ -291,16 +305,17 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
           <PopoverContent className="w-auto p-0" align="start">
             <Calendar
               mode="single"
-              selected={inputValue}
+              selected={inputValue ? toBeijingWallClockDate(inputValue) : undefined}
               onSelect={(date) => {
                 if (date) {
-                  const newDate = new Date(date);
+                  const wallClockDate = new Date(date);
                   if (inputValue) {
-                    newDate.setHours(inputValue.getHours());
-                    newDate.setMinutes(inputValue.getMinutes());
-                    newDate.setSeconds(inputValue.getSeconds());
+                    const currentWallClockDate = toBeijingWallClockDate(inputValue);
+                    wallClockDate.setHours(currentWallClockDate.getHours());
+                    wallClockDate.setMinutes(currentWallClockDate.getMinutes());
+                    wallClockDate.setSeconds(currentWallClockDate.getSeconds());
                   }
-                  setSegments(parseFormat(formatStr, newDate));
+                  setSegments(parseFormat(formatStr, wallClockDate));
                   setCalendarOpen(false);
                 }
               }}
@@ -389,9 +404,7 @@ function parseFormat(formatStr: string, value?: Date) {
   return views;
 }
 
-const safeDate = (_timezone?: string) => {
-  return new Date('2000-01-01T00:00:00');
-};
+const safeDate = () => new Date(2000, 0, 1);
 
 const isAndroid = () => /Android/i.test(navigator.userAgent);
 

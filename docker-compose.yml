@@ -9,6 +9,7 @@ services:
       - .env
     environment:
       HOSTNAME: "0.0.0.0"
+      TZ: "Asia/Shanghai"
     networks:
       - postgres
     healthcheck:

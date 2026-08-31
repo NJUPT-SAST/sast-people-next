@@ -9,6 +9,7 @@ import { logServerError } from '@/lib/server-error-log';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  options: "-c timezone=Asia/Shanghai",
   max: readPositiveIntegerEnv('DATABASE_POOL_MAX', 20),
   idleTimeoutMillis: readNonNegativeIntegerEnv(
     'DATABASE_POOL_IDLE_TIMEOUT_MS',

@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db/drizzle";
+import { parseBeijingDateTime } from "@/lib/timezone";
 import {
   flow,
   interviewEvaluation,
@@ -118,8 +119,8 @@ type ConfirmInterviewScheduleEndedResult =
     };
 
 function parseDate(value: string, fieldName: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseBeijingDateTime(value);
+  if (!date) {
     throw new Error(`${fieldName} 时间格式不正确`);
   }
   return date;

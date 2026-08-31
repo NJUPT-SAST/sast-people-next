@@ -8,6 +8,8 @@ services:
       POSTGRES_USER: sastpeople
       POSTGRES_PASSWORD: sast_dev_password
       POSTGRES_DB: sastpeople_local
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
     volumes:
       - sast_people_postgres_dev:/var/lib/postgresql/data
     healthcheck:
