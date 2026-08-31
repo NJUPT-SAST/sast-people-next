@@ -4,10 +4,12 @@ services:
     container_name: sast-people-postgres-dev
     ports:
       - "55432:5432"
+    command: ["postgres", "-c", "timezone=Asia/Shanghai"]
     environment:
       POSTGRES_USER: sastpeople
       POSTGRES_PASSWORD: sast_dev_password
       POSTGRES_DB: sastpeople_local
+      TZ: Asia/Shanghai
     volumes:
       - sast_people_postgres_dev:/var/lib/postgresql/data
     healthcheck:

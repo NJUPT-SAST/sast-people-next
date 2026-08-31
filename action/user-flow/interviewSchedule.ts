@@ -1,10 +1,12 @@
 "use server";
 
 import { db } from "@/db/drizzle";
+import { parseBeijingDateTime } from "@/lib/timezone";
 import {
   flow,
   interviewEvaluation,
   interviewSchedule,
+  interviewScheduleCancellationOutbox,
   userFlow,
 } from "@/db/schema";
 import { createRenderedEmailDelivery } from "@/lib/email-center/delivery";
@@ -37,6 +39,8 @@ import { revalidatePath } from "next/cache";
 import { getFeishuCalendarSubscriptionCacheKey } from "./interviewSchedule-utils";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+class InterviewWithdrawalConflictError extends Error {}
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
 const feishuCalendarSubscriptionCache = new Set<string>();
@@ -118,8 +122,8 @@ type ConfirmInterviewScheduleEndedResult =
     };
 
 function parseDate(value: string, fieldName: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseBeijingDateTime(value);
+  if (!date) {
     throw new Error(`${fieldName} 时间格式不正确`);
   }
   return date;
@@ -1139,33 +1143,32 @@ export async function returnInterviewCandidate(
         )
         .returning({ id: userFlow.id });
 
-      return updated
-        ? { success: true as const, scheduleId: currentSchedule?.id }
-        : {
-            success: false as const,
-            error: { message: "该面试状态已发生变化，请刷新后重试。" },
-          };
+      if (!updated) {
+        throw new InterviewWithdrawalConflictError();
+      }
+
+      const [cancellationOutbox] = currentSchedule
+        ? await tx
+            .insert(interviewScheduleCancellationOutbox)
+            .values({ fkInterviewScheduleId: currentSchedule.id })
+            .returning({ id: interviewScheduleCancellationOutbox.id })
+        : [];
+
+      return {
+        success: true as const,
+        scheduleId: currentSchedule?.id,
+        cancellationOutboxId: cancellationOutbox?.id,
+      };
+    }).catch((error: unknown) => {
+      if (error instanceof InterviewWithdrawalConflictError) {
+        return {
+          success: false as const,
+          error: { message: "该面试状态已发生变化，请刷新后重试。" },
+        };
+      }
+      throw error;
     });
     if (!withdrawalResult.success) return withdrawalResult;
-
-    let scheduleCancellationWarning: string | undefined;
-    if (withdrawalResult.scheduleId) {
-      try {
-        await mqClient.send({
-          name: "interview/schedule.cancel",
-          data: { scheduleId: withdrawalResult.scheduleId },
-          id: `people-interview-withdrawal-cancel-${withdrawalResult.scheduleId}`,
-        });
-      } catch (error) {
-        logServerError("interviewSchedule:enqueueCancellation", error, {
-          action: "enqueue-interview-schedule-cancellation",
-          userFlowId,
-          metadata: { scheduleId: withdrawalResult.scheduleId },
-        });
-        scheduleCancellationWarning = "面试报名已退回，但面试日程取消任务暂未排队。";
-      }
-    }
-
 
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/user-flow");
@@ -1207,7 +1210,7 @@ export async function returnInterviewCandidate(
       emailWarning = "已退回该报名，但退回通知邮件发送失败。";
     }
 
-    const warnings = [scheduleCancellationWarning, emailWarning].filter(
+    const warnings = [emailWarning].filter(
       (warning): warning is string => Boolean(warning),
     );
     await writeOperationAudit({
@@ -1218,6 +1221,7 @@ export async function returnInterviewCandidate(
       resourceId: userFlowId,
       metadata: {
         scheduleId: candidate.scheduleId ?? null,
+        cancellationOutboxId: withdrawalResult.cancellationOutboxId ?? null,
         reason: normalizedReason,
         emailDeliveryId: emailDeliveryId ?? null,
         emailWarning: warnings.length > 0 ? warnings.join("；") : null,

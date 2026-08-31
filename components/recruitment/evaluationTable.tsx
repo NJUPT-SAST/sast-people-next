@@ -47,6 +47,7 @@ import {
   getInterviewMeetingRoom,
   interviewMeetingRooms,
 } from "@/lib/interview-meeting-rooms";
+import { toBeijingWallClockDate } from "@/lib/timezone";
 
 type Candidate = {
   userFlowId: number;
@@ -190,7 +191,6 @@ const summaryItems = [
   { key: "rejected", label: "不通过" },
   { key: "withdrawn", label: "已退回" },
 ];
-
 const formatDateTimeLocal = (date: Date) => {
   const pad = (value: number) => String(value).padStart(2, "0");
   return [
@@ -205,15 +205,15 @@ const formatDateTimeLocal = (date: Date) => {
     pad(date.getMinutes()),
   ].join("");
 };
-
 const getDefaultScheduleRange = () => {
   const start = new Date();
-  start.setMinutes(0, 0, 0);
-  start.setHours(start.getHours() + 1);
-  const end = new Date(start);
+  const beijingStart = toBeijingWallClockDate(start);
+  beijingStart.setMinutes(0, 0, 0);
+  beijingStart.setHours(beijingStart.getHours() + 1);
+  const end = new Date(beijingStart);
   end.setMinutes(end.getMinutes() + 30);
   return {
-    startsAt: formatDateTimeLocal(start),
+    startsAt: formatDateTimeLocal(beijingStart),
     endsAt: formatDateTimeLocal(end),
   };
 };
@@ -555,8 +555,8 @@ export const EvaluationTable = ({
     const range =
       c.scheduleStartsAt && c.scheduleEndsAt
         ? {
-            startsAt: formatDateTimeLocal(new Date(c.scheduleStartsAt)),
-            endsAt: formatDateTimeLocal(new Date(c.scheduleEndsAt)),
+            startsAt: formatDateTimeLocal(toBeijingWallClockDate(new Date(c.scheduleStartsAt))),
+            endsAt: formatDateTimeLocal(toBeijingWallClockDate(new Date(c.scheduleEndsAt))),
           }
         : getDefaultScheduleRange();
     setScheduleStartsAt(range.startsAt);
@@ -978,9 +978,12 @@ export const EvaluationTable = ({
                 !scheduleEnded &&
                 (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
               const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
-              const canManageSchedule = !c.scheduleMeetingLink || c.canManageSchedule;
+              const canManageSchedule =
+                c.status !== "withdrawn" &&
+                (!c.scheduleMeetingLink || c.canManageSchedule);
               const canReturnCandidate =
-                !c.scheduleMeetingLink || c.canManageSchedule || role >= 3;
+                c.status !== "withdrawn" &&
+                (!c.scheduleMeetingLink || c.canManageSchedule || role >= 3);
               const canSubmitEvaluation =
                 c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
 
@@ -1130,9 +1133,12 @@ export const EvaluationTable = ({
             !scheduleEnded &&
             (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
           const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
-          const canManageSchedule = !c.scheduleMeetingLink || c.canManageSchedule;
+          const canManageSchedule =
+            c.status !== "withdrawn" &&
+            (!c.scheduleMeetingLink || c.canManageSchedule);
           const canReturnCandidate =
-            !c.scheduleMeetingLink || c.canManageSchedule || role >= 3;
+            c.status !== "withdrawn" &&
+            (!c.scheduleMeetingLink || c.canManageSchedule || role >= 3);
           const canSubmitEvaluation =
             c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
 
