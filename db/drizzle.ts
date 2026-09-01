@@ -9,6 +9,8 @@ import { logServerError } from '@/lib/server-error-log';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  // Keep SQL rendering and legacy date literals aligned with business time.
+  // Date-valued columns are timestamptz; this also makes explicit SQL dates deterministic.
   options: "-c timezone=Asia/Shanghai",
   max: readPositiveIntegerEnv('DATABASE_POOL_MAX', 20),
   idleTimeoutMillis: readNonNegativeIntegerEnv(

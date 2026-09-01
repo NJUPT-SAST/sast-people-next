@@ -55,6 +55,18 @@ describe("buildFeishuApprovalCard", () => {
     expect(JSON.stringify(card)).toContain("2026-08-25 01:00");
   });
 
+  it("renders an absolute submission instant exactly once in Beijing time", () => {
+    const card = buildFeishuApprovalCard({
+      ...context,
+      submittedAt: new Date("2026-08-25T00:30:00.000Z"),
+      updatedAt: new Date("2026-08-25T00:30:00.000Z"),
+    });
+
+    const rendered = JSON.stringify(card);
+    expect(rendered.match(/2026-08-25 08:30/g) ?? []).toHaveLength(1);
+    expect(rendered).not.toContain("2026-08-25 16:30");
+  });
+
   it("creates once and then updates the original card", async () => {
     sendFeishuCardMessage.mockResolvedValue({ messageId: "om_original" });
 

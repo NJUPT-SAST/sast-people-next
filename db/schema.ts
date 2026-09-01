@@ -91,10 +91,10 @@ export const flow = pgTable("flow", {
   >(),
   /* Link 用户 ID */
   ownerId: integer("owner_id").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  startedAt: timestamp("started_at").notNull().defaultNow(),
-  endedAt: timestamp("ended_at"),
-  updatedAt: timestamp("updated_at")
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -110,8 +110,8 @@ export const flowStep = pgTable("flow_step", {
   fkFlowId: integer("fk_flow_id")
     .references(() => flow.id, { onDelete: "cascade" })
     .notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -137,8 +137,8 @@ export const userFlow = pgTable("user_flow", {
     .notNull(),
   /* Link 用户 ID */
   fkUserId: integer("fk_user_id").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -177,8 +177,8 @@ export const emailBatch = pgTable("email_batch", {
     .references(() => flow.id, { onDelete: "restrict" }),
   fkCreatedBy: integer("fk_created_by"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -200,9 +200,9 @@ export const emailDelivery = pgTable("email_delivery", {
   errorMessage: text("error_message"),
   providerMessageId: varchar("provider_message_id", { length: 255 }),
   attemptCount: integer("attempt_count").notNull().default(0),
-  lastAttemptAt: timestamp("last_attempt_at"),
-  nextRetryAt: timestamp("next_retry_at"),
-  deadLetteredAt: timestamp("dead_lettered_at"),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true }),
   fkEmailBatchId: integer("fk_email_batch_id")
     .references(() => emailBatch.id, { onDelete: "cascade" }),
   fkFlowId: integer("fk_flow_id")
@@ -213,9 +213,9 @@ export const emailDelivery = pgTable("email_delivery", {
   relatedScheduleId: integer("related_schedule_id"),
   createdBy: integer("created_by"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  sentAt: timestamp("sent_at"),
-  updatedAt: timestamp("updated_at")
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -258,8 +258,8 @@ export const emailDeliveryAttempt = pgTable("email_delivery_attempt", {
   providerMessageId: varchar("provider_message_id", { length: 255 }),
   errorMessage: text("error_message"),
   triggeredBy: integer("triggered_by"),
-  startedAt: timestamp("started_at").notNull().defaultNow(),
-  finishedAt: timestamp("finished_at"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
   durationMs: integer("duration_ms"),
 }, (table) => ({
   deliveryStartedAtIdx: index("email_delivery_attempt_delivery_started_at_idx").on(
@@ -274,9 +274,9 @@ export const emailDeliveryAttempt = pgTable("email_delivery_attempt", {
 
 export const emailSendRateLimit = pgTable("email_send_rate_limit", {
   bucketKey: varchar("bucket_key", { length: 80 }).primaryKey(),
-  windowStart: timestamp("window_start").notNull(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
   count: integer("count").notNull().default(0),
-  updatedAt: timestamp("updated_at")
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -297,7 +297,7 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
   contactEmail: varchar("contact_email", { length: 254 }).notNull(),
   memberFormLabel: varchar("member_form_label", { length: 100 }).notNull(),
   feishuGroupName: varchar("feishu_group_name", { length: 100 }).notNull(),
-  updatedAt: timestamp("updated_at")
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -310,7 +310,7 @@ export const emailTemplateContent = pgTable("email_template_content", {
   titleTemplate: varchar("title_template", { length: 255 }).notNull(),
   bodyTemplate: text("body_template").notNull(),
   footerText: varchar("footer_text", { length: 255 }).notNull(),
-  updatedAt: timestamp("updated_at")
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -327,7 +327,7 @@ export const userPoint = pgTable("user_point", {
   points: integer("points").notNull(),
   /* Link 用户 ID — 阅卷人 */
   fkJudgerId: integer("fk_judger_id"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   userFlowProblemUnique: unique().on(table.fkUserFlowId, table.fkProblemId),
 }));
@@ -347,8 +347,8 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
   /* Link 用户 ID — 面评撰写人 */
   fkUserId: integer("fk_user_id").notNull(),
   feishuApprovalMessageId: varchar("feishu_approval_message_id", { length: 255 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -368,10 +368,10 @@ export const userOAuthAccount = pgTable("user_oauth_account", {
   providerUnionId: varchar("provider_union_id", { length: 255 }),
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token"),
-  accessTokenExpiresAt: timestamp("access_token_expires_at"),
-  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
+  accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -386,17 +386,15 @@ export const peopleSession = pgTable("people_session", {
   uid: integer("uid").notNull(),
   name: varchar("name", { length: 30 }).notNull(),
   role: integer("role").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   linkAccessToken: text("link_access_token"),
   linkRefreshToken: text("link_refresh_token"),
-  linkAccessTokenExpiresAt: timestamp("link_access_token_expires_at"),
+  linkAccessTokenExpiresAt: timestamp("link_access_token_expires_at", { withTimezone: true }),
   linkAdminAccessToken: text("link_admin_access_token"),
   linkAdminRefreshToken: text("link_admin_refresh_token"),
-  linkAdminAccessTokenExpiresAt: timestamp(
-    "link_admin_access_token_expires_at",
-  ),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
+  linkAdminAccessTokenExpiresAt: timestamp("link_admin_access_token_expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -430,14 +428,14 @@ export const interviewSchedule = pgTable("interview_schedule", {
   location: varchar("location", { length: 255 }),
   meetingRoomId: varchar("meeting_room_id", { length: 255 }),
   attendeeEmail: varchar("attendee_email", { length: 254 }),
-  startsAt: timestamp("starts_at").notNull(),
-  endsAt: timestamp("ends_at").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
   status: interviewScheduleStatusEnum("status").notNull().default("created"),
   meetingStatus: varchar("meeting_status", { length: 32 }).notNull().default("scheduled"),
-  meetingEndedAt: timestamp("meeting_ended_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
+  meetingEndedAt: timestamp("meeting_ended_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -459,13 +457,13 @@ export const interviewScheduleCancellationOutbox = pgTable(
       .references(() => interviewSchedule.id, { onDelete: "cascade" })
       .notNull(),
     attemptCount: integer("attempt_count").notNull().default(0),
-    nextAttemptAt: timestamp("next_attempt_at").notNull().defaultNow(),
-    lockedUntil: timestamp("locked_until"),
-    lastAttemptAt: timestamp("last_attempt_at"),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
     lastError: text("last_error"),
-    publishedAt: timestamp("published_at"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at")
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow()
       .$onUpdate(() => sql`now()`),
@@ -489,7 +487,7 @@ export const operationAudit = pgTable("operation_audit", {
   resourceType: varchar("resource_type", { length: 80 }).notNull(),
   resourceId: integer("resource_id"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   actorIdx: index("operation_audit_actor_id_idx").on(table.actorId),
   resourceIdx: index("operation_audit_resource_idx").on(
