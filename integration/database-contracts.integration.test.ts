@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { Client } from "pg";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -213,5 +214,57 @@ describe("PostgreSQL migration contracts", () => {
       { column_name: "created_at", data_type: "timestamp with time zone" },
       { column_name: "updated_at", data_type: "timestamp with time zone" },
     ]);
+  });
+
+  it("converts only the remaining legacy evaluation timestamp in a UTC session", async () => {
+    const flowId = await createFlow();
+    const userFlowId = await createUserFlow(flowId);
+    const submittedAt = new Date("2026-08-25T00:30:00.000Z");
+
+    await client.query(
+      `
+        insert into interview_evaluation (
+          fk_user_flow_id,
+          fk_user_id,
+          content,
+          created_at,
+          updated_at
+        ) values ($1, 900003, 'Migration contract', $2, $2)
+      `,
+      [userFlowId, submittedAt],
+    );
+    await client.query("set local timezone = 'UTC'");
+    await client.query(
+      `
+        alter table interview_evaluation
+          alter column updated_at drop default,
+          alter column updated_at type timestamp
+            using updated_at at time zone 'Asia/Shanghai',
+          alter column updated_at set default now()
+      `,
+    );
+    await client.query(readFileSync("migrations/0050_interview_evaluation_timestamptz.sql", "utf8"));
+
+    const result = await client.query<{
+      created_at: Date;
+      created_type: string;
+      updated_type: string;
+    }>(
+      `
+        select
+          created_at,
+          pg_typeof(created_at)::text as created_type,
+          pg_typeof(updated_at)::text as updated_type
+        from interview_evaluation
+        where fk_user_flow_id = $1
+      `,
+      [userFlowId],
+    );
+
+    expect(result.rows[0]).toMatchObject({
+      created_at: submittedAt,
+      created_type: "timestamp with time zone",
+      updated_type: "timestamp with time zone",
+    });
   });
 });

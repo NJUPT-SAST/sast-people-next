@@ -113,3 +113,17 @@ ALTER TABLE "operation_audit"
   ALTER COLUMN "created_at" DROP DEFAULT,
   ALTER COLUMN "created_at" TYPE timestamptz USING "created_at" AT TIME ZONE 'Asia/Shanghai',
   ALTER COLUMN "created_at" SET DEFAULT now();
+
+ALTER TABLE "interview_schedule_cancellation_outbox"
+  ALTER COLUMN "next_attempt_at" DROP DEFAULT,
+  ALTER COLUMN "next_attempt_at" TYPE timestamptz USING "next_attempt_at" AT TIME ZONE 'Asia/Shanghai',
+  ALTER COLUMN "next_attempt_at" SET DEFAULT now(),
+  ALTER COLUMN "locked_until" TYPE timestamptz USING "locked_until" AT TIME ZONE 'Asia/Shanghai',
+  ALTER COLUMN "last_attempt_at" TYPE timestamptz USING "last_attempt_at" AT TIME ZONE 'Asia/Shanghai',
+  ALTER COLUMN "published_at" TYPE timestamptz USING "published_at" AT TIME ZONE 'Asia/Shanghai',
+  ALTER COLUMN "created_at" DROP DEFAULT,
+  ALTER COLUMN "created_at" TYPE timestamptz USING "created_at" AT TIME ZONE 'Asia/Shanghai',
+  ALTER COLUMN "created_at" SET DEFAULT now(),
+  ALTER COLUMN "updated_at" DROP DEFAULT,
+  ALTER COLUMN "updated_at" TYPE timestamptz USING "updated_at" AT TIME ZONE 'Asia/Shanghai',
+  ALTER COLUMN "updated_at" SET DEFAULT now();
