@@ -184,4 +184,34 @@ describe("PostgreSQL migration contracts", () => {
       constraint: "email_delivery_idempotency_key_uidx",
     });
   });
+
+  it("stores every Date-valued column as an absolute instant", async () => {
+    const result = await client.query<{ table_name: string; column_name: string; data_type: string }>(
+      `
+        select table_name, column_name, data_type
+        from information_schema.columns
+        where table_schema = 'public'
+          and data_type = 'timestamp without time zone'
+        order by table_name, column_name
+      `,
+    );
+
+    expect(result.rows).toEqual([]);
+
+    const evaluationResult = await client.query<{ column_name: string; data_type: string }>(
+      `
+        select column_name, data_type
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'interview_evaluation'
+          and column_name in ('created_at', 'updated_at')
+        order by column_name
+      `,
+    );
+
+    expect(evaluationResult.rows).toEqual([
+      { column_name: "created_at", data_type: "timestamp with time zone" },
+      { column_name: "updated_at", data_type: "timestamp with time zone" },
+    ]);
+  });
 });
