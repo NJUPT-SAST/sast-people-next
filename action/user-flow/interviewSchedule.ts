@@ -30,7 +30,7 @@ import {
 import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
-import { logServerError } from "@/lib/server-error-log";
+import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 import { verifyRole } from "@/lib/dal";
 import { normalizeWithdrawalReason } from "@/lib/validation/user-flow";
 import { mqClient } from "@/queue/client";
@@ -792,7 +792,22 @@ export async function createInterviewSchedule(
       action: "create-interview-schedule",
       userFlowId: input.userFlowId,
     });
-    throw error;
+
+    if (isNextControlFlowError(error)) {
+      throw error;
+    }
+
+    // Return a serializable action result so expected scheduling conflicts are
+    // shown by the client instead of being converted into React error #441.
+    return {
+      success: false,
+      error: {
+        message:
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "飞书日程创建失败，请稍后重试。",
+      },
+    };
   }
 }
 
