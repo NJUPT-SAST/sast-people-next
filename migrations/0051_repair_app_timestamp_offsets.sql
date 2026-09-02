@@ -2,13 +2,12 @@
 -- The columns below were written as UTC ISO strings by Drizzle, so historical
 -- rows were shifted eight hours early. Repair only rows that existed when 0049
 -- was applied; values written after that migration are already timestamptz.
--- 0049's journal marker is 2026-08-29 11:33:36.490 UTC; verify it against
--- the target database before treating it as the repair cutoff.
+-- The repair cutoff is read from the matching 0049 row in the target database's
+-- Drizzle journal, rather than inferred from this file's journal metadata.
 
 DO $$
 DECLARE
-  migration_0049_marker bigint := 1788003216490;
-  migration_0049_at timestamptz := to_timestamp(migration_0049_marker / 1000.0);
+  migration_0049_at timestamptz;
   migration_0049_hashes text[] := ARRAY[
     '31fd3663de9d7e44f7d095b9d15fba739f267dcfec07ec71fb44e71c2011bca3',
     '74dd9401283e4fc4297d10b887926b97f29e4f8362e35ae6cff32df2285bfe69'
@@ -21,7 +20,7 @@ BEGIN
   SELECT "hash", "created_at"
   INTO recorded_migration_0049_hash, recorded_migration_0049_marker
   FROM "drizzle"."__drizzle_migrations"
-  WHERE "created_at" = migration_0049_marker
+  WHERE "hash" = ANY (migration_0049_hashes || ARRAY[corrected_migration_0049_hash])
   ORDER BY "created_at" DESC
   LIMIT 1;
 
@@ -30,15 +29,15 @@ BEGIN
   END IF;
 
   IF recorded_migration_0049_hash IS NULL
-     OR recorded_migration_0049_hash <> ALL (migration_0049_hashes)
-     OR recorded_migration_0049_marker IS DISTINCT FROM migration_0049_marker THEN
+     OR NOT (recorded_migration_0049_hash = ANY (migration_0049_hashes)) THEN
     RAISE EXCEPTION
-      '0051 requires migration 0049 hash % and marker %, found hash % marker %',
+      '0051 requires a recorded legacy migration 0049 row with hash %, found hash % marker %',
       migration_0049_hashes,
-      migration_0049_marker,
       recorded_migration_0049_hash,
       recorded_migration_0049_marker;
   END IF;
+
+  migration_0049_at := to_timestamp(recorded_migration_0049_marker / 1000.0);
 
   UPDATE "email_delivery"
   SET
@@ -46,7 +45,7 @@ BEGIN
     "next_retry_at" = "next_retry_at" + interval '8 hours',
     "dead_lettered_at" = "dead_lettered_at" + interval '8 hours',
     "sent_at" = "sent_at" + interval '8 hours'
-  WHERE "updated_at" < migration_0049_at
+  WHERE "created_at" < migration_0049_at
     AND (
       "last_attempt_at" IS NOT NULL
       OR "next_retry_at" IS NOT NULL
@@ -58,17 +57,17 @@ BEGIN
   SET "finished_at" = attempt."finished_at" + interval '8 hours'
   FROM "email_delivery" AS delivery
   WHERE attempt."fk_email_delivery_id" = delivery."id"
-    AND attempt."finished_at" < migration_0049_at;
+    AND attempt."started_at" < migration_0049_at;
 
   UPDATE "email_send_rate_limit"
   SET "window_start" = "window_start" + interval '8 hours'
-  WHERE "updated_at" < migration_0049_at;
+  WHERE "window_start" < migration_0049_at;
 
   UPDATE "user_oauth_account"
   SET
     "access_token_expires_at" = "access_token_expires_at" + interval '8 hours',
     "refresh_token_expires_at" = "refresh_token_expires_at" + interval '8 hours'
-  WHERE "updated_at" < migration_0049_at
+  WHERE "created_at" < migration_0049_at
     AND (
       "access_token_expires_at" IS NOT NULL
       OR "refresh_token_expires_at" IS NOT NULL
@@ -91,7 +90,7 @@ BEGIN
     "starts_at" = "starts_at" + interval '8 hours',
     "ends_at" = "ends_at" + interval '8 hours',
     "meeting_ended_at" = "meeting_ended_at" + interval '8 hours'
-  WHERE "updated_at" < migration_0049_at;
+  WHERE "created_at" < migration_0049_at;
 
   IF to_regclass('public.interview_schedule_cancellation_outbox') IS NOT NULL THEN
     UPDATE "interview_schedule_cancellation_outbox" AS outbox
@@ -101,6 +100,6 @@ BEGIN
       "published_at" = "published_at" + interval '8 hours'
     FROM "interview_schedule" AS schedule
     WHERE outbox."fk_interview_schedule_id" = schedule."id"
-      AND outbox."updated_at" < migration_0049_at;
+      AND outbox."created_at" < migration_0049_at;
   END IF;
 END $$;

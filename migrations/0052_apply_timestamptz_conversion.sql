@@ -7,6 +7,11 @@ DO $$
 DECLARE
   target RECORD;
 BEGIN
+  -- DDL below needs an ACCESS EXCLUSIVE lock. Fail promptly if application
+  -- traffic holds a conflicting lock; the migration can be retried in a
+  -- maintenance window instead of blocking requests indefinitely.
+  SET LOCAL lock_timeout = '5s';
+
   FOR target IN
     SELECT *
     FROM (VALUES
