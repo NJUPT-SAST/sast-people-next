@@ -15,6 +15,34 @@ const filters = {
 };
 
 describe('AuditLogTable', () => {
+  it('uses final decision wording for an administrator rejection', () => {
+    render(
+      <AuditLogTable
+        totalCount={1}
+        filters={filters}
+        logs={[{
+          id: 3,
+          actorId: 10,
+          actorRole: 3,
+          actorType: 'user',
+          actorName: '管理员',
+          actorStudentId: null,
+          action: 'evaluation.reject',
+          resourceType: 'interview_evaluation',
+          resourceId: 7,
+          resourceLabel: '面评：张三',
+          createdAt: new Date('2026-08-19T12:00:00Z'),
+          metadata: {},
+          targetUser: null,
+          targetUsers: [],
+        }]}
+      />,
+    );
+
+    expect(screen.getAllByText('终审不通过').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('驳回面评')).toHaveLength(0);
+  });
+
   it('renders a compact scoring summary and reveals full details on demand', async () => {
     const user = userEvent.setup();
 

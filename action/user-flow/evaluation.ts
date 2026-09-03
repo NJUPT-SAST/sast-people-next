@@ -556,7 +556,7 @@ export const rejectEvaluation = async (evaluationId: number) => {
 
       if (!evalRecord) throw new Error("面评不存在");
       if (!canRejectEvaluation(evalRecord.status)) {
-        throw new Error("只能驳回待终审的面评");
+        throw new Error("只能判定待终审的面评为不通过");
       }
 
       await tx

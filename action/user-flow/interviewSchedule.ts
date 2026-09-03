@@ -30,7 +30,7 @@ import {
 import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
-import { logServerError } from "@/lib/server-error-log";
+import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 import { verifyRole } from "@/lib/dal";
 import { normalizeWithdrawalReason } from "@/lib/validation/user-flow";
 import { mqClient } from "@/queue/client";
@@ -138,6 +138,25 @@ function getScheduleRoom(input: CreateInterviewScheduleInput) {
     throw new Error("所选会议室不可用，请刷新页面后重试。");
   }
   return room;
+}
+
+function getExpectedInterviewScheduleErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return null;
+
+  const message = error.message.trim();
+  if (/^(开始|结束) 时间格式不正确$/.test(message)) return message;
+
+  const expectedMessages = new Set([
+    "所选会议室不可用，请刷新页面后重试。",
+    "请先绑定飞书账号后再发起面试日程。",
+    "飞书授权已过期，请重新绑定飞书账号。",
+    "讲师该时间段已有飞书日程，请改约后再发起面试。",
+    "会议室已被占用，请选择其他时间或会议室。",
+    "飞书日程已创建，但没有返回会议链接。请检查飞书日历会议能力是否已开通。",
+    "飞书日程已更新，但没有返回会议链接。请检查飞书日历会议能力是否已开通。",
+  ]);
+
+  return expectedMessages.has(message) ? message : null;
 }
 
 async function sendInterviewEmailDelivery({
@@ -447,6 +466,11 @@ export async function createInterviewSchedule(
   input: CreateInterviewScheduleInput,
 ): Promise<CreateInterviewScheduleResult> {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let persistedSchedule: {
+    id: number;
+    meetingLink: string;
+    scheduleLink?: string;
+  } | null = null;
 
   try {
     session = await verifyRole(2);
@@ -701,6 +725,11 @@ export async function createInterviewSchedule(
       return scheduleWrite;
     }
     const schedule = scheduleWrite.data;
+    persistedSchedule = {
+      id: schedule.id,
+      meetingLink: feishuSchedule.meetingLink,
+      scheduleLink: feishuSchedule.scheduleLink,
+    };
 
     const emailKind = existingSchedule ? "rescheduled" : "created";
     const emailResult = await sendInterviewEmailDelivery({
@@ -785,6 +814,38 @@ export async function createInterviewSchedule(
       },
     };
   } catch (error) {
+    if (isNextControlFlowError(error)) {
+      throw error;
+    }
+
+    if (persistedSchedule) {
+      logServerError("interviewSchedule:postPersistence", error, {
+        path: "/dashboard/interviews",
+        userId: session?.uid ?? null,
+        role: session?.role ?? null,
+        action: "interview-schedule-post-persistence",
+        userFlowId: input.userFlowId,
+        metadata: { scheduleId: persistedSchedule.id },
+      });
+      return {
+        success: true,
+        data: {
+          ...persistedSchedule,
+          emailWarning: "面试日程已创建，但部分后置通知未完成，请检查日程记录。",
+        },
+      };
+    }
+
+    const expectedMessage = getExpectedInterviewScheduleErrorMessage(error);
+    if (expectedMessage) {
+      // Return expected scheduling conflicts as a serializable action result
+      // so the client can show the existing toast instead of React error #441.
+      return {
+        success: false,
+        error: { message: expectedMessage },
+      };
+    }
+
     logServerError("interviewSchedule:create", error, {
       path: "/dashboard/interviews",
       userId: session?.uid ?? null,
@@ -792,7 +853,13 @@ export async function createInterviewSchedule(
       action: "create-interview-schedule",
       userFlowId: input.userFlowId,
     });
-    throw error;
+
+    return {
+      success: false,
+      error: {
+        message: "飞书日程创建失败，请稍后重试。",
+      },
+    };
   }
 }
 
