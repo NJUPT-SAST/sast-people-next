@@ -140,6 +140,25 @@ function getScheduleRoom(input: CreateInterviewScheduleInput) {
   return room;
 }
 
+function getExpectedInterviewScheduleErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return null;
+
+  const message = error.message.trim();
+  if (/^(开始|结束) 时间格式不正确$/.test(message)) return message;
+
+  const expectedMessages = new Set([
+    "所选会议室不可用，请刷新页面后重试。",
+    "请先绑定飞书账号后再发起面试日程。",
+    "飞书授权已过期，请重新绑定飞书账号。",
+    "讲师该时间段已有飞书日程，请改约后再发起面试。",
+    "会议室已被占用，请选择其他时间或会议室。",
+    "飞书日程已创建，但没有返回会议链接。请检查飞书日历会议能力是否已开通。",
+    "飞书日程已更新，但没有返回会议链接。请检查飞书日历会议能力是否已开通。",
+  ]);
+
+  return expectedMessages.has(message) ? message : null;
+}
+
 async function sendInterviewEmailDelivery({
   kind,
   toAddress,
@@ -785,6 +804,20 @@ export async function createInterviewSchedule(
       },
     };
   } catch (error) {
+    if (isNextControlFlowError(error)) {
+      throw error;
+    }
+
+    const expectedMessage = getExpectedInterviewScheduleErrorMessage(error);
+    if (expectedMessage) {
+      // Return expected scheduling conflicts as a serializable action result
+      // so the client can show the existing toast instead of React error #441.
+      return {
+        success: false,
+        error: { message: expectedMessage },
+      };
+    }
+
     logServerError("interviewSchedule:create", error, {
       path: "/dashboard/interviews",
       userId: session?.uid ?? null,
@@ -793,19 +826,10 @@ export async function createInterviewSchedule(
       userFlowId: input.userFlowId,
     });
 
-    if (isNextControlFlowError(error)) {
-      throw error;
-    }
-
-    // Return a serializable action result so expected scheduling conflicts are
-    // shown by the client instead of being converted into React error #441.
     return {
       success: false,
       error: {
-        message:
-          error instanceof Error && error.message.trim()
-            ? error.message
-            : "飞书日程创建失败，请稍后重试。",
+        message: "飞书日程创建失败，请稍后重试。",
       },
     };
   }
