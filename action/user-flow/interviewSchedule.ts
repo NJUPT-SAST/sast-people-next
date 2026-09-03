@@ -466,6 +466,11 @@ export async function createInterviewSchedule(
   input: CreateInterviewScheduleInput,
 ): Promise<CreateInterviewScheduleResult> {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let persistedSchedule: {
+    id: number;
+    meetingLink: string;
+    scheduleLink?: string;
+  } | null = null;
 
   try {
     session = await verifyRole(2);
@@ -720,6 +725,11 @@ export async function createInterviewSchedule(
       return scheduleWrite;
     }
     const schedule = scheduleWrite.data;
+    persistedSchedule = {
+      id: schedule.id,
+      meetingLink: feishuSchedule.meetingLink,
+      scheduleLink: feishuSchedule.scheduleLink,
+    };
 
     const emailKind = existingSchedule ? "rescheduled" : "created";
     const emailResult = await sendInterviewEmailDelivery({
@@ -806,6 +816,24 @@ export async function createInterviewSchedule(
   } catch (error) {
     if (isNextControlFlowError(error)) {
       throw error;
+    }
+
+    if (persistedSchedule) {
+      logServerError("interviewSchedule:postPersistence", error, {
+        path: "/dashboard/interviews",
+        userId: session?.uid ?? null,
+        role: session?.role ?? null,
+        action: "interview-schedule-post-persistence",
+        userFlowId: input.userFlowId,
+        metadata: { scheduleId: persistedSchedule.id },
+      });
+      return {
+        success: true,
+        data: {
+          ...persistedSchedule,
+          emailWarning: "面试日程已创建，但部分后置通知未完成，请检查日程记录。",
+        },
+      };
     }
 
     const expectedMessage = getExpectedInterviewScheduleErrorMessage(error);
