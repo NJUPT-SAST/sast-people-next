@@ -362,19 +362,21 @@ export const ApprovalsContent = ({
                     {statusLabel[row.evaluation.status] ?? row.evaluation.status}
                   </Badge>
                 </div>
-                <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {row.flowTitle && (
-                    <Badge variant="outline" className="text-xs">
-                      {flowTypeLabel[row.flowType ?? ""] ?? row.flowType}
-                    </Badge>
-                  )}
-                  {row.flowTitle && <span>{row.flowTitle}</span>}
-                  {row.evaluation.recommendation && (
-                    <Badge variant="outline" className="text-xs">
-                      {recommendationLabel[row.evaluation.recommendation]}
-                    </Badge>
-                  )}
-                  <span className="ml-auto inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+                <div className="flex flex-col gap-2 text-xs text-muted-foreground md:flex-row md:items-center">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    {row.flowTitle && (
+                      <Badge variant="outline" className="text-xs">
+                        {flowTypeLabel[row.flowType ?? ""] ?? row.flowType}
+                      </Badge>
+                    )}
+                    {row.flowTitle && <span className="min-w-0 break-words">{row.flowTitle}</span>}
+                    {row.evaluation.recommendation && (
+                      <Badge variant="outline" className="text-xs">
+                        {recommendationLabel[row.evaluation.recommendation]}
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5 md:ml-auto">
                     <span className="text-muted-foreground">投递组别</span>
                     {row.applyGroup ? (
                       <span className="min-w-0 break-words font-medium text-foreground">
@@ -395,7 +397,7 @@ export const ApprovalsContent = ({
                     退回理由：{row.evaluation.returnReason}
                   </div>
                 )}
-                <div className="grid gap-x-8 gap-y-3 pt-1 sm:grid-cols-3">
+                <div className="grid gap-x-8 gap-y-3 pt-1 md:grid-cols-3">
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
                   <ReviewReference label="会议链接" value={row.scheduleMeetingLink} />
                   <ReviewReference label="妙记链接" value={row.meetingMinuteLink ?? row.meetingLink} />
@@ -433,10 +435,10 @@ export const ApprovalsContent = ({
                     </span>
                   </div>
                   {row.evaluation.status === "submitted" && (
-                    <div className="grid grid-cols-2 gap-2 sm:flex">
+                    <div className="grid w-full grid-cols-3 gap-2 md:flex md:w-auto">
                       <Button
                         size="sm"
-                        className="h-10 w-full border-[#159957] bg-[#159957] text-white hover:border-[#117a45] hover:bg-[#117a45] sm:h-8 sm:w-auto dark:border-[#159957] dark:bg-[#159957] dark:hover:border-[#1bb86a] dark:hover:bg-[#1bb86a]"
+                        className="h-10 w-full min-w-0 px-1.5 text-xs border-[#159957] bg-[#159957] text-white hover:border-[#117a45] hover:bg-[#117a45] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#159957] dark:bg-[#159957] dark:hover:border-[#1bb86a] dark:hover:bg-[#1bb86a]"
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -444,7 +446,7 @@ export const ApprovalsContent = ({
                       </Button>
                       <Button
                         size="sm"
-                        className="h-10 w-full border-[#b34f55] bg-[#b34f55] text-white hover:border-[#913f45] hover:bg-[#913f45] sm:h-8 sm:w-auto dark:border-[#b34f55] dark:bg-[#b34f55] dark:hover:border-[#ca6066] dark:hover:bg-[#ca6066]"
+                        className="h-10 w-full min-w-0 px-1.5 text-xs border-[#b34f55] bg-[#b34f55] text-white hover:border-[#913f45] hover:bg-[#913f45] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#b34f55] dark:bg-[#b34f55] dark:hover:border-[#ca6066] dark:hover:bg-[#ca6066]"
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -452,7 +454,7 @@ export const ApprovalsContent = ({
                       </Button>
                       <Button
                         size="sm"
-                        className="h-10 w-full border-[#a8752a] bg-[#a8752a] text-white hover:border-[#86601f] hover:bg-[#86601f] sm:h-8 sm:w-auto dark:border-[#a8752a] dark:bg-[#a8752a] dark:hover:border-[#bf8a32] dark:hover:bg-[#bf8a32]"
+                        className="h-10 w-full min-w-0 px-1.5 text-xs border-[#3974b3] bg-[#3974b3] text-white hover:border-[#2f5f95] hover:bg-[#2f5f95] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#2f5f95] dark:bg-[#2f5f95] dark:hover:border-[#3974b3] dark:hover:bg-[#3974b3]"
                         onClick={() => {
                           setReturnTarget(row.evaluation.id);
                           setReturnReason("");
