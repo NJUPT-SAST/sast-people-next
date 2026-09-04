@@ -1,13 +1,7 @@
 import { FeishuOAuthFailureToast } from "@/components/feishu-oauth-failure-toast";
 import { PageHeader, PageTitle } from "@/components/route";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShowQrCode } from "@/components/userInfo/showQrCode";
 import originalDayjs from "@/lib/dayjs";
@@ -93,44 +87,49 @@ export default async function Home({
           </div>
         )
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="gap-0 overflow-hidden p-0">
           <Suspense
             fallback={
-              <Card>
-                <CardHeader>
-                  <CardTitle>基本信息</CardTitle>
-                  <CardDescription>个人基本信息</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
+              <div className="space-y-6 p-6 sm:p-8">
+                <div className="space-y-1">
+                  <p className="text-lg font-semibold">基本信息</p>
+                  <p className="text-sm text-muted-foreground">个人基本信息</p>
+                </div>
+                <div className="flex flex-col gap-3">
                   <Skeleton className="w-[100px] h-[20px]" />
                   <Skeleton className="w-full h-[20px]" />
                   <Skeleton className="w-full h-[20px]" />
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             }
           >
-            <BasicInfoServer />
+            <BasicInfoServer embedded />
           </Suspense>
           <Suspense
             fallback={
-              <Card>
-                <CardHeader>
-                  <CardTitle>我的能力</CardTitle>
-                  <CardDescription>
-                    请与我们分享你目前的兴趣与能力，以便找到最合适的部门
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
+              <div className="space-y-6 border-t p-6 sm:p-8">
+                <div className="space-y-1">
+                  <p className="text-lg font-semibold">我的能力</p>
+                  <p className="text-sm text-muted-foreground">能力信息来自 SAST Link</p>
+                </div>
+                <div className="flex flex-col gap-3">
                   <Skeleton className="w-[100px] h-[20px]" />
                   <Skeleton className="w-full h-[20px]" />
                   <Skeleton className="w-full h-[20px]" />
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             }
           >
-            <ExperienceInfoServer />
+            <ExperienceInfoServer embedded />
           </Suspense>
-        </div>
+          <div className="flex justify-end border-t bg-muted/10 px-6 py-4 sm:px-8">
+            <Button asChild>
+              <a href={linkProfileUrl} target="_blank" rel="noreferrer">
+                前往 Link 修改
+              </a>
+            </Button>
+          </div>
+        </Card>
       )}
     </>
   );

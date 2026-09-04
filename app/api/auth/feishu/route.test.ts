@@ -9,6 +9,9 @@ const mockExchangeFeishuOAuthCode = jest.fn();
 const mockGetLinkAccessTokenFromSession = jest.fn();
 const mockGetCurrentUserProfile = jest.fn();
 const mockLogServerError = jest.fn();
+const mockUpsertFeishuOAuthAccount = jest.fn();
+const mockSendFeishuOAuthBoundCard = jest.fn();
+const mockRedirect = jest.fn();
 
 jest.mock("next/headers", () => ({
   cookies: jest.fn(async () => mockCookieStore),
@@ -32,13 +35,16 @@ jest.mock("@/lib/link/user", () => ({
   getCurrentUserProfile: (accessToken: string) => mockGetCurrentUserProfile(accessToken),
 }));
 jest.mock("@/lib/feishu/oauth-account", () => ({
-  upsertFeishuOAuthAccount: jest.fn(),
+  upsertFeishuOAuthAccount: (...args: unknown[]) => mockUpsertFeishuOAuthAccount(...args),
 }));
 jest.mock("@/lib/feishu/interview-message", () => ({
-  sendFeishuOAuthBoundCard: jest.fn(),
+  sendFeishuOAuthBoundCard: (...args: unknown[]) => mockSendFeishuOAuthBoundCard(...args),
 }));
 jest.mock("@/lib/server-error-log", () => ({
   logServerError: (...args: unknown[]) => mockLogServerError(...args),
+}));
+jest.mock("next/navigation", () => ({
+  redirect: (path: string) => mockRedirect(path),
 }));
 
 import { NextRequest } from "next/server";
@@ -46,7 +52,10 @@ import { GET } from "./route";
 
 describe("Feishu OAuth callback", () => {
   beforeEach(() => {
-    mockCookieStore.get.mockReturnValue({ value: "expected-state" });
+    jest.clearAllMocks();
+    mockCookieStore.get.mockImplementation((name: string) =>
+      name === "feishu_oauth_state" ? { value: "expected-state" } : undefined,
+    );
     mockVerifySession.mockResolvedValue({ uid: 1, role: 2 });
     mockExchangeFeishuOAuthCode.mockResolvedValue({ unionId: "union-id" });
     mockGetLinkAccessTokenFromSession.mockResolvedValue("link-access-token");
@@ -64,5 +73,31 @@ describe("Feishu OAuth callback", () => {
       "https://people.sast.fun/dashboard?feishuOAuth=link_identity_missing",
     );
     expect(mockCookieStore.delete).toHaveBeenCalledWith("feishu_oauth_state");
+  });
+
+  it("returns to the dashboard page that initiated authorization", async () => {
+    mockCookieStore.get.mockImplementation((name: string) => {
+      if (name === "feishu_oauth_state") return { value: "expected-state" };
+      if (name === "feishu_oauth_return_to") {
+        return { value: "/dashboard/interviews?flowId=12" };
+      }
+      return undefined;
+    });
+    mockGetCurrentUserProfile.mockResolvedValue({
+      identities: [{ provider: "lark", provider_id: "union-id" }],
+    });
+    mockExchangeFeishuOAuthCode.mockResolvedValue({
+      unionId: "union-id",
+      openId: "open-id",
+    });
+
+    await GET(
+      new NextRequest(
+        "https://people.sast.fun/api/auth/feishu?code=authorization-code&state=expected-state",
+      ),
+    );
+
+    expect(mockRedirect).toHaveBeenCalledWith("/dashboard/interviews?flowId=12");
+    expect(mockCookieStore.delete).toHaveBeenCalledWith("feishu_oauth_return_to");
   });
 });

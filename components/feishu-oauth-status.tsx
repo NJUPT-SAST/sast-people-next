@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
+import { usePathname, useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,8 @@ export function FeishuOAuthStatus({
     meta: { failed: boolean },
   ) => void;
 }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<FeishuOAuthStatusState | null>(null);
   const [failed, setFailed] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -134,7 +137,8 @@ export function FeishuOAuthStatus({
 
   const startOAuth = () => {
     startTransition(() => {
-      redirectFeishuOAuth();
+      const query = searchParams.toString();
+      redirectFeishuOAuth(`${pathname}${query ? `?${query}` : ""}`);
     });
   };
 

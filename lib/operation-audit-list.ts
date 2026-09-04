@@ -76,6 +76,7 @@ export const operationAuditActionGroups = {
     "evaluation.reopen_and_create",
     "evaluation.approve",
     "evaluation.reject",
+    "evaluation.return",
     "evaluation.unapprove",
     "evaluation.reopen",
     "interview_schedule.create",

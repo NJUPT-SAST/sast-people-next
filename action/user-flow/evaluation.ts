@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import {
   canApproveEvaluation,
+  canReturnEvaluation,
   canRejectEvaluation,
   dedupeEvaluationCandidateRows,
   evaluationStepTypeForAction,
@@ -26,6 +27,9 @@ import { logServerError } from "@/lib/server-error-log";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
+import { getFeishuOAuthAccountStatus } from "@/lib/feishu/oauth-account";
+import { sendInterviewEvaluationReturnedCard } from "@/lib/feishu/interview-message";
+import { MIN_PASSED_EVALUATION_LENGTH } from "@/lib/evaluation-constants";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type EvaluationRecommendation = "passed" | "failed";
@@ -72,7 +76,7 @@ async function findEvaluationStepIdInTx(
 }
 
 async function findActiveEvaluationInTx(tx: Tx, userFlowId: number) {
-  const selectByStatus = (status: "approved" | "submitted") =>
+  const selectByStatus = (status: "approved" | "submitted" | "returned") =>
     tx
       .select({
         id: interviewEvaluation.id,
@@ -94,7 +98,9 @@ async function findActiveEvaluationInTx(tx: Tx, userFlowId: number) {
   if (approved) return approved;
 
   const [submitted] = await selectByStatus("submitted");
-  return submitted ?? null;
+  if (submitted) return submitted;
+  const [returned] = await selectByStatus("returned");
+  return returned ?? null;
 }
 
 async function moveUserFlowInTx(
@@ -239,6 +245,12 @@ export const createEvaluation = async (
     if (!isEvaluationRecommendation(recommendation)) {
       return { success: false, error: { message: "请选择讲师建议" } };
     }
+    if (recommendation === "passed" && content.trim().length < MIN_PASSED_EVALUATION_LENGTH) {
+      return {
+        success: false,
+        error: { message: `建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。` },
+      };
+    }
 
     const hasMeetingLinkArg = meetingLink !== undefined;
     const link = hasMeetingLinkArg ? meetingLink.trim() || null : undefined;
@@ -343,7 +355,7 @@ export const createEvaluation = async (
         }
       }
 
-      if (active?.status === "submitted") {
+      if (active?.status === "submitted" || active?.status === "returned") {
         const [activeSchedule] = await tx
           .select({ organizerId: interviewSchedule.fkOrganizerId })
           .from(interviewSchedule)
@@ -375,12 +387,15 @@ export const createEvaluation = async (
         evaluationStepTypeForAction("submit_for_review"),
       );
 
-      if (active?.status === "submitted") {
+      if (active?.status === "submitted" || active?.status === "returned") {
         await tx
           .update(interviewEvaluation)
           .set({
             content: content.trim(),
             recommendation,
+            status: "submitted",
+            fkReviewedBy: null,
+            returnReason: null,
             ...(hasMeetingLinkArg ? { meetingLink: link ?? null } : {}),
             updatedAt: new Date(),
           })
@@ -470,6 +485,8 @@ export const approveEvaluation = async (evaluationId: number) => {
         .select({
           fkUserFlowId: interviewEvaluation.fkUserFlowId,
           status: interviewEvaluation.status,
+          content: interviewEvaluation.content,
+          recommendation: interviewEvaluation.recommendation,
         })
         .from(interviewEvaluation)
         .where(eq(interviewEvaluation.id, evaluationId))
@@ -478,6 +495,14 @@ export const approveEvaluation = async (evaluationId: number) => {
       if (!evalRecord) throw new Error("面评不存在");
       if (!canApproveEvaluation(evalRecord.status)) {
         throw new Error("只能通过待终审的面评");
+      }
+      if (
+        evalRecord.recommendation === "passed" &&
+        evalRecord.content.trim().length < MIN_PASSED_EVALUATION_LENGTH
+      ) {
+        throw new Error(
+          `建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字，请先退回重写。`,
+        );
       }
 
       await tx
@@ -593,6 +618,55 @@ export const rejectEvaluation = async (evaluationId: number) => {
       action: "reject-evaluation",
       metadata: { evaluationId },
     });
+    throw error;
+  }
+};
+
+export const returnEvaluation = async (evaluationId: number, reason: string) => {
+  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  try {
+    session = await verifyRole(3);
+    const normalizedReason = reason.trim();
+    if (!normalizedReason) throw new Error("请填写退回理由");
+
+    const record = await db.transaction(async (tx) => {
+      const [evaluation] = await tx
+        .select({
+          id: interviewEvaluation.id,
+          status: interviewEvaluation.status,
+          authorId: interviewEvaluation.fkUserId,
+          userFlowId: interviewEvaluation.fkUserFlowId,
+        })
+        .from(interviewEvaluation)
+        .where(eq(interviewEvaluation.id, evaluationId))
+        .limit(1);
+      if (!evaluation) throw new Error("面评不存在");
+      if (!canReturnEvaluation(evaluation.status)) throw new Error("只能退回待终审的面评");
+      await tx.update(interviewEvaluation).set({
+        status: "returned",
+        returnReason: normalizedReason,
+        fkReviewedBy: session!.uid,
+        updatedAt: new Date(),
+      }).where(eq(interviewEvaluation.id, evaluationId));
+      await moveUserFlowInTx(tx, evaluation.userFlowId, "ongoing", evaluationStepTypeForAction("submit_for_review"));
+      return evaluation;
+    });
+
+    try {
+      const credential = await getFeishuOAuthAccountStatus(record.authorId);
+      if (credential.bound && credential.providerUserId) {
+        const [candidate] = await db.select({ name: flow.title }).from(flow).innerJoin(userFlow, eq(userFlow.fkFlowId, flow.id)).where(eq(userFlow.id, record.userFlowId)).limit(1);
+        await sendInterviewEvaluationReturnedCard({ openId: credential.providerUserId, reason: normalizedReason, flowName: candidate?.name ?? "面试流程" });
+      }
+    } catch (error) {
+      logServerError("evaluation:return:feishu", error, { path: "/dashboard/approvals", userId: session.uid, role: session.role, action: "notify-evaluation-returned", metadata: { evaluationId } });
+    }
+    revalidatePath("/dashboard/approvals");
+    revalidatePath("/dashboard/interviews");
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "evaluation.return", resourceType: "interview_evaluation", resourceId: evaluationId, metadata: { reason: normalizedReason } });
+    return { success: true as const };
+  } catch (error) {
+    logServerError("evaluation:return", error, { path: "/dashboard/approvals", userId: session?.uid ?? null, role: session?.role ?? null, action: "return-evaluation", metadata: { evaluationId } });
     throw error;
   }
 };
@@ -728,6 +802,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
         evalMeetingLink: interviewEvaluation.meetingLink,
         evalRecommendation: interviewEvaluation.recommendation,
         evalStatus: interviewEvaluation.status,
+        evalReturnReason: interviewEvaluation.returnReason,
         evalAuthorId: interviewEvaluation.fkUserId,
       })
       .from(userFlow)

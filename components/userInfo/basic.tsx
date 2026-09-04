@@ -1,7 +1,5 @@
 "use client";
 import type { userType } from "@/types/user";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { Button } from "../ui/button";
 import {
@@ -12,15 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "../ui/card";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "../ui/form";
-import { Input } from "../ui/input";
 
 export const basicInfoSchema = z.object({
   name: z
@@ -46,17 +35,55 @@ export const basicInfoSchema = z.object({
   major: z.string().min(1, "专业不能为空").trim(),
   qq: z.string().min(1, "QQ号不能为空").trim(),
 });
-export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
+export const BasicInfo = ({
+  initialInfo,
+  embedded = false,
+}: {
+  initialInfo: userType;
+  embedded?: boolean;
+}) => {
   const linkProfileUrl =
     process.env.NEXT_PUBLIC_LINK_PROFILE_URL || "https://link.sast.fun";
-  const basicInfoForm = useForm<z.infer<typeof basicInfoSchema>>({
-    resolver: zodResolver(basicInfoSchema),
-    defaultValues: {
-      ...Object.fromEntries(
-        Object.entries(initialInfo).map(([key, value]) => [key, value ?? ""])
-      ),
-    },
-  });
+  const fields = [
+    ["姓名", initialInfo.name],
+    ["学号", initialInfo.studentId],
+    ["手机号码", initialInfo.phone],
+    ["邮箱", initialInfo.email],
+    ["QQ", initialInfo.qq],
+    ["学院", initialInfo.college],
+    ["专业", initialInfo.major],
+  ] as const;
+  const header = (
+    <div className="space-y-1">
+      <h2 className="text-lg font-semibold tracking-tight">基本信息</h2>
+      <p className="text-sm text-muted-foreground">
+        个人基本信息来自 SAST Link
+        {initialInfo.nickname ? ` · ${initialInfo.nickname}` : ""}
+      </p>
+    </div>
+  );
+  const content = (
+    <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+      {fields.map(([label, value]) => (
+        <div key={label} className="min-w-0 space-y-1">
+          <dt className="text-sm text-muted-foreground">{label}</dt>
+          <dd className="break-words text-sm font-medium text-foreground">
+            {value || "未填写"}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+
+  if (embedded) {
+    return (
+      <section className="min-w-0 space-y-6 p-6 sm:p-8">
+        {header}
+        {content}
+      </section>
+    );
+  }
+
   return (
     <Card className="h-full">
       <CardHeader>
@@ -66,135 +93,7 @@ export const BasicInfo = ({ initialInfo }: { initialInfo: userType }) => {
           {initialInfo.nickname ? ` · ${initialInfo.nickname}` : ""}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex-1">
-        <Form {...basicInfoForm}>
-          <div className="flex flex-col gap-4">
-            <FormField
-              control={basicInfoForm.control}
-              name="name"
-              disabled
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>姓名</FormLabel>
-                  <FormControl>
-                    <Input placeholder="请填写你的真实姓名" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={basicInfoForm.control}
-              name="studentId"
-              disabled
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>学号</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="请填写你的学号"
-                      {...field}
-                      value={field.value || ""}
-                      disabled
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={basicInfoForm.control}
-              name="phone"
-              disabled
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>手机号码</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="请填写你的手机号"
-                      {...field}
-                      value={field.value || ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={basicInfoForm.control}
-              disabled
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>邮箱</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="请填写你的邮箱地址"
-                      {...field}
-                      value={field.value || ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={basicInfoForm.control}
-              disabled
-              name="qq"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>QQ</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="请填写你的QQ号码"
-                      {...field}
-                      value={field.value || ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={basicInfoForm.control}
-              disabled
-              name="college"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>学院</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="请填写你所在的学院"
-                      value={field.value || ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={basicInfoForm.control}
-              disabled
-              name="major"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>专业</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="请填写你目前所在的专业"
-                      value={field.value || ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </Form>
-      </CardContent>
+      <CardContent className="flex-1">{content}</CardContent>
       <CardFooter className="mt-auto justify-end border-t pt-4">
         <Button asChild>
           <a href={linkProfileUrl} target="_blank" rel="noreferrer">

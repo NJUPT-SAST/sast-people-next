@@ -3,10 +3,13 @@ import userEvent from "@testing-library/user-event";
 
 import { ApprovalsContent } from "./approvalsContent";
 
+const mockReturnEvaluation = jest.fn();
+
 jest.mock("@/action/user-flow/evaluation", () => ({
   getAllEvaluations: jest.fn(),
   approveEvaluation: jest.fn(),
   rejectEvaluation: jest.fn(),
+  returnEvaluation: (...args: unknown[]) => mockReturnEvaluation(...args),
 }));
 
 jest.mock("sonner", () => ({
@@ -61,6 +64,32 @@ function row({
 }
 
 describe("ApprovalsContent", () => {
+  beforeEach(() => {
+    mockReturnEvaluation.mockReset().mockResolvedValue({ success: true });
+  });
+
+  it("requires a reason before returning an evaluation", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({ id: 9, candidateName: "待重写同学", status: "submitted", recommendation: "passed" }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "退回重写" }));
+    await user.click(screen.getByRole("button", { name: "退回并通知" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("请填写退回理由");
+    expect(mockReturnEvaluation).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("退回理由"), "面评未说明候选人的面试表现");
+    await user.click(screen.getByRole("button", { name: "退回并通知" }));
+
+    expect(mockReturnEvaluation).toHaveBeenCalledWith(9, "面评未说明候选人的面试表现");
+  });
+
   it("searches within every administrator-decided archive record", async () => {
     const user = userEvent.setup();
     render(

@@ -1,7 +1,7 @@
 import { ExperienceInfo } from "@/components/userInfo/experience";
 import { useUserInfo as getUserInfo } from "@/hooks/useUserInfo";
 
-export const ExperienceInfoServer = async () => {
+export const ExperienceInfoServer = async ({ embedded = false }: { embedded?: boolean } = {}) => {
   const userInfo = await getUserInfo();
   const { github, blog, personalStatement, ...rest } = userInfo;
   return (
@@ -13,6 +13,7 @@ export const ExperienceInfoServer = async () => {
           blog: blog ?? "",
           personalStatement: personalStatement ?? "",
         }}
+        embedded={embedded}
       />
     </>
   );

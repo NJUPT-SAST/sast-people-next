@@ -1,0 +1,1 @@
+export const MIN_PASSED_EVALUATION_LENGTH = 20;

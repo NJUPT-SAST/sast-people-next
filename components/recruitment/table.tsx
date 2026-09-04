@@ -59,6 +59,7 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
   const safeColumns = useMemo(() => (Array.isArray(columns) ? columns : []), [columns]);
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
@@ -115,10 +116,22 @@ export function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const query = String(filterValue ?? "").trim().toLocaleLowerCase();
+      if (!query) return true;
+      const item = row.original as RecruitmentRowLike & {
+        studentId?: unknown;
+        name?: unknown;
+      };
+      return [item.studentId, item.name]
+        .some((value) => String(value ?? "").toLocaleLowerCase().includes(query));
+    },
     state: {
       rowSelection,
       columnFilters,
+      globalFilter,
     },
+    onGlobalFilterChange: setGlobalFilter,
   });
   const allRows = table.getCoreRowModel().flatRows ?? [];
   const filteredRows = table.getFilteredRowModel().flatRows ?? [];
@@ -164,6 +177,13 @@ export function DataTable<TData, TValue>({
             )}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
+            <Input
+              placeholder="搜索姓名或学号"
+              value={globalFilter}
+              onChange={(event) => setGlobalFilter(event.target.value)}
+              className="h-10 w-full sm:h-9 sm:w-[220px]"
+              aria-label="搜索笔试考生"
+            />
             <Input
               placeholder="筛选分数线"
               value={(totalScoreColumn?.getFilterValue() as string) ?? ''}
@@ -274,7 +294,6 @@ export function DataTable<TData, TValue>({
           </div>
         )}
       </div>
-      
       <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
         {role >= 3 && (
           <div className="border-b bg-muted/20 px-4 py-3 text-sm text-muted-foreground">

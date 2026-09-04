@@ -11,6 +11,7 @@ import {
   approveEvaluation,
   rejectEvaluation,
 } from "@/action/user-flow/evaluation";
+import { MIN_PASSED_EVALUATION_LENGTH } from "@/lib/evaluation-constants";
 import { InferSelectModel } from "drizzle-orm";
 import { interviewEvaluation } from "@/db/schema";
 
@@ -40,6 +41,10 @@ export const InterviewEvaluation = ({
   const handleCreate = async () => {
     if (!content.trim()) {
       toast.error("面评内容不能为空");
+      return;
+    }
+    if (recommendation === "passed" && content.trim().length < MIN_PASSED_EVALUATION_LENGTH) {
+      toast.error(`建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。`);
       return;
     }
     setLoading(true);
@@ -112,12 +117,17 @@ export const InterviewEvaluation = ({
           <p className="text-sm whitespace-pre-wrap">{evaluation.content}</p>
           {evaluation.status === "submitted" && role >= 3 && (
             <div className="flex gap-2 mt-3">
-              <Button size="sm" onClick={handleApprove} loading={loading}>
+              <Button
+                size="sm"
+                className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-900 dark:hover:bg-emerald-800"
+                onClick={handleApprove}
+                loading={loading}
+              >
                 通过
               </Button>
               <Button
                 size="sm"
-                variant="destructive"
+                className="bg-rose-600 text-white hover:bg-rose-700 dark:bg-rose-900 dark:hover:bg-rose-800"
                 onClick={handleReject}
                 loading={loading}
               >

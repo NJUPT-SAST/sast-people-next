@@ -1,6 +1,6 @@
 import "server-only";
 
-import { FEISHU_OAUTH_STATE } from "@/const/cookie";
+import { FEISHU_OAUTH_RETURN_TO, FEISHU_OAUTH_STATE } from "@/const/cookie";
 import { verifySession } from "@/lib/dal";
 import { sendFeishuOAuthBoundCard } from "@/lib/feishu/interview-message";
 import { upsertFeishuOAuthAccount } from "@/lib/feishu/oauth-account";
@@ -68,7 +68,9 @@ export async function GET(request: NextRequest) {
     return redirectAfterFeishuOAuthFailure(cookieStore, error);
   }
 
-  redirect("/dashboard");
+  const returnTo = getOAuthReturnTo(cookieStore);
+  cookieStore.delete(FEISHU_OAUTH_RETURN_TO);
+  redirect(returnTo);
 }
 
 const assertFeishuUnionMatchesLinkIdentity = async (unionId: string) => {
@@ -96,9 +98,15 @@ function redirectAfterFeishuOAuthFailure(
   error: unknown,
 ) {
   cookieStore.delete(FEISHU_OAUTH_STATE);
+  cookieStore.delete(FEISHU_OAUTH_RETURN_TO);
   const url = new URL("/dashboard", getPublicBaseUrl());
   url.searchParams.set("feishuOAuth", getFeishuOAuthFailure(error));
   return NextResponse.redirect(url);
+}
+
+function getOAuthReturnTo(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  const value = cookieStore.get(FEISHU_OAUTH_RETURN_TO)?.value;
+  return value?.startsWith("/dashboard/") ? value : "/dashboard";
 }
 
 function getFeishuOAuthFailure(error: unknown): FeishuOAuthFailure {

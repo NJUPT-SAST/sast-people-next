@@ -1,6 +1,6 @@
 "use server";
 
-import { FEISHU_OAUTH_STATE } from "@/const/cookie";
+import { FEISHU_OAUTH_RETURN_TO, FEISHU_OAUTH_STATE } from "@/const/cookie";
 import { verifySession } from "@/lib/dal";
 import { getFeishuOAuthAccountStatus } from "@/lib/feishu/oauth-account";
 import crypto from "node:crypto";
@@ -16,7 +16,7 @@ function base64URLEncode(value: Buffer) {
     .replace(/=/g, "");
 }
 
-export async function redirectFeishuOAuth() {
+export async function redirectFeishuOAuth(returnTo?: string) {
   const session = await verifySession();
   if (session.role < 2) {
     throw new Error("只有讲师及以上身份需要绑定飞书授权。");
@@ -36,6 +36,17 @@ export async function redirectFeishuOAuth() {
     sameSite: "lax",
     maxAge: 600,
   });
+  if (returnTo?.startsWith("/dashboard/")) {
+    cookieStore.set(FEISHU_OAUTH_RETURN_TO, returnTo, {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
+    });
+  } else {
+    cookieStore.delete(FEISHU_OAUTH_RETURN_TO);
+  }
 
   const authorizeUrl = new URL(
     process.env.FEISHU_OAUTH_AUTHORIZE_URL ??

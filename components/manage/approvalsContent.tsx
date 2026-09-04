@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -17,6 +19,7 @@ import {
   getAllEvaluations,
   approveEvaluation,
   rejectEvaluation,
+  returnEvaluation,
 } from "@/action/user-flow/evaluation";
 import type { InferSelectModel } from "drizzle-orm";
 import type { interviewEvaluation } from "@/db/schema";
@@ -24,7 +27,9 @@ import originalDayjs from "@/lib/dayjs";
 import { externalHref } from "@/lib/link";
 
 export type EvaluationRow = {
-  evaluation: InferSelectModel<typeof interviewEvaluation>;
+  evaluation: Omit<InferSelectModel<typeof interviewEvaluation>, "returnReason"> & {
+    returnReason?: string | null;
+  };
   meetingLink: string | null;
   portfolioLink: string | null;
   portfolioDescription: string | null;
@@ -41,6 +46,7 @@ export type EvaluationRow = {
 
 const statusLabel: Record<string, string> = {
   submitted: "待终审",
+  returned: "已退回重写",
   approved: "已通过",
   rejected: "不通过",
 };
@@ -115,6 +121,9 @@ export const ApprovalsContent = ({
   const [archiveFlowType, setArchiveFlowType] = useState("all");
   const [archiveDecision, setArchiveDecision] = useState("all");
   const [archivePage, setArchivePage] = useState(1);
+  const [returnTarget, setReturnTarget] = useState<number | null>(null);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnError, setReturnError] = useState<string | null>(null);
 
   const fetchEvaluations = async () => {
     setLoading(true);
@@ -157,6 +166,27 @@ export const ApprovalsContent = ({
       await fetchEvaluations();
     } catch {
       toast.error("操作失败");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReturn = async () => {
+    if (!returnTarget) return;
+    if (!returnReason.trim()) {
+      setReturnError("请填写退回理由");
+      return;
+    }
+    setActionLoading(returnTarget);
+    try {
+      await returnEvaluation(returnTarget, returnReason);
+      toast.success("面评已退回，已提醒讲师重写");
+      setReturnTarget(null);
+      setReturnReason("");
+      setReturnError(null);
+      await fetchEvaluations();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "操作失败");
     } finally {
       setActionLoading(null);
     }
@@ -242,8 +272,8 @@ export const ApprovalsContent = ({
 
       {showArchived && (
         <div className="space-y-2 border-y py-3">
-          <p className="text-xs text-muted-foreground">
-            已归档的最终决定不可撤销或改判；通过后的权限调整请在成员管理中操作，驳回后需重新报名并完整走流程。
+            <p className="text-xs text-muted-foreground">
+            已处理的面评会保留在这里；退回重写的记录会在讲师重新提交后回到待审批列表。
           </p>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem]">
           <Input
@@ -287,6 +317,7 @@ export const ApprovalsContent = ({
               <SelectItem value="all">全部结果</SelectItem>
               <SelectItem value="approved">通过</SelectItem>
               <SelectItem value="rejected">不通过</SelectItem>
+              <SelectItem value="returned">退回重写</SelectItem>
             </SelectContent>
           </Select>
           </div>
@@ -353,6 +384,11 @@ export const ApprovalsContent = ({
                 <p className="text-sm leading-6 whitespace-pre-wrap">
                   {row.evaluation.content}
                 </p>
+                {row.evaluation.status === "returned" && row.evaluation.returnReason && (
+                  <div className="border-l-2 border-orange-500/60 pl-3 text-sm leading-6 text-orange-700 dark:text-orange-300">
+                    退回理由：{row.evaluation.returnReason}
+                  </div>
+                )}
                 <div className="grid gap-x-8 gap-y-3 pt-1 sm:grid-cols-3">
                   <ReviewReference label="作品链接" value={row.portfolioLink} />
                   <ReviewReference label="会议链接" value={row.scheduleMeetingLink} />
@@ -377,7 +413,11 @@ export const ApprovalsContent = ({
                       </>
                     )}
                     <span>
-                      {row.evaluation.status === "submitted" ? "提交" : "终审"}
+                      {row.evaluation.status === "submitted"
+                        ? "提交"
+                        : row.evaluation.status === "returned"
+                          ? "退回"
+                          : "终审"}
                       {" "}
                       {originalDayjs(
                         row.evaluation.status === "submitted"
@@ -390,7 +430,7 @@ export const ApprovalsContent = ({
                     <div className="grid grid-cols-2 gap-2 sm:flex">
                       <Button
                         size="sm"
-                        className="h-10 w-full sm:h-8 sm:w-auto"
+                        className="h-10 w-full border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700 sm:h-8 sm:w-auto dark:border-emerald-900 dark:bg-emerald-900 dark:hover:border-emerald-800 dark:hover:bg-emerald-800"
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -398,12 +438,23 @@ export const ApprovalsContent = ({
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
-                        className="h-10 w-full sm:h-8 sm:w-auto"
+                        className="h-10 w-full border-rose-600 bg-rose-600 text-white hover:border-rose-700 hover:bg-rose-700 sm:h-8 sm:w-auto dark:border-rose-900 dark:bg-rose-900 dark:hover:border-rose-800 dark:hover:bg-rose-800"
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
                         不通过
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-10 w-full border-amber-700 bg-amber-700 text-white hover:border-amber-800 hover:bg-amber-800 sm:h-8 sm:w-auto dark:border-amber-900 dark:bg-amber-900 dark:hover:border-amber-800 dark:hover:bg-amber-800"
+                        onClick={() => {
+                          setReturnTarget(row.evaluation.id);
+                          setReturnReason("");
+                          setReturnError(null);
+                        }}
+                        loading={actionLoading === row.evaluation.id}
+                      >
+                        退回重写
                       </Button>
                     </div>
                   )}
@@ -444,6 +495,26 @@ export const ApprovalsContent = ({
           </div>
         </div>
       )}
+      <Dialog open={returnTarget !== null} onOpenChange={(open) => !open && setReturnTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>退回面评重写</DialogTitle>
+            <DialogDescription>请填写具体原因，讲师会收到飞书机器人提醒。</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={returnReason}
+            onChange={(event) => { setReturnReason(event.target.value); setReturnError(null); }}
+            placeholder="例如：面评过于简短，请补充面试表现和录用判断依据。"
+            className="min-h-28"
+            aria-label="退回理由"
+          />
+          {returnError && <p className="text-sm text-destructive" role="alert">{returnError}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReturnTarget(null)}>取消</Button>
+            <Button onClick={handleReturn} loading={returnTarget !== null && actionLoading === returnTarget}>退回并通知</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

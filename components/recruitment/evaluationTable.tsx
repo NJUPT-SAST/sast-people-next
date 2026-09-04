@@ -14,6 +14,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -25,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { normalizeWithdrawalReason, WITHDRAWAL_REASON_MAX_LENGTH } from "@/lib/validation/user-flow";
 import { updateCandidateApplyGroup } from "@/action/user-flow/apply-group";
 import { createEvaluation } from "@/action/user-flow/evaluation";
+import { MIN_PASSED_EVALUATION_LENGTH } from "@/lib/evaluation-constants";
 import {
   cancelInterviewSchedule,
   confirmInterviewScheduleEnded,
@@ -65,6 +72,7 @@ type Candidate = {
   evalMeetingLink: string | null;
   evalRecommendation: "passed" | "failed" | null;
   evalStatus: string | null;
+  evalReturnReason?: string | null;
   evalAuthorId: number | null;
   canEditEvaluation: boolean;
   canManageSchedule: boolean;
@@ -116,6 +124,13 @@ const evalStatusLabel = (
         "border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300",
     };
   }
+  if (evalStatus === "returned") {
+    return {
+      text: "退回重写",
+      className:
+        "border-orange-600/30 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300",
+    };
+  }
   if (flowStatus === "failed") {
     return {
       text: "不通过",
@@ -149,11 +164,13 @@ const EvalStatusText = ({
   flowStatus,
   scheduleMeetingLink,
   scheduleEnded,
+  returnReason,
 }: {
   evalStatus: string | null;
   flowStatus: string | null;
   scheduleMeetingLink: string | null;
   scheduleEnded: boolean;
+  returnReason?: string | null;
 }) => {
   const status = evalStatusLabel(
     evalStatus,
@@ -161,13 +178,28 @@ const EvalStatusText = ({
     scheduleMeetingLink,
     scheduleEnded,
   );
+  const badge = (
+    <span
+      className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-xs font-medium ${status.className}`}
+    >
+      {status.text}
+    </span>
+  );
+
   return (
     <div className="min-w-0 space-y-1">
-      <span
-        className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-xs font-medium ${status.className}`}
-      >
-        {status.text}
-      </span>
+      {evalStatus === "returned" && returnReason ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>{badge}</TooltipTrigger>
+            <TooltipContent className="max-w-xs whitespace-pre-wrap break-words">
+              退回理由：{returnReason}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : (
+        badge
+      )}
     </div>
   );
 };
@@ -180,12 +212,14 @@ const getCandidateStatusKey = (candidate: Candidate) => {
   if (candidate.evalStatus === "rejected") return "evalRejected";
   if (candidate.status === "failed") return "rejected";
   if (candidate.evalStatus === "submitted") return "pending";
+  if (candidate.evalStatus === "returned") return "returned";
   return "waiting";
 };
 
 const summaryItems = [
   { key: "waiting", label: "待评估" },
   { key: "pending", label: "待审核" },
+  { key: "returned", label: "退回重写" },
   { key: "accepted", label: "已通过" },
   { key: "evalRejected", label: "不通过" },
   { key: "rejected", label: "不通过" },
@@ -648,6 +682,10 @@ export const EvaluationTable = ({
       setEvaluationError("请填写面评内容后再提交。");
       return;
     }
+    if (recommendation === "passed" && content.trim().length < MIN_PASSED_EVALUATION_LENGTH) {
+      setEvaluationError(`建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。`);
+      return;
+    }
     setLoadingId(userFlowId);
     try {
       const result = await createEvaluation(
@@ -1029,12 +1067,20 @@ export const EvaluationTable = ({
                     <ScheduleInfo candidate={c} />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
-                    <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
+                    <div className="space-y-1">
+                      <EvalStatusText
+                        evalStatus={c.evalStatus}
+                        flowStatus={c.status}
+                        scheduleMeetingLink={c.scheduleMeetingLink}
+                        scheduleEnded={scheduleEnded}
+                        returnReason={c.evalReturnReason}
+                      />
+                    </div>
                   </TableCell>
                   {role >= 2 && (
-                    <TableCell className="px-4 py-3 align-middle text-right">
+                    <TableCell className="min-w-[16rem] px-4 py-3 align-middle text-right">
                       {!canEvaluate ? (
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
                           {canManageSchedule && (
                             <ActionButton onClick={() => startSchedule(c)}>
                               {c.scheduleMeetingLink ? "改约" : "预约"}
@@ -1076,15 +1122,19 @@ export const EvaluationTable = ({
                         </div>
                       ) : isEditing ? (
                         <span className="text-sm text-muted-foreground">正在编辑…</span>
-                      ) : c.evalStatus === "submitted" ? (
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      ) : c.evalStatus === "submitted" || c.evalStatus === "returned" ? (
+                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
                           {c.canEditEvaluation ? (
-                            <ActionButton onClick={() => startEdit(c)}>修改</ActionButton>
+                            <ActionButton onClick={() => startEdit(c)}>
+                              {c.evalStatus === "returned" ? "重写面评" : "修改"}
+                            </ActionButton>
                           ) : role >= 3 ? (
-                            <span className="text-sm text-muted-foreground">待面评审批</span>
+                            <span className="text-sm text-muted-foreground">
+                              {c.evalStatus === "returned" ? "等待讲师重写面评" : "待面评审批"}
+                            </span>
                           ) : (
                             <span className="text-sm text-muted-foreground">
-                              预约讲师已提交面评
+                              {c.evalStatus === "returned" ? "面评已退回，请讲师重写" : "预约讲师已提交面评"}
                             </span>
                           )}
                         </div>
@@ -1093,7 +1143,7 @@ export const EvaluationTable = ({
                       ) : isRejected ? (
                         <span className="text-sm text-muted-foreground">已结束</span>
                       ) : (
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
                           {canManageSchedule && (
                             <ActionButton onClick={() => startSchedule(c)}>改约</ActionButton>
                           )}
@@ -1164,7 +1214,15 @@ export const EvaluationTable = ({
                        uid={c.uid}
                        role={role}
                      />
-                <EvalStatusText evalStatus={c.evalStatus} flowStatus={c.status} scheduleMeetingLink={c.scheduleMeetingLink} scheduleEnded={scheduleEnded} />
+                <div className="space-y-1">
+                  <EvalStatusText
+                    evalStatus={c.evalStatus}
+                    flowStatus={c.status}
+                    scheduleMeetingLink={c.scheduleMeetingLink}
+                    scheduleEnded={scheduleEnded}
+                    returnReason={c.evalReturnReason}
+                  />
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ApplyGroupText
@@ -1226,15 +1284,19 @@ export const EvaluationTable = ({
                   <div className="pt-1 text-sm text-muted-foreground">
                     正在编辑面评
                   </div>
-                ) : c.evalStatus === "submitted" ? (
+                ) : c.evalStatus === "submitted" || c.evalStatus === "returned" ? (
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
                     {c.canEditEvaluation ? (
-                      <ActionButton onClick={() => startEdit(c)}>修改</ActionButton>
+                      <ActionButton onClick={() => startEdit(c)}>
+                        {c.evalStatus === "returned" ? "重写面评" : "修改"}
+                      </ActionButton>
                     ) : role >= 3 ? (
-                      <span className="text-sm text-muted-foreground">待面评审批</span>
+                      <span className="text-sm text-muted-foreground">
+                        {c.evalStatus === "returned" ? "等待讲师重写面评" : "待面评审批"}
+                      </span>
                     ) : (
                       <span className="text-sm text-muted-foreground">
-                        预约讲师已提交面评
+                        {c.evalStatus === "returned" ? "面评已退回，请讲师重写" : "预约讲师已提交面评"}
                       </span>
                     )}
                   </div>
@@ -1355,7 +1417,7 @@ export const EvaluationTable = ({
                 面评内容 <span className="text-destructive">*</span>
               </label>
               <p className="text-xs leading-5 text-muted-foreground">
-                面评内容必填，讲师建议不能替代面评正文。
+                面评内容必填；建议通过时至少填写 {MIN_PASSED_EVALUATION_LENGTH} 个字。
               </p>
               <Textarea
                 id="evaluation-content"
@@ -1372,6 +1434,7 @@ export const EvaluationTable = ({
                 required
                 className="min-h-[160px] resize-y"
               />
+              <p className="text-right text-xs text-muted-foreground">{content.trim().length} 字</p>
               {evaluationError && (
                 <p id="evaluation-content-error" role="alert" className="text-sm text-destructive">
                   {evaluationError}

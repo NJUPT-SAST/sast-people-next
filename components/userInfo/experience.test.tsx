@@ -1,12 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 
 import { ExperienceInfo } from "./experience";
 
 describe("ExperienceInfo", () => {
-  it("renders readonly experience fields and links to Link", async () => {
-    const user = userEvent.setup();
-
+  it("renders readonly experience fields and links to Link", () => {
     render(
       <ExperienceInfo
         initialInfo={
@@ -20,21 +17,8 @@ describe("ExperienceInfo", () => {
     );
 
     expect(screen.getByText("我的能力")).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText("请填写你的GitHub主页地址"),
-    ).toHaveValue("https://github.com/old");
-    expect(
-      screen.getByPlaceholderText("请填写你的个人介绍"),
-    ).toHaveValue("old intro");
-
-    await user.click(screen.getByRole("link", { name: "前往 Link 修改" }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByPlaceholderText("请填写你的GitHub主页地址"),
-      ).toBeDisabled();
-      expect(screen.getByPlaceholderText("请填写你的博客地址")).toBeDisabled();
-      expect(screen.getByPlaceholderText("请填写你的个人介绍")).toBeDisabled();
-    });
+    expect(screen.getByText("https://github.com/old")).toBeInTheDocument();
+    expect(screen.getByText("old intro")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "前往 Link 修改" })).toBeInTheDocument();
   });
 });
