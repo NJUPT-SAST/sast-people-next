@@ -51,19 +51,10 @@ const statusLabel: Record<string, string> = {
   rejected: "不通过",
 };
 
-const flowTypeLabel: Record<string, string> = {
-  recruitment: "笔试招新",
-  recruitment_exemption: "免试招新",
-  woc: "WOC/WOD",
-  soc: "SOC/SOD",
-};
-
 const recommendationLabel: Record<string, string> = {
   passed: "讲师建议通过",
   failed: "讲师建议不通过",
 };
-
-const ARCHIVE_PAGE_SIZE = 20;
 
 const InlineLink = ({ label, value }: { label: string; value: string }) => (
   <a
@@ -120,7 +111,6 @@ export const ApprovalsContent = ({
   const [archiveQuery, setArchiveQuery] = useState("");
   const [archiveFlowType, setArchiveFlowType] = useState("all");
   const [archiveDecision, setArchiveDecision] = useState("all");
-  const [archivePage, setArchivePage] = useState(1);
   const [returnTarget, setReturnTarget] = useState<number | null>(null);
   const [returnReason, setReturnReason] = useState("");
   const [returnError, setReturnError] = useState<string | null>(null);
@@ -245,15 +235,7 @@ export const ApprovalsContent = ({
       archiveDecision === "all" || row.evaluation.status === archiveDecision;
     return matchesQuery && matchesFlow && matchesDecision;
   });
-  const archiveTotalPages = Math.max(
-    1,
-    Math.ceil(filteredArchived.length / ARCHIVE_PAGE_SIZE),
-  );
-  const archivePageRows = filteredArchived.slice(
-    (archivePage - 1) * ARCHIVE_PAGE_SIZE,
-    archivePage * ARCHIVE_PAGE_SIZE,
-  );
-  const displayed = showArchived ? archivePageRows : pending;
+  const displayed = showArchived ? filteredArchived : pending;
 
   if (loading) {
     return <p className="text-muted-foreground text-sm">加载中...</p>;
@@ -284,19 +266,13 @@ export const ApprovalsContent = ({
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem]">
           <Input
             value={archiveQuery}
-            onChange={(event) => {
-              setArchiveQuery(event.target.value);
-              setArchivePage(1);
-            }}
+            onChange={(event) => setArchiveQuery(event.target.value)}
             placeholder="搜索候选人、学号、面评人、审批人或流程"
             aria-label="搜索归档面评"
           />
           <Select
             value={archiveFlowType}
-            onValueChange={(value) => {
-              setArchiveFlowType(value);
-              setArchivePage(1);
-            }}
+            onValueChange={setArchiveFlowType}
           >
             <SelectTrigger aria-label="筛选归档流程">
               <SelectValue placeholder="全部流程" />
@@ -311,10 +287,7 @@ export const ApprovalsContent = ({
           </Select>
           <Select
             value={archiveDecision}
-            onValueChange={(value) => {
-              setArchiveDecision(value);
-              setArchivePage(1);
-            }}
+            onValueChange={setArchiveDecision}
           >
             <SelectTrigger aria-label="筛选最终结果">
               <SelectValue placeholder="全部结果" />
@@ -341,7 +314,7 @@ export const ApprovalsContent = ({
           {displayed.map((row) => (
             <Card key={row.evaluation.id}>
               <CardHeader className="space-y-3 pb-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <CardTitle className="min-w-0 text-base leading-6 sm:text-sm">
                     {row.candidateName ?? "未知用户"}
                     <span className="text-muted-foreground font-normal">
@@ -349,53 +322,44 @@ export const ApprovalsContent = ({
                       · {row.candidateStudentId ?? "-"}
                     </span>
                   </CardTitle>
-                  <div className="flex items-center justify-between gap-3 sm:justify-end">
-                    <Badge
-                      className="w-fit shrink-0"
-                      variant={
-                        row.evaluation.status === "approved"
-                          ? "default"
-                          : row.evaluation.status === "rejected"
-                            ? "destructive"
-                            : "secondary"
-                      }
-                    >
-                      {statusLabel[row.evaluation.status] ?? row.evaluation.status}
-                    </Badge>
-                    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5 text-xs text-muted-foreground md:hidden">
-                      <span>投递组别</span>
-                      {row.applyGroup ? (
-                        <span className="min-w-0 break-words font-medium text-foreground">
-                          {row.applyGroup}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground/70">未提供</span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 text-xs text-muted-foreground md:flex-row md:items-center">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    {row.flowTitle && (
-                      <Badge variant="outline" className="text-xs">
-                        {flowTypeLabel[row.flowType ?? ""] ?? row.flowType}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {row.evaluation.status !== "submitted" && (
+                      <Badge
+                        className="w-fit shrink-0"
+                        variant={
+                          row.evaluation.status === "approved"
+                            ? "default"
+                            : row.evaluation.status === "rejected"
+                              ? "destructive"
+                              : "secondary"
+                        }
+                      >
+                        {statusLabel[row.evaluation.status] ?? row.evaluation.status}
                       </Badge>
                     )}
-                    {row.flowTitle && <span className="min-w-0 break-words">{row.flowTitle}</span>}
                     {row.evaluation.recommendation && (
                       <Badge
                         variant="outline"
-                        className={
+                        className={`text-xs ${
                           row.evaluation.recommendation === "passed"
                             ? "border-emerald-600/60 text-emerald-700 dark:border-emerald-400/60 dark:text-emerald-300"
                             : "border-rose-600/60 text-rose-700 dark:border-rose-400/60 dark:text-rose-300"
-                        }
+                        }`}
                       >
                         {recommendationLabel[row.evaluation.recommendation]}
                       </Badge>
                     )}
                   </div>
-                  <span className="hidden min-w-0 max-w-full flex-wrap items-center gap-1.5 md:inline-flex md:ml-auto">
+                </div>
+                <div className="flex flex-row flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    {row.flowTitle && (
+                      <span className="min-w-0 break-words text-foreground">
+                        {row.flowTitle}
+                      </span>
+                    )}
+                  </div>
+                  <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5 md:ml-auto">
                     <span className="text-muted-foreground">投递组别</span>
                     {row.applyGroup ? (
                       <span className="min-w-0 break-words font-medium text-foreground">
@@ -495,31 +459,6 @@ export const ApprovalsContent = ({
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
-      {showArchived && filteredArchived.length > ARCHIVE_PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-3 border-t pt-3 text-sm text-muted-foreground">
-          <span>
-            第 {archivePage} / {archiveTotalPages} 页，共 {filteredArchived.length} 条
-          </span>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={archivePage === 1}
-              onClick={() => setArchivePage((page) => Math.max(1, page - 1))}
-            >
-              上一页
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={archivePage === archiveTotalPages}
-              onClick={() => setArchivePage((page) => Math.min(archiveTotalPages, page + 1))}
-            >
-              下一页
-            </Button>
-          </div>
         </div>
       )}
       <Dialog open={returnTarget !== null} onOpenChange={(open) => !open && setReturnTarget(null)}>

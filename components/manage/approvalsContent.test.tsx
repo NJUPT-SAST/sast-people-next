@@ -134,11 +134,13 @@ describe("ApprovalsContent", () => {
       />,
     );
 
+    expect(screen.queryByText("待终审")).not.toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "已归档 (2)" }));
 
     expect(screen.getByText("张三")).toBeInTheDocument();
     expect(screen.getByText("李四")).toBeInTheDocument();
-    expect(screen.getByText("讲师建议不通过")).toBeInTheDocument();
+    expect(screen.getAllByText("讲师建议不通过").length).toBeGreaterThan(0);
     expect(screen.getAllByText("投递组别").length).toBeGreaterThan(0);
 
     await user.type(screen.getByLabelText("搜索归档面评"), "李四");
