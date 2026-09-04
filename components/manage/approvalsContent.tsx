@@ -354,7 +354,7 @@ export const ApprovalsContent = ({
                 <div className="flex flex-row flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     {row.flowTitle && (
-                      <span className="min-w-0 break-words text-sm text-foreground">
+                      <span className="min-w-0 break-words text-foreground">
                         {row.flowTitle}
                       </span>
                     )}
