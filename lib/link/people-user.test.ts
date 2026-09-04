@@ -44,4 +44,10 @@ describe("Link user mapping", () => {
     expect(user.phone).toBeNull();
     expect(user.qq).toBeNull();
   });
+  it("maps an omitted phone number to null", () => {
+    const { phone_number: _phoneNumber, ...withoutPhoneNumber } = linkAdminUser;
+    const user = toPeopleUserFromLinkAdminItem(withoutPhoneNumber, true);
+
+    expect(user.phone).toBeNull();
+  });
 });
