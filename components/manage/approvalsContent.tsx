@@ -430,7 +430,7 @@ export const ApprovalsContent = ({
                     <div className="grid grid-cols-2 gap-2 sm:flex">
                       <Button
                         size="sm"
-                        className="h-10 w-full border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700 sm:h-8 sm:w-auto dark:border-emerald-900 dark:bg-emerald-900 dark:hover:border-emerald-800 dark:hover:bg-emerald-800"
+                        className="h-10 w-full border-[#159957] bg-[#159957] text-white hover:border-[#117a45] hover:bg-[#117a45] sm:h-8 sm:w-auto dark:border-[#159957] dark:bg-[#159957] dark:hover:border-[#1bb86a] dark:hover:bg-[#1bb86a]"
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -438,7 +438,7 @@ export const ApprovalsContent = ({
                       </Button>
                       <Button
                         size="sm"
-                        className="h-10 w-full border-rose-600 bg-rose-600 text-white hover:border-rose-700 hover:bg-rose-700 sm:h-8 sm:w-auto dark:border-rose-900 dark:bg-rose-900 dark:hover:border-rose-800 dark:hover:bg-rose-800"
+                        className="h-10 w-full border-[#b34f55] bg-[#b34f55] text-white hover:border-[#913f45] hover:bg-[#913f45] sm:h-8 sm:w-auto dark:border-[#b34f55] dark:bg-[#b34f55] dark:hover:border-[#ca6066] dark:hover:bg-[#ca6066]"
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -446,7 +446,7 @@ export const ApprovalsContent = ({
                       </Button>
                       <Button
                         size="sm"
-                        className="h-10 w-full border-amber-700 bg-amber-700 text-white hover:border-amber-800 hover:bg-amber-800 sm:h-8 sm:w-auto dark:border-amber-900 dark:bg-amber-900 dark:hover:border-amber-800 dark:hover:bg-amber-800"
+                        className="h-10 w-full border-[#a8752a] bg-[#a8752a] text-white hover:border-[#86601f] hover:bg-[#86601f] sm:h-8 sm:w-auto dark:border-[#a8752a] dark:bg-[#a8752a] dark:hover:border-[#bf8a32] dark:hover:bg-[#bf8a32]"
                         onClick={() => {
                           setReturnTarget(row.evaluation.id);
                           setReturnReason("");

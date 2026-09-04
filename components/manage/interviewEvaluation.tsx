@@ -119,7 +119,7 @@ export const InterviewEvaluation = ({
             <div className="flex gap-2 mt-3">
               <Button
                 size="sm"
-                className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-900 dark:hover:bg-emerald-800"
+                className="bg-[#159957] text-white hover:bg-[#117a45] dark:bg-[#159957] dark:hover:bg-[#1bb86a]"
                 onClick={handleApprove}
                 loading={loading}
               >
@@ -127,7 +127,7 @@ export const InterviewEvaluation = ({
               </Button>
               <Button
                 size="sm"
-                className="bg-rose-600 text-white hover:bg-rose-700 dark:bg-rose-900 dark:hover:bg-rose-800"
+                className="bg-[#b34f55] text-white hover:bg-[#913f45] dark:bg-[#b34f55] dark:hover:bg-[#ca6066]"
                 onClick={handleReject}
                 loading={loading}
               >
