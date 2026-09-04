@@ -16,8 +16,11 @@ jest.mock("sonner", () => ({
   toast: {
     error: jest.fn(),
     success: jest.fn(),
+    warning: jest.fn(),
   },
 }));
+
+const mockToastWarning = jest.requireMock("sonner").toast.warning as jest.Mock;
 
 const timestamp = new Date("2026-08-06T08:00:00.000Z");
 
@@ -65,7 +68,12 @@ function row({
 
 describe("ApprovalsContent", () => {
   beforeEach(() => {
-    mockReturnEvaluation.mockReset().mockResolvedValue({ success: true });
+    mockReturnEvaluation.mockReset().mockResolvedValue({
+      success: true,
+      notificationSent: true,
+      notificationStatus: "sent",
+    });
+    mockToastWarning.mockReset();
   });
 
   it("requires a reason before returning an evaluation", async () => {
@@ -88,6 +96,30 @@ describe("ApprovalsContent", () => {
     await user.click(screen.getByRole("button", { name: "退回并通知" }));
 
     expect(mockReturnEvaluation).toHaveBeenCalledWith(9, "面评未说明候选人的面试表现");
+  });
+
+  it("warns when the return notification is unavailable", async () => {
+    mockReturnEvaluation.mockResolvedValue({
+      success: true,
+      notificationSent: false,
+      notificationStatus: "unavailable",
+    });
+    const user = userEvent.setup();
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({ id: 10, candidateName: "未授权同学", status: "submitted", recommendation: "passed" }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "退回重写" }));
+    await user.type(screen.getByLabelText("退回理由"), "请补充面试表现");
+    await user.click(screen.getByRole("button", { name: "退回并通知" }));
+
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      "面评已退回，但讲师尚未绑定飞书，提醒未发送",
+    );
   });
 
   it("searches within every administrator-decided archive record", async () => {

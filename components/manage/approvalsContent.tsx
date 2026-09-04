@@ -179,8 +179,14 @@ export const ApprovalsContent = ({
     }
     setActionLoading(returnTarget);
     try {
-      await returnEvaluation(returnTarget, returnReason);
-      toast.success("面评已退回，已提醒讲师重写");
+      const result = await returnEvaluation(returnTarget, returnReason);
+      if (result.notificationSent) {
+        toast.success("面评已退回，已提醒讲师重写");
+      } else if (result.notificationStatus === "unavailable") {
+        toast.warning("面评已退回，但讲师尚未绑定飞书，提醒未发送");
+      } else {
+        toast.warning("面评已退回，但飞书提醒发送失败，请确认授权后重试");
+      }
       setReturnTarget(null);
       setReturnReason("");
       setReturnError(null);

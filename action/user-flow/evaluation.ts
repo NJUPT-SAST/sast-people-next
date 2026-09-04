@@ -488,6 +488,7 @@ export const approveEvaluation = async (evaluationId: number) => {
         })
         .from(interviewEvaluation)
         .where(eq(interviewEvaluation.id, evaluationId))
+        .for("update")
         .limit(1);
 
       if (!evalRecord) throw new Error("面评不存在");
@@ -575,6 +576,7 @@ export const rejectEvaluation = async (evaluationId: number) => {
         })
         .from(interviewEvaluation)
         .where(eq(interviewEvaluation.id, evaluationId))
+        .for("update")
         .limit(1);
 
       if (!evalRecord) throw new Error("面评不存在");
@@ -637,6 +639,7 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
         })
         .from(interviewEvaluation)
         .where(eq(interviewEvaluation.id, evaluationId))
+        .for("update")
         .limit(1);
       if (!evaluation) throw new Error("面评不存在");
       if (!canReturnEvaluation(evaluation.status)) throw new Error("只能退回待终审的面评");
@@ -650,19 +653,26 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
       return evaluation;
     });
 
+    let notificationStatus: "sent" | "unavailable" | "failed" = "unavailable";
     try {
       const credential = await getFeishuOAuthAccountStatus(record.authorId);
       if (credential.bound && credential.providerUserId) {
         const [candidate] = await db.select({ name: flow.title }).from(flow).innerJoin(userFlow, eq(userFlow.fkFlowId, flow.id)).where(eq(userFlow.id, record.userFlowId)).limit(1);
         await sendInterviewEvaluationReturnedCard({ openId: credential.providerUserId, reason: normalizedReason, flowName: candidate?.name ?? "面试流程" });
+        notificationStatus = "sent";
       }
     } catch (error) {
+      notificationStatus = "failed";
       logServerError("evaluation:return:feishu", error, { path: "/dashboard/approvals", userId: session.uid, role: session.role, action: "notify-evaluation-returned", metadata: { evaluationId } });
     }
     revalidatePath("/dashboard/approvals");
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "evaluation.return", resourceType: "interview_evaluation", resourceId: evaluationId, metadata: { reason: normalizedReason } });
-    return { success: true as const };
+    return {
+      success: true as const,
+      notificationSent: notificationStatus === "sent",
+      notificationStatus,
+    };
   } catch (error) {
     logServerError("evaluation:return", error, { path: "/dashboard/approvals", userId: session?.uid ?? null, role: session?.role ?? null, action: "return-evaluation", metadata: { evaluationId } });
     throw error;
