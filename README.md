@@ -55,7 +55,7 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 
 | Field | Values | Meaning |
 | --- | --- | --- |
-| `interview_evaluation.status` | `submitted`, `approved`, `rejected` | Lecturer submission and administrator final review |
+| `interview_evaluation.status` | `submitted`, `returned`, `approved`, `rejected` | Lecturer submission, return-for-rewrite, and administrator final review |
 | `email_batch.status` | `draft`, `queued`, `completed`, `failed` | Result email batch lifecycle |
 | `email_delivery.status` | `pending`, `sending`, `sent`, `failed`, `dead` | Per-recipient delivery state |
 | `interview_schedule.status` | `created`, `cancelled`, `failed` | Feishu interview schedule state |

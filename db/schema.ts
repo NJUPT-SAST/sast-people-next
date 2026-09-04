@@ -50,6 +50,7 @@ export const progressStatusEnum = pgEnum("progress_status_enum", [
 
 export const evaluationStatusEnum = pgEnum("evaluation_status_enum", [
   "submitted",
+  "returned",
   "approved",
   "rejected",
 ]);
@@ -342,6 +343,8 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
   /* 讲师建议，不等同于管理员最终决定。历史记录允许为空。 */
   recommendation: evaluationRecommendationEnum("recommendation"),
   status: evaluationStatusEnum("status").notNull().default("submitted"),
+  /* 管理员退回面评时填写的修改理由 */
+  returnReason: text("return_reason"),
   /* Link 用户 ID — 审批人 */
   fkReviewedBy: integer("fk_reviewed_by"),
   /* Link 用户 ID — 面评撰写人 */

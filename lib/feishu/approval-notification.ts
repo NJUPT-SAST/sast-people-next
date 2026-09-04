@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/db/drizzle";
 import { flow, interviewEvaluation, interviewSchedule, userFlow } from "@/db/schema";
 import { getPeopleUrl } from "@/lib/app-url";
-import { sendFeishuCardMessage, updateFeishuCardMessage } from "@/lib/feishu/message";
+import { sendFeishuCardMessage } from "@/lib/feishu/message";
 import { desc, eq } from "drizzle-orm";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
@@ -227,7 +227,7 @@ export function buildFeishuApprovalCard(context: FeishuApprovalNotificationConte
   };
 }
 
-export async function sendOrUpdateFeishuApprovalCard({
+export async function sendFeishuApprovalCard({
   chatId,
   context,
 }: {
@@ -235,21 +235,16 @@ export async function sendOrUpdateFeishuApprovalCard({
   context: FeishuApprovalNotificationContext;
 }) {
   const card = buildFeishuApprovalCard(context);
-  if (context.messageId) {
-    await updateFeishuCardMessage({ messageId: context.messageId, card });
-    return { messageId: context.messageId, updated: true };
-  }
-
   const result = await sendFeishuCardMessage({
     receiveId: chatId,
     receiveIdType: "chat_id",
     card,
-    uuid: `people-approval-evaluation-${context.evaluationId}`,
+    uuid: `people-approval-evaluation-${context.evaluationId}-${context.updatedAt.getTime()}`,
   });
   if (!result.messageId) {
     throw new Error("send feishu approval card failed: missing message ID");
   }
-  return { messageId: result.messageId, updated: false };
+  return { messageId: result.messageId };
 }
 
 export function buildFeishuApprovalReminderCard({

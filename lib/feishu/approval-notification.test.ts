@@ -1,16 +1,14 @@
 jest.mock("./message", () => ({
   sendFeishuCardMessage: jest.fn(),
-  updateFeishuCardMessage: jest.fn(),
 }));
 
 import {
   buildFeishuApprovalCard,
-  sendOrUpdateFeishuApprovalCard,
+  sendFeishuApprovalCard,
 } from "./approval-notification";
 
-const { sendFeishuCardMessage, updateFeishuCardMessage } = jest.requireMock("./message") as {
+const { sendFeishuCardMessage } = jest.requireMock("./message") as {
   sendFeishuCardMessage: jest.Mock;
-  updateFeishuCardMessage: jest.Mock;
 };
 
 describe("buildFeishuApprovalCard", () => {
@@ -67,22 +65,28 @@ describe("buildFeishuApprovalCard", () => {
     expect(rendered).not.toContain("2026-08-25 16:30");
   });
 
-  it("creates once and then updates the original card", async () => {
-    sendFeishuCardMessage.mockResolvedValue({ messageId: "om_original" });
+  it("sends a new card for every evaluation revision", async () => {
+    sendFeishuCardMessage
+      .mockResolvedValueOnce({ messageId: "om_original" })
+      .mockResolvedValueOnce({ messageId: "om_revision" });
 
-    await expect(sendOrUpdateFeishuApprovalCard({
+    await expect(sendFeishuApprovalCard({
       chatId: "oc_test",
       context,
-    })).resolves.toEqual({ messageId: "om_original", updated: false });
+    })).resolves.toEqual({ messageId: "om_original" });
 
-    await expect(sendOrUpdateFeishuApprovalCard({
+    await expect(sendFeishuApprovalCard({
       chatId: "oc_test",
-      context: { ...context, messageId: "om_original" },
-    })).resolves.toEqual({ messageId: "om_original", updated: true });
+      context: {
+        ...context,
+        messageId: "om_original",
+        updatedAt: new Date("2026-08-24T17:00:00.000Z"),
+      },
+    })).resolves.toEqual({ messageId: "om_revision" });
 
-    expect(sendFeishuCardMessage).toHaveBeenCalledTimes(1);
-    expect(updateFeishuCardMessage).toHaveBeenCalledWith(expect.objectContaining({
-      messageId: "om_original",
-    }));
+    expect(sendFeishuCardMessage).toHaveBeenCalledTimes(2);
+    expect(sendFeishuCardMessage.mock.calls[0][0].uuid).not.toBe(
+      sendFeishuCardMessage.mock.calls[1][0].uuid,
+    );
   });
 });

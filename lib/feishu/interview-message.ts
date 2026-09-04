@@ -247,3 +247,29 @@ export async function sendFeishuOAuthBoundCard(openId: string) {
     }),
   });
 }
+
+export async function sendInterviewEvaluationReturnedCard({
+  openId,
+  reason,
+  flowName,
+}: {
+  openId: string;
+  reason: string;
+  flowName: string;
+}) {
+  await sendFeishuCardMessage({
+    receiveId: openId,
+    uuid: `people-interview-evaluation-returned-${Date.now()}`,
+    card: createCard({
+      title: "面评已退回，请重新填写",
+      subtitle: "People 面评修改提醒",
+      template: "orange",
+      lines: [
+        line("流程", flowName),
+        line("退回理由", reason),
+        "请回到 People 面试管理，补充面评后重新提交审核。",
+      ],
+      actions: [button("打开 People 面评", getPeopleUrl("/dashboard/interviews"), "primary")],
+    }),
+  });
+}

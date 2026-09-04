@@ -1,13 +1,13 @@
-export type EvaluationStatus = "submitted" | "approved" | "rejected";
+export type EvaluationStatus = "submitted" | "returned" | "approved" | "rejected";
 
 export type EvaluationFlowStepType = "checking" | "finished";
 
-const ACTIVE_STATUSES: EvaluationStatus[] = ["submitted", "approved"];
+const ACTIVE_STATUSES: EvaluationStatus[] = ["submitted", "returned", "approved"];
 
 export function isActiveEvaluationStatus(
   status: string | null | undefined,
-): status is "submitted" | "approved" {
-  return status === "submitted" || status === "approved";
+): status is "submitted" | "returned" | "approved" {
+  return status === "submitted" || status === "returned" || status === "approved";
 }
 
 export function canApproveEvaluation(status: string | null | undefined) {
@@ -16,6 +16,10 @@ export function canApproveEvaluation(status: string | null | undefined) {
 
 /** Admin may reject only pending reviews. */
 export function canRejectEvaluation(status: string | null | undefined) {
+  return status === "submitted";
+}
+
+export function canReturnEvaluation(status: string | null | undefined) {
   return status === "submitted";
 }
 

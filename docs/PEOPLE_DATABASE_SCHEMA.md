@@ -21,7 +21,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `flow_step_type_enum` | `registering`、`checking`、`judging`、`email`、`finished` | 流程步骤类型 |
 | `flow_type_enum` | `recruitment`、`recruitment_exemption`、`woc`、`soc` | 流程类型 |
 | `progress_status_enum` | `not_started`、`ongoing`、`passed`、`failed` | 流程进行状态（报名即进流程，无需审核） |
-| `evaluation_status_enum` | `submitted`、`approved`、`rejected` | 面评终审状态（讲师提交面评 → 管理员终审） |
+| `evaluation_status_enum` | `submitted`、`returned`、`approved`、`rejected` | 面评状态（讲师提交 → 管理员可退回重写或终审） |
 | `email_batch_status_enum` | `draft`、`queued`、`completed`、`failed` | 邮件批次状态 |
 | `email_delivery_status_enum` | `pending`、`sending`、`sent`、`failed`、`dead` | 单封邮件发送状态 |
 | `interview_schedule_status_enum` | `created`、`cancelled`、`failed` | 面试日程状态 |
@@ -139,7 +139,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 
 ### `interview_evaluation`
 
-面评记录和管理员终审表。讲师初审通过后提交面评（status=`submitted`），管理员统一终审（→ `approved` / `rejected`）。候选人通过 `fk_user_flow_id` → `user_flow.fk_user_id` 获取，`fk_user_id` 为面评撰写人。
+面评记录和管理员终审表。讲师初审通过后提交面评（status=`submitted`）；管理员可退回重写（→ `returned`）或统一终审（→ `approved` / `rejected`）。候选人通过 `fk_user_flow_id` → `user_flow.fk_user_id` 获取，`fk_user_id` 为面评撰写人。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -149,6 +149,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `content` | `text` | 面评内容 |
 | `meeting_link` | `text` | 面试结束后的妙记链接或复盘记录链接 |
 | `status` | `evaluation_status_enum` | 终审状态，默认 `submitted` |
+| `return_reason` | `text` nullable | 管理员退回重写时填写的理由 |
 | `fk_reviewed_by` | `integer` | 审批人 Link 用户 ID |
 | `created_at` | `timestamp` | 创建时间 |
 | `updated_at` | `timestamp` | 更新时间 |

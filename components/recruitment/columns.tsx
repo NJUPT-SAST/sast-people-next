@@ -198,6 +198,7 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
       </div>
     ),
     filterFn: (row, id, filterValue) => {
+      if (!String(filterValue ?? '').trim()) return true;
       return row.original.totalScore
         ? parseInt(row.original.totalScore) >= parseInt(filterValue)
         : false;

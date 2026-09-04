@@ -168,6 +168,35 @@ describe("Recruitment DataTable", () => {
     expect(screen.queryByRole("button", { name: /导出 CSV/i })).not.toBeInTheDocument();
   });
 
+  it("filters rows by search text", async () => {
+    const user = userEvent.setup();
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={2}
+        data={Array.from({ length: 11 }, (_, index) => ({
+          uid: index + 1,
+          stepId: 3,
+          name: index === 10 ? "目标同学" : `同学${String.fromCharCode(65 + index)}`,
+          studentId: index === 10 ? "B260005" : `B26010${index + 1}`,
+          totalScore: "80",
+          status: "ongoing",
+        }))}
+      />,
+    );
+
+    expect(screen.getAllByText("目标同学").length).toBeGreaterThan(0);
+
+    const search = screen.getByRole("textbox", { name: "搜索笔试考生" });
+    await user.type(search, "目标");
+    expect(screen.getAllByText("目标同学").length).toBeGreaterThan(0);
+
+    await user.clear(search);
+    await user.type(search, "5");
+    expect(screen.getAllByText("目标同学").length).toBeGreaterThan(0);
+  });
+
   it("uses distinct target ids for desktop and mobile render paths", () => {
     render(
       <DataTable

@@ -1,7 +1,5 @@
 'use client';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
   Card,
@@ -11,16 +9,6 @@ import {
   CardContent,
   CardFooter,
 } from '../ui/card';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '../ui/form';
-import { Input } from '../ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { userType } from '@/types/user';
 
 const experienceFieldsSchema = z.object({
@@ -36,92 +24,57 @@ export const experienceSchema = experienceFieldsSchema;
 
 export const ExperienceInfo = ({
   initialInfo,
+  embedded = false,
 }: {
   initialInfo: ExperienceInfoValue;
+  embedded?: boolean;
 }) => {
   const linkProfileUrl =
     process.env.NEXT_PUBLIC_LINK_PROFILE_URL || 'https://link.sast.fun';
-  const form = useForm<ExperienceFields>({
-    resolver: zodResolver(experienceSchema),
-    defaultValues: {
-      github: initialInfo.github ?? '',
-      blog: initialInfo.blog ?? '',
-      personalStatement: initialInfo.personalStatement ?? '',
-    },
-  });
+  const fields = [
+    ["GitHub 主页地址", initialInfo.github],
+    ["博客地址", initialInfo.blog],
+    ["自我介绍", initialInfo.personalStatement],
+  ] as const;
+
+  const header = (
+    <div className="space-y-1">
+      <h2 className="text-lg font-semibold tracking-tight">我的能力</h2>
+      <p className="text-sm text-muted-foreground">能力信息来自 SAST Link</p>
+    </div>
+  );
+  const content = (
+    <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+      {fields.map(([label, value], index) => (
+        <div
+          key={label}
+          className={index === fields.length - 1 ? "space-y-1 sm:col-span-2" : "space-y-1"}
+        >
+          <dt className="text-sm text-muted-foreground">{label}</dt>
+          <dd className="whitespace-pre-wrap break-words text-sm font-medium text-foreground">
+            {value || "未填写"}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+
+  if (embedded) {
+    return (
+      <section className="min-w-0 space-y-6 border-t p-6 sm:p-8">
+        {header}
+        {content}
+      </section>
+    );
+  }
 
   return (
     <Card className="h-full">
       <CardHeader>
         <CardTitle>我的能力</CardTitle>
-        <CardDescription>
-          能力信息来自 SAST Link
-        </CardDescription>
+        <CardDescription>能力信息来自 SAST Link</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1">
-        <Form {...form}>
-          <div className="flex flex-col gap-4">
-            <FormField
-              control={form.control}
-              name="github"
-              disabled
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>GitHub 主页地址</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="请填写你的GitHub主页地址"
-                      {...field}
-                      value={field.value ?? ''}
-                      disabled
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="blog"
-              disabled
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>博客地址</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="请填写你的博客地址"
-                      {...field}
-                      value={field.value ?? ''}
-                      disabled
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="personalStatement"
-              disabled
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>自我介绍</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="请填写你的个人介绍"
-                      className="min-h-48"
-                      {...field}
-                      value={field.value ?? ''}
-                      disabled
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </Form>
-      </CardContent>
+      <CardContent className="flex-1">{content}</CardContent>
       <CardFooter className="mt-auto justify-end border-t pt-4">
         <Button asChild>
           <a href={linkProfileUrl} target="_blank" rel="noreferrer">
