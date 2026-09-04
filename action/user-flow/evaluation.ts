@@ -19,7 +19,7 @@ import {
 import { verifyRole } from "@/lib/dal";
 import {
   loadFeishuApprovalNotificationRecord,
-  sendOrUpdateFeishuApprovalCard,
+  sendFeishuApprovalCard,
 } from "@/lib/feishu/approval-notification";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
@@ -181,7 +181,7 @@ async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
   const candidate = userMap.get(record.candidateId);
   const author = userMap.get(record.authorId);
 
-  const result = await sendOrUpdateFeishuApprovalCard({
+  const result = await sendFeishuApprovalCard({
     chatId,
     context: {
       evaluationId: record.evaluationId,
@@ -201,12 +201,10 @@ async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
     },
   });
 
-  if (!result.updated) {
-    await db
-      .update(interviewEvaluation)
-      .set({ feishuApprovalMessageId: result.messageId, updatedAt: new Date() })
-      .where(eq(interviewEvaluation.id, evaluationId));
-  }
+  await db
+    .update(interviewEvaluation)
+    .set({ feishuApprovalMessageId: result.messageId, updatedAt: new Date() })
+    .where(eq(interviewEvaluation.id, evaluationId));
 
 }
 
