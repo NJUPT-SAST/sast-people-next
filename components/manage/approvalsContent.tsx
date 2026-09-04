@@ -351,9 +351,13 @@ export const ApprovalsContent = ({
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 text-xs text-muted-foreground md:flex-row md:items-center">
+                <div className="flex flex-row flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    {row.flowTitle && <span className="min-w-0 break-words">{row.flowTitle}</span>}
+                    {row.flowTitle && (
+                      <span className="min-w-0 break-words text-sm text-foreground">
+                        {row.flowTitle}
+                      </span>
+                    )}
                   </div>
                   <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5 md:ml-auto">
                     <span className="text-muted-foreground">投递组别</span>
