@@ -427,29 +427,27 @@ const NativeDateTimeInput = ({
     <div
       ref={ref}
       className={cn(
-        "space-y-2 rounded-md border border-input bg-background p-2",
+        "flex items-center gap-2",
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}
     >
-      <div className="flex items-center gap-2">
-        <input
-          type="date"
-          value={dateValue}
-          disabled={disabled}
-          aria-label="日期"
-          onChange={(event) => updateValue(event.target.value, timeValue)}
-          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-        <input
-          type="time"
-          value={timeValue}
-          disabled={disabled}
-          aria-label="时间"
-          onChange={(event) => updateValue(dateValue, event.target.value)}
-          className="h-9 w-[7.25rem] rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-      </div>
+      <input
+        type="date"
+        value={dateValue}
+        disabled={disabled}
+        aria-label="日期"
+        onChange={(event) => updateValue(event.target.value, timeValue)}
+        className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      <input
+        type="time"
+        value={timeValue}
+        disabled={disabled}
+        aria-label="时间"
+        onChange={(event) => updateValue(dateValue, event.target.value)}
+        className="h-10 w-[7.25rem] rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
     </div>
   );
 };
