@@ -322,7 +322,19 @@ export const ApprovalsContent = ({
                       · {row.candidateStudentId ?? "-"}
                     </span>
                   </CardTitle>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
+                  <div className="min-w-0 flex flex-1 flex-wrap items-center justify-end gap-2">
+                    {row.evaluation.recommendation && (
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          row.evaluation.recommendation === "passed"
+                            ? "border-emerald-600/60 text-emerald-700 dark:border-emerald-400/60 dark:text-emerald-300"
+                            : "border-rose-600/60 text-rose-700 dark:border-rose-400/60 dark:text-rose-300"
+                        }`}
+                      >
+                        {recommendationLabel[row.evaluation.recommendation]}
+                      </Badge>
+                    )}
                     {row.evaluation.status !== "submitted" && (
                       <Badge
                         className="w-fit shrink-0"
@@ -335,18 +347,6 @@ export const ApprovalsContent = ({
                         }
                       >
                         {statusLabel[row.evaluation.status] ?? row.evaluation.status}
-                      </Badge>
-                    )}
-                    {row.evaluation.recommendation && (
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${
-                          row.evaluation.recommendation === "passed"
-                            ? "border-emerald-600/60 text-emerald-700 dark:border-emerald-400/60 dark:text-emerald-300"
-                            : "border-rose-600/60 text-rose-700 dark:border-rose-400/60 dark:text-rose-300"
-                        }`}
-                      >
-                        {recommendationLabel[row.evaluation.recommendation]}
                       </Badge>
                     )}
                   </div>
