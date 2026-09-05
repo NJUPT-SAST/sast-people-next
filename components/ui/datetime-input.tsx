@@ -423,13 +423,6 @@ const NativeDateTimeInput = ({
     onChange?.(parseBeijingDateTime(nextDate + "T" + nextTime) ?? undefined);
   };
 
-  const setQuickDate = (offset: number) => {
-    const base = toBeijingWallClockDate(value ?? new Date());
-    base.setDate(base.getDate() + offset);
-    const nextDate = format(base, "yyyy-MM-dd");
-    updateValue(nextDate, timeValue || "09:00");
-  };
-
   return (
     <div
       ref={ref}
@@ -456,16 +449,6 @@ const NativeDateTimeInput = ({
           onChange={(event) => updateValue(dateValue, event.target.value)}
           className="h-9 w-[7.25rem] rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
-      </div>
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <span className="mr-1">快捷日期</span>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={disabled} onClick={() => setQuickDate(0)}>
-          今天
-        </Button>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={disabled} onClick={() => setQuickDate(1)}>
-          明天
-        </Button>
-        <span className="ml-auto">北京时间</span>
       </div>
     </div>
   );
