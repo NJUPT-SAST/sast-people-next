@@ -135,7 +135,12 @@ export const AddFlow = () => {
                 <FormItem>
                   <FormLabel>开始时间</FormLabel>
                     <FormControl>
-                      <DateTimeInput {...field} native />
+                      <DateTimeInput
+                        {...field}
+                        native
+                        value={field.value ?? undefined}
+                        onChange={(date) => field.onChange(date ?? null)}
+                      />
                     </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -149,7 +154,12 @@ export const AddFlow = () => {
                 <FormItem>
                   <FormLabel>结束时间</FormLabel>
                     <FormControl>
-                      <DateTimeInput {...field} native />
+                      <DateTimeInput
+                        {...field}
+                        native
+                        value={field.value ?? undefined}
+                        onChange={(date) => field.onChange(date ?? null)}
+                      />
                     </FormControl>
                   <FormMessage />
                 </FormItem>
