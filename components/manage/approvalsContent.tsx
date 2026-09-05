@@ -322,7 +322,7 @@ export const ApprovalsContent = ({
                       · {row.candidateStudentId ?? "-"}
                     </span>
                   </CardTitle>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                     {row.evaluation.status !== "submitted" && (
                       <Badge
                         className="w-fit shrink-0"
