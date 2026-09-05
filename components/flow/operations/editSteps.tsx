@@ -200,7 +200,12 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                 <FormItem>
                   <FormLabel>开始时间</FormLabel>
                   <FormControl>
-                    <DateTimeInput {...field} />
+                    <DateTimeInput
+                      {...field}
+                      native
+                      value={field.value ?? undefined}
+                      onChange={(date) => field.onChange(date ?? null)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -216,6 +221,7 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
                   <FormControl>
                     <DateTimeInput
                       {...field}
+                      native
                       value={field.value ?? undefined}
                       onChange={(date) => field.onChange(date ?? null)}
                     />
@@ -377,5 +383,3 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
     </Sheet>
   );
 };
-
-

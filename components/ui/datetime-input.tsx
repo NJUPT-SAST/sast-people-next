@@ -2,7 +2,9 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 import {
+  formatBeijingDateTime,
   fromBeijingDateParts,
+  parseBeijingDateTime,
   toBeijingWallClockDate,
 } from '@/lib/timezone';
 import { format, parse, isValid, getYear } from 'date-fns';
@@ -24,6 +26,7 @@ type DateTimeInputProps = {
   timezone?: string;
   hideCalendarIcon?: boolean;
   onCalendarClick?: () => void;
+  native?: boolean;
   ref?: React.Ref<HTMLDivElement>;
 };
 
@@ -66,8 +69,34 @@ const segmentConfigs = [
 ];
 
 function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
-  const { format: formatProp, onChange, value: _value } = options;
-  const value = useMemo(() => _value ? new Date(_value) : undefined, [_value]);
+  const value = useMemo(
+    () => (options.value ? new Date(options.value) : undefined),
+    [options.value],
+  );
+  if (options.native) {
+    return (
+      <NativeDateTimeInput
+        ref={ref}
+        value={value}
+        onChange={options.onChange}
+        disabled={options.disabled}
+        className={options.className}
+      />
+    );
+  }
+  return <SegmentedDateTimeInput ref={ref} options={options} value={value} />;
+}
+
+function SegmentedDateTimeInput({
+  ref,
+  options,
+  value,
+}: {
+  ref?: React.Ref<HTMLDivElement>;
+  options: Omit<DateTimeInputProps, "ref">;
+  value?: Date;
+}) {
+  const { format: formatProp, onChange } = options;
   const form = useFormContext();
   const formatStr = React.useMemo(() => formatProp || 'yyyy-MM-dd HH:mm:ss', [formatProp]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -356,6 +385,72 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
     </div>
   );
 }
+
+const NativeDateTimeInput = ({
+  ref,
+  value,
+  onChange,
+  disabled,
+  className,
+}: {
+  ref?: React.Ref<HTMLDivElement>;
+  value?: Date;
+  onChange?: (date?: Date) => void;
+  disabled?: boolean;
+  className?: string;
+}) => {
+  const current = value ? formatBeijingDateTime(value).replace(" ", "T").slice(0, 16) : "";
+  const [initialDateValue, initialTimeValue] = current.split("T");
+  const [dateValue, setDateValue] = useState(initialDateValue || "");
+  const [timeValue, setTimeValue] = useState(initialTimeValue || "");
+
+  useEffect(() => {
+    setDateValue(initialDateValue || "");
+    setTimeValue(initialTimeValue || "");
+  }, [initialDateValue, initialTimeValue]);
+
+  const updateValue = (nextDate: string, nextTime: string) => {
+    const hadDate = dateValue;
+    const hadTime = timeValue;
+    setDateValue(nextDate);
+    setTimeValue(nextTime);
+    if (!nextDate || !nextTime) {
+      if ((nextDate === "" && hadDate) || (nextTime === "" && hadTime)) {
+        onChange?.(undefined);
+      }
+      return;
+    }
+    onChange?.(parseBeijingDateTime(nextDate + "T" + nextTime) ?? undefined);
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "flex items-center gap-2",
+        disabled && "cursor-not-allowed opacity-50",
+        className,
+      )}
+    >
+      <input
+        type="date"
+        value={dateValue}
+        disabled={disabled}
+        aria-label="日期"
+        onChange={(event) => updateValue(event.target.value, timeValue)}
+        className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      <input
+        type="time"
+        value={timeValue}
+        disabled={disabled}
+        aria-label="时间"
+        onChange={(event) => updateValue(dateValue, event.target.value)}
+        className="h-10 w-[7.25rem] rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+    </div>
+  );
+};
 
 DateTimeInput.displayName = 'DateTimeInput';
 
