@@ -135,7 +135,7 @@ export const AddFlow = () => {
                 <FormItem>
                   <FormLabel>开始时间</FormLabel>
                     <FormControl>
-                      <DateTimeInput {...field} />
+                      <DateTimeInput {...field} native />
                     </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -149,7 +149,7 @@ export const AddFlow = () => {
                 <FormItem>
                   <FormLabel>结束时间</FormLabel>
                     <FormControl>
-                      <DateTimeInput {...field} />
+                      <DateTimeInput {...field} native />
                     </FormControl>
                   <FormMessage />
                 </FormItem>
