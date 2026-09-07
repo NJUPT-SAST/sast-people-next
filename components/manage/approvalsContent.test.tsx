@@ -1,7 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 
 import { ApprovalsContent } from "./approvalsContent";
+
+jest.mock("@/components/manage/viewUserInfoSheet", () => ({
+  ViewUserInfoSheet: ({ trigger }: { trigger?: ReactNode }) => (
+    <div>{trigger}</div>
+  ),
+}));
 
 const mockReturnEvaluation = jest.fn();
 
@@ -59,6 +66,7 @@ function row({
     meetingMinuteLink: null,
     authorName: "讲师",
     reviewerName,
+    candidateId: id + 100,
     candidateName,
     candidateStudentId: `B26${id}`,
     flowTitle: "2026 免试招新",
@@ -202,5 +210,17 @@ describe("ApprovalsContent", () => {
       "title",
       "https://example.com/meeting",
     );
+  });
+
+  it("renders the candidate name as a profile trigger", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({ id: 5, candidateName: "周七", status: "submitted", recommendation: "passed" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "周七" })).toBeInTheDocument();
   });
 });

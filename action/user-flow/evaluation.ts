@@ -772,6 +772,7 @@ export const getAllEvaluations = async () => {
       reviewerName: row.evaluation.fkReviewedBy
         ? (userMap.get(row.evaluation.fkReviewedBy)?.name ?? null)
         : null,
+      candidateId: row.candidateId ?? null,
       candidateName: row.candidateId
         ? (userMap.get(row.candidateId)?.name ?? null)
         : null,
