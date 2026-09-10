@@ -25,6 +25,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import type { interviewEvaluation } from "@/db/schema";
 import originalDayjs from "@/lib/dayjs";
 import { externalHref } from "@/lib/link";
+import { ViewUserInfoSheet } from "@/components/manage/viewUserInfoSheet";
 
 export type EvaluationRow = {
   evaluation: Omit<InferSelectModel<typeof interviewEvaluation>, "returnReason"> & {
@@ -38,6 +39,7 @@ export type EvaluationRow = {
   meetingMinuteLink: string | null;
   authorName: string | null;
   reviewerName: string | null;
+  candidateId: number | null;
   candidateName: string | null;
   candidateStudentId: string | null;
   flowTitle: string | null;
@@ -97,9 +99,11 @@ const ReviewReference = ({
 export const ApprovalsContent = ({
   initialEvaluations,
   initialLoadError = false,
+  currentUserRole = 3,
 }: {
   initialEvaluations?: EvaluationRow[];
   initialLoadError?: boolean;
+  currentUserRole?: number;
 }) => {
   const [evaluations, setEvaluations] = useState<EvaluationRow[]>(
     Array.isArray(initialEvaluations) ? initialEvaluations : [],
@@ -316,7 +320,28 @@ export const ApprovalsContent = ({
               <CardHeader className="space-y-3 pb-3">
                 <div className="flex items-start justify-between gap-3">
                   <CardTitle className="min-w-0 text-base leading-6 sm:text-sm">
-                    {row.candidateName ?? "未知用户"}
+                    {row.candidateName && row.candidateId ? (
+                      <ViewUserInfoSheet
+                        userInfo={{
+                          id: row.candidateId,
+                          name: row.candidateName,
+                          studentId: row.candidateStudentId,
+                        }}
+                        currentUserRole={currentUserRole}
+                        readOnly
+                        trigger={
+                          <button
+                            type="button"
+                            title={row.candidateName}
+                            className="max-w-full truncate text-left text-inherit underline-offset-4 hover:text-primary hover:underline"
+                          >
+                            {row.candidateName}
+                          </button>
+                        }
+                      />
+                    ) : (
+                      row.candidateName ?? "未知用户"
+                    )}
                     <span className="text-muted-foreground font-normal">
                       {" "}
                       · {row.candidateStudentId ?? "-"}

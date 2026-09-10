@@ -222,7 +222,6 @@ const summaryItems = [
   { key: "returned", label: "退回重写" },
   { key: "accepted", label: "已通过" },
   { key: "evalRejected", label: "不通过" },
-  { key: "rejected", label: "不通过" },
   { key: "withdrawn", label: "已退回" },
 ];
 const formatDateTimeLocal = (date: Date) => {
