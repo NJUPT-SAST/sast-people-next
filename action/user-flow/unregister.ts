@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { verifySession } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
 import { writeOperationAudit } from "@/lib/operation-audit";
+import { assertFlowResultsEditable } from "@/lib/flow-result-publication-guard";
 
 export const unregister = async (userFlowId: number) => {
   let session: Awaited<ReturnType<typeof verifySession>> | null = null;
@@ -23,6 +24,8 @@ export const unregister = async (userFlowId: number) => {
     if (!record[0] || record[0].fkUserId !== session.uid) {
       return { success: false, error: { message: "无权操作" } };
     }
+
+    await assertFlowResultsEditable(record[0].flowId);
 
     await db.delete(userFlow).where(eq(userFlow.id, userFlowId));
     await writeOperationAudit({

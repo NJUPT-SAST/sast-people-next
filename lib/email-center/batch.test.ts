@@ -262,7 +262,7 @@ describe("email batch service", () => {
     await expect(sendEmailBatchById(7)).resolves.toEqual({ queuedCount: 1 });
 
     expect(mockOffer).toHaveBeenCalledWith(101);
-    expect(mockSyncUserRolesFromAcceptedFlows).toHaveBeenCalledWith([301]);
+    expect(mockSyncUserRolesFromAcceptedFlows).not.toHaveBeenCalled();
     expect(mockUpdateSetCalls).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -363,7 +363,7 @@ describe("email batch service", () => {
     );
   });
 
-  it("submits deduplicated role-sync targets as one batch", async () => {
+  it("queues deduplicated result deliveries without changing roles", async () => {
     mockSelectResults.push(
       [{ id: 10, category: "result", accept: true, status: "queued" }],
       [],
@@ -381,8 +381,6 @@ describe("email batch service", () => {
 
     await expect(sendEmailBatchById(10)).resolves.toEqual({ queuedCount: 6 });
 
-    expect(mockSyncUserRolesFromAcceptedFlows).toHaveBeenCalledWith([
-      501, 502, 503, 504, 505, 501,
-    ]);
+    expect(mockSyncUserRolesFromAcceptedFlows).not.toHaveBeenCalled();
   });
 });

@@ -11,6 +11,7 @@ import { Loading } from '@/components/loading';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { flowSelection } from '@/types/flow';
 import { BadgeCheck, ClipboardList, Users } from 'lucide-react';
+import { ResultPublicationPanel } from '@/components/recruitment/ResultPublicationPanel';
 
 type ExamResult = Awaited<ReturnType<typeof calScore>>;
 type CandidatesResult = Awaited<ReturnType<typeof getEvaluationCandidates>>;
@@ -202,6 +203,7 @@ export const RecruitmentContent = ({
           <Loading />
         ) : isEvaluationWorkspace ? (
           <div className="space-y-4">
+            {role >= 3 && <ResultPublicationPanel flowId={Number(flowId)} />}
             <EvaluationTable
               candidates={safeEvalData}
               groupOptions={currentFlowGroupOptions}
@@ -213,6 +215,7 @@ export const RecruitmentContent = ({
           </div>
         ) : (
           <div className="space-y-4">
+            {role >= 3 && <ResultPublicationPanel flowId={Number(flowId)} />}
             <DataTable
               columns={makeColumns(role)}
               data={safeScoreData}
