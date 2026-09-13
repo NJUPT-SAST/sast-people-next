@@ -89,6 +89,7 @@ function TemplateDialog({
 }) {
   const router = useRouter();
   const isAcceptedTemplate = setting.templateKey.endsWith("accepted");
+  const isRecruitmentTemplate = setting.templateKey.startsWith("recruitment.");
 
   return (
     <Dialog>
@@ -157,7 +158,7 @@ function TemplateDialog({
               name="calendarUrl"
               defaultValue={setting.calendarUrl}
             />
-            {isAcceptedTemplate ? (
+            {isAcceptedTemplate && isRecruitmentTemplate ? (
               <>
                 <TemplateField
                   id={`${setting.templateKey}-form-label`}
@@ -180,7 +181,7 @@ function TemplateDialog({
             )}
           </div>
 
-          {isAcceptedTemplate ? (
+          {isAcceptedTemplate && isRecruitmentTemplate ? (
             <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 md:col-span-2">
               <TemplateField
                 id={`${setting.templateKey}-form-url`}

@@ -58,8 +58,15 @@ function isHttpUrl(value: string) {
   }
 }
 
-function validateResultEmailTemplateValues(values: ResultEmailTemplateValues) {
-  for (const [key, label] of Object.entries(requiredFieldLabels) as Array<
+function validateResultEmailTemplateValues(
+  values: ResultEmailTemplateValues,
+  templateKey: string,
+) {
+  const isRecruitment = templateKey.startsWith("recruitment.");
+  const requiredKeys = isRecruitment
+    ? Object.keys(requiredFieldLabels)
+    : ["subjectTemplate", "calendarUrl", "contactEmail"];
+  for (const [key, label] of Object.entries(requiredFieldLabels).filter(([key]) => requiredKeys.includes(key)) as Array<
     [keyof ResultEmailTemplateValues, string]
   >) {
     if (!values[key]) {
@@ -71,7 +78,7 @@ function validateResultEmailTemplateValues(values: ResultEmailTemplateValues) {
     return { ok: false, message: "邮件标题需要包含 {flowName}。" };
   }
 
-  for (const field of urlFields) {
+  for (const field of (isRecruitment ? urlFields : ["calendarUrl"] as const)) {
     if (!isHttpUrl(values[field])) {
       return {
         ok: false,
@@ -141,7 +148,7 @@ export async function updateEmailTemplateSetting(
 ) {
   const session = await verifyRole(3);
   const normalized = normalizeResultEmailTemplateValues(values);
-  const validation = validateResultEmailTemplateValues(normalized);
+  const validation = validateResultEmailTemplateValues(normalized, templateKey);
 
   if (!validation.ok) {
     return validation;
