@@ -95,6 +95,48 @@ on conflict (id) do update set
   fk_flow_id = excluded.fk_flow_id,
   fk_user_id = excluded.fk_user_id;
 
+insert into flow_result_publication (
+  fk_flow_id,
+  status,
+  version,
+  result_snapshot,
+  template_snapshot,
+  confirmed_by,
+  confirmed_at,
+  published_at,
+  created_at,
+  updated_at
+) values (
+  101,
+  'published',
+  1,
+  jsonb_build_object(
+    'flowId', 101,
+    'flowTitle', '2026 春季笔试招新 Demo',
+    'rows', jsonb_build_array(
+      jsonb_build_object('userFlowId', 202, 'userId', 5, 'status', 'passed'),
+      jsonb_build_object('userFlowId', 203, 'userId', 6, 'status', 'failed'),
+      jsonb_build_object('userFlowId', 204, 'userId', 7, 'status', 'passed'),
+      jsonb_build_object('userFlowId', 205, 'userId', 8, 'status', 'failed')
+    ),
+    'counts', jsonb_build_object('total', 5, 'accepted', 2, 'rejected', 2, 'withdrawn', 0, 'unfinished', 1)
+  ),
+  '{}'::jsonb,
+  1,
+  now() - interval '1 day',
+  now() - interval '1 day',
+  now() - interval '1 day',
+  now()
+) on conflict (fk_flow_id) do update set
+  status = excluded.status,
+  version = excluded.version,
+  result_snapshot = excluded.result_snapshot,
+  template_snapshot = excluded.template_snapshot,
+  confirmed_by = excluded.confirmed_by,
+  confirmed_at = excluded.confirmed_at,
+  published_at = excluded.published_at,
+  updated_at = now();
+
 insert into user_point (
   fk_user_flow_id,
   fk_problem_id,
