@@ -1,4 +1,4 @@
-import { resultEmailCopy, resultEmailLinks } from "@/lib/email/result-email-config";
+import { resultEmailCopy, resultEmailLinks } from "./result-email-config";
 
 export type ResultEmailTemplateSetting = {
   templateKey: string;
