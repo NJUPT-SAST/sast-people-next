@@ -167,6 +167,15 @@ export const OfferEmail = ({
                     </Text>
                   </Section>
                 )}
+                {flowKind === 'woc' && accept && (
+                  <Section style={calendarCard}>
+                    <Text style={importantText}>【后续活动】</Text>
+                    <Text style={text}>
+                      后续公开课、技术分享和项目活动请关注
+                      <Link href={calendarUrl} style={anchor}>科协活动日历</Link>。
+                    </Text>
+                  </Section>
+                )}
                 {flowKind !== 'recruitment' && !accept && (
                   <Section style={calendarCard}>
                     <Text style={importantText}>【查看授课日历】</Text>
