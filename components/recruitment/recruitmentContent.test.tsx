@@ -30,6 +30,10 @@ jest.mock("@/components/recruitment/evaluationTable", () => ({
   EvaluationTable: () => null,
 }));
 
+jest.mock("@/components/recruitment/ResultPublicationPanel", () => ({
+  ResultPublicationPanel: () => null,
+}));
+
 jest.mock("@/components/recruitment/columns", () => ({
   makeColumns: () => [],
 }));

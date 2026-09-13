@@ -10,13 +10,20 @@ import {
   type ResultEmailTemplateSetting,
 } from "@/lib/email/template-settings";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import type { ResultEmailTemplateKey } from "@/lib/email-center/types";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-type ResultEmailTemplateValues = Omit<ResultEmailTemplateSetting, "templateKey">;
+type ResultEmailTemplateValues = Omit<ResultEmailTemplateSetting, "templateKey" | "updatedAt">;
 
 const requiredFieldLabels: Record<keyof ResultEmailTemplateValues, string> = {
   subjectTemplate: "邮件标题",
+  titleTemplate: "邮件主标题",
+  subtitleTemplate: "邮件副标题",
+  resultBadgeTemplate: "结果标签",
+  resultTitleTemplate: "结果标题",
+  resultSummaryTemplate: "结果摘要",
+  bodyTemplate: "正文文案",
   memberInfoFormUrl: "成员信息表链接",
   feishuGroupUrl: "飞书群链接",
   calendarUrl: "活动日历链接",
@@ -38,6 +45,12 @@ function normalizeResultEmailTemplateValues(
 ): ResultEmailTemplateValues {
   return {
     subjectTemplate: values.subjectTemplate.trim(),
+    titleTemplate: values.titleTemplate.trim(),
+    subtitleTemplate: values.subtitleTemplate.trim(),
+    resultBadgeTemplate: values.resultBadgeTemplate.trim(),
+    resultTitleTemplate: values.resultTitleTemplate.trim(),
+    resultSummaryTemplate: values.resultSummaryTemplate.trim(),
+    bodyTemplate: values.bodyTemplate.trim(),
     memberInfoFormUrl: values.memberInfoFormUrl.trim(),
     feishuGroupUrl: values.feishuGroupUrl.trim(),
     calendarUrl: values.calendarUrl.trim(),
@@ -57,8 +70,21 @@ function isHttpUrl(value: string) {
   }
 }
 
-function validateResultEmailTemplateValues(values: ResultEmailTemplateValues) {
-  for (const [key, label] of Object.entries(requiredFieldLabels) as Array<
+function validateResultEmailTemplateValues(
+  values: ResultEmailTemplateValues,
+  templateKey: string,
+) {
+  const isRecruitment = templateKey.startsWith("recruitment.");
+  const isSocAccepted = templateKey === "soc.result.accepted";
+  const requiredKeys = isRecruitment
+    ? Object.keys(requiredFieldLabels).filter((key) => key !== "bodyTemplate")
+    : [
+        "subjectTemplate", "titleTemplate", "subtitleTemplate",
+        "resultBadgeTemplate", "resultTitleTemplate", "resultSummaryTemplate",
+        "bodyTemplate", "calendarUrl", "contactEmail",
+        ...(isSocAccepted ? ["feishuGroupUrl", "feishuGroupName"] : []),
+      ];
+  for (const [key, label] of Object.entries(requiredFieldLabels).filter(([key]) => requiredKeys.includes(key)) as Array<
     [keyof ResultEmailTemplateValues, string]
   >) {
     if (!values[key]) {
@@ -66,11 +92,16 @@ function validateResultEmailTemplateValues(values: ResultEmailTemplateValues) {
     }
   }
 
-  if (!values.subjectTemplate.includes("{flowName}")) {
-    return { ok: false, message: "邮件标题需要包含 {flowName}。" };
+  if (!values.subjectTemplate.trim()) {
+    return { ok: false, message: "邮件标题不能为空。" };
   }
 
-  for (const field of urlFields) {
+  const validatedUrlFields = isRecruitment
+    ? urlFields
+    : isSocAccepted
+      ? (["calendarUrl", "feishuGroupUrl"] as const)
+      : (["calendarUrl"] as const);
+  for (const field of validatedUrlFields) {
     if (!isHttpUrl(values[field])) {
       return {
         ok: false,
@@ -95,6 +126,12 @@ export async function listEmailTemplateSettings() {
     return {
       ...fallback,
       ...saved,
+      titleTemplate: saved?.titleTemplate?.trim() || fallback.titleTemplate,
+      subtitleTemplate: saved?.subtitleTemplate?.trim() || fallback.subtitleTemplate,
+      resultBadgeTemplate: saved?.resultBadgeTemplate?.trim() || fallback.resultBadgeTemplate,
+      resultTitleTemplate: saved?.resultTitleTemplate?.trim() || fallback.resultTitleTemplate,
+      resultSummaryTemplate: saved?.resultSummaryTemplate?.trim() || fallback.resultSummaryTemplate,
+      bodyTemplate: saved?.bodyTemplate?.trim() || fallback.bodyTemplate,
     };
   });
 }
@@ -104,11 +141,8 @@ export async function getResultEmailPreviews() {
   const settings = await listEmailTemplateSettings();
   const entries = await Promise.all(
     settings.map(async (setting) => {
-      const accept = setting.templateKey.endsWith("accepted");
       const rendered = await renderEmailTemplate({
-        templateKey: accept
-          ? "recruitment.result.accepted"
-          : "recruitment.result.rejected",
+        templateKey: setting.templateKey as ResultEmailTemplateKey,
         variables: {
           name: "同学",
           flowName: "示例流程",
@@ -129,12 +163,21 @@ export async function getEmailTemplateSetting(templateKey: string) {
     .where(eq(emailTemplateSetting.templateKey, templateKey))
     .limit(1);
 
-  return (
-    saved ??
-    defaultResultEmailTemplateSettings.find(
-      (item) => item.templateKey === templateKey,
-    )!
-  );
+  const fallback = defaultResultEmailTemplateSettings.find(
+    (item) => item.templateKey === templateKey,
+  )!;
+  return saved
+    ? {
+        ...fallback,
+        ...saved,
+        titleTemplate: saved.titleTemplate?.trim() || fallback.titleTemplate,
+        subtitleTemplate: saved.subtitleTemplate?.trim() || fallback.subtitleTemplate,
+        resultBadgeTemplate: saved.resultBadgeTemplate?.trim() || fallback.resultBadgeTemplate,
+        resultTitleTemplate: saved.resultTitleTemplate?.trim() || fallback.resultTitleTemplate,
+        resultSummaryTemplate: saved.resultSummaryTemplate?.trim() || fallback.resultSummaryTemplate,
+        bodyTemplate: saved.bodyTemplate?.trim() || fallback.bodyTemplate,
+      }
+    : fallback;
 }
 
 export async function updateEmailTemplateSetting(
@@ -143,7 +186,7 @@ export async function updateEmailTemplateSetting(
 ) {
   const session = await verifyRole(3);
   const normalized = normalizeResultEmailTemplateValues(values);
-  const validation = validateResultEmailTemplateValues(normalized);
+  const validation = validateResultEmailTemplateValues(normalized, templateKey);
 
   if (!validation.ok) {
     return validation;

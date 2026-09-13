@@ -1,5 +1,6 @@
 "use server";
 import { verifyRole } from "@/lib/dal";
+import { db } from "@/db/drizzle";
 import {
   requireBooleanInput,
   requirePositiveIntegerArrayInput,
@@ -8,11 +9,14 @@ import {
 import { createResultEmailBatch } from "@/lib/email-center/batch";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
+import { flow } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const batchSendEmail = async (
   uidInput: unknown,
   flowIdInput: unknown,
   acceptInput: unknown,
+  excludedUserIdsInput?: unknown,
 ) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
   let flowId: number | null = null;
@@ -24,12 +28,24 @@ export const batchSendEmail = async (
     targetUserIds = requirePositiveIntegerArrayInput(uidInput, "收件人用户 ID");
     flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
     accept = requireBooleanInput(acceptInput, "结果通知类型");
+    const excludedUserIds = excludedUserIdsInput === undefined
+      ? []
+      : Array.from(new Set(
+          (Array.isArray(excludedUserIdsInput) ? excludedUserIdsInput : [])
+            .map((value) => requirePositiveIntegerInput(value, "排除发送的用户 ID")),
+        ));
     const actorId = session.uid;
+    const [flowRecord] = await db
+      .select({ type: flow.type })
+      .from(flow)
+      .where(eq(flow.id, flowId))
+      .limit(1);
     const result = await createResultEmailBatch({
       userIds: targetUserIds,
       flowId,
       accept,
       createdBy: actorId,
+      flowType: flowRecord?.type ?? "recruitment",
     });
 
     if (result.batchId) {
@@ -44,6 +60,7 @@ export const batchSendEmail = async (
           accept,
           targetUserCount: targetUserIds.length,
           deliveryCount: result.deliveryCount,
+          excludedUserCount: excludedUserIds.length,
         },
       });
     }

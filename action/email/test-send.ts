@@ -17,6 +17,7 @@ import type {
 import { getEducationEmail, normalizeEducationEmailInput } from "@/lib/email/address";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
+import { getResultEmailFlowKind } from "@/lib/email/result-email";
 
 function getStudentIdFromTestAddress(value: string) {
   const normalized = value.trim().toLowerCase();
@@ -114,17 +115,16 @@ async function createTestRenderRequest({
   flowName: string;
   name: string;
 }): Promise<EmailTemplateRenderRequest> {
-  if (
-    templateKey === "recruitment.result.accepted" ||
-    templateKey === "recruitment.result.rejected"
-  ) {
+  if (getEmailTemplateDefinition(templateKey)?.category === "result") {
     const setting = await getEmailTemplateSetting(templateKey);
+    const [flowType] = templateKey.split(".");
     return {
       templateKey: templateKey as ResultEmailTemplateKey,
       variables: {
         name,
         flowName,
         setting,
+        flowKind: getResultEmailFlowKind(flowType),
         genericGreeting: true,
       },
     };

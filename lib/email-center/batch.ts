@@ -1,13 +1,13 @@
 import "server-only";
 
 import { getEmailTemplateSetting } from "@/action/email/template";
-import { syncUserRolesFromAcceptedFlows } from "@/action/user-flow/roleTransition";
 import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
 import event from "@/event";
 import { getEducationEmail } from "@/lib/email/address";
 import {
   getResultEmailTemplateKey,
+  getResultEmailFlowKind,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/lib/email-center/idempotency";
 import { assertEmailConfigured } from "@/lib/email-center/provider";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import type { ResultEmailTemplateSetting } from "@/lib/email/template-settings";
 import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
@@ -31,6 +32,8 @@ export type CreateResultEmailBatchInput = {
   flowId: number;
   accept: boolean;
   createdBy: number;
+  flowType?: string;
+  templateSetting?: ResultEmailTemplateSetting;
 };
 
 async function runWithConcurrency<T>(
@@ -57,6 +60,8 @@ export async function createResultEmailBatch({
   flowId,
   accept,
   createdBy,
+  flowType = "recruitment",
+  templateSetting: confirmedTemplateSetting,
 }: CreateResultEmailBatchInput) {
   const sourceStatus = accept ? "passed" : "failed";
   const targets = await db
@@ -196,8 +201,9 @@ export async function createResultEmailBatch({
     );
   }
 
-  const templateKey = getResultEmailTemplateKey(accept);
-  const templateSetting = await getEmailTemplateSetting(templateKey);
+  const flowKind = getResultEmailFlowKind(flowType);
+  const templateKey = getResultEmailTemplateKey(flowKind, accept);
+  const templateSetting = confirmedTemplateSetting ?? await getEmailTemplateSetting(templateKey);
   const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
   const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
     flowId,
@@ -214,6 +220,7 @@ export async function createResultEmailBatch({
         variables: {
           name: targetUser?.name ?? "同学",
           flowName: item.flowName,
+          flowKind,
           setting: templateSetting,
         },
       });
@@ -355,12 +362,6 @@ export async function sendEmailBatchById(batchId: number) {
       .set({ progressStatus: finalStatus, updatedAt: new Date() })
       .where(inArray(userFlow.id, userFlowIds));
   }
-
-  await syncUserRolesFromAcceptedFlows(
-    queueableDeliveries
-      .map((item) => item.userId)
-      .filter((id): id is number => id !== null),
-  );
 
   try {
     await runWithConcurrency(

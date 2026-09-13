@@ -64,17 +64,12 @@ export async function renderEmailTemplate(
 
   switch (request.templateKey) {
     case "recruitment.result.accepted":
-      return {
-        subject: renderResultEmailSubject(
-          request.variables.flowName,
-          request.variables.setting,
-        ),
-        html: await renderResultEmail({
-          ...request.variables,
-          accept: true,
-        }),
-      };
     case "recruitment.result.rejected":
+    case "woc.result.accepted":
+    case "woc.result.rejected":
+    case "soc.result.accepted":
+    case "soc.result.rejected": {
+      const [flowKind, , resultKind] = request.templateKey.split(".");
       return {
         subject: renderResultEmailSubject(
           request.variables.flowName,
@@ -82,9 +77,11 @@ export async function renderEmailTemplate(
         ),
         html: await renderResultEmail({
           ...request.variables,
-          accept: false,
+          accept: resultKind === "accepted",
+          flowKind: flowKind === "woc" || flowKind === "soc" ? flowKind : "recruitment",
         }),
       };
+    }
     case "interview.schedule.created":
     case "interview.schedule.rescheduled":
     case "interview.schedule.cancelled": {

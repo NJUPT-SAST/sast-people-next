@@ -89,5 +89,12 @@ export function formatDate(value: Date | string | null) {
 }
 
 export function getSettingLabel(templateKey: string) {
-  return templateKey.endsWith("accepted") ? "通过模板" : "不通过模板";
+  const accepted = templateKey.endsWith("accepted");
+  if (templateKey.startsWith("woc.")) {
+    return accepted ? "WoC/WoD 通过模板" : "WoC/WoD 不通过模板";
+  }
+  if (templateKey.startsWith("soc.")) {
+    return accepted ? "SoC/SoD 通过模板" : "SoC/SoD 不通过模板";
+  }
+  return accepted ? "招新通过模板" : "招新不通过模板";
 }

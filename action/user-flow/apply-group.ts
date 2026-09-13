@@ -5,6 +5,7 @@ import { flow, userFlow } from "@/db/schema";
 import { verifyRole, verifySession } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
 import { writeOperationAudit } from "@/lib/operation-audit";
+import { assertFlowResultsEditable } from "@/lib/flow-result-publication-guard";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -95,6 +96,9 @@ export const updateApplyGroup = async (
       };
     }
 
+    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
+    if (flowRecord) await assertFlowResultsEditable(flowRecord.flowId);
+
     const validation = validateGroupContext(context);
     if (!validation.ok) {
       return { success: false, error: { message: validation.message } };
@@ -148,6 +152,9 @@ export const updateCandidateApplyGroup = async (
     if (!context) {
       return { success: false, error: { message: "报名记录不存在" } };
     }
+
+    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
+    if (flowRecord) await assertFlowResultsEditable(flowRecord.flowId);
 
     const validation = validateGroupContext(context);
     if (!validation.ok) {

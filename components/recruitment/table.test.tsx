@@ -146,7 +146,7 @@ describe("Recruitment DataTable", () => {
     await user.click(screen.getByRole("button", { name: "设为通过" }));
 
     expect(window.confirm).toHaveBeenCalledWith(
-      "确定将 1 人设为通过吗？标完后请到邮件中心发送结果通知。",
+      "确定将 1 人设为通过吗？全部结果完成后需在上方确认并发布流程结果。",
     );
     expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalled();
   });

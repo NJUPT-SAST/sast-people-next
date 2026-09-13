@@ -164,6 +164,28 @@ export const problem = pgTable("problem", {
     .notNull(),
 });
 
+export const flowResultPublication = pgTable("flow_result_publication", {
+  id: serial("id").primaryKey(),
+  fkFlowId: integer("fk_flow_id")
+    .references(() => flow.id, { onDelete: "restrict" })
+    .notNull()
+    .unique(),
+  status: varchar("status", { length: 32 }).notNull().default("publishing"),
+  version: integer("version").notNull().default(1),
+  resultSnapshot: jsonb("result_snapshot").$type<Record<string, unknown>>().notNull(),
+  templateSnapshot: jsonb("template_snapshot").$type<Record<string, unknown>>().notNull(),
+  confirmedBy: integer("confirmed_by"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  statusIdx: index("flow_result_publication_status_idx").on(table.status),
+}));
+
 export const emailBatch = pgTable("email_batch", {
   id: serial("id").primaryKey(),
   idempotencyKey: varchar("idempotency_key", { length: 160 }),
@@ -291,6 +313,12 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
   id: serial("id").primaryKey(),
   templateKey: varchar("template_key", { length: 80 }).notNull().unique(),
   subjectTemplate: varchar("subject_template", { length: 255 }).notNull(),
+  titleTemplate: varchar("title_template", { length: 255 }).notNull().default(""),
+  subtitleTemplate: varchar("subtitle_template", { length: 255 }).notNull().default(""),
+  resultBadgeTemplate: varchar("result_badge_template", { length: 100 }).notNull().default(""),
+  resultTitleTemplate: varchar("result_title_template", { length: 255 }).notNull().default(""),
+  resultSummaryTemplate: varchar("result_summary_template", { length: 255 }).notNull().default(""),
+  bodyTemplate: text("body_template").notNull().default(""),
   memberInfoFormUrl: text("member_info_form_url").notNull(),
   feishuGroupUrl: text("feishu_group_url").notNull(),
   calendarUrl: text("calendar_url").notNull(),
