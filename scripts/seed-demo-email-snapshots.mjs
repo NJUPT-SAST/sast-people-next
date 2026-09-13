@@ -16,7 +16,6 @@ require("ts-node").register({
     rootDir: ".",
   },
 });
-require("tsconfig-paths/register");
 
 const { default: OfferEmail } = require("../emails/offer.tsx");
 
