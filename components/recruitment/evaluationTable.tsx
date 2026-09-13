@@ -564,12 +564,19 @@ export const EvaluationTable = ({
   const [groupSaving, setGroupSaving] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [applyGroupFilter, setApplyGroupFilter] = useState<string | null>(null);
+  const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
+  const groupOptionsKey = safeGroupOptions.join("\u0000");
 
   useEffect(() => {
-    // Reset the filter when the flow changes so a stale group value
-    // cannot hide every candidate under the new flow.
-    setApplyGroupFilter(null);
-  }, [groupOptions]);
+    // Drop the filter only when the selected group is gone, so a stale value
+    // cannot hide every candidate under a new flow. Keying on the joined values
+    // rather than the array reference keeps the selection across the re-render
+    // that a server action's revalidatePath triggers after a submission.
+    const options = groupOptionsKey ? groupOptionsKey.split("\u0000") : [];
+    setApplyGroupFilter((current) =>
+      current && !options.includes(current) ? null : current,
+    );
+  }, [groupOptionsKey]);
 
   useEffect(() => {
     setNow(Date.now());
@@ -626,7 +633,6 @@ export const EvaluationTable = ({
   };
 
   const canEditApplyGroup = role >= 2 && groupOptions.length > 0;
-  const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
   const visibleCandidates = applyGroupFilter
     ? safeCandidates.filter((candidate) => candidate.applyGroup === applyGroupFilter)
     : safeCandidates;

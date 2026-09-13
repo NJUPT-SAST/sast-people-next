@@ -646,4 +646,76 @@ describe("EvaluationTable", () => {
       expect(onRefresh).toHaveBeenCalled();
     });
   });
+  it("keeps the selected apply group when a refresh returns an equal group list", async () => {
+    const user = userEvent.setup();
+    const makeCandidate = (
+      userFlowId: number,
+      name: string,
+      studentId: string,
+      applyGroup: string,
+    ) => ({
+      userFlowId,
+      uid: userFlowId,
+      name,
+      studentId,
+      qq: null,
+      status: "ongoing",
+      withdrawReason: null,
+      portfolioLink: null,
+      portfolioDescription: null,
+      applyGroup,
+      evalId: null,
+      evalContent: null,
+      evalMeetingLink: null,
+      evalRecommendation: null,
+      evalStatus: null,
+      evalAuthorId: null,
+      canEditEvaluation: true,
+      canManageSchedule: true,
+      scheduleId: null,
+      scheduleOrganizerName: null,
+      scheduleMeetingLink: null,
+      scheduleLink: null,
+      scheduleMeetingMinuteLink: null,
+      scheduleLocation: null,
+      scheduleMeetingRoomId: null,
+      scheduleStartsAt: null,
+      scheduleEndsAt: null,
+      scheduleStatus: null,
+      scheduleMeetingStatus: null,
+      scheduleMeetingEndedAt: null,
+    });
+    const candidates = [
+      makeCandidate(1, "张三", "B001", "前端组"),
+      makeCandidate(2, "李四", "B002", "后端组"),
+    ];
+
+    const { rerender } = render(
+      <EvaluationTable
+        role={2}
+        groupOptions={["前端组", "后端组"]}
+        onRefresh={jest.fn()}
+        candidates={candidates}
+      />,
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "前端组" })[0]);
+    expect(screen.queryAllByRole("button", { name: "李四" })).toHaveLength(0);
+
+    // A server action's revalidatePath re-renders the server tree, so the parent
+    // hands down a new array instance holding the same group values.
+    rerender(
+      <EvaluationTable
+        role={2}
+        groupOptions={["前端组", "后端组"]}
+        onRefresh={jest.fn()}
+        candidates={[...candidates]}
+      />,
+    );
+
+    expect(screen.queryAllByRole("button", { name: "李四" })).toHaveLength(0);
+    expect(
+      screen.queryAllByRole("button", { name: "张三" }).length,
+    ).toBeGreaterThan(0);
+  });
 });
