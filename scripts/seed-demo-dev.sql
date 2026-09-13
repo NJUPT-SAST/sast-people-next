@@ -76,7 +76,7 @@ insert into user_flow (
   fk_flow_id,
   fk_user_id
 ) values
-  (201, 'ongoing', 1012, null, null, 101, 4),
+  (201, 'failed', 1013, null, null, 101, 4),
   (202, 'passed', 1013, null, null, 101, 5),
   (203, 'failed', 1013, null, null, 101, 6),
   (204, 'passed', 1013, null, null, 101, 7),
@@ -114,12 +114,13 @@ insert into flow_result_publication (
     'flowId', 101,
     'flowTitle', '2026 春季笔试招新 Demo',
     'rows', jsonb_build_array(
+      jsonb_build_object('userFlowId', 201, 'userId', 4, 'status', 'failed'),
       jsonb_build_object('userFlowId', 202, 'userId', 5, 'status', 'passed'),
       jsonb_build_object('userFlowId', 203, 'userId', 6, 'status', 'failed'),
       jsonb_build_object('userFlowId', 204, 'userId', 7, 'status', 'passed'),
       jsonb_build_object('userFlowId', 205, 'userId', 8, 'status', 'failed')
     ),
-    'counts', jsonb_build_object('total', 5, 'accepted', 2, 'rejected', 2, 'withdrawn', 0, 'unfinished', 1)
+    'counts', jsonb_build_object('total', 5, 'accepted', 2, 'rejected', 3, 'withdrawn', 0, 'unfinished', 0)
   ),
   '{}'::jsonb,
   1,

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPublishedFlowResult } from "@/action/flow/result-publication";
 
 function escapeCsv(value: unknown) {
-  const text = String(value ?? "");
+  const raw = String(value ?? "");
+  const text = /^[=+@\-\t\r]/.test(raw) ? `'${raw}` : raw;
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 

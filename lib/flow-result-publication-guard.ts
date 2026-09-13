@@ -11,7 +11,7 @@ export async function assertFlowResultsEditable(flowId: number) {
     .where(eq(flowResultPublication.fkFlowId, flowId))
     .limit(1);
 
-  if (publication?.status === "published" || publication?.status === "publishing") {
+  if (publication) {
     throw new Error("该流程结果正在发布或已经发布，名单和结果已锁定");
   }
 }

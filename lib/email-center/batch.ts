@@ -16,6 +16,7 @@ import {
 } from "@/lib/email-center/idempotency";
 import { assertEmailConfigured } from "@/lib/email-center/provider";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import type { ResultEmailTemplateSetting } from "@/lib/email/template-settings";
 import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
@@ -32,6 +33,7 @@ export type CreateResultEmailBatchInput = {
   accept: boolean;
   createdBy: number;
   flowType?: string;
+  templateSetting?: ResultEmailTemplateSetting;
 };
 
 async function runWithConcurrency<T>(
@@ -59,6 +61,7 @@ export async function createResultEmailBatch({
   accept,
   createdBy,
   flowType = "recruitment",
+  templateSetting: confirmedTemplateSetting,
 }: CreateResultEmailBatchInput) {
   const sourceStatus = accept ? "passed" : "failed";
   const targets = await db
@@ -200,7 +203,7 @@ export async function createResultEmailBatch({
 
   const flowKind = getResultEmailFlowKind(flowType);
   const templateKey = getResultEmailTemplateKey(flowKind, accept);
-  const templateSetting = await getEmailTemplateSetting(templateKey);
+  const templateSetting = confirmedTemplateSetting ?? await getEmailTemplateSetting(templateKey);
   const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
   const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
     flowId,

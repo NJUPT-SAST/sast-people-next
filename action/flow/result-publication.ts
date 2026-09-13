@@ -101,7 +101,7 @@ export async function publishFlowResults(flowId: number, confirmTemplate: boolea
   };
   const now = new Date();
   const [existingPublication] = await db
-    .select({ id: flowResultPublication.id, status: flowResultPublication.status })
+    .select({ id: flowResultPublication.id, status: flowResultPublication.status, version: flowResultPublication.version })
     .from(flowResultPublication)
     .where(eq(flowResultPublication.fkFlowId, flowId))
     .limit(1);
@@ -117,29 +117,46 @@ export async function publishFlowResults(flowId: number, confirmTemplate: boolea
         confirmedAt: now,
         publishedAt: null,
         updatedAt: now,
-      }).where(eq(flowResultPublication.id, existingPublication.id)).returning({ id: flowResultPublication.id })
+      }).where(and(
+        eq(flowResultPublication.id, existingPublication.id),
+        eq(flowResultPublication.status, "failed"),
+        eq(flowResultPublication.version, existingPublication.version),
+      )).returning({ id: flowResultPublication.id })
     : await db.insert(flowResultPublication).values({
         fkFlowId: flowId,
         status: "publishing",
         resultSnapshot,
         templateSnapshot,
         confirmedBy: session.uid,
-        confirmedAt: now,
-      }).returning({ id: flowResultPublication.id });
+      confirmedAt: now,
+    }).returning({ id: flowResultPublication.id });
+
+  if (!publication) {
+    throw new Error("该流程结果状态已变更，请刷新后重试");
+  }
 
   try {
     await syncUserRolesFromAcceptedFlows(rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId);
-    const acceptedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId, flowType: summary.flow.type, accept: true, createdBy: session.uid });
-    const rejectedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "failed").map((row) => row.userId), flowId, flowType: summary.flow.type, accept: false, createdBy: session.uid });
+    const acceptedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId, flowType: summary.flow.type, accept: true, createdBy: session.uid, templateSetting: acceptedTemplate });
+    const rejectedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "failed").map((row) => row.userId), flowId, flowType: summary.flow.type, accept: false, createdBy: session.uid, templateSetting: rejectedTemplate });
     await Promise.all([acceptedBatch.batchId ? sendEmailBatch(acceptedBatch.batchId) : null, rejectedBatch.batchId ? sendEmailBatch(rejectedBatch.batchId) : null]);
-    await db.update(flowResultPublication).set({ status: "published", publishedAt: new Date(), updatedAt: new Date() }).where(eq(flowResultPublication.id, publication.id));
+    const [publishedPublication] = await db.update(flowResultPublication)
+      .set({ status: "published", publishedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(flowResultPublication.id, publication.id), eq(flowResultPublication.status, "publishing")))
+      .returning({ id: flowResultPublication.id });
+    if (!publishedPublication) throw new Error("流程发布状态已变更，请刷新后确认结果");
     await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.result.publish", resourceType: "flow_result_publication", resourceId: publication.id, metadata: { flowId, counts: summary.counts } });
     revalidatePath("/dashboard/exams");
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/emails");
     return { publicationId: publication.id, counts: summary.counts };
   } catch (error) {
-    await db.update(flowResultPublication).set({ status: "failed", updatedAt: new Date() }).where(eq(flowResultPublication.id, publication.id));
+    await db.update(flowResultPublication)
+      .set({ status: "failed", updatedAt: new Date() })
+      .where(and(eq(flowResultPublication.id, publication.id), eq(flowResultPublication.status, "publishing")));
+    await syncUserRolesFromAcceptedFlows(
+      rows.filter((row) => row.status === "passed").map((row) => row.userId),
+    );
     throw error;
   }
 }

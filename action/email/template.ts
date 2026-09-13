@@ -77,7 +77,7 @@ function validateResultEmailTemplateValues(
   const isRecruitment = templateKey.startsWith("recruitment.");
   const isSocAccepted = templateKey === "soc.result.accepted";
   const requiredKeys = isRecruitment
-    ? Object.keys(requiredFieldLabels)
+    ? Object.keys(requiredFieldLabels).filter((key) => key !== "bodyTemplate")
     : [
         "subjectTemplate", "titleTemplate", "subtitleTemplate",
         "resultBadgeTemplate", "resultTitleTemplate", "resultSummaryTemplate",

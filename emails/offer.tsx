@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { resultEmailCopy, resultEmailLinks } from '../lib/email/result-email-config';
-import { renderTemplateText } from '../lib/email/template-settings';
+import { resultEmailCopy, resultEmailLinks } from '@/lib/email/result-email-config';
+import { renderTemplateText } from '@/lib/email/template-settings';
 
 type ElementProps<T extends keyof React.JSX.IntrinsicElements> =
   React.ComponentPropsWithoutRef<T>;
@@ -145,11 +145,7 @@ export const OfferEmail = ({
             <Text style={text}>{greeting}</Text>
             {bodyTemplate ? (
               <>
-                {renderTemplateText(bodyTemplate, {
-                  name: name ?? '[同学姓名]',
-                  flowName: flowName ?? '本次流程',
-                  contactEmail,
-                })
+                {renderTemplateText(bodyTemplate, copyVariables)
                   .split(/\n+/)
                   .filter(Boolean)
                   .map((paragraph, index) => (
@@ -173,16 +169,6 @@ export const OfferEmail = ({
                     <Text style={text}>
                       后续公开课、技术分享和项目活动请关注
                       <Link href={calendarUrl} style={anchor}>科协活动日历</Link>。
-                    </Text>
-                  </Section>
-                )}
-                {flowKind !== 'recruitment' && !accept && (
-                  <Section style={calendarCard}>
-                    <Text style={importantText}>【查看授课日历】</Text>
-                    <Text style={text}>
-                      通过个人飞书账号，订阅
-                      <Link href={calendarUrl} style={anchor}>科协公开活动</Link>
-                      ，获取最新授课日历
                     </Text>
                   </Section>
                 )}
@@ -288,18 +274,20 @@ export const OfferEmail = ({
                       : '祝愿你在未来的道路上继续成长，期待今后有机会再次与你交流。'}
                 </Text>
 
-                <Section style={calendarCard}>
-                  <Text style={importantText}>
-                    【查看授课日历】
-                  </Text>
-                  <Text style={text}>
-                    通过个人飞书账号，订阅
-                    <Link href={calendarUrl} style={anchor}>
-                      科协公开活动
-                    </Link>
-                    ，获取最新授课日历
-                  </Text>
-                </Section>
+                {flowKind === 'recruitment' && (
+                  <Section style={calendarCard}>
+                    <Text style={importantText}>
+                      【查看授课日历】
+                    </Text>
+                    <Text style={text}>
+                      通过个人飞书账号，订阅
+                      <Link href={calendarUrl} style={anchor}>
+                        科协公开活动
+                      </Link>
+                      ，获取最新授课日历
+                    </Text>
+                  </Section>
+                )}
 
                 <Text style={text}>
                   再次感谢你的参与！
