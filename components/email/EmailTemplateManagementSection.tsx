@@ -187,12 +187,14 @@ function TemplateDialog({
             />
             {usesInternalGroup ? (
               <>
-                <TemplateField
-                  id={`${setting.templateKey}-form-label`}
-                  label="表单按钮文案"
-                  name="memberFormLabel"
-                  defaultValue={setting.memberFormLabel}
-                />
+                {isRecruitmentTemplate && (
+                  <TemplateField
+                    id={`${setting.templateKey}-form-label`}
+                    label="表单按钮文案"
+                    name="memberFormLabel"
+                    defaultValue={setting.memberFormLabel}
+                  />
+                )}
                 <TemplateField
                   id={`${setting.templateKey}-group-name`}
                   label={isRecruitmentTemplate ? "飞书群名" : "内部飞书群名"}
