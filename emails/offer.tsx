@@ -118,7 +118,7 @@ export const OfferEmail = ({
             {accept ? (
               <>
                 <Text style={text}>
-                  {flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，本阶段考核结果已确认。` : flowKind === 'soc' ? `恭喜你顺利通过 ${flowName}，将继续留任讲师。` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}
+                  {flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，本阶段考核结果已确认。` : flowKind === 'soc' ? `恭喜你通过本次 ${flowName} 考核，正式留任为讲师！` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}
                 </Text>
                 {flowKind === 'recruitment' ? (
                   <>
@@ -164,6 +164,24 @@ export const OfferEmail = ({
                       </Text>
                     </Section>
                     <Text style={text}>我们真诚地欢迎你的加入！</Text>
+                  </>
+                ) : flowKind === 'soc' ? (
+                  <>
+                    <Text style={text}>
+                      这一年在 SAST 的成长大家有目共睹。留任讲师后，你将参与招新、授课和项目维护等工作，把经验传递给后来的同学。近期我们会同步你的权限和后续安排：
+                    </Text>
+                    <Section style={noticeCard}>
+                      <Text style={text}>
+                        请加入内部飞书群：
+                        <Link href={feishuGroupUrl} style={anchor}>{feishuGroupName}</Link>
+                      </Text>
+                      <Button style={buttonDark} href={feishuGroupUrl}>加入内部飞书群</Button>
+                      <Hr style={innerDivider} />
+                      <Text style={text}>
+                        后续安排请关注
+                        <Link href={calendarUrl} style={anchor}>飞书日历</Link>
+                      </Text>
+                    </Section>
                   </>
                 ) : (
                   <Text style={text}>
