@@ -214,12 +214,6 @@ function TemplateDialog({
                 <TemplateField id={`${setting.templateKey}-form-url`} label="成员信息表链接" name="memberInfoFormUrl" defaultValue={setting.memberInfoFormUrl} />
               )}
               <TemplateField
-                id={`${setting.templateKey}-form-url`}
-                label="成员信息表链接"
-                name="memberInfoFormUrl"
-                defaultValue={setting.memberInfoFormUrl}
-              />
-              <TemplateField
                 id={`${setting.templateKey}-group-url`}
                 label={isRecruitmentTemplate ? "飞书群链接" : "内部飞书群链接"}
                 name="feishuGroupUrl"
