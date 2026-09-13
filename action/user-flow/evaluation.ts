@@ -3,6 +3,7 @@
 import { db } from "@/db/drizzle";
 import {
   flow,
+  flowResultPublication,
   flowStep,
   interviewEvaluation,
   interviewSchedule,
@@ -26,7 +27,6 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { syncUserRoleFromAcceptedFlows } from "./roleTransition";
 import { getFeishuOAuthAccountStatus } from "@/lib/feishu/oauth-account";
 import { sendInterviewEvaluationReturnedCard } from "@/lib/feishu/interview-message";
 import { MIN_PASSED_EVALUATION_LENGTH } from "@/lib/evaluation-constants";
@@ -115,6 +115,17 @@ async function moveUserFlowInTx(
     .where(eq(userFlow.id, userFlowId))
     .limit(1);
 
+  if (uf) {
+    const [publication] = await tx
+      .select({ status: flowResultPublication.status })
+      .from(flowResultPublication)
+      .where(eq(flowResultPublication.fkFlowId, uf.flowId))
+      .limit(1);
+    if (publication?.status === "published" || publication?.status === "publishing") {
+      throw new Error("该流程结果正在发布或已经发布，名单和结果已锁定");
+    }
+  }
+
   const stepId = uf
     ? await findEvaluationStepIdInTx(tx, uf.flowId, stepType)
     : null;
@@ -145,26 +156,6 @@ async function linkEvaluationToActiveScheduleInTx(
         eq(interviewSchedule.status, "created"),
       ),
     );
-}
-
-async function safeSyncUserRole(uid: number, context: {
-  action: string;
-  path: string;
-  actorId: number | null;
-  actorRole: number | null;
-  metadata?: Record<string, unknown>;
-}) {
-  try {
-    await syncUserRoleFromAcceptedFlows(uid);
-  } catch (error) {
-    logServerError(context.action, error, {
-      path: context.path,
-      userId: context.actorId,
-      role: context.actorRole,
-      action: context.action,
-      metadata: context.metadata,
-    });
-  }
 }
 
 async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
@@ -529,16 +520,6 @@ export const approveEvaluation = async (evaluationId: number) => {
         );
       }
     });
-
-    if (affectedUserId !== null) {
-      await safeSyncUserRole(affectedUserId, {
-        action: "evaluation:approve:role-sync",
-        path: "/dashboard/approvals",
-        actorId: session.uid,
-        actorRole: session.role,
-        metadata: { evaluationId, affectedUserId },
-      });
-    }
 
     revalidatePath("/dashboard/approvals");
     revalidatePath("/dashboard/interviews");

@@ -164,6 +164,28 @@ export const problem = pgTable("problem", {
     .notNull(),
 });
 
+export const flowResultPublication = pgTable("flow_result_publication", {
+  id: serial("id").primaryKey(),
+  fkFlowId: integer("fk_flow_id")
+    .references(() => flow.id, { onDelete: "restrict" })
+    .notNull()
+    .unique(),
+  status: varchar("status", { length: 32 }).notNull().default("publishing"),
+  version: integer("version").notNull().default(1),
+  resultSnapshot: jsonb("result_snapshot").$type<Record<string, unknown>>().notNull(),
+  templateSnapshot: jsonb("template_snapshot").$type<Record<string, unknown>>().notNull(),
+  confirmedBy: integer("confirmed_by"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  statusIdx: index("flow_result_publication_status_idx").on(table.status),
+}));
+
 export const emailBatch = pgTable("email_batch", {
   id: serial("id").primaryKey(),
   idempotencyKey: varchar("idempotency_key", { length: 160 }),

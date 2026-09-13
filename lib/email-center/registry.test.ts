@@ -14,6 +14,10 @@ describe("email template registry", () => {
       expect.arrayContaining([
         "recruitment.result.accepted",
         "recruitment.result.rejected",
+        "woc.result.accepted",
+        "woc.result.rejected",
+        "soc.result.accepted",
+        "soc.result.rejected",
         "interview.schedule.created",
         "interview.schedule.rescheduled",
         "interview.schedule.cancelled",

@@ -191,6 +191,7 @@ describe("email batch service", () => {
       variables: {
         name: "Carol",
         flowName: "2026 春季招新",
+        flowKind: "recruitment",
         setting: {
           templateKey: "recruitment.result.accepted",
           subjectTemplate: "{flowName} 结果通知",
@@ -199,6 +200,36 @@ describe("email batch service", () => {
     });
     expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(mockDb.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("selects the WoC result template for WoC flows", async () => {
+    mockSelectResults.push([
+      { userFlowId: 204, userId: 304, flowName: "2026 WoC" },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[304, { id: 304, name: "Dan", studentId: "B004" }]]),
+    );
+    mockGetEmailTemplateSetting.mockResolvedValue({
+      templateKey: "woc.result.accepted",
+      subjectTemplate: "{flowName} 考核结果通知",
+    });
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [304],
+        flowId: 8,
+        flowType: "woc",
+        accept: true,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: "woc.result.accepted",
+        variables: expect.objectContaining({ flowKind: "woc" }),
+      }),
+    );
   });
 
   it("does not recreate deliveries already sent by a legacy batch", async () => {
@@ -262,7 +293,7 @@ describe("email batch service", () => {
     await expect(sendEmailBatchById(7)).resolves.toEqual({ queuedCount: 1 });
 
     expect(mockOffer).toHaveBeenCalledWith(101);
-    expect(mockSyncUserRolesFromAcceptedFlows).toHaveBeenCalledWith([301]);
+    expect(mockSyncUserRolesFromAcceptedFlows).not.toHaveBeenCalled();
     expect(mockUpdateSetCalls).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -363,7 +394,7 @@ describe("email batch service", () => {
     );
   });
 
-  it("submits deduplicated role-sync targets as one batch", async () => {
+  it("queues deduplicated result deliveries without changing roles", async () => {
     mockSelectResults.push(
       [{ id: 10, category: "result", accept: true, status: "queued" }],
       [],
@@ -381,8 +412,6 @@ describe("email batch service", () => {
 
     await expect(sendEmailBatchById(10)).resolves.toEqual({ queuedCount: 6 });
 
-    expect(mockSyncUserRolesFromAcceptedFlows).toHaveBeenCalledWith([
-      501, 502, 503, 504, 505, 501,
-    ]);
+    expect(mockSyncUserRolesFromAcceptedFlows).not.toHaveBeenCalled();
   });
 });

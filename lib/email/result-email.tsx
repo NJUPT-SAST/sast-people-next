@@ -9,11 +9,13 @@ import {
 } from "@/lib/email/template-settings";
 
 export type ResultEmailKind = "accepted" | "rejected";
+export type ResultEmailFlowKind = "recruitment" | "woc" | "soc";
 
 export type ResultEmailVariables = {
   name: string;
   flowName: string;
   accept: boolean;
+  flowKind?: ResultEmailFlowKind;
   setting?: ResultEmailTemplateSetting;
   genericGreeting?: boolean;
 };
@@ -23,9 +25,18 @@ export function getResultEmailKind(accept: boolean): ResultEmailKind {
 }
 
 export function getResultEmailTemplateKey(
-  accept: boolean,
-): "recruitment.result.accepted" | "recruitment.result.rejected" {
-  return `recruitment.result.${getResultEmailKind(accept)}`;
+  flowTypeOrAccept: string | boolean,
+  acceptArg?: boolean,
+): `${ResultEmailFlowKind}.result.${ResultEmailKind}` {
+  const flowType = typeof flowTypeOrAccept === "string" ? flowTypeOrAccept : "recruitment";
+  const accept = typeof flowTypeOrAccept === "boolean" ? flowTypeOrAccept : Boolean(acceptArg);
+  return `${getResultEmailFlowKind(flowType)}.result.${getResultEmailKind(accept)}`;
+}
+
+export function getResultEmailFlowKind(flowType: string): ResultEmailFlowKind {
+  if (flowType === "woc") return "woc";
+  if (flowType === "soc") return "soc";
+  return "recruitment";
 }
 
 export function getResultEmailSubject(flowName: string) {
@@ -36,13 +47,14 @@ export async function renderResultEmail({
   name,
   flowName,
   accept,
+  flowKind = "recruitment",
   setting,
   genericGreeting = false,
 }: ResultEmailVariables) {
   const resolvedSetting =
     setting ??
     defaultResultEmailTemplateSettings.find(
-      (item) => item.templateKey === getResultEmailTemplateKey(accept),
+      (item) => item.templateKey === getResultEmailTemplateKey(flowKind, accept),
     )!;
 
   return render(
@@ -50,6 +62,7 @@ export async function renderResultEmail({
       name={name}
       flowName={flowName}
       accept={accept}
+      flowKind={flowKind}
       genericGreeting={genericGreeting}
       memberInfoFormUrl={resolvedSetting.memberInfoFormUrl}
       feishuGroupUrl={resolvedSetting.feishuGroupUrl}

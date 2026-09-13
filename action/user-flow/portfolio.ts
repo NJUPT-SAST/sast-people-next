@@ -8,6 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { isValidExternalUrl } from "@/lib/link";
 import { writeOperationAudit } from "@/lib/operation-audit";
+import { assertFlowResultsEditable } from "@/lib/flow-result-publication-guard";
 
 const editableStatuses = new Set(["not_started", "ongoing"]);
 
@@ -53,6 +54,8 @@ export const updatePortfolioLink = async (
         error: { message: "流程已结束，作品链接不可修改" },
       };
     }
+
+    await assertFlowResultsEditable(record.flowId);
 
     if (portfolioLink.trim() && !isValidExternalUrl(portfolioLink)) {
       return {

@@ -1,12 +1,12 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { flow, userFlow } from "@/db/schema";
+import { flow, flowResultPublication, userFlow } from "@/db/schema";
 import { updateLinkUserRoles } from "@/lib/link/admin";
 import { peopleRoleToLinkRole } from "@/lib/link/role";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const ADMIN_ROLE = 3;
@@ -30,7 +30,7 @@ const chunk = <T,>(values: T[], size: number) =>
     (_, index) => values.slice(index * size, (index + 1) * size),
   );
 
-export const syncUserRolesFromAcceptedFlows = async (uids: number[]) => {
+export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingFlowId?: number) => {
   const uniqueUids = Array.from(
     new Set(uids.filter((uid) => Number.isSafeInteger(uid) && uid > 0)),
   );
@@ -42,11 +42,15 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[]) => {
     .select({ uid: userFlow.fkUserId, type: flow.type })
     .from(userFlow)
     .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+    .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
     .where(
       and(
         inArray(userFlow.fkUserId, uniqueUids),
         eq(userFlow.progressStatus, "passed"),
         eq(flow.isDeleted, false),
+        publishingFlowId
+          ? or(eq(flowResultPublication.status, "published"), eq(userFlow.fkFlowId, publishingFlowId))
+          : eq(flowResultPublication.status, "published"),
       ),
     ),
   ]);

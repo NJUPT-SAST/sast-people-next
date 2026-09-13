@@ -10,6 +10,7 @@ import {
   type ResultEmailTemplateSetting,
 } from "@/lib/email/template-settings";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import type { ResultEmailTemplateKey } from "@/lib/email-center/types";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -57,8 +58,15 @@ function isHttpUrl(value: string) {
   }
 }
 
-function validateResultEmailTemplateValues(values: ResultEmailTemplateValues) {
-  for (const [key, label] of Object.entries(requiredFieldLabels) as Array<
+function validateResultEmailTemplateValues(
+  values: ResultEmailTemplateValues,
+  templateKey: string,
+) {
+  const isRecruitment = templateKey.startsWith("recruitment.");
+  const requiredKeys = isRecruitment
+    ? Object.keys(requiredFieldLabels)
+    : ["subjectTemplate", "calendarUrl", "contactEmail"];
+  for (const [key, label] of Object.entries(requiredFieldLabels).filter(([key]) => requiredKeys.includes(key)) as Array<
     [keyof ResultEmailTemplateValues, string]
   >) {
     if (!values[key]) {
@@ -70,7 +78,7 @@ function validateResultEmailTemplateValues(values: ResultEmailTemplateValues) {
     return { ok: false, message: "邮件标题需要包含 {flowName}。" };
   }
 
-  for (const field of urlFields) {
+  for (const field of (isRecruitment ? urlFields : ["calendarUrl"] as const)) {
     if (!isHttpUrl(values[field])) {
       return {
         ok: false,
@@ -104,11 +112,8 @@ export async function getResultEmailPreviews() {
   const settings = await listEmailTemplateSettings();
   const entries = await Promise.all(
     settings.map(async (setting) => {
-      const accept = setting.templateKey.endsWith("accepted");
       const rendered = await renderEmailTemplate({
-        templateKey: accept
-          ? "recruitment.result.accepted"
-          : "recruitment.result.rejected",
+        templateKey: setting.templateKey as ResultEmailTemplateKey,
         variables: {
           name: "同学",
           flowName: "示例流程",
@@ -143,7 +148,7 @@ export async function updateEmailTemplateSetting(
 ) {
   const session = await verifyRole(3);
   const normalized = normalizeResultEmailTemplateValues(values);
-  const validation = validateResultEmailTemplateValues(normalized);
+  const validation = validateResultEmailTemplateValues(normalized, templateKey);
 
   if (!validation.ok) {
     return validation;

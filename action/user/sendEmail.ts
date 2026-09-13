@@ -1,5 +1,6 @@
 "use server";
 import { verifyRole } from "@/lib/dal";
+import { db } from "@/db/drizzle";
 import {
   requireBooleanInput,
   requirePositiveIntegerArrayInput,
@@ -8,6 +9,8 @@ import {
 import { createResultEmailBatch } from "@/lib/email-center/batch";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
+import { flow } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const batchSendEmail = async (
   uidInput: unknown,
@@ -25,11 +28,17 @@ export const batchSendEmail = async (
     flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
     accept = requireBooleanInput(acceptInput, "结果通知类型");
     const actorId = session.uid;
+    const [flowRecord] = await db
+      .select({ type: flow.type })
+      .from(flow)
+      .where(eq(flow.id, flowId))
+      .limit(1);
     const result = await createResultEmailBatch({
       userIds: targetUserIds,
       flowId,
       accept,
       createdBy: actorId,
+      flowType: flowRecord?.type ?? "recruitment",
     });
 
     if (result.batchId) {
