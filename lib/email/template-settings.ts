@@ -50,7 +50,7 @@ export const defaultResultEmailTemplateSettings: ResultEmailTemplateSetting[] = 
   },
   {
     templateKey: "soc.result.rejected",
-    subjectTemplate: "【SAST】感谢参与 SOC，未来仍可同行",
+    subjectTemplate: "{flowName} 留任结果通知",
     ...baseSetting,
   },
 ];

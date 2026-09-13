@@ -192,7 +192,7 @@ export const OfferEmail = ({
             ) : (
               <>
                 <Text style={text}>
-                  {flowKind === 'woc' ? `感谢你参加 ${flowName}。本次 WoC / WoD 阶段考核未通过，你的部员身份不受影响。` : flowKind === 'soc' ? `感谢你参加 ${flowName}。本次 SoC / SoD 暑期考核未通过，本轮留任申请未能通过。` : `感谢你参加 ${flowName}，你在整个过程中的出色表现，以及展现出的技术才华和学习热情，给我们留下了深刻的印象。`}
+                  {flowKind === 'woc' ? `感谢你参加 ${flowName}。本次 WoC / WoD 阶段考核未通过，现阶段成员身份不受影响。` : flowKind === 'soc' ? `感谢你参加 ${flowName}。本次 SoC / SoD 暑期考核未通过，本轮讲师留任申请未能通过。` : `感谢你参加 ${flowName}，你在整个过程中的出色表现，以及展现出的技术才华和学习热情，给我们留下了深刻的印象。`}
                 </Text>
                 <Text style={text}>
                   {flowKind === 'woc'
