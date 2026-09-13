@@ -95,7 +95,7 @@ export const OfferEmail = ({
             <Text style={eyebrow}>SAST People</Text>
             <Text style={title}>{flowKind === 'woc' ? 'WoC / WoD 考核结果通知' : flowKind === 'soc' ? 'SoC / SoD 留任结果通知' : 'SAST 招新结果通知'}</Text>
             <Text style={subtitle}>
-              {flowKind === 'woc' ? (accept ? '恭喜完成阶段考核并晋升干事' : '感谢你完成 WoC / WoD 阶段考核') : flowKind === 'soc' ? (accept ? '恭喜通过暑期考核并留任讲师' : '感谢你完成 SoC / SoD 暑期考核') : (accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程')}
+              {flowKind === 'woc' ? (accept ? '恭喜完成 WoC / WoD 阶段考核' : '感谢你完成 WoC / WoD 阶段考核') : flowKind === 'soc' ? (accept ? '恭喜通过暑期考核并留任讲师' : '感谢你完成 SoC / SoD 暑期考核') : (accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程')}
             </Text>
           </Section>
 
@@ -118,7 +118,7 @@ export const OfferEmail = ({
             {accept ? (
               <>
                 <Text style={text}>
-                  {flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，已从部员晋升为干事。` : flowKind === 'soc' ? `恭喜你顺利通过 ${flowName}，将继续留任讲师。` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}
+                  {flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，本阶段考核结果已确认。` : flowKind === 'soc' ? `恭喜你顺利通过 ${flowName}，将继续留任讲师。` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}
                 </Text>
                 {flowKind === 'recruitment' ? (
                   <>

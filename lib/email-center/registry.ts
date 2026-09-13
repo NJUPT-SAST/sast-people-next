@@ -32,7 +32,7 @@ export const emailTemplateDefinitions = [
     key: "woc.result.accepted",
     category: "result",
     name: "WoC/WoD 通过结果通知",
-    description: "通知通过 WoC/WoD 阶段考核并晋升干事。",
+    description: "通知 WoC/WoD 阶段考核通过结果。",
     defaultSubject: "{flowName} 考核结果通知",
     variables: [
       { key: "name", label: "候选人姓名", required: true, example: "张三" },

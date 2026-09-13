@@ -54,7 +54,13 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium"><LockKeyhole className="size-4" />结果发布</div>
-          <p className="mt-1 text-xs text-muted-foreground">通过 {counts.accepted} · 不通过 {counts.rejected} · 撤回 {counts.withdrawn} · 未完成 {counts.unfinished}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {published
+              ? "结果已发布，名单和结果已锁定。"
+              : counts.unfinished > 0
+                ? `还有 ${counts.unfinished} 人未完成最终结果，完成后才可发布。`
+                : "所有人的最终结果已完成，可以发布。"}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">通过模板 {templates.accepted.updatedAt ? "已配置" : "默认模板"}，不通过模板 {templates.rejected.updatedAt ? "已配置" : "默认模板"}。发布前请确认本年度文案。</p>
         </div>
         <div className="flex flex-wrap gap-2">
