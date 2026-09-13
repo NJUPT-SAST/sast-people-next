@@ -393,6 +393,13 @@
       "when": 1789250000000,
       "tag": "0055_email_template_body",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1789250000001,
+      "tag": "0056_email_template_copy_fields",
+      "breakpoints": true
     }
   ]
 }

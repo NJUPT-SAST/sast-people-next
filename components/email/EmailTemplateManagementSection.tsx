@@ -42,6 +42,11 @@ function createValuesFromForm(form: HTMLFormElement) {
   const data = new FormData(form);
   return {
     subjectTemplate: String(data.get("subjectTemplate") ?? ""),
+    titleTemplate: String(data.get("titleTemplate") ?? ""),
+    subtitleTemplate: String(data.get("subtitleTemplate") ?? ""),
+    resultBadgeTemplate: String(data.get("resultBadgeTemplate") ?? ""),
+    resultTitleTemplate: String(data.get("resultTitleTemplate") ?? ""),
+    resultSummaryTemplate: String(data.get("resultSummaryTemplate") ?? ""),
     bodyTemplate: String(data.get("bodyTemplate") ?? ""),
     memberInfoFormUrl: String(data.get("memberInfoFormUrl") ?? ""),
     feishuGroupUrl: String(data.get("feishuGroupUrl") ?? ""),
@@ -91,6 +96,9 @@ function TemplateDialog({
   const router = useRouter();
   const isAcceptedTemplate = setting.templateKey.endsWith("accepted");
   const isRecruitmentTemplate = setting.templateKey.startsWith("recruitment.");
+  const usesInternalGroup =
+    isAcceptedTemplate &&
+    (isRecruitmentTemplate || setting.templateKey.startsWith("soc."));
 
   return (
     <Dialog>
@@ -109,9 +117,7 @@ function TemplateDialog({
         <DialogHeader>
           <DialogTitle>{getSettingLabel(setting.templateKey)}</DialogTitle>
           <DialogDescription>
-            {isAcceptedTemplate
-              ? "邮件版式固定；这里只调整链接、飞书群和联系邮箱。"
-              : "邮件版式固定；这里只调整活动日历和联系邮箱。"}
+            编辑邮件标题、结果卡片、正文和后续行动。保存后请先预览，再进行测试发送。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -133,7 +139,8 @@ function TemplateDialog({
             );
           }}
         >
-          <div className="rounded-lg border bg-muted/40 p-3 md:col-span-2">
+          <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 md:col-span-2">
+            <p className="text-xs font-medium text-foreground">邮件呈现</p>
             <TemplateField
               id={`${setting.templateKey}-subject`}
               name="subjectTemplate"
@@ -142,7 +149,15 @@ function TemplateDialog({
             />
           </div>
 
-          <div className="grid gap-1.5 rounded-lg border bg-muted/40 p-3 md:col-span-2">
+          <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 md:grid-cols-2 md:col-span-2">
+            <TemplateField id={`${setting.templateKey}-title`} name="titleTemplate" label="邮件主标题" defaultValue={setting.titleTemplate} />
+            <TemplateField id={`${setting.templateKey}-subtitle`} name="subtitleTemplate" label="邮件副标题" defaultValue={setting.subtitleTemplate} />
+            <TemplateField id={`${setting.templateKey}-badge`} name="resultBadgeTemplate" label="结果标签" defaultValue={setting.resultBadgeTemplate} />
+            <TemplateField id={`${setting.templateKey}-result-title`} name="resultTitleTemplate" label="结果标题" defaultValue={setting.resultTitleTemplate} />
+            <TemplateField id={`${setting.templateKey}-summary`} name="resultSummaryTemplate" label="结果摘要" defaultValue={setting.resultSummaryTemplate} className="md:col-span-2" />
+          </div>
+
+          <div className="grid gap-1.5 rounded-lg border bg-muted/30 p-4 md:col-span-2">
             <Label htmlFor={`${setting.templateKey}-body`} className="text-xs text-muted-foreground">
               正文文案
             </Label>
@@ -153,10 +168,11 @@ function TemplateDialog({
               placeholder={isRecruitmentTemplate ? "招新正文使用固定版式，可按需填写自定义文案。" : "填写本流程的结果说明和后续安排。"}
               className="min-h-[180px] resize-y bg-background"
             />
-            <p className="text-xs text-muted-foreground">可用变量：{"{name}"}、{"{flowName}"}、{"{contactEmail}"}。</p>
+            <p className="text-xs text-muted-foreground">可用变量：{"{name}"}、{"{flowName}"}、{"{contactEmail}"}、{"{feishuGroupName}"}、{"{calendarUrl}"}。</p>
           </div>
 
-          <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 md:col-span-2 md:grid-cols-2">
+          <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 md:col-span-2 md:grid-cols-2">
+            <p className="text-xs font-medium text-foreground md:col-span-2">后续行动与联系</p>
             <TemplateField
               id={`${setting.templateKey}-contact`}
               label="联系邮箱"
@@ -169,7 +185,7 @@ function TemplateDialog({
               name="calendarUrl"
               defaultValue={setting.calendarUrl}
             />
-            {isAcceptedTemplate && isRecruitmentTemplate ? (
+            {usesInternalGroup ? (
               <>
                 <TemplateField
                   id={`${setting.templateKey}-form-label`}
@@ -179,7 +195,7 @@ function TemplateDialog({
                 />
                 <TemplateField
                   id={`${setting.templateKey}-group-name`}
-                  label="飞书群名"
+                  label={isRecruitmentTemplate ? "飞书群名" : "内部飞书群名"}
                   name="feishuGroupName"
                   defaultValue={setting.feishuGroupName}
                 />
@@ -192,8 +208,11 @@ function TemplateDialog({
             )}
           </div>
 
-          {isAcceptedTemplate && isRecruitmentTemplate ? (
+          {usesInternalGroup ? (
             <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 md:col-span-2">
+              {isRecruitmentTemplate && (
+                <TemplateField id={`${setting.templateKey}-form-url`} label="成员信息表链接" name="memberInfoFormUrl" defaultValue={setting.memberInfoFormUrl} />
+              )}
               <TemplateField
                 id={`${setting.templateKey}-form-url`}
                 label="成员信息表链接"
@@ -202,16 +221,15 @@ function TemplateDialog({
               />
               <TemplateField
                 id={`${setting.templateKey}-group-url`}
-                label="飞书群链接"
+                label={isRecruitmentTemplate ? "飞书群链接" : "内部飞书群链接"}
                 name="feishuGroupUrl"
                 defaultValue={setting.feishuGroupUrl}
               />
-              <TemplateField
-                id={`${setting.templateKey}-help-url`}
-                label="飞书注册说明"
-                name="feishuRegisterHelpUrl"
-                defaultValue={setting.feishuRegisterHelpUrl}
-              />
+              {isRecruitmentTemplate ? (
+                <TemplateField id={`${setting.templateKey}-help-url`} label="飞书注册说明" name="feishuRegisterHelpUrl" defaultValue={setting.feishuRegisterHelpUrl} />
+              ) : (
+                <input type="hidden" name="feishuRegisterHelpUrl" value={setting.feishuRegisterHelpUrl} />
+              )}
             </div>
           ) : (
             <>

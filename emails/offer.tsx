@@ -51,6 +51,11 @@ interface OfferEmailProps {
   accept?: boolean;
   flowKind?: 'recruitment' | 'woc' | 'soc';
   bodyTemplate?: string;
+  titleTemplate?: string;
+  subtitleTemplate?: string;
+  resultBadgeTemplate?: string;
+  resultTitleTemplate?: string;
+  resultSummaryTemplate?: string;
   genericGreeting?: boolean;
   memberInfoFormUrl?: string;
   feishuGroupUrl?: string;
@@ -67,6 +72,11 @@ export const OfferEmail = ({
   accept,
   flowKind = 'recruitment',
   bodyTemplate = '',
+  titleTemplate = '',
+  subtitleTemplate = '',
+  resultBadgeTemplate = '',
+  resultTitleTemplate = '',
+  resultSummaryTemplate = '',
   genericGreeting = false,
   memberInfoFormUrl = resultEmailLinks.memberInfoForm,
   feishuGroupUrl = resultEmailLinks.feishuGroup,
@@ -81,6 +91,21 @@ export const OfferEmail = ({
       ? '亲爱的[同学姓名]同学，'
       : `亲爱的${name}同学，`;
   const tone = accept ? acceptedTone : rejectedTone;
+  const copyVariables = {
+    name: name ?? '[同学姓名]',
+    flowName: flowName ?? '本次流程',
+    contactEmail,
+    feishuGroupName,
+    feishuGroupUrl,
+    calendarUrl,
+    memberInfoFormUrl,
+    feishuRegisterHelpUrl,
+  };
+  const defaultTitle = flowKind === 'woc' ? 'WoC / WoD 考核结果通知' : flowKind === 'soc' ? 'SoC / SoD 留任结果通知' : 'SAST 招新结果通知';
+  const defaultSubtitle = flowKind === 'woc' ? (accept ? '恭喜完成 WoC / WoD 阶段考核' : '感谢你完成 WoC / WoD 阶段考核') : flowKind === 'soc' ? (accept ? '恭喜通过暑期考核并留任讲师' : '感谢你完成 SoC / SoD 暑期考核') : (accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程');
+  const defaultBadge = accept ? '通过通知' : '结果通知';
+  const defaultResultTitle = accept ? '恭喜你顺利通过' : '感谢你的参与';
+  const defaultSummary = flowKind === 'woc' ? '本阶段考核结果已确认。' : flowKind === 'soc' ? '本次暑期考核结果已确认。' : accept ? '本次考核结果已确认。' : '本次招新结果已确认。';
 
   return (
     <Html>
@@ -96,22 +121,22 @@ export const OfferEmail = ({
               style={logo}
             />
             <Text style={eyebrow}>SAST People</Text>
-            <Text style={title}>{flowKind === 'woc' ? 'WoC / WoD 考核结果通知' : flowKind === 'soc' ? 'SoC / SoD 留任结果通知' : 'SAST 招新结果通知'}</Text>
+            <Text style={title}>{renderTemplateText(titleTemplate || defaultTitle, copyVariables)}</Text>
             <Text style={subtitle}>
-              {flowKind === 'woc' ? (accept ? '恭喜完成 WoC / WoD 阶段考核' : '感谢你完成 WoC / WoD 阶段考核') : flowKind === 'soc' ? (accept ? '恭喜通过暑期考核并留任讲师' : '感谢你完成 SoC / SoD 暑期考核') : (accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程')}
+              {renderTemplateText(subtitleTemplate || defaultSubtitle, copyVariables)}
             </Text>
           </Section>
 
           <Section style={resultPanelWrap}>
             <Section style={{ ...resultPanel, borderColor: tone.border, backgroundColor: tone.panel }}>
               <Text style={{ ...resultBadge, color: tone.primary, backgroundColor: tone.badge }}>
-                {accept ? '通过通知' : '结果通知'}
+                {renderTemplateText(resultBadgeTemplate || defaultBadge, copyVariables)}
               </Text>
               <Text style={{ ...resultTitle, color: tone.primary }}>
-                {accept ? '恭喜你顺利通过' : '感谢你的参与'}
+                {renderTemplateText(resultTitleTemplate || defaultResultTitle, copyVariables)}
               </Text>
               <Text style={resultText}>
-                {flowKind === 'woc' ? (accept ? '本阶段考核结果已确认。' : '本阶段考核结果已确认。') : flowKind === 'soc' ? (accept ? '本次暑期考核结果已确认。' : '本次暑期考核结果已确认。') : (accept ? '本次考核结果已确认。' : '本次招新结果已确认。')}
+                {renderTemplateText(resultSummaryTemplate || defaultSummary, copyVariables)}
               </Text>
             </Section>
           </Section>

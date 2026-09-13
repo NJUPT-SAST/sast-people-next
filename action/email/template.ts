@@ -14,10 +14,15 @@ import type { ResultEmailTemplateKey } from "@/lib/email-center/types";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-type ResultEmailTemplateValues = Omit<ResultEmailTemplateSetting, "templateKey">;
+type ResultEmailTemplateValues = Omit<ResultEmailTemplateSetting, "templateKey" | "updatedAt">;
 
 const requiredFieldLabels: Record<keyof ResultEmailTemplateValues, string> = {
   subjectTemplate: "邮件标题",
+  titleTemplate: "邮件主标题",
+  subtitleTemplate: "邮件副标题",
+  resultBadgeTemplate: "结果标签",
+  resultTitleTemplate: "结果标题",
+  resultSummaryTemplate: "结果摘要",
   bodyTemplate: "正文文案",
   memberInfoFormUrl: "成员信息表链接",
   feishuGroupUrl: "飞书群链接",
@@ -40,6 +45,11 @@ function normalizeResultEmailTemplateValues(
 ): ResultEmailTemplateValues {
   return {
     subjectTemplate: values.subjectTemplate.trim(),
+    titleTemplate: values.titleTemplate.trim(),
+    subtitleTemplate: values.subtitleTemplate.trim(),
+    resultBadgeTemplate: values.resultBadgeTemplate.trim(),
+    resultTitleTemplate: values.resultTitleTemplate.trim(),
+    resultSummaryTemplate: values.resultSummaryTemplate.trim(),
     bodyTemplate: values.bodyTemplate.trim(),
     memberInfoFormUrl: values.memberInfoFormUrl.trim(),
     feishuGroupUrl: values.feishuGroupUrl.trim(),
@@ -65,9 +75,15 @@ function validateResultEmailTemplateValues(
   templateKey: string,
 ) {
   const isRecruitment = templateKey.startsWith("recruitment.");
+  const isSocAccepted = templateKey === "soc.result.accepted";
   const requiredKeys = isRecruitment
     ? Object.keys(requiredFieldLabels)
-    : ["subjectTemplate", "bodyTemplate", "calendarUrl", "contactEmail"];
+    : [
+        "subjectTemplate", "titleTemplate", "subtitleTemplate",
+        "resultBadgeTemplate", "resultTitleTemplate", "resultSummaryTemplate",
+        "bodyTemplate", "calendarUrl", "contactEmail",
+        ...(isSocAccepted ? ["feishuGroupUrl", "feishuGroupName"] : []),
+      ];
   for (const [key, label] of Object.entries(requiredFieldLabels).filter(([key]) => requiredKeys.includes(key)) as Array<
     [keyof ResultEmailTemplateValues, string]
   >) {
@@ -80,7 +96,12 @@ function validateResultEmailTemplateValues(
     return { ok: false, message: "邮件标题不能为空。" };
   }
 
-  for (const field of (isRecruitment ? urlFields : ["calendarUrl"] as const)) {
+  const validatedUrlFields = isRecruitment
+    ? urlFields
+    : isSocAccepted
+      ? (["calendarUrl", "feishuGroupUrl"] as const)
+      : (["calendarUrl"] as const);
+  for (const field of validatedUrlFields) {
     if (!isHttpUrl(values[field])) {
       return {
         ok: false,
@@ -105,6 +126,12 @@ export async function listEmailTemplateSettings() {
     return {
       ...fallback,
       ...saved,
+      titleTemplate: saved?.titleTemplate?.trim() || fallback.titleTemplate,
+      subtitleTemplate: saved?.subtitleTemplate?.trim() || fallback.subtitleTemplate,
+      resultBadgeTemplate: saved?.resultBadgeTemplate?.trim() || fallback.resultBadgeTemplate,
+      resultTitleTemplate: saved?.resultTitleTemplate?.trim() || fallback.resultTitleTemplate,
+      resultSummaryTemplate: saved?.resultSummaryTemplate?.trim() || fallback.resultSummaryTemplate,
+      bodyTemplate: saved?.bodyTemplate?.trim() || fallback.bodyTemplate,
     };
   });
 }
@@ -136,12 +163,21 @@ export async function getEmailTemplateSetting(templateKey: string) {
     .where(eq(emailTemplateSetting.templateKey, templateKey))
     .limit(1);
 
-  return (
-    saved ??
-    defaultResultEmailTemplateSettings.find(
-      (item) => item.templateKey === templateKey,
-    )!
-  );
+  const fallback = defaultResultEmailTemplateSettings.find(
+    (item) => item.templateKey === templateKey,
+  )!;
+  return saved
+    ? {
+        ...fallback,
+        ...saved,
+        titleTemplate: saved.titleTemplate?.trim() || fallback.titleTemplate,
+        subtitleTemplate: saved.subtitleTemplate?.trim() || fallback.subtitleTemplate,
+        resultBadgeTemplate: saved.resultBadgeTemplate?.trim() || fallback.resultBadgeTemplate,
+        resultTitleTemplate: saved.resultTitleTemplate?.trim() || fallback.resultTitleTemplate,
+        resultSummaryTemplate: saved.resultSummaryTemplate?.trim() || fallback.resultSummaryTemplate,
+        bodyTemplate: saved.bodyTemplate?.trim() || fallback.bodyTemplate,
+      }
+    : fallback;
 }
 
 export async function updateEmailTemplateSetting(
