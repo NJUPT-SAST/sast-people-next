@@ -30,6 +30,7 @@ interface DataTableProps<TData, TValue> {
   flowTypeId: number;
   targetUserFlowId?: number;
   role: number;
+  onOutcomeChanged?: () => void;
 }
 
 type RecruitmentRowLike = {
@@ -55,6 +56,7 @@ export function DataTable<TData, TValue>({
   flowTypeId,
   targetUserFlowId,
   role,
+  onOutcomeChanged,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -213,6 +215,7 @@ export function DataTable<TData, TValue>({
                             ...Object.fromEntries(passedUids.map((uid) => [uid, 'passed'])),
                           }));
                           setRowSelection({});
+                          onOutcomeChanged?.();
                         }),
                         {
                           loading: '正在设置为通过',
@@ -251,6 +254,7 @@ export function DataTable<TData, TValue>({
                             ...Object.fromEntries(failedUids.map((uid) => [uid, 'failed'])),
                           }));
                           setRowSelection({});
+                          onOutcomeChanged?.();
                         }),
                         {
                           loading: '正在设置为不通过',

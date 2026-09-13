@@ -54,6 +54,7 @@ export const RecruitmentContent = ({
   const [scoreData, setScoreData] = useState(initialData);
   const [evalData, setEvalData] = useState<CandidatesResult>(initialEvalData);
   const [loading, setLoading] = useState(false);
+  const [publicationRefreshKey, setPublicationRefreshKey] = useState(0);
   const flowRequestId = useRef(0);
   const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
   const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
@@ -110,6 +111,11 @@ export const RecruitmentContent = ({
         setEvalData([]);
       }
     }
+  };
+
+  const refreshEvalDataAndPublication = async () => {
+    await refreshEvalData();
+    setPublicationRefreshKey((value) => value + 1);
   };
 
   const handleInterviewFlowTypeChange = async (value: string) => {
@@ -203,25 +209,26 @@ export const RecruitmentContent = ({
           <Loading />
         ) : isEvaluationWorkspace ? (
           <div className="space-y-4">
-            {role >= 3 && <ResultPublicationPanel flowId={Number(flowId)} />}
+            {role >= 3 && <ResultPublicationPanel key={`${flowId}-${publicationRefreshKey}`} flowId={Number(flowId)} />}
             <EvaluationTable
               candidates={safeEvalData}
               groupOptions={currentFlowGroupOptions}
               role={role}
               targetUserFlowId={targetUserFlowId}
               targetScheduleId={targetScheduleId}
-              onRefresh={refreshEvalData}
+              onRefresh={refreshEvalDataAndPublication}
             />
           </div>
         ) : (
           <div className="space-y-4">
-            {role >= 3 && <ResultPublicationPanel flowId={Number(flowId)} />}
+            {role >= 3 && <ResultPublicationPanel key={`${flowId}-${publicationRefreshKey}`} flowId={Number(flowId)} />}
             <DataTable
               columns={makeColumns(role)}
               data={safeScoreData}
               flowTypeId={parseInt(flowId)}
               targetUserFlowId={targetUserFlowId}
               role={role}
+              onOutcomeChanged={() => setPublicationRefreshKey((value) => value + 1)}
             />
           </div>
         )
