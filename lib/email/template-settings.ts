@@ -33,6 +33,26 @@ export const defaultResultEmailTemplateSettings: ResultEmailTemplateSetting[] = 
     subjectTemplate: "{flowName} 结果通知",
     ...baseSetting,
   },
+  {
+    templateKey: "woc.result.accepted",
+    subjectTemplate: "{flowName} 考核结果通知",
+    ...baseSetting,
+  },
+  {
+    templateKey: "woc.result.rejected",
+    subjectTemplate: "{flowName} 考核结果通知",
+    ...baseSetting,
+  },
+  {
+    templateKey: "soc.result.accepted",
+    subjectTemplate: "{flowName} 留任结果通知",
+    ...baseSetting,
+  },
+  {
+    templateKey: "soc.result.rejected",
+    subjectTemplate: "{flowName} 留任结果通知",
+    ...baseSetting,
+  },
 ];
 
 export function renderTemplateText(
@@ -41,4 +61,3 @@ export function renderTemplateText(
 ) {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => variables[key] ?? "");
 }
-

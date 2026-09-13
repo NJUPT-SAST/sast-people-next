@@ -7,6 +7,7 @@ import event from "@/event";
 import { getEducationEmail } from "@/lib/email/address";
 import {
   getResultEmailTemplateKey,
+  getResultEmailFlowKind,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
 import {
@@ -30,6 +31,7 @@ export type CreateResultEmailBatchInput = {
   flowId: number;
   accept: boolean;
   createdBy: number;
+  flowType?: string;
 };
 
 async function runWithConcurrency<T>(
@@ -56,6 +58,7 @@ export async function createResultEmailBatch({
   flowId,
   accept,
   createdBy,
+  flowType = "recruitment",
 }: CreateResultEmailBatchInput) {
   const sourceStatus = accept ? "passed" : "failed";
   const targets = await db
@@ -195,7 +198,8 @@ export async function createResultEmailBatch({
     );
   }
 
-  const templateKey = getResultEmailTemplateKey(accept);
+  const flowKind = getResultEmailFlowKind(flowType);
+  const templateKey = getResultEmailTemplateKey(flowKind, accept);
   const templateSetting = await getEmailTemplateSetting(templateKey);
   const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
   const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
@@ -213,6 +217,7 @@ export async function createResultEmailBatch({
         variables: {
           name: targetUser?.name ?? "同学",
           flowName: item.flowName,
+          flowKind,
           setting: templateSetting,
         },
       });

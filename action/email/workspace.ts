@@ -11,7 +11,7 @@ import {
   requirePositiveIntegerInput,
 } from "@/lib/email-center/action-input";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { getResultEmailTemplateKey } from "@/lib/email/result-email";
+import { getResultEmailFlowKind, getResultEmailTemplateKey } from "@/lib/email/result-email";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -35,9 +35,6 @@ export async function listEmailFlowTargets() {
     .orderBy(desc(flow.createdAt));
 
   if (flows.length === 0) return [];
-
-  const acceptedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(true));
-  const rejectedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(false));
 
   const targets = await db
     .select({
@@ -63,12 +60,15 @@ export async function listEmailFlowTargets() {
   }));
 
   return Promise.all(flows.map(async (item) => {
+    const flowKind = getResultEmailFlowKind(item.type);
+    const acceptedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(flowKind, true));
+    const rejectedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(flowKind, false));
     const flowTargets = hydratedTargets.filter((target) => target.flowId === item.id);
     const passed = flowTargets.filter((t) => t.status === "passed");
     const failed = flowTargets.filter((t) => t.status === "failed");
     const acceptedPreview = passed[0]
       ? await renderEmailTemplate({
-          templateKey: getResultEmailTemplateKey(true),
+          templateKey: getResultEmailTemplateKey(flowKind, true),
           variables: {
             name: passed[0].name,
             flowName: item.title,
@@ -79,7 +79,7 @@ export async function listEmailFlowTargets() {
       : null;
     const rejectedPreview = failed[0]
       ? await renderEmailTemplate({
-          templateKey: getResultEmailTemplateKey(false),
+          templateKey: getResultEmailTemplateKey(flowKind, false),
           variables: {
             name: failed[0].name,
             flowName: item.title,

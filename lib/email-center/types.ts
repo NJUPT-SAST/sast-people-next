@@ -6,7 +6,11 @@ export type EmailCategory = "result" | "interview" | "test";
 
 export type ResultEmailTemplateKey =
   | "recruitment.result.accepted"
-  | "recruitment.result.rejected";
+  | "recruitment.result.rejected"
+  | "woc.result.accepted"
+  | "woc.result.rejected"
+  | "soc.result.accepted"
+  | "soc.result.rejected";
 
 export type InterviewScheduleEmailTemplateKey =
   | "interview.schedule.created"
@@ -47,6 +51,7 @@ export type ResultEmailRenderVariables = {
   name: string;
   flowName: string;
   setting?: ResultEmailTemplateSetting;
+  flowKind?: "recruitment" | "woc" | "soc";
   genericGreeting?: boolean;
 };
 

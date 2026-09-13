@@ -29,6 +29,50 @@ export const emailTemplateDefinitions = [
     ],
   },
   {
+    key: "woc.result.accepted",
+    category: "result",
+    name: "WoC/WoD 通过结果通知",
+    description: "通知通过 WoC/WoD 阶段考核并晋升干事。",
+    defaultSubject: "{flowName} 考核结果通知",
+    variables: [
+      { key: "name", label: "候选人姓名", required: true, example: "张三" },
+      { key: "flowName", label: "流程名称", required: true, example: "2026 WoC" },
+    ],
+  },
+  {
+    key: "woc.result.rejected",
+    category: "result",
+    name: "WoC/WoD 不通过结果通知",
+    description: "通知 WoC/WoD 阶段考核结果。",
+    defaultSubject: "{flowName} 考核结果通知",
+    variables: [
+      { key: "name", label: "候选人姓名", required: true, example: "张三" },
+      { key: "flowName", label: "流程名称", required: true, example: "2026 WoC" },
+    ],
+  },
+  {
+    key: "soc.result.accepted",
+    category: "result",
+    name: "SoC/SoD 通过结果通知",
+    description: "通知通过 SoC/SoD 暑期考核并留任讲师。",
+    defaultSubject: "{flowName} 留任结果通知",
+    variables: [
+      { key: "name", label: "候选人姓名", required: true, example: "张三" },
+      { key: "flowName", label: "流程名称", required: true, example: "2026 SoC" },
+    ],
+  },
+  {
+    key: "soc.result.rejected",
+    category: "result",
+    name: "SoC/SoD 不通过结果通知",
+    description: "通知 SoC/SoD 暑期考核和留任结果。",
+    defaultSubject: "{flowName} 留任结果通知",
+    variables: [
+      { key: "name", label: "候选人姓名", required: true, example: "张三" },
+      { key: "flowName", label: "流程名称", required: true, example: "2026 SoC" },
+    ],
+  },
+  {
     key: "interview.schedule.created",
     category: "interview",
     name: "面试预约通知",

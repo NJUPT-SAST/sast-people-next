@@ -10,6 +10,7 @@ import {
   type ResultEmailTemplateSetting,
 } from "@/lib/email/template-settings";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import type { ResultEmailTemplateKey } from "@/lib/email-center/types";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -104,11 +105,8 @@ export async function getResultEmailPreviews() {
   const settings = await listEmailTemplateSettings();
   const entries = await Promise.all(
     settings.map(async (setting) => {
-      const accept = setting.templateKey.endsWith("accepted");
       const rendered = await renderEmailTemplate({
-        templateKey: accept
-          ? "recruitment.result.accepted"
-          : "recruitment.result.rejected",
+        templateKey: setting.templateKey as ResultEmailTemplateKey,
         variables: {
           name: "同学",
           flowName: "示例流程",

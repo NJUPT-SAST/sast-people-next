@@ -61,8 +61,8 @@ export async function getFlowResultPublicationSummary(flowId: number) {
   const withdrawn = rows.filter((row) => row.status === "withdrawn").length;
   const unfinished = rows.filter((row) => !terminalStatuses.has(row.status)).length;
   const [acceptedTemplate, rejectedTemplate] = await Promise.all([
-    getEmailTemplateSetting(getResultEmailTemplateKey(true)),
-    getEmailTemplateSetting(getResultEmailTemplateKey(false)),
+    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, true)),
+    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, false)),
   ]);
   return {
     flow: flowRow[0],
@@ -91,8 +91,8 @@ export async function publishFlowResults(flowId: number, confirmTemplate: boolea
   if (summary.counts.unfinished > 0) throw new Error(`还有 ${summary.counts.unfinished} 名候选人没有最终结果，暂不能发布`);
 
   const rows = await getFlowRows(flowId);
-  const acceptedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(true));
-  const rejectedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(false));
+  const acceptedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, true));
+  const rejectedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, false));
   const resultSnapshot = { flowId, flowTitle: summary.flow.title, rows, counts: summary.counts };
   const templateSnapshot = {
     accepted: { ...acceptedTemplate, updatedAt: acceptedTemplate.updatedAt?.toISOString() ?? null },
@@ -128,8 +128,8 @@ export async function publishFlowResults(flowId: number, confirmTemplate: boolea
 
   try {
     await syncUserRolesFromAcceptedFlows(rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId);
-    const acceptedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId, accept: true, createdBy: session.uid });
-    const rejectedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "failed").map((row) => row.userId), flowId, accept: false, createdBy: session.uid });
+    const acceptedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId, flowType: summary.flow.type, accept: true, createdBy: session.uid });
+    const rejectedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "failed").map((row) => row.userId), flowId, flowType: summary.flow.type, accept: false, createdBy: session.uid });
     await Promise.all([acceptedBatch.batchId ? sendEmailBatch(acceptedBatch.batchId) : null, rejectedBatch.batchId ? sendEmailBatch(rejectedBatch.batchId) : null]);
     await db.update(flowResultPublication).set({ status: "published", publishedAt: new Date(), updatedAt: new Date() }).where(eq(flowResultPublication.id, publication.id));
     await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.result.publish", resourceType: "flow_result_publication", resourceId: publication.id, metadata: { flowId, counts: summary.counts } });

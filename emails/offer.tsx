@@ -48,6 +48,7 @@ interface OfferEmailProps {
   name?: string;
   flowName?: string;
   accept?: boolean;
+  flowKind?: 'recruitment' | 'woc' | 'soc';
   genericGreeting?: boolean;
   memberInfoFormUrl?: string;
   feishuGroupUrl?: string;
@@ -62,6 +63,7 @@ export const OfferEmail = ({
   name,
   flowName,
   accept,
+  flowKind = 'recruitment',
   genericGreeting = false,
   memberInfoFormUrl = resultEmailLinks.memberInfoForm,
   feishuGroupUrl = resultEmailLinks.feishuGroup,
@@ -91,9 +93,9 @@ export const OfferEmail = ({
               style={logo}
             />
             <Text style={eyebrow}>SAST People</Text>
-            <Text style={title}>SAST 招新结果通知</Text>
+            <Text style={title}>{flowKind === 'woc' ? 'WoC / WoD 考核结果通知' : flowKind === 'soc' ? 'SoC / SoD 留任结果通知' : 'SAST 招新结果通知'}</Text>
             <Text style={subtitle}>
-              {accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程'}
+              {flowKind === 'woc' ? (accept ? '恭喜完成阶段考核并晋升干事' : '感谢你完成 WoC / WoD 阶段考核') : flowKind === 'soc' ? (accept ? '恭喜通过暑期考核并留任讲师' : '感谢你完成 SoC / SoD 暑期考核') : (accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程')}
             </Text>
           </Section>
 
@@ -106,7 +108,7 @@ export const OfferEmail = ({
                 {accept ? '恭喜你顺利通过' : '感谢你的参与'}
               </Text>
               <Text style={resultText}>
-                {accept ? '本次考核结果已确认。' : '本次招新结果已确认。'}
+                {flowKind === 'woc' ? (accept ? '本阶段考核结果已确认。' : '本阶段考核结果已确认。') : flowKind === 'soc' ? (accept ? '本次暑期考核结果已确认。' : '本次暑期考核结果已确认。') : (accept ? '本次考核结果已确认。' : '本次招新结果已确认。')}
               </Text>
             </Section>
           </Section>
@@ -116,67 +118,63 @@ export const OfferEmail = ({
             {accept ? (
               <>
                 <Text style={text}>
-                  恭喜你顺利通过 {flowName}，正式成为南京邮电大学大学生科学技术协会的一员。
+                  {flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，已从部员晋升为干事。` : flowKind === 'soc' ? `恭喜你顺利通过 ${flowName}，将继续留任讲师。` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}
                 </Text>
-                <Text style={text}>
-                  我们欣赏你对技术的热情和积极的态度。在这里，希望你能与志同道合的伙伴们一起，将脑海中天马行空的创意变为现实，在项目实战中挑战自我，感受协同攻克难关的纯粹快乐。
-                </Text>
-                <Text style={text}>
-                  未来，让我们在这条路上共同学习、进步，在自己所热爱的世界里闪闪发光。
-                </Text>
-
-                <Section style={noticeCard}>
-                  <Text style={importantText}>
-                    【重要步骤】<br />
-                    请注意：以下信息请勿向其他人分享
-                  </Text>
-
+                {flowKind === 'recruitment' ? (
+                  <>
+                    <Text style={text}>
+                      我们欣赏你对技术的热情和积极的态度。在这里，希望你能与志同道合的伙伴们一起，将脑海中天马行空的创意变为现实，在项目实战中挑战自我，感受协同攻克难关的纯粹快乐。
+                    </Text>
+                    <Text style={text}>
+                      未来，让我们在这条路上共同学习、进步，在自己所热爱的世界里闪闪发光。
+                    </Text>
+                    <Section style={noticeCard}>
+                      <Text style={importantText}>
+                        【重要步骤】<br />
+                        请注意：以下信息请勿向其他人分享
+                      </Text>
+                      <Text style={text}>
+                        1. 为完善你的成员信息，请务必在今日内填写社团管理系统成员信息收集表
+                      </Text>
+                      <Button
+                        style={{ ...button, backgroundColor: acceptedTone.primary }}
+                        href={memberInfoFormUrl}>
+                        点击填写信息表
+                      </Button>
+                      <Hr style={innerDivider} />
+                      <Text style={text}>
+                        2. 请注册个人飞书账号（
+                        <Link href={feishuRegisterHelpUrl} style={anchor}>
+                          注册说明
+                        </Link>
+                        ）并加入“{feishuGroupName}”飞书群，和学长及其他新成员一起交流
+                      </Text>
+                      <Button style={buttonDark} href={feishuGroupUrl}>
+                        点击加入飞书群
+                      </Button>
+                    </Section>
+                    <Section style={calendarCard}>
+                      <Text style={importantText}>【查看授课日历】</Text>
+                      <Text style={text}>
+                        通过个人飞书账号，订阅
+                        <Link href={calendarUrl} style={anchor}>
+                          科协公开活动
+                        </Link>
+                        ，获取最新授课日历
+                      </Text>
+                    </Section>
+                    <Text style={text}>我们真诚地欢迎你的加入！</Text>
+                  </>
+                ) : (
                   <Text style={text}>
-                    1. 为完善你的成员信息，请务必在今日内填写社团管理系统成员信息收集表
+                    感谢你在本阶段中的投入和贡献。后续安排将由各组负责人另行通知，请继续关注科协相关信息。
                   </Text>
-                  <Button
-                    style={{ ...button, backgroundColor: acceptedTone.primary }}
-                    href={memberInfoFormUrl}>
-                    点击填写信息表
-                  </Button>
-
-                  <Hr style={innerDivider} />
-
-                  <Text style={text}>
-                    2. 请注册个人飞书账号（
-                    <Link href={feishuRegisterHelpUrl} style={anchor}>
-                      注册说明
-                    </Link>
-                    ）并加入“{feishuGroupName}”飞书群，和学长及其他新成员一起交流
-                  </Text>
-                  <Button
-                    style={buttonDark}
-                    href={feishuGroupUrl}>
-                    点击加入飞书群
-                  </Button>
-                </Section>
-
-                <Section style={calendarCard}>
-                  <Text style={importantText}>
-                    【查看授课日历】
-                  </Text>
-                  <Text style={text}>
-                    通过个人飞书账号，订阅
-                    <Link href={calendarUrl} style={anchor}>
-                      科协公开活动
-                    </Link>
-                    ，获取最新授课日历
-                  </Text>
-                </Section>
-
-                <Text style={text}>
-                  我们真诚地欢迎你的加入！
-                </Text>
+                )}
               </>
             ) : (
               <>
                 <Text style={text}>
-                  感谢你参加 {flowName}，你在整个过程中的出色表现，以及展现出的技术才华和学习热情，给我们留下了深刻的印象。
+                  {flowKind === 'woc' ? `感谢你参加 ${flowName}。本次 WoC / WoD 阶段考核未通过，你的部员身份不受影响。` : flowKind === 'soc' ? `感谢你参加 ${flowName}。本次 SoC / SoD 暑期考核未通过，本轮留任申请未能通过。` : `感谢你参加 ${flowName}，你在整个过程中的出色表现，以及展现出的技术才华和学习热情，给我们留下了深刻的印象。`}
                 </Text>
                 <Text style={text}>
                   我们对每一位参与者都进行了慎重和综合的评估。经过艰难的抉择，我们很遗憾地通知你，本次未能通过我们的考核。我们深知这个结果可能会让你感到失望，但这绝非对你个人能力的否定，你的才华依然闪耀。
