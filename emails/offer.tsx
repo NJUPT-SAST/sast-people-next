@@ -171,15 +171,13 @@ export const OfferEmail = ({
                       这一年在 SAST 的成长大家有目共睹。留任讲师后，你将参与招新、授课和项目维护等工作，把经验传递给后来的同学。近期我们会同步你的权限和后续安排：
                     </Text>
                     <Section style={noticeCard}>
-                      <Text style={text}>
-                        请加入内部飞书群：
-                        <Link href={feishuGroupUrl} style={anchor}>{feishuGroupName}</Link>
+                      <Text style={actionRow}>
+                        <span style={actionLabel}>内部飞书群</span>
+                        <Link href={feishuGroupUrl} style={actionLink}>{feishuGroupName}</Link>
                       </Text>
-                      <Button style={buttonDark} href={feishuGroupUrl}>加入内部飞书群</Button>
-                      <Hr style={innerDivider} />
-                      <Text style={text}>
-                        后续安排请关注
-                        <Link href={calendarUrl} style={anchor}>飞书日历</Link>
+                      <Text style={actionRow}>
+                        <span style={actionLabel}>后续安排</span>
+                        <Link href={calendarUrl} style={actionLink}>关注飞书日历</Link>
                       </Text>
                     </Section>
                   </>
@@ -192,25 +190,25 @@ export const OfferEmail = ({
             ) : (
               <>
                 <Text style={text}>
-                  {flowKind === 'woc' ? `感谢你参加 ${flowName}。本次 WoC / WoD 阶段考核未通过，现阶段成员身份不受影响。` : flowKind === 'soc' ? `感谢你参加 ${flowName}。本次 SoC / SoD 暑期考核未通过，本轮讲师留任申请未能通过。` : `感谢你参加 ${flowName}，你在整个过程中的出色表现，以及展现出的技术才华和学习热情，给我们留下了深刻的印象。`}
+                  {flowKind === 'woc' ? `感谢你参加 ${flowName}。本次阶段考核未通过。` : flowKind === 'soc' ? `感谢你参加 ${flowName}。本次留任考核未通过。` : `感谢你参加 ${flowName}，你在整个过程中的出色表现，以及展现出的技术才华和学习热情，给我们留下了深刻的印象。`}
                 </Text>
                 <Text style={text}>
                   {flowKind === 'woc'
-                    ? '本次 WoC 入选结果已经确定。受名额、项目方向和团队匹配等因素影响，很遗憾你未能通过本次考核。但这并不代表你不适合 SAST，WoC 只是一次阶段性的双向选择，不能定义你的潜力，更不能定义你未来的可能性。'
+                    ? '本阶段 WoC / WoD 考核结果已经确定。很遗憾你未能通过本次阶段考核，但这并不代表你不适合 SAST，也不影响你继续参与后续活动。'
                     : flowKind === 'soc'
-                      ? '这一年在 SAST 的投入与成长，我们都看在眼里。受名额、方向匹配和综合安排影响，很遗憾你本次未能留任为讲师。但这不是对你能力和付出的否定，也不代表你不适合继续学习和分享。'
+                      ? '这一年在 SAST 的投入与成长，我们都看在眼里。受名额、方向匹配和综合安排等影响，很遗憾你未能留任讲师。但这不是对你能力和付出的否定，也不代表你不适合继续学习和分享。一次结果不能定义你的潜力，更不能限制你未来的可能性。'
                       : '我们对每一位参与者都进行了慎重和综合的评估。经过艰难的抉择，我们很遗憾地通知你，本次未能通过我们的考核。我们深知这个结果可能会让你感到失望，但这绝非对你个人能力的否定，你的才华依然闪耀。'}
                 </Text>
                 <Text style={text}>
                   {flowKind === 'woc'
-                    ? '你在过程中积累的经验、写过的代码、踩过的坑、认识的同学，都会成为之后成长的养分。技术成长是一场长跑，一次结果不会决定你能走多远。我们真诚希望你不要因此怀疑自己，更不要熄灭对学习和创造的热情。'
+                    ? '感谢你在阶段考核中的投入。后续开放 SoC（Summer of Code）考核时，欢迎你继续关注并再次参加；SAST 的公开课、技术分享和项目交流也持续向你开放。'
                     : flowKind === 'soc'
                       ? '虽然无法留任，你仍可参与 SAST 后续的公开课、技术分享、项目交流等公共活动。欢迎关注活动通知渠道。'
                       : '我们希望这次经历不会影响你对技术的热爱，并诚挚地邀请你继续参加我们接下来的授课活动。此外，我们的“寒假大作战”活动也依然向你开放，这是你再次展示自己能力并加入我们的另一个机会。'}
                 </Text>
                 <Text style={text}>
                   {flowKind === 'woc'
-                    ? 'SAST 后续仍会举办公开课、技术分享、项目交流、开源活动等，很多活动不设考核门槛；后续开放 SoC（Summer of Code）考核时，也欢迎你继续关注并再次参加。具体可关注下方活动日历。如需了解本次考核中可改进的地方，也欢迎联系邮箱与我们交流。'
+                    ? '如果你想了解本次考核中可以改进的地方，欢迎联系邮箱与我们交流。期待在未来的活动中再次见到你。'
                     : flowKind === 'recruitment'
                     ? '希望你能继续保持这份对技术的热忱，不断精进，再接再厉。我们期待在未来的活动中再次看到你的身影！'
                     : flowKind === 'soc'
@@ -430,6 +428,28 @@ const anchor = {
 const innerDivider = {
   borderColor: '#dce7df',
   margin: '18px 0',
+};
+
+const actionRow = {
+  margin: '0',
+  padding: '10px 0',
+  color: '#172033',
+  fontFamily: 'Arial, Helvetica, sans-serif',
+  fontSize: '15px',
+  lineHeight: '24px',
+};
+
+const actionLabel = {
+  display: 'inline-block',
+  width: '92px',
+  color: '#65736d',
+  fontSize: '14px',
+};
+
+const actionLink = {
+  color: '#1d4ed8',
+  fontWeight: '700',
+  textDecoration: 'underline',
 };
 
 const divider = {
