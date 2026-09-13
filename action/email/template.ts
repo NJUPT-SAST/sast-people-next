@@ -74,8 +74,8 @@ function validateResultEmailTemplateValues(
     }
   }
 
-  if (!values.subjectTemplate.includes("{flowName}")) {
-    return { ok: false, message: "邮件标题需要包含 {flowName}。" };
+  if (!values.subjectTemplate.trim()) {
+    return { ok: false, message: "邮件标题不能为空。" };
   }
 
   for (const field of (isRecruitment ? urlFields : ["calendarUrl"] as const)) {

@@ -66,7 +66,7 @@ export const emailTemplateDefinitions = [
     category: "result",
     name: "SoC/SoD 不通过结果通知",
     description: "通知 SoC/SoD 暑期考核和留任结果。",
-    defaultSubject: "{flowName} 留任结果通知",
+    defaultSubject: "【SAST】感谢参与 SOC，未来仍可同行",
     variables: [
       { key: "name", label: "候选人姓名", required: true, example: "张三" },
       { key: "flowName", label: "流程名称", required: true, example: "2026 SoC" },
