@@ -66,6 +66,7 @@ export async function getFlowResultPublicationSummary(flowId: number) {
   ]);
   return {
     flow: flowRow[0],
+    rows,
     counts: { total: rows.length, accepted, rejected, withdrawn, unfinished },
     publication: publication[0] ?? null,
     templates: {

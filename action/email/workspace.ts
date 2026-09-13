@@ -119,10 +119,17 @@ export async function listEmailFlowOptions() {
 export async function createResultEmailBatchFromFlow(
   flowIdInput: unknown,
   acceptInput: unknown,
+  excludedUserIdsInput?: unknown,
 ) {
   await verifyRole(3);
   const flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
   const accept = requireBooleanInput(acceptInput, "结果通知类型");
+  const excludedUserIds = excludedUserIdsInput === undefined
+    ? []
+    : Array.from(new Set(
+        (Array.isArray(excludedUserIdsInput) ? excludedUserIdsInput : [])
+          .map((value) => requirePositiveIntegerInput(value, "排除发送的用户 ID")),
+      ));
   await assertFlowResultsPublished(flowId);
   const sourceStatus = accept ? "passed" : "failed";
   const rows = await db
@@ -130,25 +137,33 @@ export async function createResultEmailBatchFromFlow(
     .from(userFlow)
     .where(and(eq(userFlow.fkFlowId, flowId), eq(userFlow.progressStatus, sourceStatus)));
 
-  if (rows.length === 0) return { batchId: null, deliveryCount: 0 };
+  const selectedRows = rows.filter((row) => !excludedUserIds.includes(row.userId));
+  if (selectedRows.length === 0) return { batchId: null, deliveryCount: 0, excludedCount: rows.length };
+  const excludedRows = rows.filter((row) => excludedUserIds.includes(row.userId));
 
   // createResultEmailBatch is the single deduplication boundary. It also
   // recognizes legacy deliveries that only retain fk_user_id.
-  const result = await batchSendEmail(rows.map((item) => item.userId), flowId, accept);
+  const result = await batchSendEmail(
+    selectedRows.map((item) => item.userId),
+    flowId,
+    accept,
+    excludedRows.map((item) => item.userId),
+  );
   revalidatePath("/dashboard/emails");
-  return result;
+  return { ...result, excludedCount: excludedRows.length };
 }
 
 export async function sendResultEmailFromFlow(
   flowIdInput: unknown,
   acceptInput: unknown,
+  excludedUserIdsInput?: unknown,
 ) {
   await verifyRole(3);
   const flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
   const accept = requireBooleanInput(acceptInput, "结果通知类型");
-  const batch = await createResultEmailBatchFromFlow(flowId, accept);
-  if (!batch.batchId) return { batchId: null, queuedCount: 0 };
+  const batch = await createResultEmailBatchFromFlow(flowId, accept, excludedUserIdsInput);
+  if (!batch.batchId) return { batchId: null, queuedCount: 0, excludedCount: batch.excludedCount };
   const sent = await sendEmailBatch(batch.batchId);
   revalidatePath("/dashboard/emails");
-  return { batchId: batch.batchId, queuedCount: sent.queuedCount };
+  return { batchId: batch.batchId, queuedCount: sent.queuedCount, excludedCount: batch.excludedCount };
 }

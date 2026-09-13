@@ -16,6 +16,7 @@ export const batchSendEmail = async (
   uidInput: unknown,
   flowIdInput: unknown,
   acceptInput: unknown,
+  excludedUserIdsInput?: unknown,
 ) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
   let flowId: number | null = null;
@@ -27,6 +28,12 @@ export const batchSendEmail = async (
     targetUserIds = requirePositiveIntegerArrayInput(uidInput, "收件人用户 ID");
     flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
     accept = requireBooleanInput(acceptInput, "结果通知类型");
+    const excludedUserIds = excludedUserIdsInput === undefined
+      ? []
+      : Array.from(new Set(
+          (Array.isArray(excludedUserIdsInput) ? excludedUserIdsInput : [])
+            .map((value) => requirePositiveIntegerInput(value, "排除发送的用户 ID")),
+        ));
     const actorId = session.uid;
     const [flowRecord] = await db
       .select({ type: flow.type })
@@ -53,6 +60,7 @@ export const batchSendEmail = async (
           accept,
           targetUserCount: targetUserIds.length,
           deliveryCount: result.deliveryCount,
+          excludedUserCount: excludedUserIds.length,
         },
       });
     }
