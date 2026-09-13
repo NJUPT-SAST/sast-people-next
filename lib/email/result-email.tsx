@@ -63,6 +63,7 @@ export async function renderResultEmail({
       flowName={flowName}
       accept={accept}
       flowKind={flowKind}
+      bodyTemplate={resolvedSetting.bodyTemplate}
       genericGreeting={genericGreeting}
       memberInfoFormUrl={resolvedSetting.memberInfoFormUrl}
       feishuGroupUrl={resolvedSetting.feishuGroupUrl}

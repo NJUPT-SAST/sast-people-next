@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { resultEmailCopy, resultEmailLinks } from '../lib/email/result-email-config';
+import { renderTemplateText } from '../lib/email/template-settings';
 
 type ElementProps<T extends keyof React.JSX.IntrinsicElements> =
   React.ComponentPropsWithoutRef<T>;
@@ -49,6 +50,7 @@ interface OfferEmailProps {
   flowName?: string;
   accept?: boolean;
   flowKind?: 'recruitment' | 'woc' | 'soc';
+  bodyTemplate?: string;
   genericGreeting?: boolean;
   memberInfoFormUrl?: string;
   feishuGroupUrl?: string;
@@ -64,6 +66,7 @@ export const OfferEmail = ({
   flowName,
   accept,
   flowKind = 'recruitment',
+  bodyTemplate = '',
   genericGreeting = false,
   memberInfoFormUrl = resultEmailLinks.memberInfoForm,
   feishuGroupUrl = resultEmailLinks.feishuGroup,
@@ -115,7 +118,42 @@ export const OfferEmail = ({
 
           <Section style={content}>
             <Text style={text}>{greeting}</Text>
-            {accept ? (
+            {bodyTemplate ? (
+              <>
+                {renderTemplateText(bodyTemplate, {
+                  name: name ?? '[同学姓名]',
+                  flowName: flowName ?? '本次流程',
+                  contactEmail,
+                })
+                  .split(/\n+/)
+                  .filter(Boolean)
+                  .map((paragraph, index) => (
+                    <Text style={text} key={index}>{paragraph}</Text>
+                  ))}
+                {flowKind === 'soc' && accept && (
+                  <Section style={noticeCard}>
+                    <Text style={actionRow}>
+                      <span style={actionLabel}>内部飞书群</span>
+                      <Link href={feishuGroupUrl} style={actionLink}>{feishuGroupName}</Link>
+                    </Text>
+                    <Text style={actionRow}>
+                      <span style={actionLabel}>后续安排</span>
+                      <Link href={calendarUrl} style={actionLink}>关注飞书日历</Link>
+                    </Text>
+                  </Section>
+                )}
+                {flowKind !== 'recruitment' && !accept && (
+                  <Section style={calendarCard}>
+                    <Text style={importantText}>【查看授课日历】</Text>
+                    <Text style={text}>
+                      通过个人飞书账号，订阅
+                      <Link href={calendarUrl} style={anchor}>科协公开活动</Link>
+                      ，获取最新授课日历
+                    </Text>
+                  </Section>
+                )}
+              </>
+            ) : accept ? (
               <>
                 <Text style={text}>
                   {flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，本阶段考核结果已确认。` : flowKind === 'soc' ? `恭喜你通过本次 ${flowName} 考核，正式留任为讲师！` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}

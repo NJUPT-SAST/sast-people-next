@@ -42,6 +42,7 @@ function createValuesFromForm(form: HTMLFormElement) {
   const data = new FormData(form);
   return {
     subjectTemplate: String(data.get("subjectTemplate") ?? ""),
+    bodyTemplate: String(data.get("bodyTemplate") ?? ""),
     memberInfoFormUrl: String(data.get("memberInfoFormUrl") ?? ""),
     feishuGroupUrl: String(data.get("feishuGroupUrl") ?? ""),
     calendarUrl: String(data.get("calendarUrl") ?? ""),
@@ -133,16 +134,26 @@ function TemplateDialog({
           }}
         >
           <div className="rounded-lg border bg-muted/40 p-3 md:col-span-2">
-            <p className="text-xs font-medium text-muted-foreground">邮件标题</p>
-            <input
-              type="hidden"
+            <TemplateField
+              id={`${setting.templateKey}-subject`}
               name="subjectTemplate"
-              value={setting.subjectTemplate}
+              label="邮件标题"
+              defaultValue={setting.subjectTemplate}
             />
-            <div className="mt-2 flex flex-col gap-1 rounded-md bg-muted px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-sm">流程名称 + 结果通知</span>
-              <span className="text-xs text-muted-foreground">自动生成</span>
-            </div>
+          </div>
+
+          <div className="grid gap-1.5 rounded-lg border bg-muted/40 p-3 md:col-span-2">
+            <Label htmlFor={`${setting.templateKey}-body`} className="text-xs text-muted-foreground">
+              正文文案
+            </Label>
+            <Textarea
+              id={`${setting.templateKey}-body`}
+              name="bodyTemplate"
+              defaultValue={setting.bodyTemplate}
+              placeholder={isRecruitmentTemplate ? "招新正文使用固定版式，可按需填写自定义文案。" : "填写本流程的结果说明和后续安排。"}
+              className="min-h-[180px] resize-y bg-background"
+            />
+            <p className="text-xs text-muted-foreground">可用变量：{"{name}"}、{"{flowName}"}、{"{contactEmail}"}。</p>
           </div>
 
           <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 md:col-span-2 md:grid-cols-2">

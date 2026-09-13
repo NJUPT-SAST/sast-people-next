@@ -313,6 +313,7 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
   id: serial("id").primaryKey(),
   templateKey: varchar("template_key", { length: 80 }).notNull().unique(),
   subjectTemplate: varchar("subject_template", { length: 255 }).notNull(),
+  bodyTemplate: text("body_template").notNull().default(""),
   memberInfoFormUrl: text("member_info_form_url").notNull(),
   feishuGroupUrl: text("feishu_group_url").notNull(),
   calendarUrl: text("calendar_url").notNull(),

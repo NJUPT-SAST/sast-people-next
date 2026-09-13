@@ -18,6 +18,7 @@ type ResultEmailTemplateValues = Omit<ResultEmailTemplateSetting, "templateKey">
 
 const requiredFieldLabels: Record<keyof ResultEmailTemplateValues, string> = {
   subjectTemplate: "邮件标题",
+  bodyTemplate: "正文文案",
   memberInfoFormUrl: "成员信息表链接",
   feishuGroupUrl: "飞书群链接",
   calendarUrl: "活动日历链接",
@@ -39,6 +40,7 @@ function normalizeResultEmailTemplateValues(
 ): ResultEmailTemplateValues {
   return {
     subjectTemplate: values.subjectTemplate.trim(),
+    bodyTemplate: values.bodyTemplate.trim(),
     memberInfoFormUrl: values.memberInfoFormUrl.trim(),
     feishuGroupUrl: values.feishuGroupUrl.trim(),
     calendarUrl: values.calendarUrl.trim(),
@@ -65,7 +67,7 @@ function validateResultEmailTemplateValues(
   const isRecruitment = templateKey.startsWith("recruitment.");
   const requiredKeys = isRecruitment
     ? Object.keys(requiredFieldLabels)
-    : ["subjectTemplate", "calendarUrl", "contactEmail"];
+    : ["subjectTemplate", "bodyTemplate", "calendarUrl", "contactEmail"];
   for (const [key, label] of Object.entries(requiredFieldLabels).filter(([key]) => requiredKeys.includes(key)) as Array<
     [keyof ResultEmailTemplateValues, string]
   >) {
