@@ -81,6 +81,8 @@ insert into user_flow (
   (203, 'failed', 1013, null, null, 101, 6),
   (204, 'passed', 1013, null, null, 101, 7),
   (205, 'failed', 1013, null, null, 101, 8),
+  (212, 'not_started', 1011, null, null, 101, 9),
+  (213, 'withdrawn', 1012, null, null, 101, 10),
   (206, 'ongoing', 1022, 'https://portfolio-a.example.com/project', '前端组', 102, 4),
   (207, 'ongoing', 1022, 'https://portfolio-b.example.com/project', '后端组', 102, 5),
   (208, 'ongoing', 1022, 'https://portfolio-c.example.com/project', '算法组', 102, 6),

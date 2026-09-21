@@ -29,6 +29,7 @@ const BATCH_SEND_CONCURRENCY = 5;
 
 export type CreateResultEmailBatchInput = {
   userIds: number[];
+  userFlowIds?: number[];
   flowId: number;
   accept: boolean;
   createdBy: number;
@@ -57,6 +58,7 @@ async function runWithConcurrency<T>(
 
 export async function createResultEmailBatch({
   userIds,
+  userFlowIds,
   flowId,
   accept,
   createdBy,
@@ -64,6 +66,9 @@ export async function createResultEmailBatch({
   templateSetting: confirmedTemplateSetting,
 }: CreateResultEmailBatchInput) {
   const sourceStatus = accept ? "passed" : "failed";
+  if (userFlowIds?.length === 0) {
+    return { batchId: null, deliveryCount: 0 };
+  }
   const targets = await db
     .select({
       userFlowId: userFlow.id,
@@ -76,6 +81,7 @@ export async function createResultEmailBatch({
       and(
         eq(userFlow.fkFlowId, flowId),
         inArray(userFlow.fkUserId, userIds),
+        userFlowIds ? inArray(userFlow.id, userFlowIds) : undefined,
         eq(userFlow.progressStatus, sourceStatus),
       ),
     );

@@ -20,6 +20,7 @@ const statusLabel: Record<string, string> = {
   ongoing: '待确认',
   passed: '通过',
   failed: '不通过',
+  withdrawn: '未参与',
   accepted: '通过邮件已发',
   rejected: '不通过邮件已发',
 };
@@ -33,6 +34,7 @@ const statusVariant: Record<
   ongoing: 'outline',
   passed: 'outline',
   failed: 'outline',
+  withdrawn: 'outline',
   accepted: 'outline',
   rejected: 'outline',
 };
@@ -43,6 +45,7 @@ const statusClassName: Record<string, string> = {
   ongoing: 'border-chart-3/30 bg-chart-3/10 text-chart-3',
   passed: 'border-primary/30 bg-primary/10 text-primary',
   failed: 'border-destructive/30 bg-destructive/10 text-destructive',
+  withdrawn: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   accepted: 'border-primary/30 bg-primary/10 text-primary',
   rejected: 'border-destructive/30 bg-destructive/10 text-destructive',
 };

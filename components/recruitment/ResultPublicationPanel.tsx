@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ClipboardList, Download, LockKeyhole, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,13 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [templateConfirmed, setTemplateConfirmed] = useState(false);
+  const [recipientUserFlowIds, setRecipientUserFlowIds] = useState<number[]>([]);
+  const notificationCandidates = useMemo(
+    () => (summary?.rows ?? []).filter(
+      (row) => row.status === "passed" || row.status === "failed",
+    ),
+    [summary?.rows],
+  );
 
   const refresh = async () => {
     setLoading(true);
@@ -43,13 +50,18 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
     if (!templateConfirmed) return;
     setPublishing(true);
     try {
-      await publishFlowResults(flowId, true);
+      await publishFlowResults(flowId, true, recipientUserFlowIds);
       toast.success("结果已发布，权限同步和邮件发送已启动");
       await refresh();
       setConfirmOpen(false);
       setTemplateConfirmed(false);
     } catch (error) { toast.error(error instanceof Error ? error.message : "结果发布失败"); }
     finally { setPublishing(false); }
+  };
+  const openConfirmation = () => {
+    setTemplateConfirmed(false);
+    setRecipientUserFlowIds(notificationCandidates.map((row) => row.userFlowId));
+    setConfirmOpen(true);
   };
 
   return (
@@ -71,7 +83,7 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
             <ClipboardList data-icon="inline-start" />查看完整名单
           </Button>
           {published && <Button asChild size="sm" variant="outline"><a href={`/api/flow/result-export?flowId=${flowId}`}><Download data-icon="inline-start" />导出结果表</a></Button>}
-          <Button size="sm" onClick={() => { setTemplateConfirmed(false); setConfirmOpen(true); }} disabled={published || counts.unfinished > 0 || publishing}>
+          <Button size="sm" onClick={openConfirmation} disabled={published || counts.unfinished > 0 || publishing}>
             <Send data-icon="inline-start" />{published ? "结果已发布" : "确认并发布结果"}
           </Button>
         </div>
@@ -87,7 +99,7 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>通过 {counts.accepted}</span>
             <span>不通过 {counts.rejected}</span>
-            <span>撤回 {counts.withdrawn}</span>
+            <span>未参与 {counts.withdrawn}</span>
             <span>未完成 {counts.unfinished}</span>
           </div>
           <div className="max-h-[55vh] overflow-auto rounded-md border">
@@ -107,7 +119,7 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
                     : row.status === "failed"
                       ? { label: "不通过", className: "text-destructive" }
                       : row.status === "withdrawn"
-                        ? { label: "已撤回", className: "text-muted-foreground" }
+                      ? { label: "未参与", className: "text-muted-foreground" }
                         : { label: "未完成", className: "text-amber-600" };
                   return (
                     <TableRow key={row.userFlowId}>
@@ -131,7 +143,7 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
           <DialogHeader>
             <DialogTitle>确认并发布流程结果</DialogTitle>
             <DialogDescription>
-              发布后将锁定本流程名单和结果，按通过与不通过名单同步权限并创建结果邮件。通过 {counts.accepted} 人，不通过 {counts.rejected} 人。
+              发布后将锁定本流程名单和结果，按通过名单同步权限，并只向下方选中的人员创建结果邮件。
             </DialogDescription>
           </DialogHeader>
           <Button asChild variant="outline" className="w-full sm:w-auto">
@@ -143,6 +155,47 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
             <Checkbox checked={templateConfirmed} onCheckedChange={(checked) => setTemplateConfirmed(checked === true)} />
             <span>我已在邮件中心核对本年度通过和不通过邮件模板，确认内容无误。</span>
           </label>
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium">本次发送结果邮件</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setRecipientUserFlowIds(
+                  recipientUserFlowIds.length === notificationCandidates.length
+                    ? []
+                    : notificationCandidates.map((row) => row.userFlowId),
+                )}
+              >
+                {recipientUserFlowIds.length === notificationCandidates.length ? "取消全选" : "全选"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              已选择 {recipientUserFlowIds.length} / {notificationCandidates.length} 人；未选人员会发布结果，但不会收到本次邮件。
+            </p>
+            <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+              {notificationCandidates.map((row) => {
+                const checked = recipientUserFlowIds.includes(row.userFlowId);
+                return (
+                  <label key={row.userFlowId} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted">
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(next) => setRecipientUserFlowIds((current) =>
+                        next === true
+                          ? [...current, row.userFlowId]
+                          : current.filter((id) => id !== row.userFlowId),
+                      )}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{row.name} · {row.studentId ?? "无学号"}</span>
+                    <span className={row.status === "passed" ? "text-primary" : "text-destructive"}>
+                      {row.status === "passed" ? "通过" : "不通过"}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>取消</Button>
             <Button onClick={publish} disabled={!templateConfirmed || publishing} loading={publishing}>

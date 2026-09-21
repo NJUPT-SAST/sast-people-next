@@ -41,12 +41,13 @@ type RecruitmentRowLike = {
   isGraded?: boolean;
 };
 
-const finalStatuses = new Set(['passed', 'failed']);
+const finalStatuses = new Set(['passed', 'failed', 'withdrawn']);
 const recruitmentStatusText: Record<string, string> = {
   ungraded: '未批卷',
   ongoing: '待确认',
   passed: '通过',
   failed: '不通过',
+  withdrawn: '未参与',
   not_started: '未开始',
 };
 
@@ -145,8 +146,8 @@ export function DataTable<TData, TValue>({
   );
   const canEditOutcomes = selectedMutableRows.length > 0;
   const helperText =
-    '成绩管理只负责确定通过/不通过；全部结果完成后，在上方确认并发布流程结果。';
-  const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'not_started'];
+    '成绩管理可标记通过、不通过或未参与；全部结果完成后，在上方确认并发布流程结果。';
+  const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'withdrawn', 'not_started'];
   const columnWidthClass: Record<string, string> = {
     select: 'w-[6%]',
     studentId: 'w-[18%]',
@@ -265,6 +266,40 @@ export function DataTable<TData, TValue>({
                     }}
                   >
                     设为不通过
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-10 w-full sm:h-9 sm:w-auto"
+                    disabled={!canEditOutcomes}
+                    onClick={async () => {
+                      const selectedRows = selectedMutableRows;
+                      const firstRow = selectedRows[0];
+                      if (!firstRow) return;
+                      const confirmed = window.confirm(
+                        `确定将 ${selectedRows.length} 人标记为未参与吗？他们不会阻塞结果发布，也不会收到结果邮件。`,
+                      );
+                      if (!confirmed) return;
+                      const stepId = toRecruitmentRow(firstRow).stepId;
+                      const userIds = selectedRows.map((row) => toRecruitmentRow(row).uid);
+                      toast.promise(
+                        batchSetOutcomeByUid(flowTypeId, stepId, 'withdrawn', userIds).then(() => {
+                          setStatusOverrides((prev) => ({
+                            ...prev,
+                            ...Object.fromEntries(userIds.map((uid) => [uid, 'withdrawn'])),
+                          }));
+                          setRowSelection({});
+                          onOutcomeChanged?.();
+                        }),
+                        {
+                          loading: '正在标记为未参与',
+                          success: '已标记为未参与',
+                          error: '设置失败',
+                        },
+                      );
+                    }}
+                  >
+                    标记未参与
                   </Button>
                 </>
               )}

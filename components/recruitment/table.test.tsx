@@ -127,6 +127,28 @@ describe("Recruitment DataTable", () => {
     });
   });
 
+  it("marks selected rows as not participating", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          { uid: 1, stepId: 3, name: "张三", totalScore: "90", status: "ongoing" },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getAllByLabelText("select-1")[0]);
+    await user.click(screen.getByRole("button", { name: "标记未参与" }));
+
+    await waitFor(() => {
+      expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "withdrawn", [1]);
+    });
+  });
+
   it("does not update outcomes when the confirmation is cancelled", async () => {
     jest.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();

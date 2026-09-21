@@ -84,7 +84,11 @@ export async function getFlowResultPublicationSummary(flowId: number) {
   };
 }
 
-export async function publishFlowResults(flowId: number, confirmTemplate: boolean) {
+export async function publishFlowResults(
+  flowId: number,
+  confirmTemplate: boolean,
+  recipientUserFlowIds?: number[],
+) {
   const session = await verifyRole(3);
   if (!confirmTemplate) throw new Error("发布前必须确认本年度通过和不通过邮件模板");
   const summary = await getFlowResultPublicationSummary(flowId);
@@ -92,9 +96,23 @@ export async function publishFlowResults(flowId: number, confirmTemplate: boolea
   if (summary.counts.unfinished > 0) throw new Error(`还有 ${summary.counts.unfinished} 名候选人没有最终结果，暂不能发布`);
 
   const rows = await getFlowRows(flowId);
+  const selectableUserFlowIds = new Set(
+    rows
+      .filter((row) => row.status === "passed" || row.status === "failed")
+      .map((row) => row.userFlowId),
+  );
+  const selectedUserFlowIds = recipientUserFlowIds === undefined
+    ? selectableUserFlowIds
+    : new Set(recipientUserFlowIds.filter((id) => selectableUserFlowIds.has(id)));
   const acceptedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, true));
   const rejectedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, false));
-  const resultSnapshot = { flowId, flowTitle: summary.flow.title, rows, counts: summary.counts };
+  const resultSnapshot = {
+    flowId,
+    flowTitle: summary.flow.title,
+    rows,
+    counts: summary.counts,
+    notifiedUserFlowIds: [...selectedUserFlowIds],
+  };
   const templateSnapshot = {
     accepted: { ...acceptedTemplate, updatedAt: acceptedTemplate.updatedAt?.toISOString() ?? null },
     rejected: { ...rejectedTemplate, updatedAt: rejectedTemplate.updatedAt?.toISOString() ?? null },
@@ -137,15 +155,37 @@ export async function publishFlowResults(flowId: number, confirmTemplate: boolea
 
   try {
     await syncUserRolesFromAcceptedFlows(rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId);
-    const acceptedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId, flowType: summary.flow.type, accept: true, createdBy: session.uid, templateSetting: acceptedTemplate });
-    const rejectedBatch = await createResultEmailBatch({ userIds: rows.filter((row) => row.status === "failed").map((row) => row.userId), flowId, flowType: summary.flow.type, accept: false, createdBy: session.uid, templateSetting: rejectedTemplate });
+    const acceptedRows = rows.filter(
+      (row) => row.status === "passed" && selectedUserFlowIds.has(row.userFlowId),
+    );
+    const rejectedRows = rows.filter(
+      (row) => row.status === "failed" && selectedUserFlowIds.has(row.userFlowId),
+    );
+    const acceptedBatch = await createResultEmailBatch({
+      userIds: acceptedRows.map((row) => row.userId),
+      userFlowIds: acceptedRows.map((row) => row.userFlowId),
+      flowId,
+      flowType: summary.flow.type,
+      accept: true,
+      createdBy: session.uid,
+      templateSetting: acceptedTemplate,
+    });
+    const rejectedBatch = await createResultEmailBatch({
+      userIds: rejectedRows.map((row) => row.userId),
+      userFlowIds: rejectedRows.map((row) => row.userFlowId),
+      flowId,
+      flowType: summary.flow.type,
+      accept: false,
+      createdBy: session.uid,
+      templateSetting: rejectedTemplate,
+    });
     await Promise.all([acceptedBatch.batchId ? sendEmailBatch(acceptedBatch.batchId) : null, rejectedBatch.batchId ? sendEmailBatch(rejectedBatch.batchId) : null]);
     const [publishedPublication] = await db.update(flowResultPublication)
       .set({ status: "published", publishedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(flowResultPublication.id, publication.id), eq(flowResultPublication.status, "publishing")))
       .returning({ id: flowResultPublication.id });
     if (!publishedPublication) throw new Error("流程发布状态已变更，请刷新后确认结果");
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.result.publish", resourceType: "flow_result_publication", resourceId: publication.id, metadata: { flowId, counts: summary.counts } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.result.publish", resourceType: "flow_result_publication", resourceId: publication.id, metadata: { flowId, counts: summary.counts, notifiedUserFlowIds: [...selectedUserFlowIds] } });
     revalidatePath("/dashboard/exams");
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/emails");

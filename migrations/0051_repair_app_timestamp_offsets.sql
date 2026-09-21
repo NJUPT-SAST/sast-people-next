@@ -28,6 +28,20 @@ BEGIN
     RETURN;
   END IF;
 
+  -- On a fresh installation, Drizzle applies this migration in the same run as
+  -- 0049 but records the journal row only after the batch commits. There are no
+  -- historical timestamps to repair in that case. Keep the fail-fast guard
+  -- below for databases that already contain application data.
+  IF recorded_migration_0049_hash IS NULL
+     AND NOT EXISTS (SELECT 1 FROM "flow")
+     AND NOT EXISTS (SELECT 1 FROM "user_flow")
+     AND NOT EXISTS (SELECT 1 FROM "email_delivery")
+     AND NOT EXISTS (SELECT 1 FROM "user_oauth_account")
+     AND NOT EXISTS (SELECT 1 FROM "people_session")
+     AND NOT EXISTS (SELECT 1 FROM "interview_schedule") THEN
+    RETURN;
+  END IF;
+
   IF recorded_migration_0049_hash IS NULL
      OR NOT (recorded_migration_0049_hash = ANY (migration_0049_hashes)) THEN
     RAISE EXCEPTION

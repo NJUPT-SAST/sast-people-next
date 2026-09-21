@@ -195,7 +195,7 @@ export const batchEndByUid = async (
 export const batchSetOutcomeByUid = async (
   flowId: number,
   stepOrder: number,
-  statusStr: 'passed' | 'failed',
+  statusStr: 'passed' | 'failed' | 'withdrawn',
   uids: number[],
 ) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
@@ -213,7 +213,7 @@ export const batchSetOutcomeByUid = async (
           and(
             eq(userFlow.fkFlowId, flowId),
             inArray(userFlow.fkUserId, uids),
-            notInArray(userFlow.progressStatus, ['passed', 'failed']),
+            notInArray(userFlow.progressStatus, ['passed', 'failed', 'withdrawn']),
           ),
         )
         .for('update');
