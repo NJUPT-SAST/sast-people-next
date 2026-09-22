@@ -36,6 +36,7 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM "flow")
      AND NOT EXISTS (SELECT 1 FROM "user_flow")
      AND NOT EXISTS (SELECT 1 FROM "email_delivery")
+     AND NOT EXISTS (SELECT 1 FROM "email_send_rate_limit")
      AND NOT EXISTS (SELECT 1 FROM "user_oauth_account")
      AND NOT EXISTS (SELECT 1 FROM "people_session")
      AND NOT EXISTS (SELECT 1 FROM "interview_schedule") THEN

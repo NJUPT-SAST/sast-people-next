@@ -61,7 +61,7 @@ function isPortInUse(port) {
 }
 
 async function assertPortsAvailable() {
-  const ports = [3001, 3002, 8288];
+  const ports = [3001, 3002, 8288, 8289];
   const occupied = [];
   for (const port of ports) if (await isPortInUse(port)) occupied.push(port);
   if (occupied.length > 0) {

@@ -201,7 +201,7 @@ export const batchSetOutcomeByUid = async (
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
   try {
     session = await verifyRole(3);
-    if (uids.length === 0) return;
+    if (uids.length === 0) return { updatedUserIds: [] };
     await assertFlowResultsEditable(flowId);
     await assertBatchDirectOutcomeAllowed(flowId);
     const stepId = await findStepIdByOrder(flowId, stepOrder);
@@ -240,6 +240,7 @@ export const batchSetOutcomeByUid = async (
         skippedUserIds: uids.filter((userId) => !updatedUserIdSet.has(userId)),
       },
     });
+    return { updatedUserIds };
   } catch (error) {
     logServerError("user-flow:batchSetOutcomeByUid", error, {
       path: "/dashboard/review",

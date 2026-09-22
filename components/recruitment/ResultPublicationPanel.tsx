@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Download, LockKeyhole, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
   const [rosterOpen, setRosterOpen] = useState(false);
   const [templateConfirmed, setTemplateConfirmed] = useState(false);
   const [recipientUserFlowIds, setRecipientUserFlowIds] = useState<number[]>([]);
+  const activeFlowIdRef = useRef(flowId);
   const notificationCandidates = useMemo(
     () => (summary?.rows ?? []).filter(
       (row) => row.status === "passed" || row.status === "failed",
@@ -31,24 +32,35 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
     setLoading(true);
     try {
       const nextSummary = await getFlowResultPublicationSummary(flowId);
+      if (activeFlowIdRef.current !== flowId) return;
       setSummary(nextSummary);
       onStatusChange?.(nextSummary.publication?.status ?? null);
     }
     catch (error) { toast.error(error instanceof Error ? error.message : "结果状态加载失败"); }
-    finally { setLoading(false); }
+    finally {
+      if (activeFlowIdRef.current === flowId) setLoading(false);
+    }
   };
 
   useEffect(() => {
+    activeFlowIdRef.current = flowId;
+    let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
         const nextSummary = await getFlowResultPublicationSummary(flowId);
+        if (cancelled || activeFlowIdRef.current !== flowId) return;
         setSummary(nextSummary);
         onStatusChange?.(nextSummary.publication?.status ?? null);
       }
       catch (error) { toast.error(error instanceof Error ? error.message : "结果状态加载失败"); }
-      finally { setLoading(false); }
+      finally {
+        if (!cancelled && activeFlowIdRef.current === flowId) setLoading(false);
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [flowId, onStatusChange]);
 
   if (loading || !summary) return null;

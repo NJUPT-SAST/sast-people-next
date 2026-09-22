@@ -108,11 +108,11 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
     <div className="min-w-0 space-y-5">
       {!embedded && (
         <div className="flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/dashboard/flow" className="min-w-0">
-            <Button variant="ghost" className="h-10 px-2 sm:h-9">
+          <Button asChild variant="ghost" className="h-10 px-2 sm:h-9">
+            <Link href="/dashboard/flow" className="min-w-0">
               <span className="inline-flex items-center gap-2 text-lg font-semibold md:text-2xl"><ArrowLeft className="size-5 shrink-0" />编辑流程</span>
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <p className="truncate px-2 text-sm text-muted-foreground sm:max-w-[50%] sm:text-right">{data.title}</p>
         </div>
       )}

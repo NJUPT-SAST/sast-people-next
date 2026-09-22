@@ -5,7 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "./table";
 
 const mockBatchEndByUid = jest.fn().mockResolvedValue(undefined);
-const mockBatchSetOutcomeByUid = jest.fn().mockResolvedValue(undefined);
+const mockBatchSetOutcomeByUid = jest.fn().mockResolvedValue({ updatedUserIds: [1] });
 const mockToastPromise = jest.fn((promise: Promise<unknown>) => promise);
 
 jest.mock("@/action/user-flow/edit", () => ({

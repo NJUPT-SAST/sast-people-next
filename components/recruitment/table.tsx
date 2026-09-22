@@ -161,10 +161,10 @@ export function DataTable<TData, TValue>({
     const stepId = toRecruitmentRow(firstRow).stepId;
     const userIds = selectedRows.map((row) => toRecruitmentRow(row).uid);
     toast.promise(
-      batchSetOutcomeByUid(flowTypeId, stepId, status, userIds).then(() => {
+      batchSetOutcomeByUid(flowTypeId, stepId, status, userIds).then(({ updatedUserIds }) => {
         setStatusOverrides((prev) => ({
           ...prev,
-          ...Object.fromEntries(userIds.map((uid) => [uid, status])),
+          ...Object.fromEntries(updatedUserIds.map((uid) => [uid, status])),
         }));
         setRowSelection({});
         onOutcomeChanged?.();
