@@ -118,7 +118,7 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
       )}
 
       <Form {...form}>
-        <section className="rounded-lg border bg-card p-4 sm:p-6">
+        <section className="rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-1 border-b pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div>
               <h1 className="text-lg font-semibold sm:text-xl">流程基本信息</h1>
@@ -130,21 +130,21 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
           </div>
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <FormField control={form.control} name="title" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>流程名称</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-            <div className="lg:row-span-2"><FormField control={form.control} name="description" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>流程描述</FormLabel><FormControl><Textarea className="min-h-28" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>} /></div>
+            <div className="lg:row-span-2"><FormField control={form.control} name="description" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>流程描述</FormLabel><FormControl><Textarea className="min-h-24 resize-y" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>} /></div>
             <FormField control={form.control} name="startedAt" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>开始时间</FormLabel><FormControl><DateTimeInput {...field} native value={field.value ?? undefined} onChange={(date) => field.onChange(date ?? null)} /></FormControl><FormMessage /></FormItem>} />
             <FormField control={form.control} name="endedAt" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>结束时间</FormLabel><FormControl><DateTimeInput {...field} native value={field.value ?? undefined} onChange={(date) => field.onChange(date ?? null)} /></FormControl><FormMessage /></FormItem>} />
-            {!isWrittenRecruitment && <FormField control={form.control} name="groupOptions" disabled={isSubmitting} render={() => <FormItem className="lg:col-span-2"><FormLabel>投递组别选项</FormLabel><FormControl><Textarea className="min-h-28" value={groupOptionsText} onChange={(event) => setGroupOptionsText(event.target.value)} placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'} /></FormControl><p className="text-xs text-muted-foreground">每行一个组别，留空表示不启用投递组别。</p><FormMessage /></FormItem>} />}
+            {!isWrittenRecruitment && <FormField control={form.control} name="groupOptions" disabled={isSubmitting} render={() => <FormItem className="lg:col-span-2"><FormLabel>投递组别选项</FormLabel><FormControl><Textarea className="min-h-24 resize-y" value={groupOptionsText} onChange={(event) => setGroupOptionsText(event.target.value)} placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'} /></FormControl><p className="text-xs text-muted-foreground">每行一个组别，留空表示不启用投递组别。</p><FormMessage /></FormItem>} />}
           </div>
         </section>
 
-        <section className="rounded-lg border bg-card p-4 sm:p-6">
+        <section className="rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-1 border-b pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div><h2 className="text-lg font-semibold sm:text-xl">流程步骤</h2><p className="mt-1 text-sm text-muted-foreground">步骤数量、类型和顺序由流程类型固定，可调整展示名称和说明。</p></div>
             {!hideSaveButton && <span className="text-xs text-muted-foreground">步骤会随上方“保存全部更改”一起保存</span>}
           </div>
           <div className="mt-5 grid gap-4 xl:grid-cols-3">
             {editableSteps.map((step, index) => (
-              <fieldset key={`step-${step.order}`} className="rounded-lg border bg-muted/10 p-4">
+              <fieldset key={`step-${step.order}`} className="rounded-xl border border-border/70 bg-background/40 p-4 transition-colors focus-within:border-primary/40 focus-within:bg-primary/[0.03]">
                 <legend className="px-1 text-sm font-medium text-muted-foreground">步骤 {index + 1}</legend>
                 <div className="mt-2 grid gap-4">
                   <div className="grid gap-2"><Label htmlFor={`flow-step-type-${step.order}`}>步骤类型</Label><Select value={step.type} disabled><SelectTrigger id={`flow-step-type-${step.order}`}><SelectValue placeholder="选择步骤类型" /></SelectTrigger><SelectContent>{Object.entries(stepTypeLabel).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
