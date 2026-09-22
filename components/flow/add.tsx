@@ -180,7 +180,7 @@ export const AddFlow = () => {
                   await addFlow(addFlowForm.getValues()).then((flowId) => {
                     setOpen(false);
                     addFlowForm.reset();
-                    if (flowId) router.push(`/dashboard/flow?edit=${flowId}`);
+                    if (flowId) router.push(`/dashboard/flow/edit?id=${flowId}`);
                   });
                 },
                 {

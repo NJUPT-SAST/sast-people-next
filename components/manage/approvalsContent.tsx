@@ -461,24 +461,22 @@ export const ApprovalsContent = ({
                   </div>
                   {(row.evaluation.status === "submitted" || row.evaluation.status === "approved" || row.evaluation.status === "rejected") && (
                     <div className="grid w-full grid-cols-3 gap-2 md:flex md:w-auto">
-                      <Button
+                      {(row.evaluation.status === "submitted" || row.evaluation.status === "rejected") && <Button
                         size="sm"
                         className="h-10 w-full min-w-0 px-1.5 text-xs border-[#1aa15a] bg-[#1aa15a] text-white hover:border-[#148748] hover:bg-[#148748] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#159957] dark:bg-[#159957] dark:hover:border-[#1bb86a] dark:hover:bg-[#1bb86a]"
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
-                        disabled={row.evaluation.status === "approved"}
                       >
-                        {row.evaluation.status === "approved" ? "保持通过" : "改为通过"}
-                      </Button>
-                      <Button
+                        通过
+                      </Button>}
+                      {(row.evaluation.status === "submitted" || row.evaluation.status === "approved") && <Button
                         size="sm"
                         className="h-10 w-full min-w-0 px-1.5 text-xs border-[#b9545a] bg-[#b9545a] text-white hover:border-[#97464b] hover:bg-[#97464b] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#b34f55] dark:bg-[#b34f55] dark:hover:border-[#ca6066] dark:hover:bg-[#ca6066]"
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
-                        disabled={row.evaluation.status === "rejected"}
                       >
-                        {row.evaluation.status === "rejected" ? "保持不通过" : "改为不通过"}
-                      </Button>
+                        不通过
+                      </Button>}
                       {row.evaluation.status === "submitted" && <Button
                         size="sm"
                         className="h-10 w-full min-w-0 px-1.5 text-xs border-[#3974b3] bg-[#3974b3] text-white hover:border-[#2f5f95] hover:bg-[#2f5f95] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#2f5f95] dark:bg-[#2f5f95] dark:hover:border-[#3974b3] dark:hover:bg-[#3974b3]"

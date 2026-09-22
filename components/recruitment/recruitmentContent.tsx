@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
 import { EvaluationTable } from '@/components/recruitment/evaluationTable';
@@ -101,9 +101,9 @@ export const RecruitmentContent = ({
     }
   };
 
-  const handlePublicationStatusChange = (status: string | null) => {
+  const handlePublicationStatusChange = useCallback((status: string | null) => {
     setPublicationStatus(status);
-  };
+  }, []);
 
   const refreshEvalData = async () => {
     if (!flowId) return;

@@ -49,7 +49,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
       catch (error) { toast.error(error instanceof Error ? error.message : "结果状态加载失败"); }
       finally { setLoading(false); }
     })();
-  }, [flowId]);
+  }, [flowId, onStatusChange]);
 
   if (loading || !summary) return null;
   const { counts, publication, templates, rows } = summary;

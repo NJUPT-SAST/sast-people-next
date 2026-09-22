@@ -12,7 +12,7 @@ export const operationButtonClass =
 export const Operations = ({ data, initialEditFlowId }: { data: displayFlow; initialEditFlowId?: number }) => {
   return (
     <div className="flex w-full flex-wrap items-center justify-end gap-x-1 gap-y-2 xl:inline-grid xl:grid-cols-4 xl:justify-items-end">
-      <EditSteps data={data} autoOpen={data.id === initialEditFlowId} />
+      <EditSteps data={data} autoOpen={data.id === initialEditFlowId} linkOnly />
       <Duplicate data={data} />
       {data.type === "recruitment" ? (
         <Link href={`/dashboard/flow/edit-exam?id=${data.id}`}>

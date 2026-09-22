@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from '../ui/dialog';
 import { ViewUserInfoSheet } from '@/components/manage/viewUserInfoSheet';
+import { MessageSquareText } from 'lucide-react';
 
 const statusLabel: Record<string, string> = {
   pending: '未开始',
@@ -164,30 +165,31 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
               查看得分
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[82dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>得分组成</DialogTitle>
             </DialogHeader>
-            <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
+            <div className="grid gap-3">
               {scores.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 text-sm"
+                  className="rounded-xl border bg-muted/15 p-4 shadow-sm"
                 >
-                  <span className="min-w-0 break-words">{item.title}</span>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge variant="outline" className="tabular-nums">
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="min-w-0 break-words text-sm font-medium leading-6">{item.title}</span>
+                    <Badge variant="outline" className="shrink-0 tabular-nums px-2.5 py-1 text-sm">
                       {item.points}/{item.score}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      阅卷：{item.judgerName ?? '未记录'}
-                    </span>
-                    {item.note && (
-                      <span className="max-w-64 whitespace-pre-wrap text-left text-xs text-muted-foreground">
-                        备注：{item.note}
-                      </span>
-                    )}
                   </div>
+                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>阅卷：{item.judgerName ?? '未记录'}</span>
+                  </div>
+                  {item.note && (
+                    <div className="mt-3 flex gap-2 rounded-lg bg-background/70 px-3 py-2.5 text-sm leading-6 text-muted-foreground">
+                      <MessageSquareText className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span className="whitespace-pre-wrap">{item.note}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

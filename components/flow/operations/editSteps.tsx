@@ -101,7 +101,7 @@ const evaluationSteps = (flowId: number): fullStepType[] => [
   },
 ];
 
-export const EditSteps = ({ data, autoOpen = false }: { data: displayFlow; autoOpen?: boolean }) => {
+export const EditSteps = ({ data, autoOpen = false, linkOnly = false }: { data: displayFlow; autoOpen?: boolean; linkOnly?: boolean }) => {
   const editFlowForm = useForm<z.infer<typeof editFlowSchema>>({
     resolver: zodResolver(editFlowSchema),
     defaultValues: {
@@ -147,6 +147,14 @@ export const EditSteps = ({ data, autoOpen = false }: { data: displayFlow; autoO
     setEditableSteps(fixedStepList);
   }, [fixedStepList]);
 
+  if (linkOnly) {
+    return (
+      <Button asChild size="sm" variant="ghost" className="h-10 shrink-0 rounded-lg px-3 text-sm shadow-none text-primary hover:bg-primary/10 hover:text-primary xl:h-8 xl:px-2">
+        <Link href={`/dashboard/flow/edit?id=${data.id}`}>编辑流程</Link>
+      </Button>
+    );
+  }
+
   return (
     <Sheet open={openEdit} onOpenChange={setOpenEdit}>
       <SheetTrigger asChild>
@@ -154,7 +162,10 @@ export const EditSteps = ({ data, autoOpen = false }: { data: displayFlow; autoO
           编辑流程
         </Button>
       </SheetTrigger>
-      <SheetContent className="inset-0 h-dvh w-screen max-w-none rounded-none overflow-y-auto p-4 sm:p-8 flex flex-col">
+      <SheetContent
+        side="top"
+        className="!inset-0 !h-dvh !w-screen !max-w-none !translate-y-0 !rounded-none !border-0 overflow-y-auto p-4 sm:p-8 flex flex-col"
+      >
         <SheetHeader className="px-1 pt-2 pb-2">
           <div className="flex items-center justify-between gap-3 pr-8">
             <SheetTitle>流程编辑</SheetTitle>
