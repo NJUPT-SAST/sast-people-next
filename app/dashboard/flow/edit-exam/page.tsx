@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { EditProblemsServer } from "./editProblems";
 import getFlowInfo from "@/hooks/useFlowInfo";
 import { redirect } from "next/navigation";
+import { FlowEditor } from "@/components/flow/operations/flowEditor";
 
 export default async function EditExamPage({
   searchParams,
@@ -31,6 +32,7 @@ export default async function EditExamPage({
           {flowInfo.title}
         </p>
       </div>
+      <FlowEditor data={flowInfo} />
       <div>
         <Suspense fallback={<Loading />}>
           <EditProblemsServer id={awaitedSearchParams.id} />

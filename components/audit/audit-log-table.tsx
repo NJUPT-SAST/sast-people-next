@@ -68,6 +68,7 @@ const actionLabels: Record<string, string> = {
   "flow.duplicate": "复制流程",
   "flow.update_problems": "更新题目",
   "flow.update_steps": "更新流程步骤",
+  "flow.result.publish": "发布流程结果",
   "user.update_role": "修改用户角色",
   "user.ban": "禁用用户",
   "user_flow.register": "报名流程",
@@ -82,6 +83,8 @@ const actionLabels: Record<string, string> = {
   "user_flow.batch_update_step": "批量更新考生步骤",
   "user_flow.batch_end": "批量设置考生结果",
   "user_flow.batch_set_outcome": "批量设置考生结果",
+  "user_flow.apply_group.update": "修改投递组别",
+  "user_flow.apply_group.mark": "标记投递组别",
   "evaluation.create": "提交面评",
   "evaluation.update_pending": "更新待审面评",
   "evaluation.reject_candidate": "拒绝候选人",
@@ -121,6 +124,12 @@ const metadataLabels: Record<string, string> = {
   reason: "退回理由",
   sourceFlowId: "来源流程 ID",
   status: "结果",
+  counts: "结果统计",
+  total: "总人数",
+  accepted: "通过人数",
+  rejected: "不通过人数",
+  withdrawn: "已退回人数",
+  unfinished: "未完成数",
   stepCount: "步骤数量",
   stepId: "步骤 ID",
   stepOrder: "步骤序号",
@@ -194,6 +203,11 @@ function formatMetadataValue(value: unknown): string {
   if (value === true) return "是";
   if (value === false) return "否";
   if (value === null || value === undefined || value === "") return "无";
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => `${metadataLabels[key] ?? key}：${formatMetadataValue(entry)}`)
+      .join("；");
+  }
   return typeof value === "string"
     ? metadataValueLabels[value] ?? value
     : String(value);
@@ -201,7 +215,7 @@ function formatMetadataValue(value: unknown): string {
 
 function getMetadataEntries(metadata: Record<string, unknown>) {
   return Object.entries(metadata).filter(([key]) =>
-    !["scoreChanges", "targetUserId", "targetUserIds", "userId"].includes(key),
+    !["scoreChanges", "targetUserId", "targetUserIds", "notifiedUserFlowIds", "userId"].includes(key),
   );
 }
 

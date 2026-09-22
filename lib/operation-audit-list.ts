@@ -95,6 +95,7 @@ export const operationAuditActionGroups = {
     "flow.duplicate",
     "flow.update_problems",
     "flow.update_steps",
+    "flow.result.publish",
   ],
   user: [
     "user.update_role",
@@ -111,6 +112,8 @@ export const operationAuditActionGroups = {
     "user_flow.batch_update_step",
     "user_flow.batch_end",
     "user_flow.batch_set_outcome",
+    "user_flow.apply_group.update",
+    "user_flow.apply_group.mark",
   ],
 } as const;
 
