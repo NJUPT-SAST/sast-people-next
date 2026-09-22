@@ -6,7 +6,7 @@ import { verifyRole } from '@/lib/dal';
 import { logServerError } from '@/lib/server-error-log';
 import { writeOperationAudit } from '@/lib/operation-audit';
 import { assertFlowResultsEditable } from '@/lib/flow-result-publication-guard';
-import { and, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 async function findStepIdByOrder(
   flowId: number,
@@ -195,13 +195,13 @@ export const batchEndByUid = async (
 export const batchSetOutcomeByUid = async (
   flowId: number,
   stepOrder: number,
-  statusStr: 'passed' | 'failed',
+  statusStr: 'passed' | 'failed' | 'withdrawn',
   uids: number[],
 ) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
   try {
     session = await verifyRole(3);
-    if (uids.length === 0) return;
+    if (uids.length === 0) return { updatedUserIds: [] };
     await assertFlowResultsEditable(flowId);
     await assertBatchDirectOutcomeAllowed(flowId);
     const stepId = await findStepIdByOrder(flowId, stepOrder);
@@ -213,7 +213,6 @@ export const batchSetOutcomeByUid = async (
           and(
             eq(userFlow.fkFlowId, flowId),
             inArray(userFlow.fkUserId, uids),
-            notInArray(userFlow.progressStatus, ['passed', 'failed']),
           ),
         )
         .for('update');
@@ -241,6 +240,7 @@ export const batchSetOutcomeByUid = async (
         skippedUserIds: uids.filter((userId) => !updatedUserIdSet.has(userId)),
       },
     });
+    return { updatedUserIds };
   } catch (error) {
     logServerError("user-flow:batchSetOutcomeByUid", error, {
       path: "/dashboard/review",

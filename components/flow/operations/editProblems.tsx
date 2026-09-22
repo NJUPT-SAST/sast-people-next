@@ -7,13 +7,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Copy, FilePlus2, PlusIcon, Save, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateProblems } from "@/action/flow/problem/edit";
 import { toast } from "sonner";
 import { InferSelectModel } from "drizzle-orm";
 import { problem, flowStep } from "@/db/schema";
+import type { problemType } from "@/types/problem";
 
 type ProblemRow = InferSelectModel<typeof problem>;
 type StepRow = Pick<InferSelectModel<typeof flowStep>, "id" | "title" | "description" | "fkFlowId" | "order">;
@@ -25,17 +26,18 @@ type LocalProblem = {
   fkFlowStepId: number;
 };
 
-const EditProblems = ({
-  steps,
-  problemsByStep,
-  defaultStepId,
-  flowTypeId,
-}: {
+export type EditProblemsHandle = {
+  save: () => Promise<void>;
+  getDraft: () => { stepId: number; problems: problemType };
+};
+
+const EditProblems = forwardRef<EditProblemsHandle, {
   steps: StepRow[];
   problemsByStep: Record<number, ProblemRow[]>;
   defaultStepId: number;
   flowTypeId: number;
-}) => {
+  hideSaveButton?: boolean;
+}>(({ steps, problemsByStep, defaultStepId, flowTypeId, hideSaveButton = false }, ref) => {
   const selectedStepId = defaultStepId;
   const [localProblems, setLocalProblems] = useState<LocalProblem[]>(
     (problemsByStep[defaultStepId] ?? []).map((p) => ({ ...p })),
@@ -91,14 +93,7 @@ const EditProblems = ({
     return null;
   };
 
-  const handleSave = async () => {
-    const error = validateProblems();
-    if (error) {
-      toast.error(error);
-      return;
-    }
-
-    setIsSubmitting(true);
+  const save = async () => {
     const problemsForSave = {
       default: localProblems.map((p) => ({
         id: p.id,
@@ -107,18 +102,45 @@ const EditProblems = ({
         fkFlowStepId: selectedStepId,
       })),
     };
+    const error = validateProblems();
+    if (error) {
+      toast.error(error);
+      if (hideSaveButton) throw new Error(error);
+      return;
+    }
 
-    toast.promise(
-      updateProblems(selectedStepId, problemsForSave, flowTypeId).finally(() => {
-        setIsSubmitting(false);
-      }),
-      {
-        loading: "正在保存题目...",
-        success: "题目已成功保存",
-        error: "保存题目时出错",
-      },
-    );
+    setIsSubmitting(true);
+
+    try {
+      await updateProblems(selectedStepId, problemsForSave, flowTypeId);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  const getDraft = () => {
+    const error = validateProblems();
+    if (error) throw new Error(error);
+    return {
+      stepId: selectedStepId,
+      problems: {
+        default: localProblems.map((p) => ({
+          id: p.id,
+          title: p.title.trim(),
+          score: p.score,
+          fkFlowStepId: selectedStepId,
+        })),
+      },
+    };
+  };
+
+  useImperativeHandle(ref, () => ({ save, getDraft }));
+
+  const handleSave = () => toast.promise(save(), {
+    loading: "正在保存题目...",
+    success: "题目已成功保存",
+    error: "保存题目时出错",
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -126,7 +148,7 @@ const EditProblems = ({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 flex-col gap-2">
-              <CardTitle className="text-base sm:text-lg">编辑笔试题目</CardTitle>
+              <CardTitle className="text-base sm:text-lg">笔试题目</CardTitle>
               <p className="text-sm text-muted-foreground">
                 维护这个笔试流程的一套题目。题目会用于阅卷范围选择和成绩统计。
               </p>
@@ -141,15 +163,7 @@ const EditProblems = ({
                 <PlusIcon />
                 添加题目
               </Button>
-              <Button
-                onClick={handleSave}
-                loading={isSubmitting}
-                disabled={isSubmitting || !selectedStepId}
-                className="flex-1 sm:flex-none"
-              >
-                <Save />
-                保存
-              </Button>
+              {!hideSaveButton && <Button onClick={handleSave} loading={isSubmitting} disabled={isSubmitting || !selectedStepId} className="flex-1 sm:flex-none"><Save />保存</Button>}
             </div>
           </div>
         </CardHeader>
@@ -256,6 +270,8 @@ const EditProblems = ({
       </Card>
     </div>
   );
-};
+});
+
+EditProblems.displayName = "EditProblems";
 
 export { EditProblems };

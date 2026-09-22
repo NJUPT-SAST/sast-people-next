@@ -11,10 +11,10 @@ describe("evaluation-state", () => {
   it("guards admin transitions", () => {
     expect(canApproveEvaluation("submitted")).toBe(true);
     expect(canApproveEvaluation("approved")).toBe(false);
-    expect(canApproveEvaluation("rejected")).toBe(false);
+    expect(canApproveEvaluation("rejected")).toBe(true);
 
     expect(canRejectEvaluation("submitted")).toBe(true);
-    expect(canRejectEvaluation("approved")).toBe(false);
+    expect(canRejectEvaluation("approved")).toBe(true);
     expect(canRejectEvaluation("rejected")).toBe(false);
 
   });

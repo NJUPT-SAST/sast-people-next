@@ -59,8 +59,8 @@ export async function sendEmailTest(
 
     const request = await createTestRenderRequest({
       templateKey,
-      flowName,
-      name: targetUser?.name ?? currentUser?.name ?? session.name ?? "同学",
+        flowName,
+        name: targetUser?.name ?? currentUser?.name ?? session.name ?? "同学",
     });
     const result = await createRenderedTestEmailDelivery({
       ...request,
@@ -125,7 +125,7 @@ async function createTestRenderRequest({
         flowName,
         setting,
         flowKind: getResultEmailFlowKind(flowType),
-        genericGreeting: true,
+        genericGreeting: false,
       },
     };
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
 import { EvaluationTable } from '@/components/recruitment/evaluationTable';
@@ -55,6 +55,7 @@ export const RecruitmentContent = ({
   const [evalData, setEvalData] = useState<CandidatesResult>(initialEvalData);
   const [loading, setLoading] = useState(false);
   const [publicationRefreshKey, setPublicationRefreshKey] = useState(0);
+  const [publicationStatus, setPublicationStatus] = useState<string | null>(null);
   const flowRequestId = useRef(0);
   const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
   const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
@@ -73,6 +74,7 @@ export const RecruitmentContent = ({
   const handleFlowChange = async (value: string) => {
     const requestId = ++flowRequestId.current;
     setFlowId(value);
+    setPublicationStatus(null);
     setLoading(true);
     try {
       if (isEvaluationWorkspace) {
@@ -90,6 +92,7 @@ export const RecruitmentContent = ({
       if (requestId === flowRequestId.current) {
         setScoreData([]);
         setEvalData([]);
+        setPublicationStatus(null);
       }
     } finally {
       if (requestId === flowRequestId.current) {
@@ -97,6 +100,10 @@ export const RecruitmentContent = ({
       }
     }
   };
+
+  const handlePublicationStatusChange = useCallback((status: string | null) => {
+    setPublicationStatus(status);
+  }, []);
 
   const refreshEvalData = async () => {
     if (!flowId) return;
@@ -209,7 +216,7 @@ export const RecruitmentContent = ({
           <Loading />
         ) : isEvaluationWorkspace ? (
           <div className="space-y-4">
-            {role >= 3 && <ResultPublicationPanel key={`${flowId}-${publicationRefreshKey}`} flowId={Number(flowId)} />}
+            {role >= 3 && <ResultPublicationPanel key={`${flowId}-${publicationRefreshKey}`} flowId={Number(flowId)} onStatusChange={handlePublicationStatusChange} />}
             <EvaluationTable
               candidates={safeEvalData}
               groupOptions={currentFlowGroupOptions}
@@ -221,7 +228,7 @@ export const RecruitmentContent = ({
           </div>
         ) : (
           <div className="space-y-4">
-            {role >= 3 && <ResultPublicationPanel key={`${flowId}-${publicationRefreshKey}`} flowId={Number(flowId)} />}
+            {role >= 3 && <ResultPublicationPanel key={`${flowId}-${publicationRefreshKey}`} flowId={Number(flowId)} onStatusChange={handlePublicationStatusChange} />}
             <DataTable
               columns={makeColumns(role)}
               data={safeScoreData}
@@ -229,6 +236,7 @@ export const RecruitmentContent = ({
               targetUserFlowId={targetUserFlowId}
               role={role}
               onOutcomeChanged={() => setPublicationRefreshKey((value) => value + 1)}
+              resultsLocked={publicationStatus === 'published' || publicationStatus === 'publishing'}
             />
           </div>
         )

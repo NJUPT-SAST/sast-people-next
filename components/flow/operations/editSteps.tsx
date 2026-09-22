@@ -17,6 +17,7 @@ import { editFlowSchema } from '@/components/flow/add';
 import { fullStepType } from '@/types/step';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod/v4';
@@ -100,7 +101,7 @@ const evaluationSteps = (flowId: number): fullStepType[] => [
   },
 ];
 
-export const EditSteps = ({ data }: { data: displayFlow }) => {
+export const EditSteps = ({ data, autoOpen = false, linkOnly = false }: { data: displayFlow; autoOpen?: boolean; linkOnly?: boolean }) => {
   const editFlowForm = useForm<z.infer<typeof editFlowSchema>>({
     resolver: zodResolver(editFlowSchema),
     defaultValues: {
@@ -115,6 +116,9 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
 
   const { isSubmitting } = editFlowForm.formState;
   const [openEdit, setOpenEdit] = useState(false);
+  useEffect(() => {
+    if (autoOpen) setOpenEdit(true);
+  }, [autoOpen]);
   const isWrittenRecruitment = !data.type || data.type === 'recruitment';
   const { data: savedSteps } = useFlowStepsInfoClient(data.id);
   const fixedStepList = useMemo(() => {
@@ -143,6 +147,14 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
     setEditableSteps(fixedStepList);
   }, [fixedStepList]);
 
+  if (linkOnly) {
+    return (
+      <Button asChild size="sm" variant="ghost" className="h-10 shrink-0 rounded-lg px-3 text-sm shadow-none text-primary hover:bg-primary/10 hover:text-primary xl:h-8 xl:px-2">
+        <Link href={`/dashboard/flow/edit?id=${data.id}`}>编辑流程</Link>
+      </Button>
+    );
+  }
+
   return (
     <Sheet open={openEdit} onOpenChange={setOpenEdit}>
       <SheetTrigger asChild>
@@ -150,9 +162,14 @@ export const EditSteps = ({ data }: { data: displayFlow }) => {
           编辑流程
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:w-3/4 sm:max-w-xl overflow-y-auto p-4 sm:p-6 flex flex-col">
+      <SheetContent
+        side="top"
+        className="!inset-0 !h-dvh !w-screen !max-w-none !translate-y-0 !rounded-none !border-0 overflow-y-auto p-4 sm:p-8 flex flex-col"
+      >
         <SheetHeader className="px-1 pt-2 pb-2">
-          <SheetTitle>流程编辑</SheetTitle>
+          <div className="flex items-center justify-between gap-3 pr-8">
+            <SheetTitle>流程编辑</SheetTitle>
+          </div>
           <SheetDescription>
             在下方编辑流程的基本信息与流程的步骤
           </SheetDescription>

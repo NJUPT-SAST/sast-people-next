@@ -114,6 +114,7 @@ export const ApprovalsContent = ({
   const [showArchived, setShowArchived] = useState(false);
   const [archiveQuery, setArchiveQuery] = useState("");
   const [archiveFlowType, setArchiveFlowType] = useState("all");
+  const [archiveFlowTitle, setArchiveFlowTitle] = useState("all");
   const [archiveDecision, setArchiveDecision] = useState("all");
   const [returnTarget, setReturnTarget] = useState<number | null>(null);
   const [returnReason, setReturnReason] = useState("");
@@ -235,10 +236,15 @@ export const ApprovalsContent = ({
     ].some((value) => value?.toLocaleLowerCase().includes(normalizedArchiveQuery));
     const matchesFlow =
       archiveFlowType === "all" || row.flowType === archiveFlowType;
+    const matchesFlowTitle =
+      archiveFlowTitle === "all" || row.flowTitle === archiveFlowTitle;
     const matchesDecision =
       archiveDecision === "all" || row.evaluation.status === archiveDecision;
-    return matchesQuery && matchesFlow && matchesDecision;
+    return matchesQuery && matchesFlow && matchesFlowTitle && matchesDecision;
   });
+  const archiveFlowTitles = Array.from(
+    new Set(archived.map((row) => row.flowTitle).filter((title): title is string => Boolean(title))),
+  ).sort((a, b) => a.localeCompare(b, "zh-CN"));
   const displayed = showArchived ? filteredArchived : pending;
 
   if (loading) {
@@ -267,7 +273,7 @@ export const ApprovalsContent = ({
             <p className="text-xs text-muted-foreground">
             已处理的面评会保留在这里；退回重写的记录会在讲师重新提交后回到待审批列表。
           </p>
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem]">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,1fr)_10rem_10rem]">
           <Input
             value={archiveQuery}
             onChange={(event) => setArchiveQuery(event.target.value)}
@@ -287,6 +293,17 @@ export const ApprovalsContent = ({
               <SelectItem value="woc">WOC/WOD</SelectItem>
               <SelectItem value="soc">SOC/SOD</SelectItem>
               <SelectItem value="recruitment">笔试招新</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={archiveFlowTitle} onValueChange={setArchiveFlowTitle}>
+            <SelectTrigger aria-label="按流程名筛选归档面评">
+              <SelectValue placeholder="全部流程名" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部流程名</SelectItem>
+              {archiveFlowTitles.map((title) => (
+                <SelectItem key={title} value={title}>{title}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select
@@ -442,25 +459,25 @@ export const ApprovalsContent = ({
                       ).format("YYYY-MM-DD HH:mm")}
                     </span>
                   </div>
-                  {row.evaluation.status === "submitted" && (
+                  {(row.evaluation.status === "submitted" || row.evaluation.status === "approved" || row.evaluation.status === "rejected") && (
                     <div className="grid w-full grid-cols-3 gap-2 md:flex md:w-auto">
-                      <Button
+                      {(row.evaluation.status === "submitted" || row.evaluation.status === "rejected") && <Button
                         size="sm"
                         className="h-10 w-full min-w-0 px-1.5 text-xs border-[#1aa15a] bg-[#1aa15a] text-white hover:border-[#148748] hover:bg-[#148748] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#159957] dark:bg-[#159957] dark:hover:border-[#1bb86a] dark:hover:bg-[#1bb86a]"
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
                         通过
-                      </Button>
-                      <Button
+                      </Button>}
+                      {(row.evaluation.status === "submitted" || row.evaluation.status === "approved") && <Button
                         size="sm"
                         className="h-10 w-full min-w-0 px-1.5 text-xs border-[#b9545a] bg-[#b9545a] text-white hover:border-[#97464b] hover:bg-[#97464b] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#b34f55] dark:bg-[#b34f55] dark:hover:border-[#ca6066] dark:hover:bg-[#ca6066]"
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
                         不通过
-                      </Button>
-                      <Button
+                      </Button>}
+                      {row.evaluation.status === "submitted" && <Button
                         size="sm"
                         className="h-10 w-full min-w-0 px-1.5 text-xs border-[#3974b3] bg-[#3974b3] text-white hover:border-[#2f5f95] hover:bg-[#2f5f95] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#2f5f95] dark:bg-[#2f5f95] dark:hover:border-[#3974b3] dark:hover:bg-[#3974b3]"
                         onClick={() => {
@@ -471,14 +488,8 @@ export const ApprovalsContent = ({
                         loading={actionLoading === row.evaluation.id}
                       >
                         退回重写
-                      </Button>
+                      </Button>}
                     </div>
-                  )}
-                  {row.evaluation.status === "approved" && (
-                    <span className="text-xs text-muted-foreground">已归档，不可修改</span>
-                  )}
-                  {row.evaluation.status === "rejected" && (
-                    <span className="text-xs text-muted-foreground">已归档，不可修改</span>
                   )}
                 </div>
               </CardContent>

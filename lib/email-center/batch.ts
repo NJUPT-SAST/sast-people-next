@@ -29,6 +29,7 @@ const BATCH_SEND_CONCURRENCY = 5;
 
 export type CreateResultEmailBatchInput = {
   userIds: number[];
+  userFlowIds?: number[];
   flowId: number;
   accept: boolean;
   createdBy: number;
@@ -57,6 +58,7 @@ async function runWithConcurrency<T>(
 
 export async function createResultEmailBatch({
   userIds,
+  userFlowIds,
   flowId,
   accept,
   createdBy,
@@ -64,6 +66,9 @@ export async function createResultEmailBatch({
   templateSetting: confirmedTemplateSetting,
 }: CreateResultEmailBatchInput) {
   const sourceStatus = accept ? "passed" : "failed";
+  if (userFlowIds?.length === 0) {
+    return { batchId: null, deliveryCount: 0 };
+  }
   const targets = await db
     .select({
       userFlowId: userFlow.id,
@@ -76,6 +81,7 @@ export async function createResultEmailBatch({
       and(
         eq(userFlow.fkFlowId, flowId),
         inArray(userFlow.fkUserId, userIds),
+        userFlowIds ? inArray(userFlow.id, userFlowIds) : undefined,
         eq(userFlow.progressStatus, sourceStatus),
       ),
     );
@@ -163,19 +169,54 @@ export async function createResultEmailBatch({
   );
 
   if (missingTargets.length === 0) {
-    const reusableBatchId = existingDeliveries.find(
-      (item) =>
-        (item.status === "pending" ||
-          item.status === "failed" ||
-          item.status === "dead") &&
-        item.batchId !== null,
-    )?.batchId;
+    const targetUserFlowIds = new Set(
+      targetsWithIdempotency.map((item) => item.userFlowId),
+    );
+    const candidateBatchIds = Array.from(
+      new Set(
+        existingDeliveries
+          .map((item) => item.batchId)
+          .filter((id): id is number => id !== null),
+      ),
+    );
+    const candidateDeliveries = candidateBatchIds.length === 0
+      ? []
+      : await db
+          .select({ batchId: emailDelivery.fkEmailBatchId, userFlowId: emailDelivery.fkUserFlowId })
+          .from(emailDelivery)
+          .where(inArray(emailDelivery.fkEmailBatchId, candidateBatchIds));
+    const deliveriesByBatch = new Map<number, number[]>();
+    for (const delivery of candidateDeliveries) {
+      if (delivery.batchId === null || delivery.userFlowId === null) continue;
+      const rows = deliveriesByBatch.get(delivery.batchId) ?? [];
+      rows.push(delivery.userFlowId);
+      deliveriesByBatch.set(delivery.batchId, rows);
+    }
+    const reusableBatchId = existingDeliveries.find((item) => {
+      if (
+        item.batchId === null ||
+        !["pending", "failed", "dead"].includes(item.status)
+      ) return false;
+      const batchUserFlowIds = deliveriesByBatch.get(item.batchId);
+      if (!batchUserFlowIds || batchUserFlowIds.length !== targetUserFlowIds.size) return false;
+      return batchUserFlowIds.every((userFlowId) => targetUserFlowIds.has(userFlowId));
+    })?.batchId;
+    const legacyReusableBatchId = reusableBatchId ?? (
+      candidateDeliveries.length === 0 &&
+      existingDeliveries.length > 0 &&
+      existingDeliveries.every(
+        (item) =>
+          item.batchId !== null &&
+          item.userFlowId === null &&
+          item.userId !== null &&
+          targetsWithIdempotency.some((target) => target.userId === item.userId),
+      )
+        ? existingDeliveries[0]?.batchId ?? null
+        : null
+    );
 
     return {
-      batchId:
-        reusableBatchId ??
-        existingDeliveries.find((item) => item.batchId !== null)?.batchId ??
-        null,
+      batchId: legacyReusableBatchId,
       deliveryCount: 0,
     };
   }

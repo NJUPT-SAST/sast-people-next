@@ -12,6 +12,7 @@ type NormalizedPointValue = {
   fkUserFlowId: number;
   fkProblemId: number;
   points: number;
+  note: string | null;
 };
 
 type NormalizedPointValues = {
@@ -68,12 +69,17 @@ function normalizePointValues(values: Array<PointInsertValue>): NormalizedPointV
       throw new Error("得分必须是非负整数");
     }
 
+    if (value.note !== undefined && value.note !== null && typeof value.note !== "string") {
+      throw new Error("题目备注无效");
+    }
+
     problemIds.add(value.fkProblemId);
 
     return {
       fkUserFlowId: userFlowId,
       fkProblemId: value.fkProblemId,
       points: value.points,
+      note: typeof value.note === "string" ? value.note.trim() || null : null,
     };
   });
 
@@ -178,14 +184,14 @@ function getScoreOverwriteCondition(session: Awaited<ReturnType<typeof verifyRol
   return sql`${userPoint.fkJudgerId} is null or ${userPoint.fkJudgerId} = ${session.uid}`;
 }
 
-export const upsertPoint = async (userFlowId: number, problemId: number, point: number) => {
+export const upsertPoint = async (userFlowId: number, problemId: number, point: number, note?: string | null) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
     session = await verifyRole(2);
     const actor = session;
     const normalized = normalizePointValues([
-      { fkUserFlowId: userFlowId, fkProblemId: problemId, points: point },
+      { fkUserFlowId: userFlowId, fkProblemId: problemId, points: point, note },
     ]);
     const { validated, rows } = await db.transaction(async (tx) => {
       const validated = await validateScoreChanges(tx, normalized);
@@ -195,11 +201,12 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
           fkUserFlowId: userFlowId,
           fkProblemId: problemId,
           points: point,
+          note: normalized.values[0].note,
           fkJudgerId: actor.uid,
         })
         .onConflictDoUpdate({
           target: [userPoint.fkUserFlowId, userPoint.fkProblemId],
-          set: { points: point, fkJudgerId: actor.uid },
+          set: { points: point, note: normalized.values[0].note, fkJudgerId: actor.uid },
           setWhere: getScoreOverwriteCondition(actor),
         })
         .returning({ id: userPoint.id });
@@ -233,7 +240,7 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       userFlowId,
-      metadata: { problemId, point },
+      metadata: { problemId, point, note: note ?? null },
     });
     throw error;
   }
@@ -256,6 +263,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
             fkUserFlowId: value.fkUserFlowId,
             fkProblemId: value.fkProblemId,
             points: value.points,
+            note: value.note,
             fkJudgerId: actorId,
           })),
         )
@@ -263,6 +271,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
           target: [userPoint.fkUserFlowId, userPoint.fkProblemId],
           set: {
             points: sql`excluded.points`,
+            note: sql`excluded.note`,
             fkJudgerId: sql`excluded.fk_judger_id`,
           },
           setWhere: getScoreOverwriteCondition(actor),

@@ -11,12 +11,12 @@ export function isActiveEvaluationStatus(
 }
 
 export function canApproveEvaluation(status: string | null | undefined) {
-  return status === "submitted";
+  return status === "submitted" || status === "rejected";
 }
 
 /** Admin may reject only pending reviews. */
 export function canRejectEvaluation(status: string | null | undefined) {
-  return status === "submitted";
+  return status === "submitted" || status === "approved";
 }
 
 export function canReturnEvaluation(status: string | null | undefined) {

@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ import {
 export { addFlowSchema, editFlowSchema, fullFlowSchema };
 
 export const AddFlow = () => {
+  const router = useRouter();
   const addFlowForm = useForm<z.infer<typeof addFlowSchema>>({
     resolver: zodResolver(addFlowSchema),
     mode: "onChange",
@@ -173,16 +175,20 @@ export const AddFlow = () => {
             // loading={isSubmitting}
             disabled={isSubmitting}
             onClick={addFlowForm.handleSubmit(async () => {
+              const values = addFlowForm.getValues();
+              const editPathForFlow = (flowId: number) => `/dashboard/flow/edit?id=${flowId}`;
+
               toast.promise(
                 async () => {
-                  await addFlow(addFlowForm.getValues()).then(() => {
+                  await addFlow(values).then((flowId) => {
                     setOpen(false);
                     addFlowForm.reset();
+                    if (flowId !== null) router.push(editPathForFlow(flowId));
                   });
                 },
                 {
                   loading: '正在添加',
-                  success: `${addFlowForm.getValues().title} 已添加成功`,
+                  success: `${values.title} 已添加成功`,
                   error: '添加的时候出现了问题，稍后重试',
                 },
               );

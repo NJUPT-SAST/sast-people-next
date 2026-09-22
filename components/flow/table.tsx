@@ -32,9 +32,9 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     accessorFn: (data) => data.title,
     cell({ row }) {
       return (
-        <div className="min-w-0 space-y-1">
-          <div className="font-medium leading-6">{row.original.title}</div>
-          <div className="line-clamp-2 max-w-[30rem] text-sm leading-5 text-muted-foreground">
+        <div className="min-w-0 space-y-1.5">
+          <div className="font-semibold leading-6 text-foreground">{row.original.title}</div>
+          <div className="line-clamp-2 max-w-[34rem] text-sm leading-5 text-muted-foreground/90">
             {row.original.description || '暂无描述'}
           </div>
         </div>
@@ -48,7 +48,7 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     cell({ row }) {
       const type = row.getValue('type') as string;
       return (
-        <span className="text-muted-foreground">
+        <span className="inline-flex rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80">
           {flowTypeLabel[type] ?? type}
         </span>
       );
@@ -97,11 +97,13 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  initialEditFlowId?: number;
 }
 
 export function FlowTable<TData extends displayFlow, TValue>({
   columns,
   data,
+  initialEditFlowId,
 }: DataTableProps<TData, TValue>) {
   const tableData = Array.isArray(data) ? data : [];
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -117,11 +119,11 @@ export function FlowTable<TData extends displayFlow, TValue>({
       <div className="hidden xl:block">
         <Table className="table-fixed" containerClassName="overflow-x-visible">
           <colgroup>
-            <col className="w-[30%]" />
-            <col className="w-[10%]" />
+            <col className="w-[34%]" />
             <col className="w-[14%]" />
-            <col className="w-[14%]" />
-            <col className="w-[32%]" />
+            <col className="w-[16%]" />
+            <col className="w-[16%]" />
+            <col className="w-[20%]" />
           </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -132,8 +134,8 @@ export function FlowTable<TData extends displayFlow, TValue>({
                       key={header.id}
                       className={
                         header.column.id === 'operations'
-                          ? 'whitespace-nowrap px-4 py-3 text-right'
-                          : 'whitespace-nowrap px-4 py-3'
+                          ? 'whitespace-nowrap px-5 py-3 text-right text-xs uppercase tracking-wide text-muted-foreground'
+                          : 'whitespace-nowrap px-5 py-3 text-xs uppercase tracking-wide text-muted-foreground'
                       }
                     >
                       {header.isPlaceholder
@@ -154,18 +156,20 @@ export function FlowTable<TData extends displayFlow, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className="hover:bg-muted/30"
+                  className="border-border/60 transition-colors hover:bg-primary/[0.04]"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
                       className={
                         cell.column.id === 'operations'
-                          ? 'px-4 py-3 text-right align-middle'
-                          : 'px-4 py-3 align-middle'
+                          ? 'px-5 py-4 text-right align-middle'
+                          : 'px-5 py-4 align-middle'
                       }
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {cell.column.id === 'operations'
+                        ? <Operations data={row.original} initialEditFlowId={initialEditFlowId} />
+                        : flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -208,7 +212,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
                 </div>
               </div>
               <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-                <Operations data={row.original} />
+                <Operations data={row.original} initialEditFlowId={initialEditFlowId} />
               </div>
             </div>
           ))

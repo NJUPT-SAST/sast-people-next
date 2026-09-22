@@ -19,5 +19,12 @@ services:
       retries: 5
       start_period: 10s
 
+  inngest-dev:
+    image: inngest/inngest:v1.14.1
+    ports:
+      - "8288:8288"
+      - "8289:8289"
+    command: ["inngest", "dev", "--no-discovery", "-u", "http://host.docker.internal:3001/api/inngest"]
+
 volumes:
   sast_people_postgres_dev:

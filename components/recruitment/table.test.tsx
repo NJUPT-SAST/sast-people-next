@@ -5,7 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "./table";
 
 const mockBatchEndByUid = jest.fn().mockResolvedValue(undefined);
-const mockBatchSetOutcomeByUid = jest.fn().mockResolvedValue(undefined);
+const mockBatchSetOutcomeByUid = jest.fn().mockResolvedValue({ updatedUserIds: [1] });
 const mockToastPromise = jest.fn((promise: Promise<unknown>) => promise);
 
 jest.mock("@/action/user-flow/edit", () => ({
@@ -53,7 +53,6 @@ describe("Recruitment DataTable", () => {
     mockBatchEndByUid.mockClear();
     mockBatchSetOutcomeByUid.mockClear();
     mockToastPromise.mockClear();
-    jest.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -127,8 +126,29 @@ describe("Recruitment DataTable", () => {
     });
   });
 
-  it("does not update outcomes when the confirmation is cancelled", async () => {
-    jest.spyOn(window, "confirm").mockReturnValue(false);
+  it("marks selected rows as not participating", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          { uid: 1, stepId: 3, name: "张三", totalScore: "90", status: "ongoing" },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getAllByLabelText("select-1")[0]);
+    await user.click(screen.getByRole("button", { name: "标记未参与" }));
+
+    await waitFor(() => {
+      expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "withdrawn", [1]);
+    });
+  });
+
+  it("updates outcomes immediately without a confirmation dialog", async () => {
     const user = userEvent.setup();
 
     render(
@@ -145,10 +165,9 @@ describe("Recruitment DataTable", () => {
     await user.click(screen.getAllByLabelText("select-1")[0]);
     await user.click(screen.getByRole("button", { name: "设为通过" }));
 
-    expect(window.confirm).toHaveBeenCalledWith(
-      "确定将 1 人设为通过吗？全部结果完成后需在上方确认并发布流程结果。",
-    );
-    expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "passed", [1]);
+    });
   });
 
   it("does not expose email sending controls in score management", () => {

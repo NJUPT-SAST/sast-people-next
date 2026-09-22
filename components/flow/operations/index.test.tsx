@@ -15,19 +15,16 @@ jest.mock("./duplicate", () => ({
 }));
 
 describe("Operations", () => {
-  it("renders exam link for written recruitment flows", () => {
+  it("uses the unified flow editor for written recruitment flows", () => {
     render(<Operations data={{ id: 15, type: "recruitment" } as never} />);
 
     expect(screen.getByText("edit-steps")).toBeInTheDocument();
     expect(screen.getByText("duplicate-flow")).toBeInTheDocument();
     expect(screen.getByText("delete-flow")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "编辑笔试" })).toHaveAttribute(
-      "href",
-      "/dashboard/flow/edit-exam?id=15",
-    );
+    expect(screen.queryByRole("link", { name: "编辑笔试" })).not.toBeInTheDocument();
   });
 
-  it("hides exam link for non-written flows", () => {
+  it("does not expose exam-only controls for non-written flows", () => {
     render(<Operations data={{ id: 15, type: "woc" } as never} />);
 
     expect(screen.getByText("edit-steps")).toBeInTheDocument();

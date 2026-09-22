@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 
 import { AddFlow } from "./add";
 
-const mockAddFlow = jest.fn().mockResolvedValue(undefined);
+const mockAddFlow = jest.fn().mockResolvedValue(123);
 const mockToastPromise = jest.fn((cb: () => Promise<unknown>) => cb());
+const mockPush = jest.fn();
 
 jest.mock("@/action/flow/add", () => ({
   addFlow: (...args: Parameters<typeof mockAddFlow>) => mockAddFlow(...args),
@@ -15,6 +16,10 @@ jest.mock("sonner", () => ({
     promise: (...args: Parameters<typeof mockToastPromise>) =>
       mockToastPromise(...args),
   },
+}));
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush }),
 }));
 
 jest.mock("../ui/datetime-input", () => ({
@@ -37,6 +42,7 @@ describe("AddFlow", () => {
   beforeEach(() => {
     mockAddFlow.mockClear();
     mockToastPromise.mockClear();
+    mockPush.mockClear();
   });
 
   it("opens the dialog and submits the filled form", async () => {
@@ -69,6 +75,7 @@ describe("AddFlow", () => {
           endedAt: expect.any(Date),
         }),
       );
+      expect(mockPush).toHaveBeenCalledWith("/dashboard/flow/edit?id=123");
     });
   });
 });

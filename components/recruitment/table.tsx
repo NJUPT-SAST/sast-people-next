@@ -31,6 +31,7 @@ interface DataTableProps<TData, TValue> {
   targetUserFlowId?: number;
   role: number;
   onOutcomeChanged?: () => void;
+  resultsLocked?: boolean;
 }
 
 type RecruitmentRowLike = {
@@ -41,12 +42,12 @@ type RecruitmentRowLike = {
   isGraded?: boolean;
 };
 
-const finalStatuses = new Set(['passed', 'failed']);
 const recruitmentStatusText: Record<string, string> = {
   ungraded: '未批卷',
   ongoing: '待确认',
   passed: '通过',
   failed: '不通过',
+  withdrawn: '未参与',
   not_started: '未开始',
 };
 
@@ -57,6 +58,7 @@ export function DataTable<TData, TValue>({
   targetUserFlowId,
   role,
   onOutcomeChanged,
+  resultsLocked = false,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -86,8 +88,6 @@ export function DataTable<TData, TValue>({
     const item = toRecruitmentRow(row);
     return getDisplayStatus(item);
   };
-  const isFinalRow = (row: { original: unknown }) =>
-    finalStatuses.has(getRowStatus(row));
   const isTargetRow = (row: { original: unknown }) => {
     const item = toRecruitmentRow(row);
     return Boolean(
@@ -113,7 +113,7 @@ export function DataTable<TData, TValue>({
     data: tableData,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
-    enableRowSelection: (row) => !finalStatuses.has(getRowStatus(row)),
+    enableRowSelection: () => !resultsLocked,
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
@@ -140,13 +140,11 @@ export function DataTable<TData, TValue>({
   const filteredSelectedRows = table.getFilteredSelectedRowModel().rows ?? [];
   const totalScoreColumn =
     table.getAllLeafColumns().find((column) => column.id === 'totalScore') ?? null;
-  const selectedMutableRows = (table.getSelectedRowModel().flatRows ?? []).filter(
-    (row) => !isFinalRow(row),
-  );
-  const canEditOutcomes = selectedMutableRows.length > 0;
+  const selectedMutableRows = table.getSelectedRowModel().flatRows ?? [];
+  const canEditOutcomes = !resultsLocked && selectedMutableRows.length > 0;
   const helperText =
-    '成绩管理只负责确定通过/不通过；全部结果完成后，在上方确认并发布流程结果。';
-  const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'not_started'];
+    '成绩管理可标记通过、不通过或未参与；全部结果完成后，在上方确认并发布流程结果。';
+  const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'withdrawn', 'not_started'];
   const columnWidthClass: Record<string, string> = {
     select: 'w-[6%]',
     studentId: 'w-[18%]',
@@ -154,6 +152,36 @@ export function DataTable<TData, TValue>({
     status: 'w-[16%]',
     problemScores: 'w-[20%]',
     totalScore: 'w-[10%]',
+  };
+
+  const applyOutcome = (status: 'passed' | 'failed' | 'withdrawn') => {
+    const selectedRows = selectedMutableRows;
+    const firstRow = selectedRows[0];
+    if (!firstRow) return;
+    const stepId = toRecruitmentRow(firstRow).stepId;
+    if (selectedRows.some((row) => toRecruitmentRow(row).stepId !== stepId)) {
+      toast.error('请选择同一批次的考生后再批量设置结果');
+      return;
+    }
+    const userIds = selectedRows.map((row) => toRecruitmentRow(row).uid);
+    toast.promise(
+      batchSetOutcomeByUid(flowTypeId, stepId, status, userIds).then(({ updatedUserIds }) => {
+        setStatusOverrides((prev) => ({
+          ...prev,
+          ...Object.fromEntries(updatedUserIds.map((uid) => [uid, status])),
+        }));
+        setRowSelection({});
+        onOutcomeChanged?.();
+        return updatedUserIds.length;
+      }),
+      {
+        loading: status === 'passed' ? '正在设置为通过' : status === 'failed' ? '正在设置为不通过' : '正在标记为未参与',
+        success: (updatedCount) => updatedCount < userIds.length
+          ? `已更新 ${updatedCount}/${userIds.length} 人，部分人员未找到`
+          : status === 'passed' ? '已设置为通过' : status === 'failed' ? '已设置为不通过' : '已标记为未参与',
+        error: '设置失败',
+      },
+    );
   };
 
   return (
@@ -193,36 +221,9 @@ export function DataTable<TData, TValue>({
                     size="sm"
                     className="h-10 w-full sm:h-9 sm:w-auto"
                     disabled={!canEditOutcomes}
-                    onClick={async () => {
+                    onClick={() => {
                       const selectedRows = selectedMutableRows;
-                      const firstRow = selectedRows[0];
-                      if (!firstRow) return;
-                      const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为通过吗？全部结果完成后需在上方确认并发布流程结果。`,
-                      );
-                      if (!confirmed) return;
-                      const stepId = toRecruitmentRow(firstRow).stepId;
-                      const passedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
-                      toast.promise(
-                        batchSetOutcomeByUid(
-                          flowTypeId,
-                          stepId,
-                          'passed',
-                          passedUids,
-                        ).then(() => {
-                          setStatusOverrides((prev) => ({
-                            ...prev,
-                            ...Object.fromEntries(passedUids.map((uid) => [uid, 'passed'])),
-                          }));
-                          setRowSelection({});
-                          onOutcomeChanged?.();
-                        }),
-                        {
-                          loading: '正在设置为通过',
-                          success: '已设置为通过',
-                          error: '设置失败',
-                        },
-                      );
+                      if (selectedRows.length > 0) applyOutcome('passed');
                     }}
                   >
                     设为通过
@@ -232,39 +233,24 @@ export function DataTable<TData, TValue>({
                     variant="outline"
                     className="h-10 w-full sm:h-9 sm:w-auto"
                     disabled={!canEditOutcomes}
-                    onClick={async () => {
+                    onClick={() => {
                       const selectedRows = selectedMutableRows;
-                      const firstRow = selectedRows[0];
-                      if (!firstRow) return;
-                      const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为不通过吗？全部结果完成后需在上方确认并发布流程结果。`,
-                      );
-                      if (!confirmed) return;
-                      const stepId = toRecruitmentRow(firstRow).stepId;
-                      const failedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
-                      toast.promise(
-                        batchSetOutcomeByUid(
-                          flowTypeId,
-                          stepId,
-                          'failed',
-                          failedUids,
-                        ).then(() => {
-                          setStatusOverrides((prev) => ({
-                            ...prev,
-                            ...Object.fromEntries(failedUids.map((uid) => [uid, 'failed'])),
-                          }));
-                          setRowSelection({});
-                          onOutcomeChanged?.();
-                        }),
-                        {
-                          loading: '正在设置为不通过',
-                          success: '已设置为不通过',
-                          error: '设置失败',
-                        },
-                      );
+                      if (selectedRows.length > 0) applyOutcome('failed');
                     }}
                   >
                     设为不通过
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-10 w-full sm:h-9 sm:w-auto"
+                    disabled={!canEditOutcomes}
+                    onClick={() => {
+                      const selectedRows = selectedMutableRows;
+                      if (selectedRows.length > 0) applyOutcome('withdrawn');
+                    }}
+                  >
+                    标记未参与
                   </Button>
                 </>
               )}

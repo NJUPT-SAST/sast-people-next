@@ -14,7 +14,8 @@ insert into flow (
   group_options
 ) values
   (101, '2026 春季笔试招新 Demo', '覆盖报名、批卷、结果确认和邮件发送的本地演示流程。', 'recruitment', 1, now() - interval '10 days', now() - interval '7 days', now() + interval '14 days', now(), false, null),
-  (102, '2026 免试招新 Demo', '覆盖作品链接、讲师面评和管理员审批的本地演示流程。', 'recruitment_exemption', 1, now() - interval '9 days', now() - interval '7 days', now() + interval '14 days', now(), false, '["前端组","后端组","算法组"]'::jsonb)
+  (102, '2026 免试招新 Demo', '覆盖作品链接、讲师面评和管理员审批的本地演示流程。', 'recruitment_exemption', 1, now() - interval '9 days', now() - interval '7 days', now() + interval '14 days', now(), false, '["前端组","后端组","算法组"]'::jsonb),
+  (103, '2026 秋季笔试招新进行中 Demo', '正在进行中的笔试流程，覆盖报名、待批卷、待确认和部分最终结果。', 'recruitment', 1, now() - interval '2 days', now() - interval '1 day', now() + interval '21 days', now(), false, null)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -42,7 +43,10 @@ insert into flow_step (
   (1013, '录取确认', '按分数线筛选并确认最终通过名单。', 'finished', 3, 101, now(), now(), false),
   (1021, '报名', '提交报名信息和作品链接。', 'registering', 1, 102, now(), now(), false),
   (1022, '讲师审核', '讲师进行面评并提交同意或不同意。', 'checking', 2, 102, now(), now(), false),
-  (1023, '管理员审核', '管理员审核面评结果并确认最终状态。', 'finished', 3, 102, now(), now(), false)
+  (1023, '管理员审核', '管理员审核面评结果并确认最终状态。', 'finished', 3, 102, now(), now(), false),
+  (1031, '报名', '新同学提交报名信息，报名后进入批卷环节。', 'registering', 1, 103, now(), now(), false),
+  (1032, '批卷', '讲师为当前流程内报名同学批改试卷。', 'judging', 2, 103, now(), now(), false),
+  (1033, '录取确认', '按分数线筛选并确认最终通过名单。', 'finished', 3, 103, now(), now(), false)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -61,7 +65,11 @@ insert into problem (
   (10121, 'HTML 与语义化', 20, 1012),
   (10122, 'TypeScript 类型推导', 30, 1012),
   (10123, '数据库与事务', 30, 1012),
-  (10124, '开放题：项目设计', 20, 1012)
+  (10124, '开放题：项目设计', 20, 1012),
+  (10321, '前端工程实践', 25, 1032),
+  (10322, 'TypeScript 与类型安全', 25, 1032),
+  (10323, '数据库设计与事务', 25, 1032),
+  (10324, '开放题：系统方案', 25, 1032)
 on conflict (id) do update set
   title = excluded.title,
   score = excluded.score,
@@ -86,7 +94,14 @@ insert into user_flow (
   (208, 'ongoing', 1022, 'https://portfolio-c.example.com/project', '算法组', 102, 6),
   (209, 'ongoing', 1023, 'https://portfolio-d.example.com/project', '前端组', 102, 7),
   (210, 'failed', 1023, 'https://portfolio-e.example.com/project', '后端组', 102, 8),
-  (211, 'passed', 1023, 'https://member.example.com/interview-project', '前端组', 102, 3)
+  (211, 'passed', 1023, 'https://member.example.com/interview-project', '前端组', 102, 3),
+  (221, 'not_started', 1031, null, null, 103, 4),
+  (222, 'ongoing', 1031, null, null, 103, 5),
+  (223, 'ongoing', 1032, null, null, 103, 6),
+  (224, 'ongoing', 1032, null, null, 103, 7),
+  (225, 'passed', 1033, null, null, 103, 8),
+  (226, 'failed', 1033, null, null, 103, 9),
+  (227, 'withdrawn', 1032, null, null, 103, 10)
 on conflict (id) do update set
   progress_status = excluded.progress_status,
   fk_current_step_id = excluded.fk_current_step_id,
@@ -142,28 +157,44 @@ insert into user_point (
   fk_user_flow_id,
   fk_problem_id,
   points,
+  note,
   fk_judger_id
 ) values
-  (201, 10121, 14, 2),
-  (201, 10122, 21, 2),
-  (202, 10121, 18, 2),
-  (202, 10122, 27, 2),
-  (202, 10123, 25, 2),
-  (202, 10124, 17, 2),
-  (203, 10121, 10, 2),
-  (203, 10122, 14, 2),
-  (203, 10123, 12, 2),
-  (203, 10124, 9, 2),
-  (204, 10121, 19, 2),
-  (204, 10122, 28, 2),
-  (204, 10123, 26, 2),
-  (204, 10124, 18, 2),
-  (205, 10121, 9, 2),
-  (205, 10122, 13, 2),
-  (205, 10123, 10, 2),
-  (205, 10124, 8, 2)
+  (201, 10121, 14, '语义化标签使用基本正确，可补充无障碍属性。', 2),
+  (201, 10122, 21, null, 2),
+  (202, 10121, 18, '结构清晰，细节处理到位。', 2),
+  (202, 10122, 27, '类型推导准确。', 2),
+  (202, 10123, 25, null, 2),
+  (202, 10124, 17, '方案完整，边界场景还可以再展开。', 2),
+  (203, 10121, 10, '语义标签混用，需要改进。', 2),
+  (203, 10122, 14, null, 2),
+  (203, 10123, 12, null, 2),
+  (203, 10124, 9, '只描述了功能，没有说明取舍。', 2),
+  (204, 10121, 19, null, 2),
+  (204, 10122, 28, '类型设计优秀。', 2),
+  (204, 10123, 26, null, 2),
+  (204, 10124, 18, '项目设计有亮点，表达清楚。', 2),
+  (205, 10121, 9, null, 2),
+  (205, 10122, 13, '需要补充类型安全说明。', 2),
+  (205, 10123, 10, null, 2),
+  (205, 10124, 8, '方案完成度较低。', 2),
+  (223, 10321, 20, '组件拆分合理，但还可以补充异常态处理。', 2),
+  (223, 10322, 18, null, 2),
+  (224, 10321, 23, '工程实践扎实。', 2),
+  (224, 10322, 22, '类型边界说明清楚。', 2),
+  (224, 10323, 20, null, 2),
+  (224, 10324, 21, '方案完整，取舍合理。', 2),
+  (225, 10321, 24, null, 2),
+  (225, 10322, 24, '类型安全意识较好。', 2),
+  (225, 10323, 23, null, 2),
+  (225, 10324, 22, '可以进入后续环节。', 2),
+  (226, 10321, 12, '基础实现存在明显缺陷。', 2),
+  (226, 10322, 14, null, 2),
+  (226, 10323, 11, '事务边界处理不完整。', 2),
+  (226, 10324, 10, '方案缺少关键细节。', 2)
 on conflict (fk_user_flow_id, fk_problem_id) do update set
   points = excluded.points,
+  note = excluded.note,
   fk_judger_id = excluded.fk_judger_id;
 
 delete from interview_evaluation where id in (301, 302, 303);
@@ -181,7 +212,9 @@ insert into interview_evaluation (
   updated_at
 ) values
   (301, 209, 2, '作品结构清晰，沟通顺畅，建议通过后进入管理员复核。', 'https://memo.example.com/demo-209', 'submitted', null, now() - interval '2 days', now() - interval '2 days'),
-  (302, 211, 2, '能力和表达均达到预期，已通过复核。', 'https://memo.example.com/demo-211', 'approved', 1, now() - interval '4 days', now() - interval '1 day')
+  (302, 211, 2, '能力和表达均达到预期，已通过复核。', 'https://memo.example.com/demo-211', 'approved', 1, now() - interval '4 days', now() - interval '1 day'),
+  (303, 210, 2, '基础能力与岗位要求不匹配，本轮不建议通过。', 'https://memo.example.com/demo-210', 'rejected', 1, now() - interval '3 days', now() - interval '2 days'),
+  (304, 208, 2, '请补充项目中的个人贡献和技术取舍。', 'https://memo.example.com/demo-208', 'returned', 1, now() - interval '1 day', now() - interval '12 hours')
 on conflict (id) do update set
   fk_user_flow_id = excluded.fk_user_flow_id,
   fk_user_id = excluded.fk_user_id,
