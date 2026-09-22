@@ -14,7 +14,8 @@ insert into flow (
   group_options
 ) values
   (101, '2026 春季笔试招新 Demo', '覆盖报名、批卷、结果确认和邮件发送的本地演示流程。', 'recruitment', 1, now() - interval '10 days', now() - interval '7 days', now() + interval '14 days', now(), false, null),
-  (102, '2026 免试招新 Demo', '覆盖作品链接、讲师面评和管理员审批的本地演示流程。', 'recruitment_exemption', 1, now() - interval '9 days', now() - interval '7 days', now() + interval '14 days', now(), false, '["前端组","后端组","算法组"]'::jsonb)
+  (102, '2026 免试招新 Demo', '覆盖作品链接、讲师面评和管理员审批的本地演示流程。', 'recruitment_exemption', 1, now() - interval '9 days', now() - interval '7 days', now() + interval '14 days', now(), false, '["前端组","后端组","算法组"]'::jsonb),
+  (103, '2026 秋季笔试招新进行中 Demo', '正在进行中的笔试流程，覆盖报名、待批卷、待确认和部分最终结果。', 'recruitment', 1, now() - interval '2 days', now() - interval '1 day', now() + interval '21 days', now(), false, null)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -42,7 +43,10 @@ insert into flow_step (
   (1013, '录取确认', '按分数线筛选并确认最终通过名单。', 'finished', 3, 101, now(), now(), false),
   (1021, '报名', '提交报名信息和作品链接。', 'registering', 1, 102, now(), now(), false),
   (1022, '讲师审核', '讲师进行面评并提交同意或不同意。', 'checking', 2, 102, now(), now(), false),
-  (1023, '管理员审核', '管理员审核面评结果并确认最终状态。', 'finished', 3, 102, now(), now(), false)
+  (1023, '管理员审核', '管理员审核面评结果并确认最终状态。', 'finished', 3, 102, now(), now(), false),
+  (1031, '报名', '新同学提交报名信息，报名后进入批卷环节。', 'registering', 1, 103, now(), now(), false),
+  (1032, '批卷', '讲师为当前流程内报名同学批改试卷。', 'judging', 2, 103, now(), now(), false),
+  (1033, '录取确认', '按分数线筛选并确认最终通过名单。', 'finished', 3, 103, now(), now(), false)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -61,7 +65,11 @@ insert into problem (
   (10121, 'HTML 与语义化', 20, 1012),
   (10122, 'TypeScript 类型推导', 30, 1012),
   (10123, '数据库与事务', 30, 1012),
-  (10124, '开放题：项目设计', 20, 1012)
+  (10124, '开放题：项目设计', 20, 1012),
+  (10321, '前端工程实践', 25, 1032),
+  (10322, 'TypeScript 与类型安全', 25, 1032),
+  (10323, '数据库设计与事务', 25, 1032),
+  (10324, '开放题：系统方案', 25, 1032)
 on conflict (id) do update set
   title = excluded.title,
   score = excluded.score,
@@ -88,7 +96,14 @@ insert into user_flow (
   (208, 'ongoing', 1022, 'https://portfolio-c.example.com/project', '算法组', 102, 6),
   (209, 'ongoing', 1023, 'https://portfolio-d.example.com/project', '前端组', 102, 7),
   (210, 'failed', 1023, 'https://portfolio-e.example.com/project', '后端组', 102, 8),
-  (211, 'passed', 1023, 'https://member.example.com/interview-project', '前端组', 102, 3)
+  (211, 'passed', 1023, 'https://member.example.com/interview-project', '前端组', 102, 3),
+  (221, 'not_started', 1031, null, null, 103, 4),
+  (222, 'ongoing', 1031, null, null, 103, 5),
+  (223, 'ongoing', 1032, null, null, 103, 6),
+  (224, 'ongoing', 1032, null, null, 103, 7),
+  (225, 'passed', 1033, null, null, 103, 8),
+  (226, 'failed', 1033, null, null, 103, 9),
+  (227, 'withdrawn', 1032, null, null, 103, 10)
 on conflict (id) do update set
   progress_status = excluded.progress_status,
   fk_current_step_id = excluded.fk_current_step_id,
@@ -164,7 +179,21 @@ insert into user_point (
   (205, 10121, 9, null, 2),
   (205, 10122, 13, '需要补充类型安全说明。', 2),
   (205, 10123, 10, null, 2),
-  (205, 10124, 8, '方案完成度较低。', 2)
+  (205, 10124, 8, '方案完成度较低。', 2),
+  (223, 10321, 20, '组件拆分合理，但还可以补充异常态处理。', 2),
+  (223, 10322, 18, null, 2),
+  (224, 10321, 23, '工程实践扎实。', 2),
+  (224, 10322, 22, '类型边界说明清楚。', 2),
+  (224, 10323, 20, null, 2),
+  (224, 10324, 21, '方案完整，取舍合理。', 2),
+  (225, 10321, 24, null, 2),
+  (225, 10322, 24, '类型安全意识较好。', 2),
+  (225, 10323, 23, null, 2),
+  (225, 10324, 22, '可以进入后续环节。', 2),
+  (226, 10321, 12, '基础实现存在明显缺陷。', 2),
+  (226, 10322, 14, null, 2),
+  (226, 10323, 11, '事务边界处理不完整。', 2),
+  (226, 10324, 10, '方案缺少关键细节。', 2)
 on conflict (fk_user_flow_id, fk_problem_id) do update set
   points = excluded.points,
   note = excluded.note,
