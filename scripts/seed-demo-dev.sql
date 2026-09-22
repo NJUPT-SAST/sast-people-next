@@ -144,28 +144,30 @@ insert into user_point (
   fk_user_flow_id,
   fk_problem_id,
   points,
+  note,
   fk_judger_id
 ) values
-  (201, 10121, 14, 2),
-  (201, 10122, 21, 2),
-  (202, 10121, 18, 2),
-  (202, 10122, 27, 2),
-  (202, 10123, 25, 2),
-  (202, 10124, 17, 2),
-  (203, 10121, 10, 2),
-  (203, 10122, 14, 2),
-  (203, 10123, 12, 2),
-  (203, 10124, 9, 2),
-  (204, 10121, 19, 2),
-  (204, 10122, 28, 2),
-  (204, 10123, 26, 2),
-  (204, 10124, 18, 2),
-  (205, 10121, 9, 2),
-  (205, 10122, 13, 2),
-  (205, 10123, 10, 2),
-  (205, 10124, 8, 2)
+  (201, 10121, 14, '语义化标签使用基本正确，可补充无障碍属性。', 2),
+  (201, 10122, 21, null, 2),
+  (202, 10121, 18, '结构清晰，细节处理到位。', 2),
+  (202, 10122, 27, '类型推导准确。', 2),
+  (202, 10123, 25, null, 2),
+  (202, 10124, 17, '方案完整，边界场景还可以再展开。', 2),
+  (203, 10121, 10, '语义标签混用，需要改进。', 2),
+  (203, 10122, 14, null, 2),
+  (203, 10123, 12, null, 2),
+  (203, 10124, 9, '只描述了功能，没有说明取舍。', 2),
+  (204, 10121, 19, null, 2),
+  (204, 10122, 28, '类型设计优秀。', 2),
+  (204, 10123, 26, null, 2),
+  (204, 10124, 18, '项目设计有亮点，表达清楚。', 2),
+  (205, 10121, 9, null, 2),
+  (205, 10122, 13, '需要补充类型安全说明。', 2),
+  (205, 10123, 10, null, 2),
+  (205, 10124, 8, '方案完成度较低。', 2)
 on conflict (fk_user_flow_id, fk_problem_id) do update set
   points = excluded.points,
+  note = excluded.note,
   fk_judger_id = excluded.fk_judger_id;
 
 delete from interview_evaluation where id in (301, 302, 303);
@@ -183,7 +185,9 @@ insert into interview_evaluation (
   updated_at
 ) values
   (301, 209, 2, '作品结构清晰，沟通顺畅，建议通过后进入管理员复核。', 'https://memo.example.com/demo-209', 'submitted', null, now() - interval '2 days', now() - interval '2 days'),
-  (302, 211, 2, '能力和表达均达到预期，已通过复核。', 'https://memo.example.com/demo-211', 'approved', 1, now() - interval '4 days', now() - interval '1 day')
+  (302, 211, 2, '能力和表达均达到预期，已通过复核。', 'https://memo.example.com/demo-211', 'approved', 1, now() - interval '4 days', now() - interval '1 day'),
+  (303, 210, 2, '基础能力与岗位要求不匹配，本轮不建议通过。', 'https://memo.example.com/demo-210', 'rejected', 1, now() - interval '3 days', now() - interval '2 days'),
+  (304, 208, 2, '请补充项目中的个人贡献和技术取舍。', 'https://memo.example.com/demo-208', 'returned', 1, now() - interval '1 day', now() - interval '12 hours')
 on conflict (id) do update set
   fk_user_flow_id = excluded.fk_user_flow_id,
   fk_user_id = excluded.fk_user_id,
