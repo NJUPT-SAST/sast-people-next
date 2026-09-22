@@ -21,6 +21,14 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 import { toast } from 'sonner';
 import { batchSetOutcomeByUid } from '@/action/user-flow/edit';
 
@@ -64,6 +72,11 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
+  const [pendingOutcome, setPendingOutcome] = useState<{
+    status: 'passed' | 'failed' | 'withdrawn';
+    title: string;
+    description: string;
+  } | null>(null);
   const safeColumns = useMemo(() => (Array.isArray(columns) ? columns : []), [columns]);
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const getDisplayStatus = useCallback((row: RecruitmentRowLike) => {
@@ -154,6 +167,32 @@ export function DataTable<TData, TValue>({
     totalScore: 'w-[10%]',
   };
 
+  const applyPendingOutcome = () => {
+    if (!pendingOutcome) return;
+    const selectedRows = selectedMutableRows;
+    const firstRow = selectedRows[0];
+    if (!firstRow) return;
+    const stepId = toRecruitmentRow(firstRow).stepId;
+    const userIds = selectedRows.map((row) => toRecruitmentRow(row).uid);
+    const { status } = pendingOutcome;
+    setPendingOutcome(null);
+    toast.promise(
+      batchSetOutcomeByUid(flowTypeId, stepId, status, userIds).then(() => {
+        setStatusOverrides((prev) => ({
+          ...prev,
+          ...Object.fromEntries(userIds.map((uid) => [uid, status])),
+        }));
+        setRowSelection({});
+        onOutcomeChanged?.();
+      }),
+      {
+        loading: status === 'passed' ? '正在设置为通过' : status === 'failed' ? '正在设置为不通过' : '正在标记为未参与',
+        success: status === 'passed' ? '已设置为通过' : status === 'failed' ? '已设置为不通过' : '已标记为未参与',
+        error: '设置失败',
+      },
+    );
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="border-y bg-muted/20 px-4 py-4">
@@ -191,36 +230,13 @@ export function DataTable<TData, TValue>({
                     size="sm"
                     className="h-10 w-full sm:h-9 sm:w-auto"
                     disabled={!canEditOutcomes}
-                    onClick={async () => {
+                    onClick={() => {
                       const selectedRows = selectedMutableRows;
-                      const firstRow = selectedRows[0];
-                      if (!firstRow) return;
-                      const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为通过吗？全部结果完成后需在上方确认并发布流程结果。`,
-                      );
-                      if (!confirmed) return;
-                      const stepId = toRecruitmentRow(firstRow).stepId;
-                      const passedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
-                      toast.promise(
-                        batchSetOutcomeByUid(
-                          flowTypeId,
-                          stepId,
-                          'passed',
-                          passedUids,
-                        ).then(() => {
-                          setStatusOverrides((prev) => ({
-                            ...prev,
-                            ...Object.fromEntries(passedUids.map((uid) => [uid, 'passed'])),
-                          }));
-                          setRowSelection({});
-                          onOutcomeChanged?.();
-                        }),
-                        {
-                          loading: '正在设置为通过',
-                          success: '已设置为通过',
-                          error: '设置失败',
-                        },
-                      );
+                      if (selectedRows.length > 0) setPendingOutcome({
+                        status: 'passed',
+                        title: '确认设置为通过',
+                        description: `确定将 ${selectedRows.length} 人设为通过吗？全部结果完成后需在上方确认并发布流程结果。`,
+                      });
                     }}
                   >
                     设为通过
@@ -230,36 +246,13 @@ export function DataTable<TData, TValue>({
                     variant="outline"
                     className="h-10 w-full sm:h-9 sm:w-auto"
                     disabled={!canEditOutcomes}
-                    onClick={async () => {
+                    onClick={() => {
                       const selectedRows = selectedMutableRows;
-                      const firstRow = selectedRows[0];
-                      if (!firstRow) return;
-                      const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人设为不通过吗？全部结果完成后需在上方确认并发布流程结果。`,
-                      );
-                      if (!confirmed) return;
-                      const stepId = toRecruitmentRow(firstRow).stepId;
-                      const failedUids = selectedRows.map((row) => toRecruitmentRow(row).uid);
-                      toast.promise(
-                        batchSetOutcomeByUid(
-                          flowTypeId,
-                          stepId,
-                          'failed',
-                          failedUids,
-                        ).then(() => {
-                          setStatusOverrides((prev) => ({
-                            ...prev,
-                            ...Object.fromEntries(failedUids.map((uid) => [uid, 'failed'])),
-                          }));
-                          setRowSelection({});
-                          onOutcomeChanged?.();
-                        }),
-                        {
-                          loading: '正在设置为不通过',
-                          success: '已设置为不通过',
-                          error: '设置失败',
-                        },
-                      );
+                      if (selectedRows.length > 0) setPendingOutcome({
+                        status: 'failed',
+                        title: '确认设置为不通过',
+                        description: `确定将 ${selectedRows.length} 人设为不通过吗？全部结果完成后需在上方确认并发布流程结果。`,
+                      });
                     }}
                   >
                     设为不通过
@@ -269,31 +262,13 @@ export function DataTable<TData, TValue>({
                     variant="ghost"
                     className="h-10 w-full sm:h-9 sm:w-auto"
                     disabled={!canEditOutcomes}
-                    onClick={async () => {
+                    onClick={() => {
                       const selectedRows = selectedMutableRows;
-                      const firstRow = selectedRows[0];
-                      if (!firstRow) return;
-                      const confirmed = window.confirm(
-                        `确定将 ${selectedRows.length} 人标记为未参与吗？他们不会阻塞结果发布，也不会收到结果邮件。`,
-                      );
-                      if (!confirmed) return;
-                      const stepId = toRecruitmentRow(firstRow).stepId;
-                      const userIds = selectedRows.map((row) => toRecruitmentRow(row).uid);
-                      toast.promise(
-                        batchSetOutcomeByUid(flowTypeId, stepId, 'withdrawn', userIds).then(() => {
-                          setStatusOverrides((prev) => ({
-                            ...prev,
-                            ...Object.fromEntries(userIds.map((uid) => [uid, 'withdrawn'])),
-                          }));
-                          setRowSelection({});
-                          onOutcomeChanged?.();
-                        }),
-                        {
-                          loading: '正在标记为未参与',
-                          success: '已标记为未参与',
-                          error: '设置失败',
-                        },
-                      );
+                      if (selectedRows.length > 0) setPendingOutcome({
+                        status: 'withdrawn',
+                        title: '确认标记未参与',
+                        description: `确定将 ${selectedRows.length} 人标记为未参与吗？他们不会阻塞结果发布，也不会收到结果邮件。`,
+                      });
                     }}
                   >
                     标记未参与
@@ -469,6 +444,18 @@ export function DataTable<TData, TValue>({
           )}
         </div>
       </div>
+      <Dialog open={pendingOutcome !== null} onOpenChange={(open) => !open && setPendingOutcome(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{pendingOutcome?.title ?? '确认操作'}</DialogTitle>
+            <DialogDescription>{pendingOutcome?.description ?? ''}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingOutcome(null)}>取消</Button>
+            <Button onClick={applyPendingOutcome}>确认</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

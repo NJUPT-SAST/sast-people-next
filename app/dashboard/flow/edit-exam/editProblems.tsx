@@ -1,9 +1,10 @@
-import { EditProblems } from "@/components/flow/operations/editProblems";
+import { FlowEditWorkspace } from "@/components/flow/operations/flowEditWorkspace";
 import { db } from '@/db/drizzle';
 import { problem, flowStep } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
+import type { displayFlow } from '@/types/flow';
 
-export const EditProblemsServer = async ({ id }: { id: string }) => {
+export const EditProblemsServer = async ({ id, data }: { id: string; data: displayFlow }) => {
   const flowId = Number(id);
 
   const steps = await db
@@ -37,11 +38,11 @@ export const EditProblemsServer = async ({ id }: { id: string }) => {
     : {};
 
   return (
-    <EditProblems
+    <FlowEditWorkspace
+      data={data}
       steps={targetStep ? [targetStep] : []}
       problemsByStep={problemsByStep}
       defaultStepId={targetStep?.id ?? 0}
-      flowTypeId={flowId}
     />
   );
 };

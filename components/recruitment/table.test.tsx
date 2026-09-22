@@ -53,7 +53,6 @@ describe("Recruitment DataTable", () => {
     mockBatchEndByUid.mockClear();
     mockBatchSetOutcomeByUid.mockClear();
     mockToastPromise.mockClear();
-    jest.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -96,6 +95,7 @@ describe("Recruitment DataTable", () => {
 
     await user.click(screen.getAllByLabelText("select-1")[0]);
     await user.click(screen.getByRole("button", { name: "设为通过" }));
+    await user.click(screen.getByRole("button", { name: "确认" }));
 
     await waitFor(() => {
       expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "passed", [1]);
@@ -121,6 +121,7 @@ describe("Recruitment DataTable", () => {
 
     await user.click(screen.getAllByLabelText("select-2")[0]);
     await user.click(screen.getByRole("button", { name: "设为不通过" }));
+    await user.click(screen.getByRole("button", { name: "确认" }));
 
     await waitFor(() => {
       expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "failed", [2]);
@@ -143,6 +144,7 @@ describe("Recruitment DataTable", () => {
 
     await user.click(screen.getAllByLabelText("select-1")[0]);
     await user.click(screen.getByRole("button", { name: "标记未参与" }));
+    await user.click(screen.getByRole("button", { name: "确认" }));
 
     await waitFor(() => {
       expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "withdrawn", [1]);
@@ -150,7 +152,6 @@ describe("Recruitment DataTable", () => {
   });
 
   it("does not update outcomes when the confirmation is cancelled", async () => {
-    jest.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
 
     render(
@@ -166,10 +167,8 @@ describe("Recruitment DataTable", () => {
 
     await user.click(screen.getAllByLabelText("select-1")[0]);
     await user.click(screen.getByRole("button", { name: "设为通过" }));
+    await user.click(screen.getByRole("button", { name: "取消" }));
 
-    expect(window.confirm).toHaveBeenCalledWith(
-      "确定将 1 人设为通过吗？全部结果完成后需在上方确认并发布流程结果。",
-    );
     expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalled();
   });
 

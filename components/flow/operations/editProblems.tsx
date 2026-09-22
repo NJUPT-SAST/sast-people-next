@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Copy, FilePlus2, PlusIcon, Save, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateProblems } from "@/action/flow/problem/edit";
@@ -25,17 +25,17 @@ type LocalProblem = {
   fkFlowStepId: number;
 };
 
-const EditProblems = ({
-  steps,
-  problemsByStep,
-  defaultStepId,
-  flowTypeId,
-}: {
+export type EditProblemsHandle = {
+  save: () => Promise<void>;
+};
+
+const EditProblems = forwardRef<EditProblemsHandle, {
   steps: StepRow[];
   problemsByStep: Record<number, ProblemRow[]>;
   defaultStepId: number;
   flowTypeId: number;
-}) => {
+  hideSaveButton?: boolean;
+}>(({ steps, problemsByStep, defaultStepId, flowTypeId, hideSaveButton = false }, ref) => {
   const selectedStepId = defaultStepId;
   const [localProblems, setLocalProblems] = useState<LocalProblem[]>(
     (problemsByStep[defaultStepId] ?? []).map((p) => ({ ...p })),
@@ -91,10 +91,11 @@ const EditProblems = ({
     return null;
   };
 
-  const handleSave = async () => {
+  const save = async () => {
     const error = validateProblems();
     if (error) {
       toast.error(error);
+      if (hideSaveButton) throw new Error(error);
       return;
     }
 
@@ -108,17 +109,20 @@ const EditProblems = ({
       })),
     };
 
-    toast.promise(
-      updateProblems(selectedStepId, problemsForSave, flowTypeId).finally(() => {
-        setIsSubmitting(false);
-      }),
-      {
-        loading: "正在保存题目...",
-        success: "题目已成功保存",
-        error: "保存题目时出错",
-      },
-    );
+    try {
+      await updateProblems(selectedStepId, problemsForSave, flowTypeId);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  useImperativeHandle(ref, () => ({ save }));
+
+  const handleSave = () => toast.promise(save(), {
+    loading: "正在保存题目...",
+    success: "题目已成功保存",
+    error: "保存题目时出错",
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -141,15 +145,7 @@ const EditProblems = ({
                 <PlusIcon />
                 添加题目
               </Button>
-              <Button
-                onClick={handleSave}
-                loading={isSubmitting}
-                disabled={isSubmitting || !selectedStepId}
-                className="flex-1 sm:flex-none"
-              >
-                <Save />
-                保存
-              </Button>
+              {!hideSaveButton && <Button onClick={handleSave} loading={isSubmitting} disabled={isSubmitting || !selectedStepId} className="flex-1 sm:flex-none"><Save />保存</Button>}
             </div>
           </div>
         </CardHeader>
@@ -256,6 +252,8 @@ const EditProblems = ({
       </Card>
     </div>
   );
-};
+});
+
+EditProblems.displayName = "EditProblems";
 
 export { EditProblems };

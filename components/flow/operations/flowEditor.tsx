@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod/v4';
@@ -42,7 +42,14 @@ const stepTypeLabel: Record<string, string> = {
   finished: '完成',
 };
 
-export function FlowEditor({ data }: { data: displayFlow }) {
+export type FlowEditorHandle = {
+  save: () => Promise<void>;
+};
+
+export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embedded?: boolean; hideSaveButton?: boolean; showExamLink?: boolean }>(function FlowEditor(
+  { data, embedded = false, hideSaveButton = false, showExamLink = true },
+  ref,
+) {
   const form = useForm<z.infer<typeof editFlowSchema>>({
     resolver: zodResolver(editFlowSchema),
     defaultValues: {
@@ -55,6 +62,7 @@ export function FlowEditor({ data }: { data: displayFlow }) {
     },
   });
   const { isSubmitting } = form.formState;
+  const [isSaving, setIsSaving] = useState(false);
   const isWrittenRecruitment = !data.type || data.type === 'recruitment';
   const { data: savedSteps } = useFlowStepsInfoClient(data.id);
   const defaults = useMemo(
@@ -73,33 +81,41 @@ export function FlowEditor({ data }: { data: displayFlow }) {
 
   useEffect(() => setEditableSteps(fixedStepList), [fixedStepList]);
 
-  const saveFlow = () => {
+  const save = async () => {
     const values = form.getValues();
     const parsedGroups = groupOptionsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line, index, lines) => lines.indexOf(line) === index);
     setGroupOptionsText(parsedGroups.join('\n'));
-    toast.promise(updateFlow(values.id!, { ...values, groupOptions: parsedGroups }), {
-      loading: '正在保存流程信息',
-      success: `${values.title} 的基本信息已保存`,
-      error: '保存流程信息时出现问题，请稍后重试',
-    });
+    setIsSaving(true);
+    try {
+      await Promise.all([
+        updateFlow(values.id!, { ...values, groupOptions: parsedGroups }),
+        updateFlowStep(data.id, editableSteps),
+      ]);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const saveSteps = () => toast.promise(updateFlowStep(data.id, editableSteps), {
-    loading: '正在保存步骤',
-    success: '步骤名称和描述已保存',
-    error: '保存步骤时出现问题，请稍后重试',
+  useImperativeHandle(ref, () => ({ save }));
+
+  const saveWithToast = () => toast.promise(save(), {
+    loading: '正在保存流程信息和步骤',
+    success: '流程信息和步骤已保存',
+    error: '保存流程信息时出现问题，请稍后重试',
   });
 
   return (
     <div className="min-w-0 space-y-5">
-      <div className="flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
-        <Link href="/dashboard/flow" className="min-w-0">
-          <Button variant="ghost" className="h-10 px-2 sm:h-9">
-            <span className="inline-flex items-center gap-2 text-lg font-semibold md:text-2xl"><ArrowLeft className="size-5 shrink-0" />编辑流程</span>
-          </Button>
-        </Link>
-        <p className="truncate px-2 text-sm text-muted-foreground sm:max-w-[50%] sm:text-right">{data.title}</p>
-      </div>
+      {!embedded && (
+        <div className="flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <Link href="/dashboard/flow" className="min-w-0">
+            <Button variant="ghost" className="h-10 px-2 sm:h-9">
+              <span className="inline-flex items-center gap-2 text-lg font-semibold md:text-2xl"><ArrowLeft className="size-5 shrink-0" />编辑流程</span>
+            </Button>
+          </Link>
+          <p className="truncate px-2 text-sm text-muted-foreground sm:max-w-[50%] sm:text-right">{data.title}</p>
+        </div>
+      )}
 
       <Form {...form}>
         <section className="rounded-lg border bg-card p-4 sm:p-6">
@@ -109,8 +125,8 @@ export function FlowEditor({ data }: { data: displayFlow }) {
               <p className="mt-1 text-sm text-muted-foreground">维护流程名称、说明、时间和报名配置。</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {isWrittenRecruitment && <Button asChild variant="outline"><Link href={`/dashboard/flow/edit-exam?id=${data.id}`}>编辑笔试题目</Link></Button>}
-              <Button type="button" onClick={saveFlow} disabled={isSubmitting}>保存流程信息</Button>
+              {isWrittenRecruitment && showExamLink && <Button asChild variant="outline"><Link href={`/dashboard/flow/edit-exam?id=${data.id}`}>编辑笔试题目</Link></Button>}
+              {!hideSaveButton && <Button type="button" onClick={saveWithToast} disabled={isSubmitting || isSaving}>保存全部更改</Button>}
             </div>
           </div>
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -125,7 +141,7 @@ export function FlowEditor({ data }: { data: displayFlow }) {
         <section className="rounded-lg border bg-card p-4 sm:p-6">
           <div className="flex flex-col gap-1 border-b pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div><h2 className="text-lg font-semibold sm:text-xl">流程步骤</h2><p className="mt-1 text-sm text-muted-foreground">步骤数量、类型和顺序由流程类型固定，可调整展示名称和说明。</p></div>
-            <Button type="button" variant="outline" onClick={saveSteps} disabled={isSubmitting}>保存步骤</Button>
+            {!hideSaveButton && <span className="text-xs text-muted-foreground">步骤会随上方“保存全部更改”一起保存</span>}
           </div>
           <div className="mt-5 grid gap-4 xl:grid-cols-3">
             {editableSteps.map((step, index) => (
@@ -143,4 +159,4 @@ export function FlowEditor({ data }: { data: displayFlow }) {
       </Form>
     </div>
   );
-}
+});
