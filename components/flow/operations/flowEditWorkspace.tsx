@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -42,18 +44,21 @@ export function FlowEditWorkspace({
   };
 
   return (
-    <div className="space-y-6 pb-24">
-      <div className="rounded-xl border border-primary/20 bg-primary/[0.06] px-4 py-4 sm:px-6">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold">编辑工作区</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              在这里完成流程信息、流程步骤和笔试题目的全部修改，最后统一保存。
-            </p>
-          </div>
-          <span className="text-xs font-medium text-primary">未保存的修改只保留在当前页面</span>
+    <div className="space-y-6 pb-20">
+      <header className="flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <Link
+            href="/dashboard/flow"
+            className="mb-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            返回流程管理
+          </Link>
+          <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">编辑流程</h1>
+          <p className="mt-1 truncate text-sm text-muted-foreground">{data.title}</p>
         </div>
-      </div>
+        <p className="text-xs text-muted-foreground">修改完成后点击右下角保存全部修改</p>
+      </header>
 
       <FlowEditor ref={flowEditorRef} data={data} embedded hideSaveButton />
       {data.type === "recruitment" && steps && problemsByStep && defaultStepId !== undefined && (
@@ -67,14 +72,12 @@ export function FlowEditWorkspace({
         />
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.18)] backdrop-blur sm:px-8">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-          <p className="hidden text-sm text-muted-foreground sm:block">流程信息{data.type === "recruitment" ? "、步骤和题目" : "和步骤"}将一起保存</p>
+      <div className="fixed bottom-5 right-5 z-40 sm:bottom-7 sm:right-8">
           <Button
-            className="ml-auto min-w-40"
+            className="min-w-40 rounded-full px-5 shadow-lg shadow-primary/20"
             onClick={() => toast.promise(saveAll(), {
               loading: "正在保存全部修改",
-              success: "流程、步骤和题目已保存",
+              success: data.type === "recruitment" ? "流程、步骤和题目已保存" : "流程和步骤已保存",
               error: "保存失败，请检查后重试",
             })}
             loading={isSaving}
@@ -82,7 +85,6 @@ export function FlowEditWorkspace({
           >
             保存全部修改
           </Button>
-        </div>
       </div>
     </div>
   );
