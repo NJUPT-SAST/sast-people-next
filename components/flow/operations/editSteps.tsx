@@ -169,11 +169,6 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false }: { data: 
         <SheetHeader className="px-1 pt-2 pb-2">
           <div className="flex items-center justify-between gap-3 pr-8">
             <SheetTitle>流程编辑</SheetTitle>
-            {isWrittenRecruitment && (
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/dashboard/flow/edit-exam?id=${data.id}`}>编辑笔试题目</Link>
-              </Button>
-            )}
           </div>
           <SheetDescription>
             在下方编辑流程的基本信息与流程的步骤

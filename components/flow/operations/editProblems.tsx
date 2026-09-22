@@ -130,7 +130,7 @@ const EditProblems = forwardRef<EditProblemsHandle, {
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 flex-col gap-2">
-              <CardTitle className="text-base sm:text-lg">编辑笔试题目</CardTitle>
+              <CardTitle className="text-base sm:text-lg">笔试题目</CardTitle>
               <p className="text-sm text-muted-foreground">
                 维护这个笔试流程的一套题目。题目会用于阅卷范围选择和成绩统计。
               </p>

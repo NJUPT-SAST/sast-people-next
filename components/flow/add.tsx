@@ -176,10 +176,7 @@ export const AddFlow = () => {
             disabled={isSubmitting}
             onClick={addFlowForm.handleSubmit(async () => {
               const values = addFlowForm.getValues();
-              const editPathForFlow =
-                values.type === 'recruitment'
-                  ? (flowId: number) => `/dashboard/flow/edit-exam?id=${flowId}`
-                  : (flowId: number) => `/dashboard/flow/edit?id=${flowId}`;
+              const editPathForFlow = (flowId: number) => `/dashboard/flow/edit?id=${flowId}`;
 
               toast.promise(
                 async () => {

@@ -91,7 +91,7 @@ export const updateProblems = async (
         .where(eq(problem.fkFlowStepId, stepId));
     }
 
-    revalidatePath(`/dashboard/flow/edit-exam?id=${flowId}`);
+    revalidatePath(`/dashboard/flow/edit?id=${flowId}`);
     await writeOperationAudit({
       actorId: session.uid,
       actorRole: session.role,
@@ -109,7 +109,7 @@ export const updateProblems = async (
     });
   } catch (err) {
     logServerError('flow:updateProblems', err, {
-      path: '/dashboard/flow/edit-exam',
+      path: '/dashboard/flow/edit',
       userId: session.uid,
       role: session.role,
       action: 'update-problems',

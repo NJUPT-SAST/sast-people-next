@@ -39,7 +39,7 @@ describe("EditProblems", () => {
       />,
     );
 
-    expect(screen.getByText("编辑笔试题目")).toBeTruthy();
+    expect(screen.getByText("笔试题目")).toBeTruthy();
     expect(screen.getByText("题目用于：批卷")).toBeTruthy();
     expect(screen.getByText("1 道题目")).toBeTruthy();
   });

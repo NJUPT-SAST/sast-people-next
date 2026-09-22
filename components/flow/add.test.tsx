@@ -75,7 +75,7 @@ describe("AddFlow", () => {
           endedAt: expect.any(Date),
         }),
       );
-      expect(mockPush).toHaveBeenCalledWith("/dashboard/flow/edit-exam?id=123");
+      expect(mockPush).toHaveBeenCalledWith("/dashboard/flow/edit?id=123");
     });
   });
 });

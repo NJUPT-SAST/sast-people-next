@@ -46,8 +46,8 @@ export type FlowEditorHandle = {
   save: () => Promise<void>;
 };
 
-export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embedded?: boolean; hideSaveButton?: boolean; showExamLink?: boolean }>(function FlowEditor(
-  { data, embedded = false, hideSaveButton = false, showExamLink = true },
+export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embedded?: boolean; hideSaveButton?: boolean }>(function FlowEditor(
+  { data, embedded = false, hideSaveButton = false },
   ref,
 ) {
   const form = useForm<z.infer<typeof editFlowSchema>>({
@@ -125,7 +125,6 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
               <p className="mt-1 text-sm text-muted-foreground">维护流程名称、说明、时间和报名配置。</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {isWrittenRecruitment && showExamLink && <Button asChild variant="outline"><Link href={`/dashboard/flow/edit-exam?id=${data.id}`}>编辑笔试题目</Link></Button>}
               {!hideSaveButton && <Button type="button" onClick={saveWithToast} disabled={isSubmitting || isSaving}>保存全部更改</Button>}
             </div>
           </div>

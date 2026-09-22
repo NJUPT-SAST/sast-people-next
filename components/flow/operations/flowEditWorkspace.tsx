@@ -21,9 +21,9 @@ export function FlowEditWorkspace({
   defaultStepId,
 }: {
   data: displayFlow;
-  steps: ProblemStep[];
-  problemsByStep: Record<number, ProblemRow[]>;
-  defaultStepId: number;
+  steps?: ProblemStep[];
+  problemsByStep?: Record<number, ProblemRow[]>;
+  defaultStepId?: number;
 }) {
   const flowEditorRef = useRef<FlowEditorHandle>(null);
   const problemsEditorRef = useRef<EditProblemsHandle>(null);
@@ -55,19 +55,21 @@ export function FlowEditWorkspace({
         </div>
       </div>
 
-      <FlowEditor ref={flowEditorRef} data={data} embedded hideSaveButton showExamLink={false} />
-      <EditProblems
-        ref={problemsEditorRef}
-        steps={steps}
-        problemsByStep={problemsByStep}
-        defaultStepId={defaultStepId}
-        flowTypeId={data.id}
-        hideSaveButton
-      />
+      <FlowEditor ref={flowEditorRef} data={data} embedded hideSaveButton />
+      {data.type === "recruitment" && steps && problemsByStep && defaultStepId !== undefined && (
+        <EditProblems
+          ref={problemsEditorRef}
+          steps={steps}
+          problemsByStep={problemsByStep}
+          defaultStepId={defaultStepId}
+          flowTypeId={data.id}
+          hideSaveButton
+        />
+      )}
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.18)] backdrop-blur sm:px-8">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-          <p className="hidden text-sm text-muted-foreground sm:block">流程信息、步骤和题目将一起保存</p>
+          <p className="hidden text-sm text-muted-foreground sm:block">流程信息{data.type === "recruitment" ? "、步骤和题目" : "和步骤"}将一起保存</p>
           <Button
             className="ml-auto min-w-40"
             onClick={() => toast.promise(saveAll(), {
