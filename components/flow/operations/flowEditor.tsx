@@ -16,8 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateTimeInput } from '@/components/ui/datetime-input';
 import { editFlowSchema } from '@/components/flow/add';
-import { updateFlow } from '@/action/flow/update';
-import { updateFlowStep } from '@/action/flow/flow-step/update';
+import { saveFlowWorkspace } from '@/action/flow/save-workspace';
 import { displayFlow } from '@/types/flow';
 import { fullStepType } from '@/types/step';
 import { useFlowStepsInfoClient } from '@/hooks/useFlowStepsInfoClient';
@@ -44,6 +43,7 @@ const stepTypeLabel: Record<string, string> = {
 
 export type FlowEditorHandle = {
   save: () => Promise<void>;
+  getDraft: () => { values: z.infer<typeof editFlowSchema>; steps: fullStepType[] };
 };
 
 export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embedded?: boolean; hideSaveButton?: boolean }>(function FlowEditor(
@@ -87,16 +87,25 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
     setGroupOptionsText(parsedGroups.join('\n'));
     setIsSaving(true);
     try {
-      await Promise.all([
-        updateFlow(values.id!, { ...values, groupOptions: parsedGroups }),
-        updateFlowStep(data.id, editableSteps),
-      ]);
+      await saveFlowWorkspace({
+        flowId: data.id,
+        values: { ...values, groupOptions: parsedGroups },
+        steps: editableSteps,
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
-  useImperativeHandle(ref, () => ({ save }));
+  const getDraft = () => ({
+    values: {
+      ...form.getValues(),
+      groupOptions: groupOptionsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line, index, lines) => lines.indexOf(line) === index),
+    },
+    steps: editableSteps,
+  });
+
+  useImperativeHandle(ref, () => ({ save, getDraft }));
 
   const saveWithToast = () => toast.promise(save(), {
     loading: '正在保存流程信息和步骤',

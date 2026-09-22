@@ -1,8 +1,8 @@
 import { db } from "@/db/drizzle";
 import { flowStep, problem } from "@/db/schema";
 import type { displayFlow } from "@/types/flow";
-import { eq, inArray } from "drizzle-orm";
-import { FlowEditWorkspace } from "./flowEditWorkspace";
+import { eq } from "drizzle-orm";
+import { FlowEditWorkspace } from "@/components/flow/operations/flowEditWorkspace";
 
 export async function FlowEditWorkspaceServer({ data }: { data: displayFlow }) {
   if (data.type !== "recruitment") return <FlowEditWorkspace data={data} />;
@@ -24,16 +24,15 @@ export async function FlowEditWorkspaceServer({ data }: { data: displayFlow }) {
     steps.find((step) => step.type === "judging") ??
     steps.find((step) => step.title.includes("批卷")) ??
     steps[0];
-  const stepIds = steps.map((step) => step.id);
-  const allProblems = stepIds.length > 0
-    ? await db.select().from(problem).where(inArray(problem.fkFlowStepId, stepIds))
+  const targetProblems = targetStep
+    ? await db.select().from(problem).where(eq(problem.fkFlowStepId, targetStep.id))
     : [];
 
   return (
     <FlowEditWorkspace
       data={data}
       steps={targetStep ? [targetStep] : []}
-      problemsByStep={targetStep ? { [targetStep.id]: allProblems } : {}}
+      problemsByStep={targetStep ? { [targetStep.id]: targetProblems } : {}}
       defaultStepId={targetStep?.id ?? 0}
     />
   );

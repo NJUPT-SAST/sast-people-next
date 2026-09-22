@@ -14,6 +14,7 @@ import { updateProblems } from "@/action/flow/problem/edit";
 import { toast } from "sonner";
 import { InferSelectModel } from "drizzle-orm";
 import { problem, flowStep } from "@/db/schema";
+import type { problemType } from "@/types/problem";
 
 type ProblemRow = InferSelectModel<typeof problem>;
 type StepRow = Pick<InferSelectModel<typeof flowStep>, "id" | "title" | "description" | "fkFlowId" | "order">;
@@ -27,6 +28,7 @@ type LocalProblem = {
 
 export type EditProblemsHandle = {
   save: () => Promise<void>;
+  getDraft: () => { stepId: number; problems: problemType };
 };
 
 const EditProblems = forwardRef<EditProblemsHandle, {
@@ -92,14 +94,6 @@ const EditProblems = forwardRef<EditProblemsHandle, {
   };
 
   const save = async () => {
-    const error = validateProblems();
-    if (error) {
-      toast.error(error);
-      if (hideSaveButton) throw new Error(error);
-      return;
-    }
-
-    setIsSubmitting(true);
     const problemsForSave = {
       default: localProblems.map((p) => ({
         id: p.id,
@@ -108,6 +102,14 @@ const EditProblems = forwardRef<EditProblemsHandle, {
         fkFlowStepId: selectedStepId,
       })),
     };
+    const error = validateProblems();
+    if (error) {
+      toast.error(error);
+      if (hideSaveButton) throw new Error(error);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       await updateProblems(selectedStepId, problemsForSave, flowTypeId);
@@ -116,7 +118,23 @@ const EditProblems = forwardRef<EditProblemsHandle, {
     }
   };
 
-  useImperativeHandle(ref, () => ({ save }));
+  const getDraft = () => {
+    const error = validateProblems();
+    if (error) throw new Error(error);
+    return {
+      stepId: selectedStepId,
+      problems: {
+        default: localProblems.map((p) => ({
+          id: p.id,
+          title: p.title.trim(),
+          score: p.score,
+          fkFlowStepId: selectedStepId,
+        })),
+      },
+    };
+  };
+
+  useImperativeHandle(ref, () => ({ save, getDraft }));
 
   const handleSave = () => toast.promise(save(), {
     loading: "正在保存题目...",

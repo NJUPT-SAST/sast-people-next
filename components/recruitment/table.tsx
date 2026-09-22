@@ -159,6 +159,10 @@ export function DataTable<TData, TValue>({
     const firstRow = selectedRows[0];
     if (!firstRow) return;
     const stepId = toRecruitmentRow(firstRow).stepId;
+    if (selectedRows.some((row) => toRecruitmentRow(row).stepId !== stepId)) {
+      toast.error('请选择同一批次的考生后再批量设置结果');
+      return;
+    }
     const userIds = selectedRows.map((row) => toRecruitmentRow(row).uid);
     toast.promise(
       batchSetOutcomeByUid(flowTypeId, stepId, status, userIds).then(({ updatedUserIds }) => {
@@ -168,10 +172,13 @@ export function DataTable<TData, TValue>({
         }));
         setRowSelection({});
         onOutcomeChanged?.();
+        return updatedUserIds.length;
       }),
       {
         loading: status === 'passed' ? '正在设置为通过' : status === 'failed' ? '正在设置为不通过' : '正在标记为未参与',
-        success: status === 'passed' ? '已设置为通过' : status === 'failed' ? '已设置为不通过' : '已标记为未参与',
+        success: (updatedCount) => updatedCount < userIds.length
+          ? `已更新 ${updatedCount}/${userIds.length} 人，部分人员未找到`
+          : status === 'passed' ? '已设置为通过' : status === 'failed' ? '已设置为不通过' : '已标记为未参与',
         error: '设置失败',
       },
     );

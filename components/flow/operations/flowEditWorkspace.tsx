@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { saveFlowWorkspace } from "@/action/flow/save-workspace";
 
 import { Button } from "@/components/ui/button";
 import { EditProblems, type EditProblemsHandle } from "@/components/flow/operations/editProblems";
@@ -34,10 +35,15 @@ export function FlowEditWorkspace({
   const saveAll = async () => {
     setIsSaving(true);
     try {
-      await Promise.all([
-        flowEditorRef.current?.save(),
-        problemsEditorRef.current?.save(),
-      ]);
+      const flowDraft = flowEditorRef.current?.getDraft();
+      if (!flowDraft) throw new Error("流程编辑器尚未准备完成");
+      const problemsDraft = problemsEditorRef.current?.getDraft();
+      await saveFlowWorkspace({
+        flowId: data.id,
+        values: flowDraft.values,
+        steps: flowDraft.steps,
+        problems: problemsDraft,
+      });
     } finally {
       setIsSaving(false);
     }
