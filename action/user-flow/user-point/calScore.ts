@@ -41,6 +41,7 @@ export const calScore = async (flowId: number) => {
           uid: userFlow.fkUserId,
           problemId: userPoint.fkProblemId,
           points: userPoint.points,
+          note: userPoint.note,
           judgerId: userPoint.fkJudgerId,
         })
         .from(userFlow)
@@ -63,6 +64,7 @@ export const calScore = async (flowId: number) => {
         `${row.uid}-${row.problemId}`,
         {
           points: row.points,
+          note: row.note,
           judgerName: row.judgerId ? userMap.get(row.judgerId)?.name ?? null : null,
         },
       ]),
@@ -81,6 +83,7 @@ export const calScore = async (flowId: number) => {
         score: item.score,
         points: pointMap.get(`${row.uid}-${item.id}`)?.points ?? 0,
         judgerName: pointMap.get(`${row.uid}-${item.id}`)?.judgerName ?? null,
+        note: pointMap.get(`${row.uid}-${item.id}`)?.note ?? null,
       })),
     }));
   } catch (error) {

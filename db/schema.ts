@@ -354,6 +354,8 @@ export const userPoint = pgTable("user_point", {
     .references(() => problem.id, { onDelete: "cascade" })
     .notNull(),
   points: integer("points").notNull(),
+  /* 讲师对该题的批卷备注 */
+  note: text("note"),
   /* Link 用户 ID — 阅卷人 */
   fkJudgerId: integer("fk_judger_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

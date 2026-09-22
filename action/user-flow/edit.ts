@@ -6,7 +6,7 @@ import { verifyRole } from '@/lib/dal';
 import { logServerError } from '@/lib/server-error-log';
 import { writeOperationAudit } from '@/lib/operation-audit';
 import { assertFlowResultsEditable } from '@/lib/flow-result-publication-guard';
-import { and, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 async function findStepIdByOrder(
   flowId: number,
@@ -213,7 +213,6 @@ export const batchSetOutcomeByUid = async (
           and(
             eq(userFlow.fkFlowId, flowId),
             inArray(userFlow.fkUserId, uids),
-            notInArray(userFlow.progressStatus, ['passed', 'failed', 'withdrawn']),
           ),
         )
         .for('update');

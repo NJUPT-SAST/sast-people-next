@@ -9,10 +9,10 @@ import Link from "next/link";
 export const operationButtonClass =
   "h-10 shrink-0 rounded-lg px-3 text-sm shadow-none xl:h-8 xl:px-2";
 
-export const Operations = ({ data }: { data: displayFlow }) => {
+export const Operations = ({ data, initialEditFlowId }: { data: displayFlow; initialEditFlowId?: number }) => {
   return (
     <div className="flex w-full flex-wrap items-center justify-end gap-x-1 gap-y-2 xl:inline-grid xl:grid-cols-4 xl:justify-items-end">
-      <EditSteps data={data} />
+      <EditSteps data={data} autoOpen={data.id === initialEditFlowId} />
       <Duplicate data={data} />
       {data.type === "recruitment" ? (
         <Link href={`/dashboard/flow/edit-exam?id=${data.id}`}>

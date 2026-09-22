@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ import {
 export { addFlowSchema, editFlowSchema, fullFlowSchema };
 
 export const AddFlow = () => {
+  const router = useRouter();
   const addFlowForm = useForm<z.infer<typeof addFlowSchema>>({
     resolver: zodResolver(addFlowSchema),
     mode: "onChange",
@@ -175,9 +177,10 @@ export const AddFlow = () => {
             onClick={addFlowForm.handleSubmit(async () => {
               toast.promise(
                 async () => {
-                  await addFlow(addFlowForm.getValues()).then(() => {
+                  await addFlow(addFlowForm.getValues()).then((flowId) => {
                     setOpen(false);
                     addFlowForm.reset();
+                    if (flowId) router.push(`/dashboard/flow?edit=${flowId}`);
                   });
                 },
                 {

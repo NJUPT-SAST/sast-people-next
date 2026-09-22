@@ -41,7 +41,6 @@ type RecruitmentRowLike = {
   isGraded?: boolean;
 };
 
-const finalStatuses = new Set(['passed', 'failed', 'withdrawn']);
 const recruitmentStatusText: Record<string, string> = {
   ungraded: '未批卷',
   ongoing: '待确认',
@@ -87,8 +86,6 @@ export function DataTable<TData, TValue>({
     const item = toRecruitmentRow(row);
     return getDisplayStatus(item);
   };
-  const isFinalRow = (row: { original: unknown }) =>
-    finalStatuses.has(getRowStatus(row));
   const isTargetRow = (row: { original: unknown }) => {
     const item = toRecruitmentRow(row);
     return Boolean(
@@ -114,7 +111,7 @@ export function DataTable<TData, TValue>({
     data: tableData,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
-    enableRowSelection: (row) => !finalStatuses.has(getRowStatus(row)),
+    enableRowSelection: () => true,
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
@@ -141,9 +138,7 @@ export function DataTable<TData, TValue>({
   const filteredSelectedRows = table.getFilteredSelectedRowModel().rows ?? [];
   const totalScoreColumn =
     table.getAllLeafColumns().find((column) => column.id === 'totalScore') ?? null;
-  const selectedMutableRows = (table.getSelectedRowModel().flatRows ?? []).filter(
-    (row) => !isFinalRow(row),
-  );
+  const selectedMutableRows = table.getSelectedRowModel().flatRows ?? [];
   const canEditOutcomes = selectedMutableRows.length > 0;
   const helperText =
     '成绩管理可标记通过、不通过或未参与；全部结果完成后，在上方确认并发布流程结果。';

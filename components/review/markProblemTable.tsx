@@ -2,7 +2,7 @@
 
 import { InferSelectModel } from 'drizzle-orm';
 import { CheckCircle2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -14,6 +14,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
 
 export const MarkProblemTable = ({
   points,
@@ -26,6 +27,10 @@ export const MarkProblemTable = ({
   const studentId = useSearchParams().get('user');
 
   const [editedScores, setEditedScores] = useState<Record<number, string>>({});
+  const [editedNotes, setEditedNotes] = useState<Record<number, string>>({});
+  const [persistedNotes, setPersistedNotes] = useState<Record<number, string | null>>(
+    () => Object.fromEntries(points.filter((point) => point.fkProblemId !== null).map((point) => [point.fkProblemId, point.note ?? null])),
+  );
   const [persistedScores, setPersistedScores] = useState<Record<number, number>>(
     () =>
       Object.fromEntries(
@@ -39,12 +44,12 @@ export const MarkProblemTable = ({
   const saveSequenceByProblemId = useRef(new Map<number, number>());
   const problems = useLocalProblemList();
 
-  const getDisplayScore = (problemId: number, existedScore: number | null) => {
+  const getDisplayScore = useCallback((problemId: number, existedScore: number | null) => {
     if (editedScores[problemId] !== undefined) return editedScores[problemId];
     if (persistedScores[problemId] !== undefined) return String(persistedScores[problemId]);
     if (existedScore === null) return '';
     return String(existedScore);
-  };
+  }, [editedScores, persistedScores]);
 
   const parseScore = (value: string) => {
     const trimmedValue = value.trim();
@@ -78,12 +83,17 @@ export const MarkProblemTable = ({
 
   useEffect(() => {
     const controllers = new Map<number, AbortController>();
-    const timers = Object.entries(editedScores).map(([problemId, value]) => {
-      const id = Number(problemId);
+    const changedProblemIds = new Set([
+      ...Object.keys(editedScores).map(Number),
+      ...Object.keys(editedNotes).map(Number),
+    ]);
+    const timers = Array.from(changedProblemIds).map((id) => {
       const sequence = (saveSequenceByProblemId.current.get(id) ?? 0) + 1;
       saveSequenceByProblemId.current.set(id, sequence);
       const problem = problems.find((item) => item.id === id);
-      const score = parseScore(value);
+      const scoreValue = getDisplayScore(id, points.find((point) => point.fkProblemId === id)?.points ?? null);
+      const score = parseScore(scoreValue);
+      const noteValue = editedNotes[id] ?? persistedNotes[id] ?? null;
       const errorMessage = problem
         ? validateScore(problem.name, problem.maxPoint, score)
         : '题目不存在';
@@ -98,7 +108,12 @@ export const MarkProblemTable = ({
           method: 'POST',
           body: JSON.stringify({
             action: 'single',
-            data: { userFlowId, problemId: id, point: score },
+            data: {
+              userFlowId,
+              problemId: id,
+              point: score,
+              ...(noteValue !== null ? { note: noteValue } : {}),
+            },
           }),
           signal: controller.signal,
         })
@@ -116,13 +131,20 @@ export const MarkProblemTable = ({
             }
 
             setPersistedScores((previous) => ({ ...previous, [id]: score }));
+            setPersistedNotes((previous) => ({ ...previous, [id]: editedNotes[id] ?? previous[id] ?? null }));
             setScoreErrors((previous) => {
               const next = { ...previous };
               delete next[id];
               return next;
             });
             setEditedScores((previous) => {
-              if (previous[id] !== value) return previous;
+              if (previous[id] !== undefined && previous[id] !== scoreValue) return previous;
+              const next = { ...previous };
+              delete next[id];
+              return next;
+            });
+            setEditedNotes((previous) => {
+              if (previous[id] !== editedNotes[id]) return previous;
               const next = { ...previous };
               delete next[id];
               return next;
@@ -150,8 +172,13 @@ export const MarkProblemTable = ({
       });
       controllers.forEach((controller) => controller.abort());
     };
-  }, [editedScores, problems, userFlowId]);
+  }, [editedScores, editedNotes, persistedNotes, points, problems, userFlowId, getDisplayScore]);
 
+
+  const getDisplayNote = (problemId: number, existedNote: string | null) => {
+    if (editedNotes[problemId] !== undefined) return editedNotes[problemId];
+    return persistedNotes[problemId] ?? existedNote ?? '';
+  };
 
   const problemPoints: Array<InferSelectModel<typeof userPoint>> = problems.map(
     (problem) => {
@@ -166,12 +193,13 @@ export const MarkProblemTable = ({
         fkProblemId: problem.id,
         points: Number.isFinite(currentScore) ? currentScore : 0,
         fkJudgerId: existed?.fkJudgerId ?? null,
+        note: getDisplayNote(problem.id, existed?.note ?? null) || null,
         createdAt: existed?.createdAt ?? new Date(),
       };
     },
   );
 
-  const hasUnsavedChanges = Object.keys(editedScores).length > 0;
+  const hasUnsavedChanges = Object.keys(editedScores).length > 0 || Object.keys(editedNotes).length > 0;
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -386,6 +414,19 @@ export const MarkProblemTable = ({
                         {inputError}
                       </p>
                     )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor={`problem-note-${problem.id}`}>批卷备注</Label>
+                    <Textarea
+                      id={`problem-note-${problem.id}`}
+                      value={getDisplayNote(problem.id, existed?.note ?? null)}
+                      onChange={(event) =>
+                        setEditedNotes((previous) => ({ ...previous, [problem.id]: event.target.value }))
+                      }
+                      placeholder="可填写对该题答案的评价或修改建议"
+                      maxLength={2000}
+                      rows={3}
+                    />
                   </div>
                 </div>
               );

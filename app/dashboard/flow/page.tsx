@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import { AddFlow } from "@/components/flow/add";
 import { FlowTableServer } from "./flowTable";
 
-const FlowPage = async () => {
+const FlowPage = async ({ searchParams }: { searchParams: Promise<{ edit?: string }> }) => {
+  const params = await searchParams;
   return (
     <>
       <PageHeader className="border-b pb-4">
@@ -20,7 +21,7 @@ const FlowPage = async () => {
       </PageHeader>
       <div className="mt-1">
         <Suspense fallback={<Skeleton className="h-[200px] w-full" />}>
-          <FlowTableServer />
+          <FlowTableServer initialEditFlowId={params.edit ? Number(params.edit) : undefined} />
         </Suspense>
       </div>
     </>

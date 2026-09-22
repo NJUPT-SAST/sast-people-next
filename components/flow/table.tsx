@@ -97,11 +97,13 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  initialEditFlowId?: number;
 }
 
 export function FlowTable<TData extends displayFlow, TValue>({
   columns,
   data,
+  initialEditFlowId,
 }: DataTableProps<TData, TValue>) {
   const tableData = Array.isArray(data) ? data : [];
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -165,7 +167,9 @@ export function FlowTable<TData extends displayFlow, TValue>({
                           : 'px-4 py-3 align-middle'
                       }
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {cell.column.id === 'operations'
+                        ? <Operations data={row.original} initialEditFlowId={initialEditFlowId} />
+                        : flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -208,7 +212,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
                 </div>
               </div>
               <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-                <Operations data={row.original} />
+                <Operations data={row.original} initialEditFlowId={initialEditFlowId} />
               </div>
             </div>
           ))

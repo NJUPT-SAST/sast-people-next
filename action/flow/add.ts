@@ -57,6 +57,7 @@ export async function addFlow(values: z.infer<typeof addFlowSchema>) {
     }
 
     revalidatePath('/dashboard/flow');
+    return createdFlowId;
   } catch (error) {
     logServerError('flow:add', error, {
       path: '/dashboard/flow',

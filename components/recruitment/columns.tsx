@@ -146,6 +146,7 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
             score: number;
             points: number;
             judgerName: string | null;
+            note: string | null;
           }>
         | undefined;
       if (!scores?.length) {
@@ -181,6 +182,11 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
                     <span className="text-xs text-muted-foreground">
                       阅卷：{item.judgerName ?? '未记录'}
                     </span>
+                    {item.note && (
+                      <span className="max-w-64 whitespace-pre-wrap text-left text-xs text-muted-foreground">
+                        备注：{item.note}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
