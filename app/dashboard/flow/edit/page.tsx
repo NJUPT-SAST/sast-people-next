@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { EditSteps } from "@/components/flow/operations/editSteps";
+import { FlowEditor } from "@/components/flow/operations/flowEditor";
 import getFlowInfo from "@/hooks/useFlowInfo";
 
 export default async function EditFlowPage({
@@ -14,5 +14,5 @@ export default async function EditFlowPage({
   const flowInfo = await getFlowInfo(flowId).catch(() => null);
   if (!flowInfo) redirect("/dashboard/flow");
 
-  return <EditSteps data={flowInfo} autoOpen />;
+  return <FlowEditor data={flowInfo} />;
 }
