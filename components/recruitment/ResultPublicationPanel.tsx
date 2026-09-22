@@ -12,7 +12,7 @@ import Link from "next/link";
 
 type Summary = Awaited<ReturnType<typeof getFlowResultPublicationSummary>>;
 
-export function ResultPublicationPanel({ flowId }: { flowId: number }) {
+export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: number; onStatusChange?: (status: string | null) => void }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
@@ -29,7 +29,11 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
 
   const refresh = async () => {
     setLoading(true);
-    try { setSummary(await getFlowResultPublicationSummary(flowId)); }
+    try {
+      const nextSummary = await getFlowResultPublicationSummary(flowId);
+      setSummary(nextSummary);
+      onStatusChange?.(nextSummary.publication?.status ?? null);
+    }
     catch (error) { toast.error(error instanceof Error ? error.message : "结果状态加载失败"); }
     finally { setLoading(false); }
   };
@@ -37,7 +41,11 @@ export function ResultPublicationPanel({ flowId }: { flowId: number }) {
   useEffect(() => {
     void (async () => {
       setLoading(true);
-      try { setSummary(await getFlowResultPublicationSummary(flowId)); }
+      try {
+        const nextSummary = await getFlowResultPublicationSummary(flowId);
+        setSummary(nextSummary);
+        onStatusChange?.(nextSummary.publication?.status ?? null);
+      }
       catch (error) { toast.error(error instanceof Error ? error.message : "结果状态加载失败"); }
       finally { setLoading(false); }
     })();

@@ -31,6 +31,7 @@ interface DataTableProps<TData, TValue> {
   targetUserFlowId?: number;
   role: number;
   onOutcomeChanged?: () => void;
+  resultsLocked?: boolean;
 }
 
 type RecruitmentRowLike = {
@@ -57,6 +58,7 @@ export function DataTable<TData, TValue>({
   targetUserFlowId,
   role,
   onOutcomeChanged,
+  resultsLocked = false,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -111,7 +113,7 @@ export function DataTable<TData, TValue>({
     data: tableData,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
-    enableRowSelection: () => true,
+    enableRowSelection: () => !resultsLocked,
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
@@ -139,7 +141,7 @@ export function DataTable<TData, TValue>({
   const totalScoreColumn =
     table.getAllLeafColumns().find((column) => column.id === 'totalScore') ?? null;
   const selectedMutableRows = table.getSelectedRowModel().flatRows ?? [];
-  const canEditOutcomes = selectedMutableRows.length > 0;
+  const canEditOutcomes = !resultsLocked && selectedMutableRows.length > 0;
   const helperText =
     '成绩管理可标记通过、不通过或未参与；全部结果完成后，在上方确认并发布流程结果。';
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'withdrawn', 'not_started'];
