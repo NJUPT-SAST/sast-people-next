@@ -95,7 +95,6 @@ describe("Recruitment DataTable", () => {
 
     await user.click(screen.getAllByLabelText("select-1")[0]);
     await user.click(screen.getByRole("button", { name: "设为通过" }));
-    await user.click(screen.getByRole("button", { name: "确认" }));
 
     await waitFor(() => {
       expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "passed", [1]);
@@ -121,7 +120,6 @@ describe("Recruitment DataTable", () => {
 
     await user.click(screen.getAllByLabelText("select-2")[0]);
     await user.click(screen.getByRole("button", { name: "设为不通过" }));
-    await user.click(screen.getByRole("button", { name: "确认" }));
 
     await waitFor(() => {
       expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "failed", [2]);
@@ -144,14 +142,13 @@ describe("Recruitment DataTable", () => {
 
     await user.click(screen.getAllByLabelText("select-1")[0]);
     await user.click(screen.getByRole("button", { name: "标记未参与" }));
-    await user.click(screen.getByRole("button", { name: "确认" }));
 
     await waitFor(() => {
       expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "withdrawn", [1]);
     });
   });
 
-  it("does not update outcomes when the confirmation is cancelled", async () => {
+  it("updates outcomes immediately without a confirmation dialog", async () => {
     const user = userEvent.setup();
 
     render(
@@ -167,9 +164,10 @@ describe("Recruitment DataTable", () => {
 
     await user.click(screen.getAllByLabelText("select-1")[0]);
     await user.click(screen.getByRole("button", { name: "设为通过" }));
-    await user.click(screen.getByRole("button", { name: "取消" }));
 
-    expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockBatchSetOutcomeByUid).toHaveBeenCalledWith(9, 3, "passed", [1]);
+    });
   });
 
   it("does not expose email sending controls in score management", () => {

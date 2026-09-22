@@ -119,11 +119,11 @@ export function FlowTable<TData extends displayFlow, TValue>({
       <div className="hidden xl:block">
         <Table className="table-fixed" containerClassName="overflow-x-visible">
           <colgroup>
-            <col className="w-[30%]" />
-            <col className="w-[10%]" />
+            <col className="w-[34%]" />
             <col className="w-[14%]" />
-            <col className="w-[14%]" />
-            <col className="w-[32%]" />
+            <col className="w-[16%]" />
+            <col className="w-[16%]" />
+            <col className="w-[20%]" />
           </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

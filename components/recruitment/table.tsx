@@ -21,14 +21,6 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
 import { toast } from 'sonner';
 import { batchSetOutcomeByUid } from '@/action/user-flow/edit';
 
@@ -72,11 +64,6 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
-  const [pendingOutcome, setPendingOutcome] = useState<{
-    status: 'passed' | 'failed' | 'withdrawn';
-    title: string;
-    description: string;
-  } | null>(null);
   const safeColumns = useMemo(() => (Array.isArray(columns) ? columns : []), [columns]);
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const getDisplayStatus = useCallback((row: RecruitmentRowLike) => {
@@ -167,15 +154,12 @@ export function DataTable<TData, TValue>({
     totalScore: 'w-[10%]',
   };
 
-  const applyPendingOutcome = () => {
-    if (!pendingOutcome) return;
+  const applyOutcome = (status: 'passed' | 'failed' | 'withdrawn') => {
     const selectedRows = selectedMutableRows;
     const firstRow = selectedRows[0];
     if (!firstRow) return;
     const stepId = toRecruitmentRow(firstRow).stepId;
     const userIds = selectedRows.map((row) => toRecruitmentRow(row).uid);
-    const { status } = pendingOutcome;
-    setPendingOutcome(null);
     toast.promise(
       batchSetOutcomeByUid(flowTypeId, stepId, status, userIds).then(() => {
         setStatusOverrides((prev) => ({
@@ -232,11 +216,7 @@ export function DataTable<TData, TValue>({
                     disabled={!canEditOutcomes}
                     onClick={() => {
                       const selectedRows = selectedMutableRows;
-                      if (selectedRows.length > 0) setPendingOutcome({
-                        status: 'passed',
-                        title: '确认设置为通过',
-                        description: `确定将 ${selectedRows.length} 人设为通过吗？全部结果完成后需在上方确认并发布流程结果。`,
-                      });
+                      if (selectedRows.length > 0) applyOutcome('passed');
                     }}
                   >
                     设为通过
@@ -248,11 +228,7 @@ export function DataTable<TData, TValue>({
                     disabled={!canEditOutcomes}
                     onClick={() => {
                       const selectedRows = selectedMutableRows;
-                      if (selectedRows.length > 0) setPendingOutcome({
-                        status: 'failed',
-                        title: '确认设置为不通过',
-                        description: `确定将 ${selectedRows.length} 人设为不通过吗？全部结果完成后需在上方确认并发布流程结果。`,
-                      });
+                      if (selectedRows.length > 0) applyOutcome('failed');
                     }}
                   >
                     设为不通过
@@ -264,11 +240,7 @@ export function DataTable<TData, TValue>({
                     disabled={!canEditOutcomes}
                     onClick={() => {
                       const selectedRows = selectedMutableRows;
-                      if (selectedRows.length > 0) setPendingOutcome({
-                        status: 'withdrawn',
-                        title: '确认标记未参与',
-                        description: `确定将 ${selectedRows.length} 人标记为未参与吗？他们不会阻塞结果发布，也不会收到结果邮件。`,
-                      });
+                      if (selectedRows.length > 0) applyOutcome('withdrawn');
                     }}
                   >
                     标记未参与
@@ -444,18 +416,6 @@ export function DataTable<TData, TValue>({
           )}
         </div>
       </div>
-      <Dialog open={pendingOutcome !== null} onOpenChange={(open) => !open && setPendingOutcome(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{pendingOutcome?.title ?? '确认操作'}</DialogTitle>
-            <DialogDescription>{pendingOutcome?.description ?? ''}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingOutcome(null)}>取消</Button>
-            <Button onClick={applyPendingOutcome}>确认</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
