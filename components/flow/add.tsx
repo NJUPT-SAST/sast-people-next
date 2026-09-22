@@ -175,17 +175,23 @@ export const AddFlow = () => {
             // loading={isSubmitting}
             disabled={isSubmitting}
             onClick={addFlowForm.handleSubmit(async () => {
+              const values = addFlowForm.getValues();
+              const editPathForFlow =
+                values.type === 'recruitment'
+                  ? (flowId: number) => `/dashboard/flow/edit-exam?id=${flowId}`
+                  : (flowId: number) => `/dashboard/flow/edit?id=${flowId}`;
+
               toast.promise(
                 async () => {
-                  await addFlow(addFlowForm.getValues()).then((flowId) => {
+                  await addFlow(values).then((flowId) => {
                     setOpen(false);
                     addFlowForm.reset();
-                    if (flowId) router.push(`/dashboard/flow/edit?id=${flowId}`);
+                    if (flowId !== null) router.push(editPathForFlow(flowId));
                   });
                 },
                 {
                   loading: '正在添加',
-                  success: `${addFlowForm.getValues().title} 已添加成功`,
+                  success: `${values.title} 已添加成功`,
                   error: '添加的时候出现了问题，稍后重试',
                 },
               );
