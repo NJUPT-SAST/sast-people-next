@@ -3,7 +3,7 @@ import { PageHeader, PageTitle } from "@/components/route";
 import { FeedbackForm } from "@/components/about/feedback-form";
 import { useUserInfo as getUserInfo } from "@/hooks/useUserInfo";
 
-const chatLink = "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=4e4r7a7d-03d2-4273-81d8-8df8ccdab374";
+const chatLink = process.env.FEEDBACK_FEISHU_GROUP_URL?.trim();
 const githubLink = "https://github.com/NJUPT-SAST/sast-people-next";
 
 export default async function AboutPage() {
@@ -18,7 +18,7 @@ export default async function AboutPage() {
             SAST People 是南京邮电大学大学生科学技术协会面向成员与项目组的协作平台，覆盖招新、笔试、面试审批、结果通知与成员留任，帮助团队统一管理流程、沉淀记录。
           </p>
           <div className="mx-auto mt-7 w-full border-y border-border/70">
-            <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-primary/[0.04]" href={chatLink} target="_blank" rel="noreferrer">
+            {chatLink && <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-primary/[0.04]" href={chatLink} target="_blank" rel="noreferrer">
               <span className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/25 bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
                 <MessageCircle className="size-4" />
               </span>
@@ -27,8 +27,8 @@ export default async function AboutPage() {
                 <span className="mt-0.5 block text-xs text-muted-foreground">仅 SAST 内部成员可进</span>
               </span>
               <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/70 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
-            </a>
-            <span className="h-px w-full bg-border/70" />
+            </a>}
+            {chatLink && <span className="h-px w-full bg-border/70" />}
             <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-primary/[0.04]" href={githubLink} target="_blank" rel="noreferrer">
               <span className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/25 bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
                 <Github className="size-4" />
