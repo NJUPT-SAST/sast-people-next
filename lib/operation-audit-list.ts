@@ -115,6 +115,9 @@ export const operationAuditActionGroups = {
     "user_flow.apply_group.update",
     "user_flow.apply_group.mark",
   ],
+  feedback: [
+    "feedback.status.update",
+  ],
 } as const;
 
 function parsePositiveInt(value: string | number | undefined, fallback: number) {

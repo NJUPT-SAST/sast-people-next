@@ -20,7 +20,7 @@ services:
       start_period: 10s
 
   inngest-dev:
-    image: inngest/inngest:v1.14.1
+    image: inngest/inngest
     ports:
       - "8288:8288"
       - "8289:8289"

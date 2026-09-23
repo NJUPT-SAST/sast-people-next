@@ -32,6 +32,7 @@ const actionGroups = [
   { value: "evaluation", label: "面评" },
   { value: "flow", label: "流程" },
   { value: "user", label: "用户" },
+  { value: "feedback", label: "反馈" },
 ];
 
 const auditDateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -102,6 +103,7 @@ const actionLabels: Record<string, string> = {
   "interview_schedule.meeting_minute.generated": "生成会议妙记",
   "interview_schedule.sync.updated": "同步飞书改约",
   "interview_schedule.sync.cancelled": "同步飞书取消",
+  "feedback.status.update": "更新反馈状态",
 };
 
 const metadataLabels: Record<string, string> = {
@@ -112,6 +114,7 @@ const metadataLabels: Record<string, string> = {
   flowType: "流程类型",
   hasCustomAddress: "使用自定义收件地址",
   hasMeetingLink: "包含会议链接",
+  hasResolutionNote: "包含处理备注",
   itemCount: "项目数量",
   mode: "操作模式",
   previousStatus: "原状态",

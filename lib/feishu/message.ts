@@ -6,6 +6,7 @@ export type SendFeishuTextMessageInput = {
   openId: string;
   text: string;
   uuid?: string;
+  receiveIdType?: FeishuReceiveIdType;
 };
 
 type FeishuReceiveIdType = "open_id" | "chat_id";
@@ -23,10 +24,11 @@ export async function sendFeishuTextMessage({
   openId,
   text,
   uuid,
+  receiveIdType = "open_id",
 }: SendFeishuTextMessageInput) {
   const res = await getFeishuClient().im.v1.message.create({
     params: {
-      receive_id_type: "open_id",
+      receive_id_type: receiveIdType,
     },
     data: {
       receive_id: openId,
