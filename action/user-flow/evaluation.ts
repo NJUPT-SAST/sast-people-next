@@ -678,10 +678,12 @@ export const getAllEvaluations = async () => {
         candidateId: userFlow.fkUserId,
         flowTitle: flow.title,
         flowType: flow.type,
+        publicationStatus: flowResultPublication.status,
       })
       .from(interviewEvaluation)
       .leftJoin(userFlow, eq(interviewEvaluation.fkUserFlowId, userFlow.id))
       .leftJoin(flow, eq(userFlow.fkFlowId, flow.id))
+      .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
       .orderBy(desc(interviewEvaluation.createdAt));
 
     const userFlowIds = rows

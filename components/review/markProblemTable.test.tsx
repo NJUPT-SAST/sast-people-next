@@ -112,7 +112,7 @@ describe("MarkProblemTable", () => {
           method: 'POST',
           body: JSON.stringify({
             action: 'single',
-            data: { userFlowId: 3, problemId: 1, point: 88 },
+            data: { userFlowId: 3, problemId: 1, point: 88, writeAudit: false },
           }),
         }),
       );

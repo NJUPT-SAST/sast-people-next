@@ -12,6 +12,8 @@ import {
   FileWarning,
   Mail,
   ScrollText,
+  Info,
+  MessageSquareText,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -104,11 +106,23 @@ export const menuItems: MenuItem[] = [
     group: 'manage',
   },
   {
+    title: '反馈记录',
+    icon: MessageSquareText,
+    path: '/feedback',
+    group: 'manage',
+  },
+  {
     title: '错误日志',
     icon: FileWarning,
     path: '/error-log',
     group: 'manage',
     externalHref: SENTRY_ISSUES_URL,
+  },
+  {
+    title: '关于与反馈',
+    icon: Info,
+    path: '/about',
+    group: 'me',
   },
 ];
 
@@ -123,21 +137,24 @@ export function getMenuItemTitle(item: MenuItem, role?: number): string {
 }
 
 export function getVisibleMenuItems(role: number): MenuItem[] {
+  const withoutAbout = (items: MenuItem[]) => items.filter((item) => item.path !== '/about');
   if (role === 0 || role === 1) {
-    return menuItems.filter((item) => item.group === 'me');
+    return withoutAbout(menuItems.filter((item) => item.group === 'me'));
   }
   if (role === 2) {
-    return menuItems.filter(
+    return withoutAbout(menuItems.filter(
       (item) =>
         item.group === 'me' ||
         item.path === '/review' ||
         item.path === '/manage' ||
         item.path === '/exams' ||
         item.path === '/interviews',
-    );
+    ));
   }
-  return menuItems;
+  return withoutAbout(menuItems);
 }
+
+export const aboutMenuItem = menuItems.find((item) => item.path === '/about')!;
 
 export function getMenuGroups(
   role: number,

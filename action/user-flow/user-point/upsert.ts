@@ -26,6 +26,8 @@ type ScoreAuditChange = {
   problemTitle: string;
   previousScore: number | null;
   nextScore: number;
+  previousNote: string | null;
+  nextNote: string | null;
 };
 
 type ValidatedScoreChanges = {
@@ -130,8 +132,8 @@ async function validateScoreChanges(
       .from(problem)
       .innerJoin(flowStep, eq(problem.fkFlowStepId, flowStep.id))
       .where(inArray(problem.id, problemIds)),
-    tx
-      .select({ problemId: userPoint.fkProblemId, points: userPoint.points })
+      tx
+      .select({ problemId: userPoint.fkProblemId, points: userPoint.points, note: userPoint.note })
       .from(userPoint)
       .where(
         and(
@@ -146,8 +148,8 @@ async function validateScoreChanges(
   }
 
   const problemById = new Map(problemRows.map((item) => [item.id, item]));
-  const previousScoreByProblemId = new Map(
-    existingPoints.map((item) => [item.problemId, item.points]),
+  const previousPointByProblemId = new Map(
+    existingPoints.map((item) => [item.problemId, { points: item.points, note: item.note ?? null }]),
   );
 
   const changes = values.map((value) => {
@@ -165,15 +167,26 @@ async function validateScoreChanges(
       throw new Error(`得分不能超过题目满分 ${targetProblem.maxScore}`);
     }
 
+    const previous = previousPointByProblemId.get(value.fkProblemId);
+    const nextNote = value.note;
     return {
       problemId: value.fkProblemId,
       problemTitle: targetProblem.title,
-      previousScore: previousScoreByProblemId.get(value.fkProblemId) ?? null,
+      previousScore: previous?.points ?? null,
       nextScore: value.points,
+      previousNote: previous?.note ?? null,
+      nextNote,
     };
   });
 
-  return { targetUserId: targetUserFlow.targetUserId, changes };
+  return {
+    targetUserId: targetUserFlow.targetUserId,
+    changes: changes.filter(
+      (change) =>
+        change.previousScore !== change.nextScore ||
+        change.previousNote !== change.nextNote,
+    ),
+  };
 }
 
 function getScoreOverwriteCondition(session: Awaited<ReturnType<typeof verifyRole>>) {
@@ -184,7 +197,13 @@ function getScoreOverwriteCondition(session: Awaited<ReturnType<typeof verifyRol
   return sql`${userPoint.fkJudgerId} is null or ${userPoint.fkJudgerId} = ${session.uid}`;
 }
 
-export const upsertPoint = async (userFlowId: number, problemId: number, point: number, note?: string | null) => {
+export const upsertPoint = async (
+  userFlowId: number,
+  problemId: number,
+  point: number,
+  note?: string | null,
+  options: { writeAudit?: boolean } = {},
+) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
@@ -218,17 +237,19 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
       throw new ReviewPointConflictError();
     }
 
-    await writeOperationAudit({
-      actorId: actor.uid,
-      actorRole: actor.role,
-      action: "review.score.upsert",
-      resourceType: "user_flow",
-      resourceId: userFlowId,
-      metadata: {
-        targetUserId: validated.targetUserId,
-        scoreChanges: validated.changes,
-      },
-    });
+    if (options.writeAudit !== false && validated.changes.length > 0) {
+      await writeOperationAudit({
+        actorId: actor.uid,
+        actorRole: actor.role,
+        action: "review.score.upsert",
+        resourceType: "user_flow",
+        resourceId: userFlowId,
+        metadata: {
+          targetUserId: validated.targetUserId,
+          scoreChanges: validated.changes,
+        },
+      });
+    }
   } catch (error) {
     if (error instanceof ReviewPointConflictError) {
       throw error;
@@ -286,17 +307,19 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
     });
 
 
-    await writeOperationAudit({
-      actorId,
-      actorRole: session.role,
-      action: "review.score.batch_upsert",
-      resourceType: "user_flow",
-      resourceId: normalized.userFlowId,
-      metadata: {
-        targetUserId: validated.targetUserId,
-        scoreChanges: validated.changes,
-      },
-    });
+    if (validated.changes.length > 0) {
+      await writeOperationAudit({
+        actorId,
+        actorRole: session.role,
+        action: "review.score.batch_upsert",
+        resourceType: "user_flow",
+        resourceId: normalized.userFlowId,
+        metadata: {
+          targetUserId: validated.targetUserId,
+          scoreChanges: validated.changes,
+        },
+      });
+    }
   } catch (error) {
     if (error instanceof ReviewPointConflictError) {
       throw error;

@@ -21,9 +21,9 @@ import {
   getMenuGroups,
   getMenuItemTitle,
   isItemActive,
+  aboutMenuItem,
   type MenuItem,
 } from '@/components/route';
-import { FeishuOAuthStatus } from '@/components/feishu-oauth-status';
 
 interface AppSidebarProps {
   role: number;
@@ -159,8 +159,14 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
       <SidebarContent>
         <SidebarNav role={role} />
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border/60 p-3">
-        <FeishuOAuthStatus role={role} compact />
+      <SidebarFooter className="border-t border-sidebar-border/60 p-2">
+        <SidebarMenu className="mb-2">
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isItemActive(usePathname(), aboutMenuItem.path)} tooltip={aboutMenuItem.title}>
+              <Link href="/dashboard/about"><aboutMenuItem.icon /><span>{aboutMenuItem.title}</span></Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         {userCard}
       </SidebarFooter>
     </Sidebar>

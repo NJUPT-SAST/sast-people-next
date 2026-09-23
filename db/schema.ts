@@ -529,3 +529,30 @@ export const operationAudit = pgTable("operation_audit", {
   ),
   createdAtIdx: index("operation_audit_created_at_idx").on(table.createdAt),
 }));
+
+export const feedbackReport = pgTable("feedback_report", {
+  id: serial("id").primaryKey(),
+  fkUserId: integer("fk_user_id"),
+  userName: varchar("user_name", { length: 80 }),
+  studentId: varchar("student_id", { length: 64 }),
+  category: varchar("category", { length: 32 }).notNull(),
+  title: varchar("title", { length: 160 }).notNull(),
+  description: text("description").notNull(),
+  contact: varchar("contact", { length: 160 }),
+  pageUrl: text("page_url"),
+  environment: varchar("environment", { length: 64 }),
+  deviceName: varchar("device_name", { length: 160 }),
+  browserInfo: text("browser_info"),
+  viewport: varchar("viewport", { length: 64 }),
+  userAgent: text("user_agent"),
+  referer: text("referer"),
+  ipAddress: varchar("ip_address", { length: 64 }),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  resolutionNote: text("resolution_note"),
+  resolvedBy: integer("resolved_by"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("feedback_report_user_id_idx").on(table.fkUserId),
+  createdAtIdx: index("feedback_report_created_at_idx").on(table.createdAt),
+}));
