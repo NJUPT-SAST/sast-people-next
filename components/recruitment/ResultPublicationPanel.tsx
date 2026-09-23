@@ -85,7 +85,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
   };
 
   return (
-    <section className="border-y bg-muted/20 px-4 py-4">
+    <section className="border-y bg-muted/20 px-4 py-4 sm:px-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium"><LockKeyhole className="size-4" />结果发布</div>
@@ -98,12 +98,12 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
           </p>
           <p className="mt-1 text-xs text-muted-foreground">通过模板 {templates.accepted.updatedAt ? "已配置" : "默认模板"}，不通过模板 {templates.rejected.updatedAt ? "已配置" : "默认模板"}。发布前请确认本年度文案。</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => setRosterOpen(true)} disabled={rows.length === 0}>
+        <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={() => setRosterOpen(true)} disabled={rows.length === 0}>
             <ClipboardList data-icon="inline-start" />查看完整名单
           </Button>
-          {published && <Button asChild size="sm" variant="outline"><a href={`/api/flow/result-export?flowId=${flowId}`}><Download data-icon="inline-start" />导出结果表</a></Button>}
-          <Button size="sm" onClick={openConfirmation} disabled={published || counts.unfinished > 0 || publishing}>
+          {published && <Button className="w-full sm:w-auto" asChild size="sm" variant="outline"><a href={`/api/flow/result-export?flowId=${flowId}`}><Download data-icon="inline-start" />导出结果表</a></Button>}
+          <Button className="w-full sm:w-auto" size="sm" onClick={openConfirmation} disabled={published || counts.unfinished > 0 || publishing}>
             <Send data-icon="inline-start" />{published ? "结果已发布" : "确认并发布结果"}
           </Button>
         </div>

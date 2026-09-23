@@ -1,9 +1,8 @@
 import { db } from "@/db/drizzle";
-import { flowStep, problem, userFlow, userPoint } from "@/db/schema";
+import { flowStep, operationAudit, problem, userFlow, userPoint } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
-import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, eq, inArray, InferInsertModel, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, InferInsertModel, sql } from "drizzle-orm";
 
 type PointInsertValue = InferInsertModel<typeof userPoint>;
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -26,12 +25,89 @@ type ScoreAuditChange = {
   problemTitle: string;
   previousScore: number | null;
   nextScore: number;
+  previousNote: string | null;
+  nextNote: string | null;
 };
 
 type ValidatedScoreChanges = {
   targetUserId: number;
   changes: ScoreAuditChange[];
 };
+
+const SCORE_AUDIT_AGGREGATION_WINDOW_MS = 30 * 60 * 1000;
+
+async function writeAggregatedScoreAudit(
+  tx: Tx,
+  {
+    actorId,
+    actorRole,
+    userFlowId,
+    targetUserId,
+    changes,
+  }: {
+    actorId: number;
+    actorRole: number | null;
+    userFlowId: number;
+    targetUserId: number;
+    changes: ScoreAuditChange[];
+  },
+) {
+  const now = new Date();
+  const [recentAudit] = await tx
+    .select({ id: operationAudit.id, metadata: operationAudit.metadata })
+    .from(operationAudit)
+    .where(and(
+      eq(operationAudit.actorId, actorId),
+      eq(operationAudit.action, "review.score.upsert"),
+      eq(operationAudit.resourceType, "user_flow"),
+      eq(operationAudit.resourceId, userFlowId),
+      gte(operationAudit.createdAt, new Date(now.getTime() - SCORE_AUDIT_AGGREGATION_WINDOW_MS)),
+    ))
+    .orderBy(desc(operationAudit.createdAt))
+    .limit(1);
+
+  if (!recentAudit) {
+    await tx.insert(operationAudit).values({
+      actorId,
+      actorRole,
+      action: "review.score.upsert",
+      resourceType: "user_flow",
+      resourceId: userFlowId,
+      metadata: { targetUserId, scoreChanges: changes, saveCount: 1 },
+      createdAt: now,
+    });
+    return;
+  }
+
+  const previousMetadata = recentAudit.metadata ?? {};
+  const previousChanges = Array.isArray(previousMetadata.scoreChanges)
+    ? previousMetadata.scoreChanges.filter((value): value is ScoreAuditChange => (
+      typeof value === "object" && value !== null && "problemId" in value
+    ))
+    : [];
+  const mergedByProblemId = new Map(previousChanges.map((change) => [change.problemId, change]));
+
+  for (const change of changes) {
+    const previous = mergedByProblemId.get(change.problemId);
+    mergedByProblemId.set(change.problemId, previous
+      ? { ...change, previousScore: previous.previousScore, previousNote: previous.previousNote }
+      : change);
+  }
+
+  const previousSaveCount = previousMetadata.saveCount;
+  await tx
+    .update(operationAudit)
+    .set({
+      metadata: {
+        ...previousMetadata,
+        targetUserId,
+        scoreChanges: Array.from(mergedByProblemId.values()),
+        saveCount: typeof previousSaveCount === "number" ? previousSaveCount + 1 : 2,
+      },
+      createdAt: now,
+    })
+    .where(eq(operationAudit.id, recentAudit.id));
+}
 
 export class ReviewPointConflictError extends Error {
   constructor(message = "评分已被其他批卷人保存，请刷新后查看") {
@@ -130,8 +206,8 @@ async function validateScoreChanges(
       .from(problem)
       .innerJoin(flowStep, eq(problem.fkFlowStepId, flowStep.id))
       .where(inArray(problem.id, problemIds)),
-    tx
-      .select({ problemId: userPoint.fkProblemId, points: userPoint.points })
+      tx
+      .select({ problemId: userPoint.fkProblemId, points: userPoint.points, note: userPoint.note })
       .from(userPoint)
       .where(
         and(
@@ -146,8 +222,8 @@ async function validateScoreChanges(
   }
 
   const problemById = new Map(problemRows.map((item) => [item.id, item]));
-  const previousScoreByProblemId = new Map(
-    existingPoints.map((item) => [item.problemId, item.points]),
+  const previousPointByProblemId = new Map(
+    existingPoints.map((item) => [item.problemId, { points: item.points, note: item.note ?? null }]),
   );
 
   const changes = values.map((value) => {
@@ -165,15 +241,26 @@ async function validateScoreChanges(
       throw new Error(`得分不能超过题目满分 ${targetProblem.maxScore}`);
     }
 
+    const previous = previousPointByProblemId.get(value.fkProblemId);
+    const nextNote = value.note;
     return {
       problemId: value.fkProblemId,
       problemTitle: targetProblem.title,
-      previousScore: previousScoreByProblemId.get(value.fkProblemId) ?? null,
+      previousScore: previous?.points ?? null,
       nextScore: value.points,
+      previousNote: previous?.note ?? null,
+      nextNote,
     };
   });
 
-  return { targetUserId: targetUserFlow.targetUserId, changes };
+  return {
+    targetUserId: targetUserFlow.targetUserId,
+    changes: changes.filter(
+      (change) =>
+        change.previousScore !== change.nextScore ||
+        change.previousNote !== change.nextNote,
+    ),
+  };
 }
 
 function getScoreOverwriteCondition(session: Awaited<ReturnType<typeof verifyRole>>) {
@@ -184,7 +271,12 @@ function getScoreOverwriteCondition(session: Awaited<ReturnType<typeof verifyRol
   return sql`${userPoint.fkJudgerId} is null or ${userPoint.fkJudgerId} = ${session.uid}`;
 }
 
-export const upsertPoint = async (userFlowId: number, problemId: number, point: number, note?: string | null) => {
+export const upsertPoint = async (
+  userFlowId: number,
+  problemId: number,
+  point: number,
+  note?: string | null,
+) => {
   let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
 
   try {
@@ -193,7 +285,7 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
     const normalized = normalizePointValues([
       { fkUserFlowId: userFlowId, fkProblemId: problemId, points: point, note },
     ]);
-    const { validated, rows } = await db.transaction(async (tx) => {
+    const { rows } = await db.transaction(async (tx) => {
       const validated = await validateScoreChanges(tx, normalized);
       const rows = await tx
         .insert(userPoint)
@@ -211,24 +303,23 @@ export const upsertPoint = async (userFlowId: number, problemId: number, point: 
         })
         .returning({ id: userPoint.id });
 
-      return { validated, rows };
+      if (rows.length > 0 && validated.changes.length > 0) {
+        await writeAggregatedScoreAudit(tx, {
+          actorId: actor.uid,
+          actorRole: actor.role,
+          userFlowId,
+          targetUserId: validated.targetUserId,
+          changes: validated.changes,
+        });
+      }
+
+      return { rows };
     });
 
     if (rows.length === 0) {
       throw new ReviewPointConflictError();
     }
 
-    await writeOperationAudit({
-      actorId: actor.uid,
-      actorRole: actor.role,
-      action: "review.score.upsert",
-      resourceType: "user_flow",
-      resourceId: userFlowId,
-      metadata: {
-        targetUserId: validated.targetUserId,
-        scoreChanges: validated.changes,
-      },
-    });
   } catch (error) {
     if (error instanceof ReviewPointConflictError) {
       throw error;
@@ -254,7 +345,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
     const actor = session;
     const normalized = normalizePointValues(values);
     const actorId = actor.uid;
-    const { validated } = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       const validated = await validateScoreChanges(tx, normalized);
       const rows = await tx
         .insert(userPoint)
@@ -282,20 +373,15 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
         throw new ReviewPointConflictError("部分题目已被其他批卷人保存，请刷新后查看");
       }
 
-      return { validated };
-    });
-
-
-    await writeOperationAudit({
-      actorId,
-      actorRole: session.role,
-      action: "review.score.batch_upsert",
-      resourceType: "user_flow",
-      resourceId: normalized.userFlowId,
-      metadata: {
-        targetUserId: validated.targetUserId,
-        scoreChanges: validated.changes,
-      },
+      if (validated.changes.length > 0) {
+        await writeAggregatedScoreAudit(tx, {
+          actorId,
+          actorRole: actor.role,
+          userFlowId: normalized.userFlowId,
+          targetUserId: validated.targetUserId,
+          changes: validated.changes,
+        });
+      }
     });
   } catch (error) {
     if (error instanceof ReviewPointConflictError) {

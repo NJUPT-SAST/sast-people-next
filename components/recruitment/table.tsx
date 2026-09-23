@@ -186,7 +186,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="border-y bg-muted/20 px-4 py-4">
+      <div className="border-y bg-muted/20 px-4 py-4 sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">
@@ -198,7 +198,7 @@ export function DataTable<TData, TValue>({
               </p>
             </div>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
             <Input
               placeholder="搜索姓名或学号"
               value={globalFilter}
@@ -214,7 +214,7 @@ export function DataTable<TData, TValue>({
               }
               className="h-10 w-full sm:h-9 sm:w-[180px]"
             />
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-start lg:justify-end">
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-start lg:justify-end">
               {role >= 3 && (
                 <>
                   <Button

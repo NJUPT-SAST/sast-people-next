@@ -44,6 +44,7 @@ export type EvaluationRow = {
   candidateStudentId: string | null;
   flowTitle: string | null;
   flowType: string | null;
+  publicationStatus?: string | null;
 };
 
 const statusLabel: Record<string, string> = {
@@ -246,20 +247,22 @@ export const ApprovalsContent = ({
     new Set(archived.map((row) => row.flowTitle).filter((title): title is string => Boolean(title))),
   ).sort((a, b) => a.localeCompare(b, "zh-CN"));
   const displayed = showArchived ? filteredArchived : pending;
+  const isFlowLocked = (row: EvaluationRow) =>
+    row.publicationStatus === "published" || row.publicationStatus === "publishing";
 
   if (loading) {
     return <p className="text-muted-foreground text-sm">加载中...</p>;
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
         <p className="text-sm text-muted-foreground">
-          共 {pending.length} 条待审批
+          待审批 <span className="ml-1 text-lg font-semibold text-foreground tabular-nums">{pending.length}</span> 条
         </p>
         {(archived.length > 0 || showArchived) && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => setShowArchived(!showArchived)}
           >
@@ -269,11 +272,11 @@ export const ApprovalsContent = ({
       </div>
 
       {showArchived && (
-        <div className="space-y-2 border-y py-3">
+        <div className="flex flex-col gap-3 border-y py-3">
             <p className="text-xs text-muted-foreground">
             已处理的面评会保留在这里；退回重写的记录会在讲师重新提交后回到待审批列表。
           </p>
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,1fr)_10rem_10rem]">
+          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,1fr)_10rem_10rem]">
           <Input
             value={archiveQuery}
             onChange={(event) => setArchiveQuery(event.target.value)}
@@ -334,7 +337,7 @@ export const ApprovalsContent = ({
         <div className="grid gap-3 sm:gap-4">
           {displayed.map((row) => (
             <Card key={row.evaluation.id}>
-              <CardHeader className="space-y-3 pb-3">
+              <CardHeader className="flex flex-col gap-3 pb-3">
                 <div className="flex items-start justify-between gap-3">
                   <CardTitle className="min-w-0 text-base leading-6 sm:text-sm">
                     {row.candidateName && row.candidateId ? (
@@ -364,7 +367,7 @@ export const ApprovalsContent = ({
                       · {row.candidateStudentId ?? "-"}
                     </span>
                   </CardTitle>
-                  <div className="min-w-0 flex flex-1 flex-wrap items-center justify-end gap-2">
+                  <div className="min-w-0 flex max-w-full flex-wrap items-center justify-start gap-2 sm:justify-end">
                     {row.evaluation.recommendation && (
                       <Badge
                         variant="outline"
@@ -459,23 +462,34 @@ export const ApprovalsContent = ({
                       ).format("YYYY-MM-DD HH:mm")}
                     </span>
                   </div>
-                  {(row.evaluation.status === "submitted" || row.evaluation.status === "approved" || row.evaluation.status === "rejected") && (
-                    <div className="grid w-full grid-cols-3 gap-2 md:flex md:w-auto">
+                  {(!isFlowLocked(row) &&
+                    (row.evaluation.status === "submitted" ||
+                      row.evaluation.status === "approved" ||
+                      row.evaluation.status === "rejected")) && (
+                    <div className={row.evaluation.status === "submitted"
+                      ? "grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end"
+                      : "flex w-full justify-end gap-2 sm:w-auto"}>
                       {(row.evaluation.status === "submitted" || row.evaluation.status === "rejected") && <Button
                         size="sm"
-                        className="h-10 w-full min-w-0 px-1.5 text-xs border-[#1aa15a] bg-[#1aa15a] text-white hover:border-[#148748] hover:bg-[#148748] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#159957] dark:bg-[#159957] dark:hover:border-[#1bb86a] dark:hover:bg-[#1bb86a]"
+                        variant={row.evaluation.status === "submitted" ? "default" : "ghost"}
+                        className={row.evaluation.status === "submitted"
+                          ? "h-10 w-full min-w-0 px-1.5 text-xs border-[#1aa15a] bg-[#1aa15a] text-white hover:border-[#148748] hover:bg-[#148748] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#159957] dark:bg-[#159957] dark:hover:border-[#1bb86a] dark:hover:bg-[#1bb86a]"
+                          : "h-9 px-2 text-sm font-normal text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"}
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
-                        通过
+                        {row.evaluation.status === "rejected" ? "改为通过" : "通过"}
                       </Button>}
                       {(row.evaluation.status === "submitted" || row.evaluation.status === "approved") && <Button
                         size="sm"
-                        className="h-10 w-full min-w-0 px-1.5 text-xs border-[#b9545a] bg-[#b9545a] text-white hover:border-[#97464b] hover:bg-[#97464b] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#b34f55] dark:bg-[#b34f55] dark:hover:border-[#ca6066] dark:hover:bg-[#ca6066]"
+                        variant={row.evaluation.status === "submitted" ? "default" : "ghost"}
+                        className={row.evaluation.status === "submitted"
+                          ? "h-10 w-full min-w-0 px-1.5 text-xs border-[#b9545a] bg-[#b9545a] text-white hover:border-[#97464b] hover:bg-[#97464b] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#b34f55] dark:bg-[#b34f55] dark:hover:border-[#ca6066] dark:hover:bg-[#ca6066]"
+                          : "h-9 px-2 text-sm font-normal text-rose-600 hover:bg-rose-500/10 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"}
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
-                        不通过
+                        {row.evaluation.status === "approved" ? "改为不通过" : "不通过"}
                       </Button>}
                       {row.evaluation.status === "submitted" && <Button
                         size="sm"
