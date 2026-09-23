@@ -14,12 +14,14 @@ name: Deploy
 #   - SERVER_USER:                SSH user
 #   - SSH_PRIVATE_KEY:            SSH private key for authentication
 #   - NEXT_PUBLIC_SENTRY_DSN:     Build-time public Sentry DSN
+#   - FEEDBACK_FEISHU_GROUP_URL:  Feishu group invitation shown on the About page
 #   - TCR_USERNAME:               Tencent Cloud account ID / UIN (organization secret)
 #   - TCR_PASSWORD:               TCR registry login password (organization secret)
 #
 # Runtime secrets, including the database URL, are read from
 # /data/sast-people-next/.env on the server. They are not written from GitHub
-# Secrets during deployment.
+# Secrets during deployment, except FEEDBACK_FEISHU_GROUP_URL, which this
+# workflow syncs from the repository secret when it is configured.
 #
 # The TCR repository is private. The deployment step logs in with an ephemeral
 # Docker config only for the pull, then removes that config before it exits.
@@ -156,13 +158,14 @@ jobs:
         env:
           TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
           TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+          FEEDBACK_FEISHU_GROUP_URL: ${{ secrets.FEEDBACK_FEISHU_GROUP_URL }}
           DATABASE_BACKUP_REF: ${{ inputs.database_backup_ref }}
           DEPLOY_RUN_ID: ${{ github.run_id }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: TCR_USERNAME,TCR_PASSWORD,DATABASE_BACKUP_REF,DEPLOY_RUN_ID
+          envs: TCR_USERNAME,TCR_PASSWORD,FEEDBACK_FEISHU_GROUP_URL,DATABASE_BACKUP_REF,DEPLOY_RUN_ID
           script: |
             set -e
 
@@ -223,6 +226,14 @@ jobs:
               exit 1
             fi
             chmod 600 .env
+
+            if [ -n "${FEEDBACK_FEISHU_GROUP_URL:-}" ]; then
+              ENV_FILE_TMP=$(mktemp "${SERVICE_DIR}/.env.XXXXXX")
+              awk 'index($0, "FEEDBACK_FEISHU_GROUP_URL=") != 1' .env > "$ENV_FILE_TMP"
+              printf '%s\n' "FEEDBACK_FEISHU_GROUP_URL=${FEEDBACK_FEISHU_GROUP_URL}" >> "$ENV_FILE_TMP"
+              chmod 600 "$ENV_FILE_TMP"
+              mv "$ENV_FILE_TMP" .env
+            fi
 
             echo ""
             EXTERNAL_BACKUP_REF="${DATABASE_BACKUP_REF:-}"
