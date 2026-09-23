@@ -9,6 +9,8 @@ import { verifyRole } from "@/lib/dal";
 import { writeOperationAudit } from "@/lib/operation-audit";
 
 const statusSchema = z.enum(["pending", "in_progress", "resolved"]);
+const reportIdSchema = z.number().int().positive();
+const resolutionNoteSchema = z.string().max(10000);
 
 export async function listFeedbackReports(status = "all") {
   await verifyRole(3);
@@ -29,20 +31,25 @@ export async function updateFeedbackReport(
   resolutionNote?: string,
 ) {
   const session = await verifyRole(3);
-  const note = resolutionNote?.trim() || null;
+  const reportId = reportIdSchema.parse(id);
+  const validatedStatus = statusSchema.parse(status);
+  const note = resolutionNote === undefined
+    ? undefined
+    : resolutionNoteSchema.parse(resolutionNote).trim() || null;
   const [updated] = await db
     .update(feedbackReport)
     .set({
-      status,
-      resolutionNote: note,
-      resolvedBy: status === "resolved" ? session.uid : null,
-      resolvedAt: status === "resolved" ? new Date() : null,
+      status: validatedStatus,
+      ...(note !== undefined ? { resolutionNote: note } : {}),
+      resolvedBy: validatedStatus === "resolved" ? session.uid : null,
+      resolvedAt: validatedStatus === "resolved" ? new Date() : null,
     })
-    .where(eq(feedbackReport.id, id))
+    .where(eq(feedbackReport.id, reportId))
     .returning({
       id: feedbackReport.id,
       resolvedBy: feedbackReport.resolvedBy,
       resolvedAt: feedbackReport.resolvedAt,
+      resolutionNote: feedbackReport.resolutionNote,
     });
   if (!updated) throw new Error("反馈记录不存在");
 
@@ -52,7 +59,7 @@ export async function updateFeedbackReport(
     action: "feedback.status.update",
     resourceType: "feedback_report",
     resourceId: id,
-    metadata: { status, hasResolutionNote: Boolean(note) },
+    metadata: { status: validatedStatus, hasResolutionNote: Boolean(note) },
   });
   revalidatePath("/dashboard/feedback");
   return updated;
@@ -60,12 +67,13 @@ export async function updateFeedbackReport(
 
 export async function updateFeedbackResolutionNote(id: number, resolutionNote: string) {
   await verifyRole(3);
-  const note = resolutionNote.trim() || null;
+  const reportId = reportIdSchema.parse(id);
+  const note = resolutionNoteSchema.parse(resolutionNote).trim() || null;
   const [updated] = await db
     .update(feedbackReport)
     .set({ resolutionNote: note })
-    .where(eq(feedbackReport.id, id))
-    .returning({ id: feedbackReport.id });
+    .where(eq(feedbackReport.id, reportId))
+    .returning({ id: feedbackReport.id, resolutionNote: feedbackReport.resolutionNote });
   if (!updated) throw new Error("反馈记录不存在");
   revalidatePath("/dashboard/feedback");
   return updated;

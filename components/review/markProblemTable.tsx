@@ -112,7 +112,6 @@ export const MarkProblemTable = ({
               userFlowId,
               problemId: id,
               point: score,
-              writeAudit: false,
               ...(noteValue !== null ? { note: noteValue } : {}),
             },
           }),

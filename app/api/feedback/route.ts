@@ -24,7 +24,11 @@ const categoryLabel = { bug: "问题反馈", suggestion: "功能建议", content
 const categoryTemplate = { bug: "red", suggestion: "blue", content: "orange", other: "wathet" } as const;
 
 function cardText(value: string | null | undefined, fallback = "未提供") {
-  return String(value || fallback).replace(/[\\*_`~]/g, "\\$&");
+  return String(value || fallback)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/[\\*_`~\[\]()#+\-.!|{}]/g, "\\$&");
 }
 
 function browserSummary(value: string | null | undefined, fallback: string) {

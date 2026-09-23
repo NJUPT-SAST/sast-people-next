@@ -46,7 +46,6 @@ const singlePointSchema = z.object({
   problemId: z.number().int().positive(),
   point: z.number().int().min(0),
   note: z.string().max(2000).nullable().optional(),
-  writeAudit: z.boolean().optional(),
 });
 
 function getValidationMessage(error: z.ZodError) {
@@ -78,8 +77,8 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
-      const { userFlowId, problemId, point, note, writeAudit } = parsed.data;
-      await upsertPoint(userFlowId, problemId, point, note, { writeAudit });
+      const { userFlowId, problemId, point, note } = parsed.data;
+      await upsertPoint(userFlowId, problemId, point, note);
       return NextResponse.json({ success: true, message: '更新成功' });
     } else {
       return NextResponse.json({ success: false, message: '无效的操作类型' }, { status: 400 });

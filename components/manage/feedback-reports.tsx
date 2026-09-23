@@ -72,7 +72,7 @@ export function FeedbackReports({ initialReports }: { initialReports: Report[] }
       setReports((items) => items.map((item) => item.id === id ? {
         ...item,
         status,
-        resolutionNote: notes[id]?.trim() || null,
+        resolutionNote: updated.resolutionNote,
         resolvedBy: updated.resolvedBy,
         resolvedAt: updated.resolvedAt,
       } : item));
