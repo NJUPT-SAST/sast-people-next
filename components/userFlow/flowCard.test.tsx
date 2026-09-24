@@ -66,4 +66,46 @@ describe("FlowCard", () => {
 
     expect(screen.getByText("已退回，请重新报名")).toBeInTheDocument();
   });
+
+  it("does not show a final result before the flow result is published", async () => {
+    const ui = await FlowCard({
+      flow: {
+        id: 4,
+        title: "待发布流程",
+        status: "passed",
+        publicationStatus: "failed",
+        currentStepOrder: 3,
+        steps: [
+          { id: 1, order: 1, title: "报名", description: "已完成" },
+          { id: 2, order: 2, title: "笔试", description: "已完成" },
+          { id: 3, order: 3, title: "结果确认", description: "等待确认" },
+        ],
+      } as never,
+    });
+
+    render(ui);
+
+    expect(screen.getByText("流程进行中")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "结果确认，进行中。点击查看详情" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "结果确认，已通过。点击查看详情" })).not.toBeInTheDocument();
+  });
+
+  it("shows the final result after the flow result is published", async () => {
+    const ui = await FlowCard({
+      flow: {
+        id: 5,
+        title: "已发布流程",
+        status: "passed",
+        publicationStatus: "published",
+        currentStepOrder: 3,
+        steps: [{ id: 1, order: 3, title: "结果确认", description: "已通过" }],
+      } as never,
+    });
+
+    render(ui);
+
+    expect(screen.getByText("已通过考核")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "结果确认，已通过。点击查看详情" })).toBeInTheDocument();
+  });
+
 });

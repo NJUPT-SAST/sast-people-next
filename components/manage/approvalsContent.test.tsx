@@ -143,6 +143,7 @@ describe("ApprovalsContent", () => {
     );
 
     expect(screen.queryByText("待终审")).not.toBeInTheDocument();
+    expect(screen.getByText("讲师建议通过")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "已归档 (2)" }));
 

@@ -1,7 +1,7 @@
 import { db } from "@/db/drizzle";
 import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { flow, userFlow, flowStep } from "@/db/schema";
+import { flow, userFlow, flowStep, flowResultPublication } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
 import { displayUserFlow, computeStatus } from "@/types/userflow";
@@ -21,6 +21,7 @@ export const GET = async (req: NextRequest) => {
       .select()
       .from(userFlow)
       .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+      .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
       .leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId))
       .where(and(eq(userFlow.fkUserId, uid), eq(flow.isDeleted, false)))
       .orderBy(flowStep.order);
@@ -52,6 +53,7 @@ export const GET = async (req: NextRequest) => {
             : null,
           title: item.flow.title,
           flowType: item.flow.type,
+          publicationStatus: item.flow_result_publication?.status ?? null,
           steps: [] as fullStepType[],
         });
       }

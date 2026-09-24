@@ -206,20 +206,22 @@ insert into interview_evaluation (
   fk_user_id,
   content,
   meeting_link,
+  recommendation,
   status,
   fk_reviewed_by,
   created_at,
   updated_at
 ) values
-  (301, 209, 2, '作品结构清晰，沟通顺畅，建议通过后进入管理员复核。', 'https://memo.example.com/demo-209', 'submitted', null, now() - interval '2 days', now() - interval '2 days'),
-  (302, 211, 2, '能力和表达均达到预期，已通过复核。', 'https://memo.example.com/demo-211', 'approved', 1, now() - interval '4 days', now() - interval '1 day'),
-  (303, 210, 2, '基础能力与岗位要求不匹配，本轮不建议通过。', 'https://memo.example.com/demo-210', 'rejected', 1, now() - interval '3 days', now() - interval '2 days'),
-  (304, 208, 2, '请补充项目中的个人贡献和技术取舍。', 'https://memo.example.com/demo-208', 'returned', 1, now() - interval '1 day', now() - interval '12 hours')
+  (301, 209, 2, '作品结构清晰，沟通顺畅，建议通过后进入管理员复核。', 'https://memo.example.com/demo-209', 'passed', 'submitted', null, now() - interval '2 days', now() - interval '2 days'),
+  (302, 211, 2, '能力和表达均达到预期，已通过复核。', 'https://memo.example.com/demo-211', 'passed', 'approved', 1, now() - interval '4 days', now() - interval '1 day'),
+  (303, 210, 2, '基础能力与岗位要求不匹配，本轮不建议通过。', 'https://memo.example.com/demo-210', 'failed', 'rejected', 1, now() - interval '3 days', now() - interval '2 days'),
+  (304, 208, 2, '请补充项目中的个人贡献和技术取舍。', 'https://memo.example.com/demo-208', 'passed', 'returned', 1, now() - interval '1 day', now() - interval '12 hours')
 on conflict (id) do update set
   fk_user_flow_id = excluded.fk_user_flow_id,
   fk_user_id = excluded.fk_user_id,
   content = excluded.content,
   meeting_link = excluded.meeting_link,
+  recommendation = excluded.recommendation,
   status = excluded.status,
   fk_reviewed_by = excluded.fk_reviewed_by,
   updated_at = now();

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MannualInput } from "./mannualInput";
 
 const push = jest.fn();
-const checkUserByStuID = jest.fn();
+const findUserByStuID = jest.fn();
 const resolveUserFlowForReview = jest.fn();
 
 jest.mock("next/navigation", () => ({
@@ -12,8 +12,8 @@ jest.mock("next/navigation", () => ({
 }));
 
 jest.mock("./checkUser", () => ({
-  checkUserByStuID: (...args: Parameters<typeof checkUserByStuID>) =>
-    checkUserByStuID(...args),
+  findUserByStuID: (...args: Parameters<typeof findUserByStuID>) =>
+    findUserByStuID(...args),
 }));
 
 jest.mock("./resolveUserFlow", () => ({
@@ -25,9 +25,15 @@ jest.mock("./resolveUserFlow", () => ({
 describe("MannualInput", () => {
   beforeEach(() => {
     push.mockClear();
-    checkUserByStuID.mockReset();
+    findUserByStuID.mockReset();
     resolveUserFlowForReview.mockReset();
-    checkUserByStuID.mockResolvedValue(true);
+    findUserByStuID.mockResolvedValue({
+      id: 8,
+      name: "张三",
+      studentId: "2026001",
+      college: "计算机学院",
+      major: "软件工程",
+    });
     resolveUserFlowForReview.mockResolvedValue({ success: true, userFlowId: 8 });
     window.localStorage.clear();
     window.localStorage.setItem(
@@ -51,7 +57,10 @@ describe("MannualInput", () => {
     await user.type(screen.getByPlaceholderText("请输入考生学号"), "2026001");
     await user.click(button);
 
-    expect(checkUserByStuID).toHaveBeenCalledWith("2026001");
+    expect(findUserByStuID).toHaveBeenCalledWith("2026001");
+    expect(screen.getByRole("dialog")).toHaveTextContent("张三");
+    expect(push).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "确认进入阅卷" }));
     expect(resolveUserFlowForReview).toHaveBeenCalledWith("2026001", 1);
     expect(push).toHaveBeenCalledWith("/dashboard/review/marking?user=2026001");
   });
