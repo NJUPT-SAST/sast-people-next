@@ -37,7 +37,7 @@ export const UserCard: React.FC = async () => {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{name}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {nickname ? `${roleLabel} · ${nickname}` : roleLabel}
+          {nickname ? `${nickname} · ${roleLabel}` : roleLabel}
         </p>
       </div>
       <form action="/api/auth/logout">
