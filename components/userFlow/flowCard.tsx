@@ -99,12 +99,25 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
           </CardTitle>
           <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto">
             {safeFlow.flowType && (
-              <Badge variant="outline" className="shrink-0 text-xs">
+              <Badge
+                variant="outline"
+                className="h-7 shrink-0 gap-1.5 rounded-full border-border/80 bg-muted/45 px-3 text-xs font-medium text-foreground"
+              >
+                <span className="size-1.5 rounded-full bg-muted-foreground/70" aria-hidden="true" />
                 {flowTypeLabel[safeFlow.flowType] ?? safeFlow.flowType}
               </Badge>
             )}
             <Badge
-            className="w-fit shrink-0 whitespace-nowrap"
+            className={cn(
+              "h-7 w-fit shrink-0 gap-1.5 rounded-full px-3 text-xs font-semibold whitespace-nowrap shadow-none",
+              visibleStatus === "ongoing" || visibleStatus === "not_started"
+                ? "border border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                : visibleStatus === "passed"
+                  ? "bg-primary/15 text-primary"
+                  : visibleStatus === "withdrawn"
+                    ? "border-border bg-muted text-muted-foreground"
+                    : "bg-destructive/12 text-destructive",
+            )}
             variant={
               visibleStatus === "ongoing" || visibleStatus === "not_started"
                 ? "secondary"
@@ -115,6 +128,19 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                     : "destructive"
             }
             >
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  visibleStatus === "ongoing" || visibleStatus === "not_started"
+                    ? "bg-blue-500"
+                    : visibleStatus === "passed"
+                      ? "bg-primary"
+                      : visibleStatus === "withdrawn"
+                        ? "bg-muted-foreground"
+                        : "bg-destructive",
+                )}
+                aria-hidden="true"
+              />
               {statusLabel}
             </Badge>
           </div>
