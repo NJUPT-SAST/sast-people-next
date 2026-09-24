@@ -338,8 +338,8 @@ export const ApprovalsContent = ({
           {displayed.map((row) => (
             <Card key={row.evaluation.id}>
               <CardHeader className="flex flex-col gap-3 pb-3">
-                <div className="relative flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <CardTitle className="min-w-0 flex-1 pr-[48%] text-base leading-6 sm:pr-0 sm:text-sm">
+                <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                  <CardTitle className="flex min-w-0 items-baseline gap-1 overflow-hidden text-base leading-6 sm:text-sm">
                     {row.candidateName && row.candidateId ? (
                       <ViewUserInfoSheet
                         userInfo={{
@@ -353,7 +353,7 @@ export const ApprovalsContent = ({
                           <button
                             type="button"
                             title={row.candidateName}
-                            className="max-w-full truncate text-left text-inherit underline-offset-4 hover:text-primary hover:underline"
+                            className="block min-w-0 truncate text-left text-inherit underline-offset-4 hover:text-primary hover:underline"
                           >
                             {row.candidateName}
                           </button>
@@ -362,12 +362,11 @@ export const ApprovalsContent = ({
                     ) : (
                       row.candidateName ?? "未知用户"
                     )}
-                    <span className="text-muted-foreground font-normal">
-                      {" "}
+                    <span className="shrink-0 text-muted-foreground font-normal">
                       · {row.candidateStudentId ?? "-"}
                     </span>
                   </CardTitle>
-                  <div className="absolute right-0 top-0 flex max-w-[48%] shrink-0 flex-wrap items-center justify-end gap-2 sm:static sm:w-auto sm:max-w-[55%]">
+                  <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
                     {row.evaluation.recommendation && (
                       <Badge
                         variant="outline"
