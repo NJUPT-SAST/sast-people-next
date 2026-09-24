@@ -93,11 +93,11 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
   return (
     <Card className="w-full">
       <CardHeader className="space-y-3 pb-2">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <CardTitle className="min-w-0 flex-1 text-base font-medium leading-snug sm:text-sm">
+        <div className="flex min-w-0 flex-col gap-2.5">
+          <CardTitle className="min-w-0 text-base font-medium leading-snug sm:text-sm">
             {safeFlow.title ?? "未命名流程"}
           </CardTitle>
-          <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {safeFlow.flowType && (
               <Badge
                 variant="outline"
