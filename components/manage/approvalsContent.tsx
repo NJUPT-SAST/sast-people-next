@@ -339,7 +339,7 @@ export const ApprovalsContent = ({
             <Card key={row.evaluation.id}>
               <CardHeader className="flex flex-col gap-3 pb-3">
                 <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                  <CardTitle className="flex min-w-0 items-baseline gap-1 overflow-hidden text-base leading-6 sm:text-sm">
+                  <CardTitle className="flex min-w-0 flex-col overflow-hidden text-base leading-6 sm:flex-row sm:items-baseline sm:gap-1 sm:text-sm">
                     {row.candidateName && row.candidateId ? (
                       <ViewUserInfoSheet
                         userInfo={{
