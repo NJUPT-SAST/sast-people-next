@@ -2,7 +2,6 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Badge } from "../ui/badge";
 import {
   Popover,
   PopoverContent,
@@ -40,13 +39,6 @@ const statusName = {
   withdrawn: "已退回",
 };
 
-const flowTypeLabel: Record<string, string> = {
-  recruitment: "笔试招新",
-  recruitment_exemption: "免试招新",
-  woc: "WOC/WOD",
-  soc: "SOC/SOD",
-};
-
 interface FlowCardProps {
   flow: displayUserFlow;
 }
@@ -66,6 +58,17 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
       ? "ongoing"
       : safeFlow.status;
 
+  const statusLabel =
+    visibleStatus === "not_started"
+      ? "流程未开始"
+      : visibleStatus === "ongoing"
+        ? "流程进行中"
+        : visibleStatus === "passed"
+          ? "已通过考核"
+          : visibleStatus === "withdrawn"
+            ? "已退回，请重新报名"
+            : "未通过考核";
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "accepted":
@@ -79,17 +82,6 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
     }
   };
 
-  const statusLabel =
-    visibleStatus === "not_started"
-      ? "流程未开始"
-      : visibleStatus === "ongoing"
-        ? "流程进行中"
-        : visibleStatus === "passed"
-        ? "已通过考核"
-          : visibleStatus === "withdrawn"
-            ? "已退回，请重新报名"
-            : "未通过考核";
-
   return (
     <Card className="w-full">
       <CardHeader className="space-y-3 pb-2">
@@ -97,53 +89,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
           <CardTitle className="min-w-0 text-base font-medium leading-snug sm:text-sm">
             {safeFlow.title ?? "未命名流程"}
           </CardTitle>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {safeFlow.flowType && (
-              <Badge
-                variant="outline"
-                className="h-7 shrink-0 gap-1.5 rounded-full border-border/80 bg-muted/45 px-3 text-xs font-medium text-foreground"
-              >
-                <span className="size-1.5 rounded-full bg-muted-foreground/70" aria-hidden="true" />
-                {flowTypeLabel[safeFlow.flowType] ?? safeFlow.flowType}
-              </Badge>
-            )}
-            <Badge
-            className={cn(
-              "h-7 w-fit shrink-0 gap-1.5 rounded-full px-3 text-xs font-semibold whitespace-nowrap shadow-none",
-              visibleStatus === "ongoing" || visibleStatus === "not_started"
-                ? "border border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-300"
-                : visibleStatus === "passed"
-                  ? "bg-primary/15 text-primary"
-                  : visibleStatus === "withdrawn"
-                    ? "border-border bg-muted text-muted-foreground"
-                    : "bg-destructive/12 text-destructive",
-            )}
-            variant={
-              visibleStatus === "ongoing" || visibleStatus === "not_started"
-                ? "secondary"
-                : visibleStatus === "passed"
-                  ? "default"
-                  : visibleStatus === "withdrawn"
-                    ? "outline"
-                    : "destructive"
-            }
-            >
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  visibleStatus === "ongoing" || visibleStatus === "not_started"
-                    ? "bg-blue-500"
-                    : visibleStatus === "passed"
-                      ? "bg-primary"
-                      : visibleStatus === "withdrawn"
-                        ? "bg-muted-foreground"
-                        : "bg-destructive",
-                )}
-                aria-hidden="true"
-              />
-              {statusLabel}
-            </Badge>
-          </div>
+          <span className="sr-only">{statusLabel}</span>
         </div>
       </CardHeader>
       <CardContent>
