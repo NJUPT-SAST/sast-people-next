@@ -362,6 +362,9 @@ export const ApprovalsContent = ({
                     ) : (
                       row.candidateName ?? "未知用户"
                     )}
+                    <span className="hidden text-muted-foreground font-normal sm:inline">
+                      {" "}· {row.candidateStudentId ?? "-"}
+                    </span>
                   </CardTitle>
                   <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
                     {row.evaluation.recommendation && (
