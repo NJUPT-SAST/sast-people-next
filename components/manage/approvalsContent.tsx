@@ -338,8 +338,8 @@ export const ApprovalsContent = ({
           {displayed.map((row) => (
             <Card key={row.evaluation.id}>
               <CardHeader className="flex flex-col gap-3 pb-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <CardTitle className="min-w-0 flex-1 text-base leading-6 sm:text-sm">
+                <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
+                  <CardTitle className="min-w-0 text-base leading-6 sm:text-sm">
                     {row.candidateName && row.candidateId ? (
                       <ViewUserInfoSheet
                         userInfo={{
@@ -367,7 +367,7 @@ export const ApprovalsContent = ({
                       · {row.candidateStudentId ?? "-"}
                     </span>
                   </CardTitle>
-                  <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:ml-auto sm:w-auto sm:max-w-[55%]">
+                  <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:max-w-[55%]">
                     {row.evaluation.recommendation && (
                       <Badge
                         variant="outline"
