@@ -135,7 +135,7 @@ export const PortfolioLinkEditor = ({
             <>
               <dt className="text-sm text-muted-foreground">投递组别</dt>
               <dd className="min-w-0 text-sm text-foreground/85">
-                {group || (editable ? "暂未填写" : "未填写（流程已结束）")}
+                {group || (editable ? "暂未填写" : "未填写（当前阶段不可修改）")}
               </dd>
             </>
           )}
@@ -153,7 +153,7 @@ export const PortfolioLinkEditor = ({
               </a>
             ) : (
               <span className="text-muted-foreground">
-                {editable ? "暂未填写" : "未填写（流程已结束）"}
+                {editable ? "暂未填写" : "未填写（当前阶段不可修改）"}
               </span>
             )}
           </dd>
@@ -163,13 +163,13 @@ export const PortfolioLinkEditor = ({
               <p className="whitespace-pre-wrap">{description}</p>
             ) : (
               <span className="text-muted-foreground">
-                {editable ? "暂未填写" : "未填写（流程已结束）"}
+                {editable ? "暂未填写" : "未填写（当前阶段不可修改）"}
               </span>
             )}
           </dd>
           {!editable && (
             <dd className="text-xs text-muted-foreground sm:col-start-2">
-              流程已结束，报名信息已锁定
+              当前阶段不可修改，报名信息已锁定
             </dd>
           )}
           </dl>

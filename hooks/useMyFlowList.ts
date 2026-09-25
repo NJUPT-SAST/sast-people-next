@@ -1,5 +1,5 @@
 import { db } from "@/db/drizzle";
-import { flow, flowStep, userFlow } from "@/db/schema";
+import { flow, flowResultPublication, flowStep, userFlow } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
 import { fullStepType } from "@/types/step";
 import { displayUserFlow, computeStatus } from "@/types/userflow";
@@ -11,6 +11,10 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
     .select()
     .from(userFlow)
     .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+    .leftJoin(
+      flowResultPublication,
+      eq(flowResultPublication.fkFlowId, flow.id),
+    )
     .leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId))
     .where(and(eq(userFlow.fkUserId, session.uid), eq(flow.isDeleted, false)))
     .orderBy(flowStep.order);
@@ -45,6 +49,7 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
           : null,
         title: item.flow.title,
         flowType: item.flow.type,
+        publicationStatus: item.flow_result_publication?.status ?? null,
         groupOptions: item.flow.groupOptions,
         steps: [] as fullStepType[],
       });

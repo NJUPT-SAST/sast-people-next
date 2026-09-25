@@ -6,9 +6,11 @@ import {
 } from '@/lib/link/user-lookup';
 
 export const checkUserByStuID = async (data: string) => {
-  const userInfo = await findPeopleUserByStudentId(data);
-  return userInfo !== null;
+  return (await findUserByStuID(data)) !== null;
 };
+
+export const findUserByStuID = async (data: string) =>
+  findPeopleUserByStudentId(data);
 
 export const findUserByUid = async (uid: number) => {
   try {

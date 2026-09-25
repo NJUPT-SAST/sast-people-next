@@ -28,11 +28,52 @@ const LINK_KEYWORD_SEARCH_PAGE_SIZE = 100;
 const normalizeStudentId = (studentId: string | null | undefined) =>
   studentId?.trim().toUpperCase() ?? "";
 
+const studentIdQueryVariants = (studentId: string) =>
+  Array.from(new Set([
+    studentId.trim(),
+    studentId.trim().toUpperCase(),
+    studentId.trim().toLowerCase(),
+  ].filter(Boolean)));
+
 const chunk = <T,>(values: T[], size: number) =>
   Array.from(
     { length: Math.ceil(values.length / size) },
     (_, index) => values.slice(index * size, (index + 1) * size),
   );
+
+const findMatchingStudentInPages = async (
+  accessToken: string,
+  params: { studentId?: string; keyword?: string },
+  normalizedStudentId: string,
+) => {
+  const findMatch = (page: Awaited<ReturnType<typeof listLinkUsers>>) =>
+    page.users.find(
+      (item) =>
+        normalizeStudentId(item.student_id) === normalizedStudentId &&
+        item.state !== "is_deleted",
+    );
+  const firstPage = await listLinkUsers(accessToken, {
+    ...params,
+    page: 1,
+    pageSize: 100,
+  });
+  const firstMatch = findMatch(firstPage);
+  if (firstMatch) return firstMatch;
+
+  const totalPages = Math.ceil(firstPage.total / firstPage.page_size);
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const pageResult = await listLinkUsers(accessToken, {
+      ...params,
+      page,
+      pageSize: 100,
+    });
+    const match = findMatch(pageResult);
+    if (match) return match;
+  }
+
+  return undefined;
+};
 
 export const getPeopleUserByLinkId = async (
   id: number,
@@ -71,16 +112,26 @@ export const findPeopleUserByStudentId = async (
   }
 
   const adminAccessToken = await getLinkAdminAccessTokenFromSession();
-  const result = await listLinkUsers(adminAccessToken, {
-    page: 1,
-    pageSize: 100,
-    studentId: normalizedStudentId,
-  });
-  const matchedUser = result.users.find(
-    (item) =>
-      normalizeStudentId(item.student_id) === normalizedStudentId &&
-      item.state !== "is_deleted",
-  );
+  let matchedUser;
+  for (const queryStudentId of studentIdQueryVariants(studentId)) {
+    matchedUser = await findMatchingStudentInPages(
+      adminAccessToken,
+      { studentId: queryStudentId },
+      normalizedStudentId,
+    );
+    if (matchedUser) break;
+  }
+
+  // Some Link deployments apply the student_id filter byte-for-byte. Retry
+  // with keyword search so casing/whitespace differences do not hide a user
+  // whose ID is already shown elsewhere by ID-based lookups.
+  if (!matchedUser) {
+    matchedUser = await findMatchingStudentInPages(
+      adminAccessToken,
+      { keyword: normalizedStudentId },
+      normalizedStudentId,
+    );
+  }
 
   return matchedUser
     ? toPeopleUserFromLinkAdminItem(matchedUser, canViewSensitiveInfo)

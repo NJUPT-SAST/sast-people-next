@@ -338,8 +338,8 @@ export const ApprovalsContent = ({
           {displayed.map((row) => (
             <Card key={row.evaluation.id}>
               <CardHeader className="flex flex-col gap-3 pb-3">
-                <div className="flex items-start justify-between gap-3">
-                  <CardTitle className="min-w-0 text-base leading-6 sm:text-sm">
+                <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                  <CardTitle className="min-w-0 overflow-hidden text-base leading-6 sm:text-sm">
                     {row.candidateName && row.candidateId ? (
                       <ViewUserInfoSheet
                         userInfo={{
@@ -353,7 +353,7 @@ export const ApprovalsContent = ({
                           <button
                             type="button"
                             title={row.candidateName}
-                            className="max-w-full truncate text-left text-inherit underline-offset-4 hover:text-primary hover:underline"
+                            className="block min-w-0 truncate text-left text-inherit underline-offset-4 hover:text-primary hover:underline"
                           >
                             {row.candidateName}
                           </button>
@@ -362,16 +362,15 @@ export const ApprovalsContent = ({
                     ) : (
                       row.candidateName ?? "未知用户"
                     )}
-                    <span className="text-muted-foreground font-normal">
-                      {" "}
-                      · {row.candidateStudentId ?? "-"}
+                    <span className="hidden text-muted-foreground font-normal sm:inline">
+                      {" "}· {row.candidateStudentId ?? "-"}
                     </span>
                   </CardTitle>
-                  <div className="min-w-0 flex max-w-full flex-wrap items-center justify-start gap-2 sm:justify-end">
+                  <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
                     {row.evaluation.recommendation && (
                       <Badge
                         variant="outline"
-                        className={`text-xs ${
+                        className={`shrink-0 whitespace-nowrap text-xs ${
                           row.evaluation.recommendation === "passed"
                             ? "border-emerald-600/60 text-emerald-700 dark:border-emerald-400/60 dark:text-emerald-300"
                             : "border-rose-600/60 text-rose-700 dark:border-rose-400/60 dark:text-rose-300"
@@ -382,7 +381,7 @@ export const ApprovalsContent = ({
                     )}
                     {row.evaluation.status !== "submitted" && (
                       <Badge
-                        className="w-fit shrink-0"
+                        className="w-fit shrink-0 whitespace-nowrap"
                         variant={
                           row.evaluation.status === "approved"
                             ? "default"

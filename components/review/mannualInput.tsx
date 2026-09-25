@@ -4,15 +4,26 @@ import { Button } from '../ui/button';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { checkUserByStuID } from './checkUser';
+import { findUserByStuID } from './checkUser';
 import { resolveUserFlowForReview } from './resolveUserFlow';
 import { selectProbSchema } from '@/types/problem';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
   const [studentId, setStudentId] = useState('');
   const [hasReviewRange, setHasReviewRange] = useState(false);
   const [reviewFlowId, setReviewFlowId] = useState<number | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [candidate, setCandidate] = useState<Awaited<ReturnType<typeof findUserByStuID>>>(null);
+  const [candidateStudentId, setCandidateStudentId] = useState('');
+  const [showCandidateDialog, setShowCandidateDialog] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -75,7 +86,7 @@ export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) =>
     setIsChecking(true);
 
     try {
-      const existed = await checkUserByStuID(normalizedStudentId);
+      const existed = await findUserByStuID(normalizedStudentId);
 
       if (!existed) {
         toast.error('未找到该考生，请检查学号后重试');
@@ -94,7 +105,9 @@ export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) =>
         return;
       }
 
-      router.push(`/dashboard/review/marking?user=${normalizedStudentId}`);
+      setCandidate(existed);
+      setCandidateStudentId(normalizedStudentId);
+      setShowCandidateDialog(true);
     } catch {
       toast.error('考生信息校验失败，请稍后重试');
     } finally {
@@ -103,6 +116,7 @@ export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) =>
   };
 
   return (
+    <>
     <div className="mx-auto flex w-full max-w-md flex-col gap-4 p-1 sm:p-2">
       <div className="flex flex-col gap-1">
         <p className="text-base font-semibold text-foreground">手动输入学号</p>
@@ -135,5 +149,26 @@ export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) =>
         </Button>
       </div>
     </div>
+    <Dialog open={showCandidateDialog} onOpenChange={setShowCandidateDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>确认考生信息</DialogTitle>
+          <DialogDescription>请确认这就是要阅卷的考生，确认后将进入评分页面。</DialogDescription>
+        </DialogHeader>
+        {candidate && (
+          <div className="grid gap-2 rounded-md border bg-muted/30 p-4 text-sm">
+            <div className="flex justify-between gap-4"><span className="text-muted-foreground">姓名</span><span className="font-medium">{candidate.name}</span></div>
+            <div className="flex justify-between gap-4"><span className="text-muted-foreground">学号</span><span className="font-mono font-medium">{candidate.studentId ?? candidateStudentId}</span></div>
+            {candidate.college && <div className="flex justify-between gap-4"><span className="text-muted-foreground">学院</span><span className="text-right">{candidate.college}</span></div>}
+            {candidate.major && <div className="flex justify-between gap-4"><span className="text-muted-foreground">专业</span><span>{candidate.major}</span></div>}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowCandidateDialog(false)}>取消</Button>
+          <Button onClick={() => { setShowCandidateDialog(false); router.push(`/dashboard/review/marking?user=${candidateStudentId}`); }}>确认进入阅卷</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };

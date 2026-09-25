@@ -2,7 +2,6 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Badge } from "../ui/badge";
 import {
   Popover,
   PopoverContent,
@@ -40,13 +39,6 @@ const statusName = {
   withdrawn: "已退回",
 };
 
-const flowTypeLabel: Record<string, string> = {
-  recruitment: "笔试招新",
-  recruitment_exemption: "免试招新",
-  woc: "WOC/WOD",
-  soc: "SOC/SOD",
-};
-
 interface FlowCardProps {
   flow: displayUserFlow;
 }
@@ -59,6 +51,23 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
   const activeStep =
     steps.find((step) => step.order === safeFlow.currentStepOrder) ?? steps[0];
   const activeStepOrder = activeStep?.order ?? 0;
+  const resultPublished = safeFlow.publicationStatus === "published";
+  const visibleStatus = resultPublished
+    ? safeFlow.status
+    : safeFlow.status === "passed" || safeFlow.status === "failed"
+      ? "ongoing"
+      : safeFlow.status;
+
+  const statusLabel =
+    visibleStatus === "not_started"
+      ? "流程未开始"
+      : visibleStatus === "ongoing"
+        ? "流程进行中"
+        : visibleStatus === "passed"
+          ? "已通过考核"
+          : visibleStatus === "withdrawn"
+            ? "已退回，请重新报名"
+            : "未通过考核";
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -73,45 +82,14 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
     }
   };
 
-  const statusLabel =
-    safeFlow.status === "not_started"
-      ? "流程未开始"
-      : safeFlow.status === "ongoing"
-        ? "流程进行中"
-        : safeFlow.status === "passed"
-        ? "已通过考核"
-          : safeFlow.status === "withdrawn"
-            ? "已退回，请重新报名"
-            : "未通过考核";
-
   return (
     <Card className="w-full">
       <CardHeader className="space-y-3 pb-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <CardTitle className="text-base font-medium leading-snug sm:text-sm">
-              {safeFlow.title ?? "未命名流程"}
-            </CardTitle>
-            {safeFlow.flowType && (
-              <Badge variant="outline" className="shrink-0 text-xs">
-                {flowTypeLabel[safeFlow.flowType] ?? safeFlow.flowType}
-              </Badge>
-            )}
-          </div>
-          <Badge
-            className="w-fit shrink-0"
-            variant={
-              safeFlow.status === "ongoing" || safeFlow.status === "not_started"
-                ? "secondary"
-                : safeFlow.status === "passed"
-                  ? "default"
-                  : safeFlow.status === "withdrawn"
-                    ? "outline"
-                  : "destructive"
-            }
-          >
-            {statusLabel}
-          </Badge>
+        <div className="flex min-w-0 flex-col gap-2.5">
+          <CardTitle className="min-w-0 text-base font-medium leading-snug sm:text-sm">
+            {safeFlow.title ?? "未命名流程"}
+          </CardTitle>
+          <span className="text-sm text-muted-foreground">{statusLabel}</span>
         </div>
       </CardHeader>
       <CardContent>
@@ -120,15 +98,15 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
             <div className="flex min-w-[16rem] items-center my-4">
               {steps.map((step, index) => {
                 const status =
-                  safeFlow.status === "passed"
+                  visibleStatus === "passed"
                     ? "accepted"
-                    : safeFlow.status === "failed"
+                    : visibleStatus === "failed"
                       ? step.order < activeStepOrder
                         ? "accepted"
                         : step.order === activeStepOrder
                           ? "rejected"
                           : "pending"
-                      : safeFlow.status === "withdrawn"
+                      : visibleStatus === "withdrawn"
                         ? "pending"
                       : step.order < activeStepOrder
                         ? "accepted"
@@ -138,13 +116,13 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                 const Icon =
                   statusIcons[status as keyof typeof statusIcons] || AlertCircle;
                 const nextStatus =
-                  safeFlow.status === "passed"
+                  visibleStatus === "passed"
                     ? "accepted"
-                    : safeFlow.status === "failed"
+                    : visibleStatus === "failed"
                       ? step.order < activeStepOrder
                         ? "accepted"
                         : "pending"
-                      : safeFlow.status === "withdrawn"
+                      : visibleStatus === "withdrawn"
                         ? "pending"
                       : step.order < activeStepOrder
                         ? "accepted"
@@ -204,7 +182,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
             <p className="mt-1 text-xs text-muted-foreground">
               {activeStep?.description || "前面的区域以后再来探索吧"}
             </p>
-            {safeFlow.status === "withdrawn" && safeFlow.withdrawReason && (
+            {visibleStatus === "withdrawn" && safeFlow.withdrawReason && (
               <p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm text-destructive">
                 退回理由：{safeFlow.withdrawReason}
               </p>
@@ -213,7 +191,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
           {typeof safeFlow.id === "number" &&
             (safeFlow.status === "not_started" ||
               safeFlow.status === "ongoing") && (
-              <div className="shrink-0 self-start sm:self-auto">
+              <div className="shrink-0 self-end sm:self-auto">
                 <CancelRegistration userFlowId={safeFlow.id} />
               </div>
             )}

@@ -129,7 +129,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
     <Card className="w-full">
       <CardHeader className="space-y-3 pb-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <CardTitle className="min-w-0 text-base font-medium leading-snug sm:text-sm">
+          <CardTitle className="text-base font-medium leading-snug sm:text-sm">
             {flow.title}
           </CardTitle>
           <Badge

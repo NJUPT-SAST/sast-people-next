@@ -106,7 +106,7 @@ describe("PortfolioLinkEditor", () => {
     );
 
     expect(screen.queryByRole("button", { name: /修改/ })).not.toBeInTheDocument();
-    expect(screen.getByText("流程已结束，报名信息已锁定")).toBeInTheDocument();
+    expect(screen.getByText("当前阶段不可修改，报名信息已锁定")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /example.com/ })).toBeInTheDocument();
   });
 
