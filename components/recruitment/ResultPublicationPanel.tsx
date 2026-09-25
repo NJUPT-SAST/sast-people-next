@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Download, LockKeyhole, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -83,30 +84,39 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
     setRecipientUserFlowIds(notificationCandidates.map((row) => row.userFlowId));
     setConfirmOpen(true);
   };
+  const publicationBadge = published
+    ? { label: "已发布", className: "border-primary/30 bg-primary/10 text-primary" }
+    : counts.unfinished > 0
+      ? { label: "有未完成结果", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
+      : { label: "可以发布", className: "border-primary/30 bg-primary/10 text-primary" };
 
   return (
-    <section className="border-y bg-muted/20 px-4 py-4 sm:px-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-medium"><LockKeyhole className="size-4" />结果发布</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {published
-              ? "结果已发布，名单和结果已锁定。"
-              : counts.unfinished > 0
-                ? `还有 ${counts.unfinished} 人未完成最终结果，完成后才可发布。`
-                : "所有人的最终结果已完成，可以发布。"}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">通过模板 {templates.accepted.updatedAt ? "已配置" : "默认模板"}，不通过模板 {templates.rejected.updatedAt ? "已配置" : "默认模板"}。发布前请确认本年度文案。</p>
+    <section className="flex flex-col gap-3 rounded-lg border bg-card p-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+      <div className="min-w-0 space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <LockKeyhole className="size-4 text-muted-foreground" aria-hidden="true" />
+          <span className="text-sm font-medium">结果发布</span>
+          <Badge variant="outline" className={publicationBadge.className}>
+            {publicationBadge.label}
+          </Badge>
         </div>
-        <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
-          <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={() => setRosterOpen(true)} disabled={rows.length === 0}>
-            <ClipboardList data-icon="inline-start" />查看完整名单
-          </Button>
-          {published && <Button className="w-full sm:w-auto" asChild size="sm" variant="outline"><a href={`/api/flow/result-export?flowId=${flowId}`}><Download data-icon="inline-start" />导出结果表</a></Button>}
-          <Button className="w-full sm:w-auto" size="sm" onClick={openConfirmation} disabled={published || counts.unfinished > 0 || publishing}>
-            <Send data-icon="inline-start" />{published ? "结果已发布" : "确认并发布结果"}
-          </Button>
-        </div>
+        <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
+          {published
+            ? "结果已发布，名单和结果已锁定。"
+            : counts.unfinished > 0
+              ? `还有 ${counts.unfinished} 人未完成最终结果，完成后才可发布。`
+              : "所有人的最终结果已完成，可以发布。"}
+        </p>
+        <p className="text-xs leading-5 text-muted-foreground">通过模板 {templates.accepted.updatedAt ? "已配置" : "默认模板"}，不通过模板 {templates.rejected.updatedAt ? "已配置" : "默认模板"}。发布前请确认本年度文案。</p>
+      </div>
+      <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
+        <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={() => setRosterOpen(true)} disabled={rows.length === 0}>
+          <ClipboardList data-icon="inline-start" />查看完整名单
+        </Button>
+        {published && <Button className="w-full sm:w-auto" asChild size="sm" variant="outline"><a href={`/api/flow/result-export?flowId=${flowId}`}><Download data-icon="inline-start" />导出结果表</a></Button>}
+        <Button className="w-full sm:w-auto" size="sm" onClick={openConfirmation} disabled={published || counts.unfinished > 0 || publishing}>
+          <Send data-icon="inline-start" />{published ? "结果已发布" : "确认并发布结果"}
+        </Button>
       </div>
       <Dialog open={rosterOpen} onOpenChange={setRosterOpen}>
         <DialogContent className="max-h-[85dvh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto">

@@ -23,6 +23,8 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { batchSetOutcomeByUid } from '@/action/user-flow/edit';
+import { cn } from '@/lib/utils';
+import { LockKeyhole } from 'lucide-react';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -40,6 +42,7 @@ type RecruitmentRowLike = {
   stepId: number;
   status: string;
   isGraded?: boolean;
+  qq?: unknown;
 };
 
 const recruitmentStatusText: Record<string, string> = {
@@ -102,8 +105,11 @@ export function DataTable<TData, TValue>({
       role >= 3
         ? safeColumns
         : safeColumns.filter((c) => {
-            return c.id !== 'select' &&
-              (!('accessorKey' in c) || c.accessorKey !== 'problemScores' || role >= 2);
+            if (c.id === 'select') return false;
+            const key = 'accessorKey' in c ? c.accessorKey : undefined;
+            if (key === 'problemScores') return role >= 2;
+            if (key === 'qq') return false;
+            return true;
           }),
     [safeColumns, role],
   );
@@ -124,7 +130,7 @@ export function DataTable<TData, TValue>({
         studentId?: unknown;
         name?: unknown;
       };
-      return [item.studentId, item.name]
+      return [item.studentId, item.name, item.qq]
         .some((value) => String(value ?? "").toLocaleLowerCase().includes(query));
     },
     state: {
@@ -135,24 +141,42 @@ export function DataTable<TData, TValue>({
     onGlobalFilterChange: setGlobalFilter,
   });
   const allRows = table.getCoreRowModel().flatRows ?? [];
-  const filteredRows = table.getFilteredRowModel().flatRows ?? [];
   const rowModelRows = table.getRowModel().rows ?? [];
-  const filteredSelectedRows = table.getFilteredSelectedRowModel().rows ?? [];
   const totalScoreColumn =
     table.getAllLeafColumns().find((column) => column.id === 'totalScore') ?? null;
   const selectedMutableRows = table.getSelectedRowModel().flatRows ?? [];
   const canEditOutcomes = !resultsLocked && selectedMutableRows.length > 0;
-  const helperText =
-    '成绩管理可标记通过、不通过或未参与；全部结果完成后，在上方确认并发布流程结果。';
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'withdrawn', 'not_started'];
   const columnWidthClass: Record<string, string> = {
-    select: 'w-[6%]',
-    studentId: 'w-[18%]',
-    name: 'w-[30%]',
-    status: 'w-[16%]',
-    problemScores: 'w-[20%]',
-    totalScore: 'w-[10%]',
+    select: 'w-12',
+    studentId: 'w-[5.5rem]',
+    name: 'w-[9rem]',
+    qq: 'w-[7rem]',
+    status: 'w-[6rem]',
+    problemScores: 'w-[6.5rem]',
+    totalScore: 'w-[5.5rem]',
   };
+  const statusColumn =
+    table.getAllLeafColumns().find((column) => column.id === 'status') ?? null;
+  const activeStatusFilter = String(statusColumn?.getFilterValue() ?? '');
+  const statusSummary = statusColumn
+    ? summaryStatuses
+        .map((status) => ({
+          status,
+          count: allRows.filter((item) => getRowStatus(item) === status).length,
+        }))
+        .filter((item) => item.count > 0)
+    : [];
+  const selectedCount = selectedMutableRows.length;
+  const emptyMessage =
+    allRows.length > 0 ? '没有符合条件的考生。' : '暂时没有内容。';
+  const filterChipClass = (active: boolean) =>
+    cn(
+      'inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors',
+      active
+        ? 'border-foreground/20 bg-foreground/10 font-medium text-foreground'
+        : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
+    );
 
   const applyOutcome = (status: 'passed' | 'failed' | 'withdrawn') => {
     const selectedRows = selectedMutableRows;
@@ -185,45 +209,43 @@ export function DataTable<TData, TValue>({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="border-y bg-muted/20 px-4 py-4 sm:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">批量处理</p>
-              <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
-                {role >= 3
-                  ? helperText
-                  : '查看当前流程的报名结果与状态。'}
-              </p>
+    <div className="min-w-0 rounded-lg border bg-card">
+      <div className="sticky top-0 z-20 rounded-t-lg border-b bg-card/95 backdrop-blur-sm">
+        <div className="flex flex-col gap-3 p-3 sm:p-4">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <Input
+                placeholder="搜索姓名、学号或QQ"
+                aria-label="搜索笔试考生"
+                value={globalFilter}
+                onChange={(event) => setGlobalFilter(event.target.value)}
+                className="h-9 min-w-0 flex-1 sm:w-[13rem] sm:flex-none"
+              />
+              <Input
+                placeholder="分数线"
+                aria-label="按总分筛选，输入分数线"
+                inputMode="numeric"
+                value={(totalScoreColumn?.getFilterValue() as string) ?? ''}
+                onChange={(event) =>
+                  totalScoreColumn?.setFilterValue(event.target.value)
+                }
+                className="h-9 w-[6rem] shrink-0 sm:w-[8rem]"
+              />
             </div>
-          </div>
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
-            <Input
-              placeholder="搜索姓名或学号"
-              value={globalFilter}
-              onChange={(event) => setGlobalFilter(event.target.value)}
-              className="h-10 w-full sm:h-9 sm:w-[220px]"
-              aria-label="搜索笔试考生"
-            />
-            <Input
-              placeholder="筛选分数线"
-              value={(totalScoreColumn?.getFilterValue() as string) ?? ''}
-              onChange={(event) =>
-                totalScoreColumn?.setFilterValue(event.target.value)
-              }
-              className="h-10 w-full sm:h-9 sm:w-[180px]"
-            />
-            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-start lg:justify-end">
-              {role >= 3 && (
-                <>
+            {role >= 3 && (
+              <div className="flex min-w-0 items-center gap-2.5">
+                {(resultsLocked || selectedCount > 0) && (
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                    {resultsLocked ? '已锁定' : `已选 ${selectedCount} 人`}
+                  </span>
+                )}
+                <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 lg:flex lg:flex-none">
                   <Button
                     size="sm"
-                    className="h-10 w-full sm:h-9 sm:w-auto"
+                    className="h-9 px-2 text-xs lg:h-8 lg:px-3 lg:text-sm"
                     disabled={!canEditOutcomes}
                     onClick={() => {
-                      const selectedRows = selectedMutableRows;
-                      if (selectedRows.length > 0) applyOutcome('passed');
+                      if (selectedCount > 0) applyOutcome('passed');
                     }}
                   >
                     设为通过
@@ -231,197 +253,221 @@ export function DataTable<TData, TValue>({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-10 w-full sm:h-9 sm:w-auto"
+                    className="h-9 px-2 text-xs lg:h-8 lg:px-3 lg:text-sm"
                     disabled={!canEditOutcomes}
                     onClick={() => {
-                      const selectedRows = selectedMutableRows;
-                      if (selectedRows.length > 0) applyOutcome('failed');
+                      if (selectedCount > 0) applyOutcome('failed');
                     }}
                   >
                     设为不通过
                   </Button>
                   <Button
                     size="sm"
-                    variant="ghost"
-                    className="h-10 w-full sm:h-9 sm:w-auto"
+                    variant="outline"
+                    className="h-9 px-2 text-xs lg:h-8 lg:px-3 lg:text-sm"
                     disabled={!canEditOutcomes}
                     onClick={() => {
-                      const selectedRows = selectedMutableRows;
-                      if (selectedRows.length > 0) applyOutcome('withdrawn');
+                      if (selectedCount > 0) applyOutcome('withdrawn');
                     }}
                   >
                     标记未参与
                   </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-        {role >= 3 && (
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-3 text-xs text-muted-foreground sm:flex sm:flex-wrap">
-            {summaryStatuses.map((status) => {
-              const count = allRows.filter((item) => getRowStatus(item) === status).length;
-              return (
-                <div
-                  key={status}
-                  className="inline-flex items-center justify-between gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1 sm:justify-start"
-                >
-                  <span>{recruitmentStatusText[status]}</span>
-                  <span className="font-semibold tabular-nums text-foreground">
-                    {count}
-                  </span>
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
-        {role >= 3 && (
-          <div className="border-b bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">
-              {filteredSelectedRows.length}
-            </span>{' '}
-            / {filteredRows.length} 行选中
-          </div>
-        )}
-
-        {/* PC 端长表格试图 */}
-        <div className="hidden min-w-0 md:block overflow-x-auto">
-          <Table className="w-full table-fixed">
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="bg-muted/30 hover:bg-muted/30">
-                  {headerGroup.headers.map((header) => {
+          {(statusSummary.length > 0 || resultsLocked) && (
+            <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
+              {resultsLocked && (
+                <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                  <LockKeyhole className="size-3.5" aria-hidden="true" />
+                  结果已发布，名单已锁定
+                </p>
+              )}
+              {statusSummary.length > 0 && (
+                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:flex lg:flex-wrap lg:items-center">
+                  <button
+                    type="button"
+                    aria-pressed={!activeStatusFilter}
+                    className={filterChipClass(!activeStatusFilter)}
+                    onClick={() => statusColumn?.setFilterValue(undefined)}
+                  >
+                    全部
+                    <span className="tabular-nums opacity-60">{allRows.length}</span>
+                  </button>
+                  {statusSummary.map(({ status, count }) => {
+                    const active = activeStatusFilter === status;
                     return (
-                      <TableHead
-                        key={header.id}
-                        className={`whitespace-nowrap px-4 py-3 ${columnWidthClass[header.column.id] ?? ''}`}
+                      <button
+                        key={status}
+                        type="button"
+                        aria-pressed={active}
+                        className={filterChipClass(active)}
+                        onClick={() =>
+                          statusColumn?.setFilterValue(active ? undefined : status)
+                        }
                       >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                      </TableHead>
+                        {recruitmentStatusText[status] ?? status}
+                        <span className="tabular-nums opacity-60">{count}</span>
+                      </button>
                     );
                   })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {rowModelRows.length ? (
-                rowModelRows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    id={
-                      isTargetRow(row)
-                        ? `user-flow-${targetUserFlowId}-desktop`
-                        : undefined
-                    }
-                    data-state={row.getIsSelected() && 'selected'}
-                    className={
-                      isTargetRow(row)
-                        ? "scroll-mt-24 bg-primary/10 ring-1 ring-primary/30 hover:bg-primary/10"
-                        : "hover:bg-muted/30 data-[state=selected]:bg-primary/5"
-                    }
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={`whitespace-nowrap px-4 py-3 ${columnWidthClass[cell.column.id] ?? ''}`}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={visibleColumns.length}
-                    className="h-24 text-center"
-                  >
-                    暂时没有内容。
-                  </TableCell>
-                </TableRow>
+                </div>
               )}
-            </TableBody>
-          </Table>
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* 移动端卡片视图 */}
-        <div className="md:hidden flex flex-col divide-y divide-border">
-          {rowModelRows.length ? (
-            rowModelRows.map((row) => {
-              const cells = row.getVisibleCells();
-              const cellById = new Map(cells.map((cell) => [cell.column.id, cell]));
-              const selectCell = cellById.get('select');
-              const studentIdCell = cellById.get('studentId');
-              const nameCell = cellById.get('name');
-              const statusCell = cellById.get('status');
-              const totalScoreCell = cellById.get('totalScore');
-              const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
-              return (
-                <div
+      {/* PC 端长表格视图 */}
+      <div className="hidden min-w-0 overflow-x-auto rounded-b-lg lg:block">
+        <Table className="w-full min-w-[42rem] table-fixed">
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id} className="bg-muted/30 hover:bg-muted/30">
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead
+                      key={header.id}
+                      className={`whitespace-nowrap px-3 py-3 ${columnWidthClass[header.column.id] ?? ''}`}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {rowModelRows.length ? (
+              rowModelRows.map((row) => (
+                <TableRow
                   key={row.id}
                   id={
                     isTargetRow(row)
-                      ? `user-flow-${targetUserFlowId}-mobile`
+                      ? `user-flow-${targetUserFlowId}-desktop`
                       : undefined
                   }
+                  data-state={row.getIsSelected() && 'selected'}
                   className={
                     isTargetRow(row)
-                      ? "flex scroll-mt-24 gap-4 bg-primary/10 p-4 ring-1 ring-primary/30"
-                      : "flex gap-4 p-4 transition-colors hover:bg-muted/50"
+                      ? "scroll-mt-32 bg-primary/10 ring-1 ring-primary/30 hover:bg-primary/10"
+                      : "hover:bg-muted/30 data-[state=selected]:bg-primary/5"
                   }
                 >
-                  {role >= 3 && selectCell && (
-                    <div className="pt-1">
-                      {flexRender(selectCell.column.columnDef.cell, selectCell.getContext())}
-                    </div>
-                  )}
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-base font-semibold">
-                        {nameCell
-                          ? flexRender(nameCell.column.columnDef.cell, nameCell.getContext())
-                          : '未命名'}
-                      </div>
-                      <div className="shrink-0">
-                        {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      学号:{' '}
-                      {studentIdCell
-                        ? flexRender(studentIdCell.column.columnDef.cell, studentIdCell.getContext())
-                        : '-'}
-                    </div>
-                    <div className="flex items-center justify-between gap-3 pt-1">
-                      {role >= 2 && problemScoresCell ? (
-                        <div className="text-sm text-muted-foreground">
-                          {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
-                        </div>
-                      ) : (
-                        <span />
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className={`whitespace-nowrap px-3 py-3 ${columnWidthClass[cell.column.id] ?? ''}`}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
                       )}
-                      <div className="shrink-0">
-                        {statusCell && flexRender(statusCell.column.columnDef.cell, statusCell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={visibleColumns.length}
+                  className="h-32 px-4 text-center text-sm text-muted-foreground"
+                >
+                  {emptyMessage}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* 移动端卡片视图 */}
+      <div className="flex flex-col divide-y divide-border rounded-b-lg lg:hidden">
+        {rowModelRows.length ? (
+          rowModelRows.map((row) => {
+            const cells = row.getVisibleCells();
+            const cellById = new Map(cells.map((cell) => [cell.column.id, cell]));
+            const selectCell = cellById.get('select');
+            const studentIdCell = cellById.get('studentId');
+            const nameCell = cellById.get('name');
+            const statusCell = cellById.get('status');
+            const totalScoreCell = cellById.get('totalScore');
+            const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
+            const qqCell = cellById.get('qq');
+            const qqText = qqCell
+              ? String(toRecruitmentRow(row).qq ?? '').trim()
+              : '';
+            return (
+              <div
+                key={row.id}
+                id={
+                  isTargetRow(row)
+                    ? `user-flow-${targetUserFlowId}-mobile`
+                    : undefined
+                }
+                className={
+                  isTargetRow(row)
+                    ? "flex scroll-mt-40 gap-3 bg-primary/10 px-4 py-3 ring-1 ring-primary/30"
+                    : "flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                }
+              >
+                {role >= 3 && selectCell && (
+                  <div className="pt-0.5">
+                    {flexRender(selectCell.column.columnDef.cell, selectCell.getContext())}
+                  </div>
+                )}
+                <div className="flex min-w-0 flex-1 gap-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <div className="min-w-0 truncate text-sm font-semibold">
+                      {nameCell
+                        ? flexRender(nameCell.column.columnDef.cell, nameCell.getContext())
+                        : '未命名'}
+                    </div>
+                    <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
+                      <span className="shrink-0">
+                        学号{' '}
+                        {studentIdCell
+                          ? flexRender(studentIdCell.column.columnDef.cell, studentIdCell.getContext())
+                          : '-'}
+                      </span>
+                      {qqText && (
+                        <span className="min-w-0 truncate">· QQ {qqText}</span>
+                      )}
+                    </div>
+                    {role >= 2 && problemScoresCell && (
+                      <div className="pt-0.5">
+                        {flexRender(problemScoresCell.column.columnDef.cell, problemScoresCell.getContext())}
                       </div>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end justify-between gap-2">
+                    <div>
+                      {totalScoreCell && flexRender(totalScoreCell.column.columnDef.cell, totalScoreCell.getContext())}
+                    </div>
+                    <div>
+                      {statusCell && flexRender(statusCell.column.columnDef.cell, statusCell.getContext())}
                     </div>
                   </div>
                 </div>
-              );
-            })
-          ) : (
-             <div className="p-8 text-center text-muted-foreground text-sm flex items-center justify-center">暂时没有内容。</div>
-          )}
-        </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="flex flex-col gap-1 px-4 py-12 text-center">
+            <p className="text-sm font-medium text-foreground">{emptyMessage}</p>
+            {allRows.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                当前流程下还没有考生记录。
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

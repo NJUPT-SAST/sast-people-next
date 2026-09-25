@@ -30,6 +30,7 @@ describe("Recruitment DataTable", () => {
     name: string;
     totalScore: string;
     status: string;
+    qq?: string | null;
   };
 
   const columns: ColumnDef<RecruitmentRow>[] = [
@@ -46,6 +47,7 @@ describe("Recruitment DataTable", () => {
       ),
     },
     { accessorKey: "name", header: "姓名" },
+    { accessorKey: "qq", header: "QQ" },
     { accessorKey: "totalScore", header: "总分" },
   ];
 
@@ -239,5 +241,51 @@ describe("Recruitment DataTable", () => {
     expect(document.getElementById("user-flow-42-desktop")).toBeInTheDocument();
     expect(document.getElementById("user-flow-42-mobile")).toBeInTheDocument();
     expect(document.getElementById("user-flow-42")).not.toBeInTheDocument();
+  });
+
+  it("surfaces the candidate QQ to roles allowed to see it", () => {
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          {
+            uid: 1,
+            stepId: 3,
+            name: "张三",
+            totalScore: "90",
+            status: "ongoing",
+            qq: "12345678",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "QQ" })).toBeInTheDocument();
+    expect(screen.getAllByText(/12345678/).length).toBeGreaterThan(0);
+  });
+
+  it("hides the candidate QQ from roles without sensitive access", () => {
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={2}
+        data={[
+          {
+            uid: 1,
+            stepId: 3,
+            name: "张三",
+            totalScore: "90",
+            status: "ongoing",
+            qq: "12345678",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.queryByRole("columnheader", { name: "QQ" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/12345678/)).not.toBeInTheDocument();
   });
 });

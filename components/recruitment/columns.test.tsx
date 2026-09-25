@@ -42,10 +42,29 @@ describe("recruitment columns", () => {
       "select",
       "studentId",
       "name",
+      "qq",
       "status",
       "problemScores",
       "totalScore",
     ]);
+  });
+
+  it("renders the candidate QQ with a placeholder when it is unavailable", () => {
+    const qqColumn = columns.find(
+      (column) => "accessorKey" in column && column.accessorKey === "qq",
+    );
+    const cell = qqColumn?.cell as ((props: never) => ReactNode) | undefined;
+    expect(typeof cell).toBe("function");
+
+    const { container } = render(
+      <>{cell?.({ getValue: () => "12345678" } as never)}</>,
+    );
+    expect(container).toHaveTextContent("12345678");
+
+    const { container: hiddenContainer } = render(
+      <>{cell?.({ getValue: () => null } as never)}</>,
+    );
+    expect(hiddenContainer).toHaveTextContent("-");
   });
 
   it("filters rows by total score", () => {

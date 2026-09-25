@@ -6,7 +6,6 @@ import {
   getMockUserDetail,
   getMockUsersByIds,
   listMockUsers,
-  updateMockUserRole,
   updateMockUserRoles,
 } from "@/lib/link/mock";
 import type {
@@ -65,23 +64,6 @@ export const getLinkUsersByIds = async (accessToken: string, ids: number[]) => {
     query: { ids: ids.join(",") },
   });
   return result.users;
-};
-
-export const updateLinkUserRole = async (
-  accessToken: string,
-  id: number,
-  role: LinkRole,
-) => {
-  if (shouldUseMockLink()) {
-    await updateMockUserRole(id, role);
-    return;
-  }
-
-  await linkFetch(`/admin/users/${id}`, {
-    accessToken,
-    method: "PUT",
-    body: { role },
-  });
 };
 
 export const updateLinkUserRoles = async (

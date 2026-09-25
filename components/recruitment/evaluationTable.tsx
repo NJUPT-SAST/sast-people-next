@@ -294,7 +294,6 @@ function CandidateIdentity({
       <ViewUserInfoSheet
         userInfo={{ id: uid, name, studentId }}
         currentUserRole={role}
-        readOnly
         trigger={
           <button
             type="button"

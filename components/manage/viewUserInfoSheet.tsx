@@ -10,19 +10,11 @@ import {
 } from '../ui/sheet';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ExternalLink, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { userType } from '@/types/user';
 import originalDayjs from '@/lib/dayjs';
-import { updateUserRole } from '@/action/user/updateRole';
 import { useUserInfoById as getUserInfoById } from '@/hooks/useUserInfoById';
 
 const roleName: Record<number, string> = {
@@ -141,35 +133,17 @@ type UserInfoInput = Pick<userType, "id" | "name"> &
 export const ViewUserInfoSheet = ({
   userInfo,
   currentUserRole,
-  readOnly = false,
   trigger,
 }: {
   userInfo: UserInfoInput;
   currentUserRole: number;
-  readOnly?: boolean;
   trigger?: React.ReactNode;
 }) => {
-  const [role, setRole] = useState<number>(userInfo.role ?? 0);
-  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [detailUserInfo, setDetailUserInfo] = useState<UserInfoInput | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const displayUserInfo = detailUserInfo ?? userInfo;
+  const role = displayUserInfo.role ?? 0;
   const departments = displayUserInfo.departments ?? [];
-  const canUpdateRole = !readOnly && currentUserRole >= 3 && displayUserInfo.role !== 3;
-  const handleRoleChange = async (newRole: string) => {
-    const roleNum = Number(newRole);
-    setRole(roleNum);
-    setIsUpdatingRole(true);
-    try {
-      await updateUserRole(userInfo.id, roleNum);
-      toast.success(`角色已更新为 ${roleName[roleNum]}`);
-    } catch {
-      setRole(userInfo.role ?? 0);
-      toast.error('角色更新失败');
-    } finally {
-      setIsUpdatingRole(false);
-    }
-  };
 
   const handleOpenChange = async (open: boolean) => {
     if (!open || detailUserInfo || isLoadingDetail) {
@@ -180,7 +154,6 @@ export const ViewUserInfoSheet = ({
     try {
       const detail = await getUserInfoById(userInfo.id);
       setDetailUserInfo(detail);
-      setRole(detail.role ?? 0);
     } catch {
       toast.error('加载用户详细信息失败');
     } finally {
@@ -291,24 +264,7 @@ export const ViewUserInfoSheet = ({
 
           <InfoSection title="权限">
             <InfoRow label="角色">
-              {canUpdateRole ? (
-                <Select
-                  value={role.toString()}
-                  onValueChange={handleRoleChange}
-                  disabled={isUpdatingRole}
-                >
-                  <SelectTrigger className="h-9 w-full sm:w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">新同学</SelectItem>
-                    <SelectItem value="1">部员</SelectItem>
-                    <SelectItem value="2">讲师</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <TextValue value={roleName[role] ?? '未知'} />
-              )}
+              <TextValue value={roleName[role] ?? '未知'} />
             </InfoRow>
           </InfoSection>
 
