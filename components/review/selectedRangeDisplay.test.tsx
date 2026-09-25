@@ -49,7 +49,8 @@ describe("SelectedRangeDisplay", () => {
     );
 
     render(<SelectedRangeDisplay />);
-    expect(await screen.findByText("算法题 (100分)")).toBeInTheDocument();
+    expect(await screen.findByText("算法题")).toBeInTheDocument();
+    expect(screen.getByText("(100分)")).toBeInTheDocument();
 
     act(() => {
       window.localStorage.setItem(
@@ -63,6 +64,7 @@ describe("SelectedRangeDisplay", () => {
       window.dispatchEvent(new Event("reviewRangeUpdated"));
     });
 
-    expect(screen.getByText("设计题 (50分)")).toBeInTheDocument();
+    expect(screen.getByText("设计题")).toBeInTheDocument();
+    expect(screen.getByText("(50分)")).toBeInTheDocument();
   });
 });

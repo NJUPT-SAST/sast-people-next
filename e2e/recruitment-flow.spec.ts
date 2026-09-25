@@ -234,7 +234,7 @@ test.describe("recruitment written outcome", () => {
       hasText: users.outcomeCandidate.name,
     });
     await expect(desktopRow).toBeVisible();
-    await desktopRow.getByLabel("Select row").check();
+    await desktopRow.getByRole("checkbox").check();
     await page.getByRole("button", { name: "设为通过" }).click();
 
     await expect(page.getByText("已设置为通过")).toBeVisible();

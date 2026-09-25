@@ -84,10 +84,17 @@ export const SelectedRangeDisplay = ({
           <Badge variant="outline">总分 {totalScore} 分</Badge>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="divide-y divide-border overflow-hidden rounded-lg border sm:flex sm:flex-wrap sm:gap-2 sm:divide-y-0 sm:overflow-visible sm:border-0">
         {selectedRange.problemList.map((problem) => (
-          <Badge key={problem.id} variant="outline">
-            {problem.name} ({problem.maxPoint}分)
+          <Badge
+            key={problem.id}
+            variant="outline"
+            className="flex w-full items-center justify-between gap-3 rounded-none border-0 px-3 py-2 text-sm font-normal whitespace-normal sm:w-fit sm:justify-center sm:gap-1 sm:rounded-full sm:border sm:px-2 sm:py-0.5 sm:text-xs sm:font-medium sm:whitespace-nowrap"
+          >
+            <span>{problem.name}</span>
+            <span className="shrink-0 text-muted-foreground tabular-nums sm:text-foreground">
+              ({problem.maxPoint}分)
+            </span>
           </Badge>
         ))}
       </div>

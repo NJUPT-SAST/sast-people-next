@@ -348,7 +348,6 @@ export const ApprovalsContent = ({
                           studentId: row.candidateStudentId,
                         }}
                         currentUserRole={currentUserRole}
-                        readOnly
                         trigger={
                           <button
                             type="button"

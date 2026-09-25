@@ -12,7 +12,7 @@
 
 SAST People 原有用户体系由 People 本地 `public.user` 表维护。SAST Link 也维护了一套用户表，两边存在重复的用户基础信息。v3 改造目标是将重复的用户资料统一到 SAST Link，由 People 仅维护自身业务数据。
 
-本次改造后，People 不再作为用户基础资料的数据源。People 运行时通过 Link API 获取用户资料，并通过 Link API 完成用户角色变更和封禁操作。
+本次改造后，People 不再作为用户基础资料的数据源。People 运行时通过 Link API 获取用户资料，并通过 Link API 完成流程触发的角色同步和封禁操作。
 
 ## 2. 目标
 
@@ -21,7 +21,7 @@ SAST People 原有用户体系由 People 本地 `public.user` 表维护。SAST L
 1. People 登录切换为 SAST Link OAuth。
 2. People 用户资料读取切换为 Link API。
 3. People 用户资料页面改为只读，资料修改跳转至 Link。
-4. People 管理端的角色变更和封禁操作切换为 Link API。
+4. People 管理端仅展示 Link 角色，角色手动变更统一在 Link 完成；封禁操作切换为 Link API。
 5. People 新库仅保留流程、报名、评分、面评、邮件等业务数据。
 6. People 业务表中的用户关联字段统一迁移为 Link 用户 ID。
 
@@ -119,18 +119,22 @@ People 的管理路由。管理员调用 `/admin/*` 接口时复用同一份登�
 
 People 读取 Link 返回后，会转换为现有 People UI 使用的 `userType` 视图模型。
 
-### 6.3 用户角色变更
+### 6.3 用户角色同步
 
-People 管理端角色变更不再更新本地 `public.user.role`，而是调用：
+People 管理端不再提供手动修改角色的功能，角色手动管理统一在 Link 完成。
+People 仅在已发布流程的参与人通过后，根据流程结果自动同步角色，并调用：
 
 ```http
-PUT /admin/users/{id}
+PUT /admin/users
 Content-Type: application/json
 
 {
+  "ids": [42],
   "role": "member"
 }
 ```
+
+自动同步不会修改管理员角色。People 页面中的角色始终来自 Link 用户资料。
 
 角色映射关系：
 
@@ -216,8 +220,9 @@ type LinkUserProfile = {
 - `/oauth/token`
 - `/user/profile`
 - `/admin/users`
+- `/admin/users` 的 `PUT`（流程结果批量同步角色）
 - `/admin/users/{id}`
-- `/admin/users/{id}` 的 `PUT`
+- `/admin/users/{id}` 的 `PUT`（People 已不再调用）
 - `/admin/users/{id}` 的 `DELETE`
 
 v3.1 已确认补齐 People 依赖字段：
@@ -364,7 +369,7 @@ lib/link/
 | 当前用户资料 | 已改造 |
 | 用户列表 | 已改造 |
 | 用户详情 | 已改造 |
-| 改角色 | 已改造 |
+| 改角色 | 管理端仅只读展示；通过流程结果自动同步 |
 | 封禁用户 | 已改造 |
 | 用户资料页 | 已改为只读 |
 | 报名校验 | 已改造 |
@@ -374,7 +379,7 @@ lib/link/
 | 邮件目标和邮件批次 | 已改造 |
 | 旧飞书登录 | 生产默认关闭 |
 | 测试登录 | 生产默认关闭 |
-| 管理员角色 | 仅允许数据库手动变更，People 界面与流程同步均不可修改 |
+| 管理员角色 | 仅允许在 Link 手动变更，People 界面与流程同步均不可修改 |
 
 ## 11. Legacy 表清理
 
@@ -390,7 +395,7 @@ Link 契约确认后，按以下顺序联调：
 | --- | --- |
 | OAuth 登录 | 授权跳转、回调、token 保存、session 创建 |
 | 当前用户资料 | 姓名、学号、手机号、QQ、学院、专业、简介正常显示 |
-| 用户管理 | 分页、搜索、详情、改角色、封禁 |
+| 用户管理 | 分页、搜索、详情、角色只读展示、封禁 |
 | 报名 | 普通用户报名、缺字段提示、业务表保存 Link 用户 ID |
 | 阅卷 | 按学号查考生、成绩列表展示 |
 | 面评 | 候选人列表、评价提交、审批列表 |
@@ -422,5 +427,5 @@ Link 契约确认后，按以下顺序联调：
 下一步：
 
 1. 切换 `LINK_USE_MOCK=false` 做真实联调。
-2. 验证 OAuth 登录、用户资料读取、管理端列表/详情、角色变更和封禁。
+2. 验证 OAuth 登录、用户资料读取、管理端列表/详情、流程自动角色同步和封禁。
 3. 联调通过后再评估是否合并 v3。

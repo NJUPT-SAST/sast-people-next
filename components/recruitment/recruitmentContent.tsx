@@ -148,8 +148,8 @@ export const RecruitmentContent = ({
         ) / safeScoreData.length;
   return (
     <div className="min-w-0 space-y-4">
-      <section className="border-y bg-muted/20">
-        <div className="flex flex-col gap-4 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+      <section className="rounded-lg border bg-card">
+        <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-col gap-3">
             {isEvaluationWorkspace && (
               <Tabs
@@ -183,7 +183,7 @@ export const RecruitmentContent = ({
         </div>
 
         {flowId && !loading && (
-          <div className="flex flex-wrap gap-x-6 gap-y-2 border-t bg-muted/10 px-4 py-2.5 text-sm">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 border-t px-4 py-2.5 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Users className="size-4" />
               <span>总人数</span>

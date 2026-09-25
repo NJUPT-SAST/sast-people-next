@@ -17,6 +17,7 @@ import { MessageSquareText } from 'lucide-react';
 
 const statusLabel: Record<string, string> = {
   pending: '未开始',
+  not_started: '未开始',
   ungraded: '未批卷',
   ongoing: '待确认',
   passed: '通过',
@@ -42,6 +43,7 @@ const statusVariant: Record<
 
 const statusClassName: Record<string, string> = {
   pending: 'border-muted-foreground/30 bg-muted text-muted-foreground',
+  not_started: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   ungraded: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   ongoing: 'border-chart-3/30 bg-chart-3/10 text-chart-3',
   passed: 'border-primary/30 bg-primary/10 text-primary',
@@ -74,7 +76,7 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
           onCheckedChange={(value) => {
             selectableRows.forEach((row) => row.toggleSelected(!!value));
           }}
-          aria-label="Select all"
+          aria-label="全选当前列表"
           disabled={totalCount === 0}
         />
       );
@@ -83,7 +85,7 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
       <Checkbox
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
+        aria-label={`选择 ${row.original.name}`}
         disabled={!row.getCanSelect()}
       />
     ),
@@ -93,6 +95,13 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
   {
     accessorKey: 'studentId',
     header: '学号',
+    cell: ({ getValue }) => {
+      const studentId = getValue() as string | null;
+      if (!studentId) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+      return <span className="tabular-nums">{studentId}</span>;
+    },
   },
   {
     accessorKey: 'name',
@@ -107,7 +116,6 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
             studentId: original.studentId,
           }}
           currentUserRole={role}
-          readOnly
           trigger={
             <button
               type="button"
@@ -122,8 +130,24 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
     },
   },
   {
+    accessorKey: 'qq',
+    header: 'QQ',
+    cell: ({ getValue }) => {
+      const qq = getValue() as string | null;
+      if (!qq) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+      return <span className="tabular-nums">{qq}</span>;
+    },
+  },
+  {
     accessorKey: 'status',
     header: '状态',
+    filterFn: (row, _columnId, filterValue) => {
+      const filter = String(filterValue ?? '').trim();
+      if (!filter) return true;
+      return String(row.original.status) === filter;
+    },
     cell: ({ getValue }) => {
       const status = String(getValue() ?? 'ongoing');
       return (

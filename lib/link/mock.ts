@@ -250,12 +250,6 @@ export const getMockUsersByIds = async (ids: number[]) => {
   });
 };
 
-export const updateMockUserRole = async (id: number, role: LinkRole) => {
-  const user = mockUsers.find((item) => item.id === id);
-  if (!user) throw new Error("Mock Link user not found");
-  user.role = role;
-};
-
 export const updateMockUserRoles = async (ids: number[], role: LinkRole) => {
   const results = [] as Array<{
     id: number;

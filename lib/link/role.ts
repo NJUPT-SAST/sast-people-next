@@ -28,6 +28,3 @@ export const linkRoleToPeopleRole = (role: LinkRole): number => {
   }
 };
 
-export const isAssignablePeopleRole = (role: number) =>
-  role === 0 || role === 1 || role === 2;
-
