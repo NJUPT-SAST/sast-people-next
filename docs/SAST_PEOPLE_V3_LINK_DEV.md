@@ -220,8 +220,9 @@ type LinkUserProfile = {
 - `/oauth/token`
 - `/user/profile`
 - `/admin/users`
+- `/admin/users` 的 `PUT`（流程结果批量同步角色）
 - `/admin/users/{id}`
-- `/admin/users/{id}` 的 `PUT`
+- `/admin/users/{id}` 的 `PUT`（People 已不再调用）
 - `/admin/users/{id}` 的 `DELETE`
 
 v3.1 已确认补齐 People 依赖字段：

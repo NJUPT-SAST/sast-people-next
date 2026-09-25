@@ -67,6 +67,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
   if (loading || !summary) return null;
   const { counts, publication, templates, rows } = summary;
   const published = publication?.status === "published";
+  const publicationInProgress = publication?.status === "publishing";
   const publish = async () => {
     if (!templateConfirmed) return;
     setPublishing(true);
@@ -86,9 +87,11 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
   };
   const publicationBadge = published
     ? { label: "已发布", className: "border-primary/30 bg-primary/10 text-primary" }
-    : counts.unfinished > 0
-      ? { label: "有未完成结果", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
-      : { label: "可以发布", className: "border-primary/30 bg-primary/10 text-primary" };
+    : publicationInProgress
+      ? { label: "发布中", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
+      : counts.unfinished > 0
+        ? { label: "有未完成结果", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
+        : { label: "可以发布", className: "border-primary/30 bg-primary/10 text-primary" };
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border bg-card p-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
@@ -103,9 +106,11 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
         <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
           {published
             ? "结果已发布，名单和结果已锁定。"
-            : counts.unfinished > 0
-              ? `还有 ${counts.unfinished} 人未完成最终结果，完成后才可发布。`
-              : "所有人的最终结果已完成，可以发布。"}
+            : publicationInProgress
+              ? "结果正在发布，请稍候。"
+              : counts.unfinished > 0
+                ? `还有 ${counts.unfinished} 人未完成最终结果，完成后才可发布。`
+                : "所有人的最终结果已完成，可以发布。"}
         </p>
         <p className="text-xs leading-5 text-muted-foreground">通过模板 {templates.accepted.updatedAt ? "已配置" : "默认模板"}，不通过模板 {templates.rejected.updatedAt ? "已配置" : "默认模板"}。发布前请确认本年度文案。</p>
       </div>
@@ -114,8 +119,8 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
           <ClipboardList data-icon="inline-start" />查看完整名单
         </Button>
         {published && <Button className="w-full sm:w-auto" asChild size="sm" variant="outline"><a href={`/api/flow/result-export?flowId=${flowId}`}><Download data-icon="inline-start" />导出结果表</a></Button>}
-        <Button className="w-full sm:w-auto" size="sm" onClick={openConfirmation} disabled={published || counts.unfinished > 0 || publishing}>
-          <Send data-icon="inline-start" />{published ? "结果已发布" : "确认并发布结果"}
+        <Button className="w-full sm:w-auto" size="sm" onClick={openConfirmation} disabled={published || publicationInProgress || counts.unfinished > 0 || publishing}>
+          <Send data-icon="inline-start" />{published ? "结果已发布" : publicationInProgress ? "发布中" : "确认并发布结果"}
         </Button>
       </div>
       <Dialog open={rosterOpen} onOpenChange={setRosterOpen}>
