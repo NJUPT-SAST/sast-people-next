@@ -44,26 +44,35 @@ const chunk = <T,>(values: T[], size: number) =>
 const findMatchingStudentInPages = async (
   accessToken: string,
   params: { studentId?: string; keyword?: string },
+  normalizedStudentId: string,
 ) => {
+  const findMatch = (page: Awaited<ReturnType<typeof listLinkUsers>>) =>
+    page.users.find(
+      (item) =>
+        normalizeStudentId(item.student_id) === normalizedStudentId &&
+        item.state !== "is_deleted",
+    );
   const firstPage = await listLinkUsers(accessToken, {
     ...params,
     page: 1,
     pageSize: 100,
   });
-  const pages = [firstPage];
+  const firstMatch = findMatch(firstPage);
+  if (firstMatch) return firstMatch;
+
   const totalPages = Math.ceil(firstPage.total / firstPage.page_size);
 
   for (let page = 2; page <= totalPages; page += 1) {
-    pages.push(
-      await listLinkUsers(accessToken, {
-        ...params,
-        page,
-        pageSize: 100,
-      }),
-    );
+    const pageResult = await listLinkUsers(accessToken, {
+      ...params,
+      page,
+      pageSize: 100,
+    });
+    const match = findMatch(pageResult);
+    if (match) return match;
   }
 
-  return pages;
+  return undefined;
 };
 
 export const getPeopleUserByLinkId = async (
@@ -105,13 +114,10 @@ export const findPeopleUserByStudentId = async (
   const adminAccessToken = await getLinkAdminAccessTokenFromSession();
   let matchedUser;
   for (const queryStudentId of studentIdQueryVariants(studentId)) {
-    const exactPages = await findMatchingStudentInPages(adminAccessToken, {
-      studentId: queryStudentId,
-    });
-    matchedUser = exactPages.flatMap((page) => page.users).find(
-      (item) =>
-        normalizeStudentId(item.student_id) === normalizedStudentId &&
-        item.state !== "is_deleted",
+    matchedUser = await findMatchingStudentInPages(
+      adminAccessToken,
+      { studentId: queryStudentId },
+      normalizedStudentId,
     );
     if (matchedUser) break;
   }
@@ -120,13 +126,10 @@ export const findPeopleUserByStudentId = async (
   // with keyword search so casing/whitespace differences do not hide a user
   // whose ID is already shown elsewhere by ID-based lookups.
   if (!matchedUser) {
-    const fallbackPages = await findMatchingStudentInPages(adminAccessToken, {
-      keyword: normalizedStudentId,
-    });
-    matchedUser = fallbackPages.flatMap((page) => page.users).find(
-      (item) =>
-        normalizeStudentId(item.student_id) === normalizedStudentId &&
-        item.state !== "is_deleted",
+    matchedUser = await findMatchingStudentInPages(
+      adminAccessToken,
+      { keyword: normalizedStudentId },
+      normalizedStudentId,
     );
   }
 

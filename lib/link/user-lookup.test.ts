@@ -39,7 +39,7 @@ describe("findPeopleUserByStudentId", () => {
 
   it("tries lowercase and uppercase Link student-id variants", async () => {
     listLinkUsers
-      .mockResolvedValueOnce({ users: [], total: 0 })
+      .mockResolvedValueOnce({ users: [], total: 0, page: 1, page_size: 100 })
       .mockResolvedValueOnce({
         users: [
           {
@@ -58,6 +58,8 @@ describe("findPeopleUserByStudentId", () => {
           },
         ],
         total: 1,
+        page: 1,
+        page_size: 100,
       });
 
     await expect(findPeopleUserByStudentId("B260005")).resolves.toMatchObject({
@@ -68,6 +70,48 @@ describe("findPeopleUserByStudentId", () => {
       page: 1,
       pageSize: 100,
       studentId: "b260005",
+    });
+  });
+
+  it("finds a matching student on a later page without requesting more pages", async () => {
+    listLinkUsers
+      .mockResolvedValueOnce({
+        users: [],
+        total: 201,
+        page: 1,
+        page_size: 100,
+      })
+      .mockResolvedValueOnce({
+        users: [
+          {
+            id: 9,
+            name: "分页考生",
+            student_id: "B260006",
+            login_email: "paged@example.com",
+            role: "freshman",
+            state: "njupter",
+            phone_number: null,
+            qq_number: null,
+            college: null,
+            major: null,
+            department: null,
+            created_at: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+        total: 201,
+        page: 2,
+        page_size: 100,
+      });
+
+    await expect(findPeopleUserByStudentId("B260006")).resolves.toMatchObject({
+      id: 9,
+      studentId: "B260006",
+    });
+    expect(listLinkUsers).toHaveBeenCalledTimes(2);
+    expect(listLinkUsers).toHaveBeenNthCalledWith(2, "admin-token", {
+      page: 2,
+      pageSize: 100,
+      studentId: "B260006",
     });
   });
 });

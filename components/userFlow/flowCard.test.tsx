@@ -85,7 +85,7 @@ describe("FlowCard", () => {
 
     render(ui);
 
-    expect(screen.getByText("流程进行中")).toBeInTheDocument();
+    expect(screen.getByText("流程进行中")).not.toHaveClass("sr-only");
     expect(screen.getByRole("button", { name: "结果确认，进行中。点击查看详情" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "结果确认，已通过。点击查看详情" })).not.toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe("FlowCard", () => {
 
     render(ui);
 
-    expect(screen.getByText("已通过考核")).toBeInTheDocument();
+    expect(screen.getByText("已通过考核")).not.toHaveClass("sr-only");
     expect(screen.getByRole("button", { name: "结果确认，已通过。点击查看详情" })).toBeInTheDocument();
   });
 

@@ -89,7 +89,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
           <CardTitle className="min-w-0 text-base font-medium leading-snug sm:text-sm">
             {safeFlow.title ?? "未命名流程"}
           </CardTitle>
-          <span className="sr-only">{statusLabel}</span>
+          <span className="text-sm text-muted-foreground">{statusLabel}</span>
         </div>
       </CardHeader>
       <CardContent>
