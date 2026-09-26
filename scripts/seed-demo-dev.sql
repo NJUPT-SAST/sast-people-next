@@ -238,6 +238,8 @@ insert into interview_schedule (
   meeting_link,
   summary,
   description,
+  location,
+  meeting_room_id,
   attendee_email,
   starts_at,
   ends_at,
@@ -246,11 +248,12 @@ insert into interview_schedule (
   created_at,
   updated_at
 ) values
-  (701, 207, null, 2, 'feishu', 'demo-event-207', 'demo-reserve-207', 'demo-meeting-207', 'https://vc.feishu.cn/j/demo207', '2026 免试招新 Demo 面试 - Demo Freshman B', '本地 demo：已预约，日程尚未结束。', 'B260002@njupt.edu.cn', now() + interval '1 hour', now() + interval '90 minutes', 'Asia/Shanghai', 'created', now() - interval '10 minutes', now() - interval '10 minutes'),
-  (702, 208, null, 2, 'feishu', 'demo-event-208', 'demo-reserve-208', 'demo-meeting-208', 'https://vc.feishu.cn/j/demo208', '2026 免试招新 Demo 面试 - Demo Freshman C', '本地 demo：日程已结束，等待讲师写面评。', 'B260003@njupt.edu.cn', now() - interval '2 hours', now() - interval '90 minutes', 'Asia/Shanghai', 'created', now() - interval '3 hours', now() - interval '3 hours'),
-  (703, 209, 301, 2, 'feishu', 'demo-event-209', 'demo-reserve-209', 'demo-meeting-209', 'https://vc.feishu.cn/j/demo209', '2026 免试招新 Demo 面试 - Demo Freshman D', '本地 demo：日程已结束，面评待管理员审核。', 'B260004@njupt.edu.cn', now() - interval '2 days', now() - interval '47 hours', 'Asia/Shanghai', 'created', now() - interval '3 days', now() - interval '3 days'),
-  (704, 210, null, 2, 'feishu', 'demo-event-210', 'demo-reserve-210', 'demo-meeting-210', 'https://vc.feishu.cn/j/demo210', '2026 免试招新 Demo 面试 - Demo Freshman E', '本地 demo：日程已结束，讲师选择不通过。', 'B260005@njupt.edu.cn', now() - interval '1 day', now() - interval '23 hours', 'Asia/Shanghai', 'created', now() - interval '2 days', now() - interval '2 days'),
-  (705, 211, 302, 2, 'feishu', 'demo-event-211', 'demo-reserve-211', 'demo-meeting-211', 'https://vc.feishu.cn/j/demo211', '2026 免试招新 Demo 面试 - Demo Member', '本地 demo：日程已结束，管理员已通过。', '003@njupt.edu.cn', now() - interval '4 days', now() - interval '95 hours', 'Asia/Shanghai', 'created', now() - interval '5 days', now() - interval '5 days')
+  (701, 207, null, 2, 'feishu', 'demo-event-207', 'demo-reserve-207', 'demo-meeting-207', 'https://vc.feishu.cn/j/demo207', '2026 免试招新 Demo 面试 - 李瑶', '本地 demo：已预约，日程尚未结束。', '大学生活动中心-101 中区', 'omm_17a653591966274e91219f66043e1218', 'B00040005@njupt.edu.cn', now() + interval '1 hour', now() + interval '90 minutes', 'Asia/Shanghai', 'created', now() - interval '10 minutes', now() - interval '10 minutes'),
+  -- Organised by the second lecturer: 讲师 sees this one locked.
+  (702, 208, null, 11, 'feishu', 'demo-event-208', 'demo-reserve-208', 'demo-meeting-208', 'https://vc.feishu.cn/j/demo208', '2026 免试招新 Demo 面试 - 张昊然', '本地 demo：日程已结束，等待讲师写面评。', '大学生活动中心-汇客厅(112 - 113)', 'omm_f2b7a9f9ba5afa0b96906cf2cb4f1a06', 'B00040006@njupt.edu.cn', now() - interval '2 hours', now() - interval '90 minutes', 'Asia/Shanghai', 'created', now() - interval '3 hours', now() - interval '3 hours'),
+  (703, 209, 301, 2, 'feishu', 'demo-event-209', 'demo-reserve-209', 'demo-meeting-209', 'https://vc.feishu.cn/j/demo209', '2026 免试招新 Demo 面试 - 欧阳文博', '本地 demo：日程已结束，面评待管理员审核。', '教三 204', null, 'B00040007@njupt.edu.cn', now() - interval '2 days', now() - interval '47 hours', 'Asia/Shanghai', 'created', now() - interval '3 days', now() - interval '3 days'),
+  (704, 210, null, 2, 'feishu', 'demo-event-210', 'demo-reserve-210', 'demo-meeting-210', 'https://vc.feishu.cn/j/demo210', '2026 免试招新 Demo 面试 - 吴承宇', '本地 demo：日程已结束，讲师选择不通过。', '大学生活动中心-101 中区', 'omm_17a653591966274e91219f66043e1218', 'B00040008@njupt.edu.cn', now() - interval '1 day', now() - interval '23 hours', 'Asia/Shanghai', 'created', now() - interval '2 days', now() - interval '2 days'),
+  (705, 211, 302, 2, 'feishu', 'demo-event-211', 'demo-reserve-211', 'demo-meeting-211', 'https://vc.feishu.cn/j/demo211', '2026 免试招新 Demo 面试 - 沈亦舟', '本地 demo：日程已结束，管理员已通过。', '教三 204', null, 'B00040003@njupt.edu.cn', now() - interval '4 days', now() - interval '95 hours', 'Asia/Shanghai', 'created', now() - interval '5 days', now() - interval '5 days')
 on conflict (id) do update set
   fk_user_flow_id = excluded.fk_user_flow_id,
   fk_evaluation_id = excluded.fk_evaluation_id,
@@ -262,6 +265,8 @@ on conflict (id) do update set
   meeting_link = excluded.meeting_link,
   summary = excluded.summary,
   description = excluded.description,
+  location = excluded.location,
+  meeting_room_id = excluded.meeting_room_id,
   attendee_email = excluded.attendee_email,
   starts_at = excluded.starts_at,
   ends_at = excluded.ends_at,
@@ -354,9 +359,9 @@ insert into email_delivery (
   sent_at,
   updated_at
 ) values
-  (501, 'B260004@njupt.edu.cn', '2026 春季笔试招新 Demo 结果通知', '<!doctype html><html><body style="margin:0;background:#f6f7f9;font-family:Arial,sans-serif;color:#111827;"><main style="max-width:640px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;"><h1 style="margin:0 0 16px;font-size:22px;">2026 春季笔试招新 Demo 结果通知</h1><p>Demo Freshman D，你已通过本轮招新。</p><p>请按通知完成后续成员信息登记。</p></main></body></html>', 'sent', null, 'demo-message-501', 401, 204, 7, now() - interval '1 day', now() - interval '1 day', now() - interval '1 day'),
-  (502, 'B260003@njupt.edu.cn', '2026 春季笔试招新 Demo 结果通知', '<!doctype html><html><body style="margin:0;background:#f6f7f9;font-family:Arial,sans-serif;color:#111827;"><main style="max-width:640px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;"><h1 style="margin:0 0 16px;font-size:22px;">2026 春季笔试招新 Demo 结果通知</h1><p>Demo Freshman C，很遗憾本次未通过。</p><p>感谢你的参与，欢迎继续关注后续活动。</p></main></body></html>', 'failed', 'SMTP demo failure', null, 402, 203, 6, now() - interval '12 hours', null, now() - interval '12 hours'),
-  (503, 'B260005@njupt.edu.cn', '2026 春季笔试招新 Demo 结果通知', '<!doctype html><html><body style="margin:0;background:#f6f7f9;font-family:Arial,sans-serif;color:#111827;"><main style="max-width:640px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;"><h1 style="margin:0 0 16px;font-size:22px;">2026 春季笔试招新 Demo 结果通知</h1><p>Demo Freshman E，很遗憾本次未通过。</p><p>感谢你的参与，欢迎继续关注后续活动。</p></main></body></html>', 'sent', null, 'demo-message-503', 402, 205, 8, now() - interval '12 hours', now() - interval '12 hours', now() - interval '12 hours')
+  (501, 'B00040007@njupt.edu.cn', '2026 春季笔试招新 Demo 结果通知', '<!doctype html><html><body style="margin:0;background:#f6f7f9;font-family:Arial,sans-serif;color:#111827;"><main style="max-width:640px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;"><h1 style="margin:0 0 16px;font-size:22px;">2026 春季笔试招新 Demo 结果通知</h1><p>欧阳文博，你已通过本轮招新。</p><p>请按通知完成后续成员信息登记。</p></main></body></html>', 'sent', null, 'demo-message-501', 401, 204, 7, now() - interval '1 day', now() - interval '1 day', now() - interval '1 day'),
+  (502, 'B00040006@njupt.edu.cn', '2026 春季笔试招新 Demo 结果通知', '<!doctype html><html><body style="margin:0;background:#f6f7f9;font-family:Arial,sans-serif;color:#111827;"><main style="max-width:640px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;"><h1 style="margin:0 0 16px;font-size:22px;">2026 春季笔试招新 Demo 结果通知</h1><p>张昊然，很遗憾本次未通过。</p><p>感谢你的参与，欢迎继续关注后续活动。</p></main></body></html>', 'failed', 'SMTP demo failure', null, 402, 203, 6, now() - interval '12 hours', null, now() - interval '12 hours'),
+  (503, 'B00040008@njupt.edu.cn', '2026 春季笔试招新 Demo 结果通知', '<!doctype html><html><body style="margin:0;background:#f6f7f9;font-family:Arial,sans-serif;color:#111827;"><main style="max-width:640px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;"><h1 style="margin:0 0 16px;font-size:22px;">2026 春季笔试招新 Demo 结果通知</h1><p>吴承宇，很遗憾本次未通过。</p><p>感谢你的参与，欢迎继续关注后续活动。</p></main></body></html>', 'sent', null, 'demo-message-503', 402, 205, 8, now() - interval '12 hours', now() - interval '12 hours', now() - interval '12 hours')
 on conflict (id) do update set
   to_address = excluded.to_address,
   subject = excluded.subject,

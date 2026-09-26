@@ -5,7 +5,7 @@ const webhookSecret =
   process.env.EMAIL_WEBHOOK_SECRET ?? "playwright-webhook-secret";
 
 const signInAsLocalAdmin = (context: Parameters<typeof signInAs>[0]) =>
-  signInAs(context, { uid: 1, role: 3, name: "Local Admin" });
+  signInAs(context, { uid: 1, role: 3, name: "管理员" });
 
 test.describe("email center prelaunch", () => {
   test.describe.configure({ timeout: 90_000 });

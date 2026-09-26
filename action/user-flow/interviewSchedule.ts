@@ -229,6 +229,8 @@ async function sendInterviewWithdrawalEmailDelivery({
   candidateName,
   flowName,
   reason,
+  operatorName,
+  operatorRole,
 }: {
   toAddress: string;
   recipientUserId: number;
@@ -239,6 +241,8 @@ async function sendInterviewWithdrawalEmailDelivery({
   candidateName: string;
   flowName: string;
   reason: string;
+  operatorName: string;
+  operatorRole: number;
 }): Promise<
   | { ok: true; deliveryId: number }
   | { ok: false; message: string }
@@ -256,6 +260,8 @@ async function sendInterviewWithdrawalEmailDelivery({
         candidateName,
         flowName,
         reason,
+        operatorName,
+        operatorRole,
       },
       metadata: {
         reason,
@@ -1261,6 +1267,9 @@ export async function returnInterviewCandidate(
           candidateName: candidateUser.name,
           flowName: candidate.flowTitle,
           reason: normalizedReason,
+          // Whoever pressed 退回, so the candidate knows who to go back to.
+          operatorName: session.name,
+          operatorRole: session.role,
         });
         if (emailResult.ok) {
           emailDeliveryId = emailResult.deliveryId;

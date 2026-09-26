@@ -49,6 +49,12 @@ export type InterviewScheduleEmailProps = {
   titleText?: string;
   bodyText?: string;
   organizerName?: string;
+  /**
+   * What to call the organiser. Interview appointments are always made by a
+   * lecturer, but a withdrawal can be issued by an admin, so that email labels
+   * the same slot with the actual role.
+   */
+  organizerLabel?: string;
   startsAtText?: string;
   endsAtText?: string;
   location?: string;
@@ -83,6 +89,7 @@ export const InterviewScheduleEmail = ({
   titleText = "面试预约通知",
   bodyText,
   organizerName,
+  organizerLabel = "讲师",
   startsAtText,
   endsAtText,
   location,
@@ -95,7 +102,7 @@ export const InterviewScheduleEmail = ({
   const label = statusLabel[kind];
   const meta: MetaItem[] = [{ label: "流程", value: flowName }];
   if (organizerName) {
-    meta.push({ label: "讲师", value: organizerName });
+    meta.push({ label: organizerLabel, value: organizerName });
   }
   if (location) {
     meta.push({ label: "地点", value: location });

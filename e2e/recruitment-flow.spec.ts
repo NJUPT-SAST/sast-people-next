@@ -3,9 +3,9 @@ import { Client } from "pg";
 import { signInAs } from "./session";
 
 const users = {
-  admin: { uid: 1, role: 3, name: "Local Admin" },
-  candidate: { uid: 8, role: 0, name: "Demo Freshman E" },
-  outcomeCandidate: { uid: 4, role: 0, name: "Demo Freshman A" },
+  admin: { uid: 1, role: 3, name: "管理员" },
+  candidate: { uid: 8, role: 0, name: "吴承宇" },
+  outcomeCandidate: { uid: 4, role: 0, name: "王思远" },
 } as const;
 
 async function connectDatabase() {

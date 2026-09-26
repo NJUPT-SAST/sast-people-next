@@ -2,9 +2,9 @@ import { expect, test } from "@playwright/test";
 import { signInAs } from "./session";
 
 const users = {
-  admin: { uid: 1, role: 3, name: "Local Admin" },
-  lecturer: { uid: 2, role: 2, name: "Demo Lecturer" },
-  candidate: { uid: 8, role: 0, name: "Demo Freshman E" },
+  admin: { uid: 1, role: 3, name: "管理员" },
+  lecturer: { uid: 2, role: 2, name: "讲师" },
+  candidate: { uid: 8, role: 0, name: "吴承宇" },
 } as const;
 
 async function expectNoHorizontalOverflow(

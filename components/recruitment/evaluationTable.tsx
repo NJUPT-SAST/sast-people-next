@@ -1,7 +1,22 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { ExternalLink, Eye, FileText, FileX2, Link2 } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CalendarDays,
+  CalendarPlus,
+  CalendarX2,
+  ChevronDown,
+  CircleCheck,
+  ExternalLink,
+  Eye,
+  FileText,
+  Link2,
+  Undo2,
+  Video,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -26,8 +41,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import {
+  countInterviewStatuses,
+  deriveInterviewActions,
+  getInterviewStatus,
+  INTERVIEW_STATUS_ORDER,
+  interviewStatusMeta,
+  type InterviewAction,
+  type InterviewActionId,
+  type InterviewStatusKey,
+} from "@/lib/interview-status";
 import { normalizeWithdrawalReason, WITHDRAWAL_REASON_MAX_LENGTH } from "@/lib/validation/user-flow";
 import { updateCandidateApplyGroup } from "@/action/user-flow/apply-group";
 import { createEvaluation } from "@/action/user-flow/evaluation";
@@ -54,7 +88,7 @@ import {
   getInterviewMeetingRoom,
   interviewMeetingRooms,
 } from "@/lib/interview-meeting-rooms";
-import { toBeijingWallClockDate } from "@/lib/timezone";
+import { formatBeijingDate, toBeijingWallClockDate } from "@/lib/timezone";
 
 type Candidate = {
   userFlowId: number;
@@ -90,140 +124,34 @@ type Candidate = {
   scheduleMeetingEndedAt: Date | string | null;
 };
 
-const evalStatusLabel = (
-  evalStatus: string | null,
-  flowStatus: string | null,
-  scheduleMeetingLink: string | null,
-  scheduleEnded: boolean,
-) => {
-  if (flowStatus === "withdrawn") {
-    return {
-      text: "已退回",
-      className:
-        "border-violet-600/30 bg-violet-50 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/10 dark:text-violet-300",
-    };
-  }
-  if (evalStatus === "approved" || flowStatus === "passed") {
-    return {
-      text: "已通过",
-      className:
-        "border-emerald-600/30 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300",
-    };
-  }
-  if (evalStatus === "rejected") {
-    return {
-      text: "不通过",
-      className:
-        "border-rose-600/30 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300",
-    };
-  }
-  if (evalStatus === "submitted") {
-    return {
-      text: "待审核",
-      className:
-        "border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300",
-    };
-  }
-  if (evalStatus === "returned") {
-    return {
-      text: "退回重写",
-      className:
-        "border-orange-600/30 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300",
-    };
-  }
-  if (flowStatus === "failed") {
-    return {
-      text: "不通过",
-      className:
-        "border-rose-600/30 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300",
-    };
-  }
-  if (!scheduleMeetingLink) {
-    return {
-      text: "待预约",
-      className:
-        "border-sky-600/30 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300",
-    };
-  }
-  if (!scheduleEnded) {
-    return {
-      text: "待面试",
-      className:
-        "border-cyan-600/30 bg-cyan-50 text-cyan-700 dark:border-cyan-400/30 dark:bg-cyan-400/10 dark:text-cyan-300",
-    };
-  }
-  return {
-    text: "待评估",
-    className:
-      "border-orange-600/30 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300",
-  };
-};
+type SortKey = "schedule" | "name" | "status";
+type SortDir = "asc" | "desc";
 
-const EvalStatusText = ({
-  evalStatus,
-  flowStatus,
-  scheduleMeetingLink,
-  scheduleEnded,
-  returnReason,
-}: {
-  evalStatus: string | null;
-  flowStatus: string | null;
-  scheduleMeetingLink: string | null;
-  scheduleEnded: boolean;
-  returnReason?: string | null;
-}) => {
-  const status = evalStatusLabel(
-    evalStatus,
-    flowStatus,
-    scheduleMeetingLink,
-    scheduleEnded,
-  );
-  const badge = (
-    <span
-      className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-xs font-medium ${status.className}`}
-    >
-      {status.text}
-    </span>
+// Shared chip chrome. The focus ring matches components/ui/button.tsx — plain
+// <button> chips would otherwise fall back to the UA outline.
+const CHIP_BASE =
+  "inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:py-1";
+
+const statusFilterChipClass = (active: boolean) =>
+  cn(
+    CHIP_BASE,
+    active
+      ? "border-foreground/20 bg-foreground/10 font-medium text-foreground"
+      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 
-  return (
-    <div className="min-w-0 space-y-1">
-      {evalStatus === "returned" && returnReason ? (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>{badge}</TooltipTrigger>
-            <TooltipContent className="max-w-xs whitespace-pre-wrap break-words">
-              退回理由：{returnReason}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : (
-        badge
-      )}
-    </div>
+/**
+ * "待我处理" crosses the status axis rather than being one of its values, so it
+ * gets the brand tint and a divider to keep the two groups readable.
+ */
+const mineFilterChipClass = (active: boolean) =>
+  cn(
+    CHIP_BASE,
+    active
+      ? "border-primary/40 bg-primary/10 font-medium text-primary"
+      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
   );
-};
 
-
-
-const getCandidateStatusKey = (candidate: Candidate) => {
-  if (candidate.status === "withdrawn") return "withdrawn";
-  if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
-  if (candidate.evalStatus === "rejected") return "evalRejected";
-  if (candidate.status === "failed") return "rejected";
-  if (candidate.evalStatus === "submitted") return "pending";
-  if (candidate.evalStatus === "returned") return "returned";
-  return "waiting";
-};
-
-const summaryItems = [
-  { key: "waiting", label: "待评估" },
-  { key: "pending", label: "待审核" },
-  { key: "returned", label: "退回重写" },
-  { key: "accepted", label: "已通过" },
-  { key: "evalRejected", label: "不通过" },
-  { key: "withdrawn", label: "已退回" },
-];
 const formatDateTimeLocal = (date: Date) => {
   const pad = (value: number) => String(value).padStart(2, "0");
   return [
@@ -274,6 +202,37 @@ const getTime = (value: Date | string | null) => {
   return Number.isNaN(time) ? null : time;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * "09-26 12:00 – 12:30" for a same-day slot, falling back to repeating the date
+ * only when the interview actually crosses midnight. Slot lengths are minutes,
+ * so the date is almost always redundant.
+ */
+function formatScheduleRange(startsAt: string, endsAt: string) {
+  if (!startsAt) return endsAt;
+  if (!endsAt) return startsAt;
+  const [startDay] = startsAt.split(" ");
+  const [endDay, endClock] = endsAt.split(" ");
+  return startDay === endDay
+    ? `${startsAt} – ${endClock}`
+    : `${startsAt} – ${endsAt}`;
+}
+
+/** "今天" / "明天" / "昨天" so the next interview is findable at a glance. */
+function getRelativeDayLabel(
+  value: Date | string | null,
+  now: number | null,
+): string | null {
+  if (!value || now === null) return null;
+  const target = formatBeijingDate(value);
+  if (target === "-") return null;
+  if (target === formatBeijingDate(now)) return "今天";
+  if (target === formatBeijingDate(now + DAY_MS)) return "明天";
+  if (target === formatBeijingDate(now - DAY_MS)) return "昨天";
+  return null;
+}
+
 function CandidateIdentity({
   name,
   studentId,
@@ -290,7 +249,7 @@ function CandidateIdentity({
   const meta = [studentId || null, qq ? `QQ ${qq}` : null].filter(Boolean);
 
   return (
-    <div className="min-w-0 space-y-0.5">
+    <div className="min-w-0 space-y-1">
       <ViewUserInfoSheet
         userInfo={{ id: uid, name, studentId }}
         currentUserRole={role}
@@ -385,37 +344,89 @@ const PortfolioLink = ({
   description?: string | null;
   onOpen: () => void;
 }) => {
+  // A bordered button per row competed with the row's real action, so this is a
+  // quiet link instead — still reachable, no longer a second button.
   if (!value && !description) {
-    return (
-      <span className="inline-flex h-8 items-center gap-2 text-xs text-muted-foreground">
-        <span className="flex size-6 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20">
-          <FileX2 className="size-3.5 opacity-70" />
-        </span>
-        未提供
-      </span>
-    );
+    return <span className="text-sm text-muted-foreground">—</span>;
   }
 
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
       onClick={onOpen}
-      className="group h-8 max-w-full gap-2 border-border/70 bg-transparent px-2 text-xs font-medium text-foreground/80 shadow-none hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+      className="group inline-flex max-w-full items-center gap-1 text-sm text-foreground/85 underline-offset-4 transition-colors hover:text-primary hover:underline"
     >
-      <span className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
-        <FileText className="size-3.5" />
-      </span>
       <span className="truncate">查看作品</span>
       <Eye className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-    </Button>
+    </button>
   );
 };
-const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
+
+const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
+  const status = getInterviewStatus(candidate);
+  const meta = interviewStatusMeta[status];
+  const badge = (
+    <span
+      data-slot="interview-status-badge"
+      data-status={status}
+      className={cn(
+        "inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+        meta.badgeClassName,
+      )}
+      title={meta.description}
+    >
+      {meta.label}
+    </span>
+  );
+
+  // A returned evaluation carries the admin's reason; surface it on hover.
+  const returnReason = candidate.evalReturnReason ?? candidate.withdrawReason;
+  if (status === "returned" && returnReason) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>{badge}</TooltipTrigger>
+          <TooltipContent className="max-w-xs whitespace-pre-wrap break-words">
+            退回理由：{returnReason}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return badge;
+};
+const ScheduleIconLink = ({
+  href,
+  label,
+  icon: Icon,
+}: {
+  href: string;
+  label: string;
+  icon: typeof Video;
+}) => (
+  <a
+    href={externalHref(href)}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label={label}
+    title={label}
+    className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+  >
+    <Icon className="size-3.5" aria-hidden="true" />
+  </a>
+);
+
+const ScheduleInfo = ({
+  candidate,
+  now,
+}: {
+  candidate: Candidate;
+  now: number | null;
+}) => {
   if (!candidate.scheduleMeetingLink) {
     return (
-      <div className="min-w-0 space-y-0.5">
+      <div className="min-w-0 space-y-1">
         <span className="text-sm text-muted-foreground">未预约</span>
         {candidate.status === "withdrawn" && candidate.withdrawReason && (
           <p className="truncate text-xs text-destructive" title={candidate.withdrawReason}>
@@ -428,51 +439,43 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
 
   const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
   const endsAt = formatScheduleTime(candidate.scheduleEndsAt);
-  const timeRange = startsAt
-    ? `${startsAt}${endsAt ? ` – ${endsAt}` : ""}`
-    : endsAt;
+  const timeRange = formatScheduleRange(startsAt, endsAt);
+  const dayLabel = getRelativeDayLabel(candidate.scheduleStartsAt, now);
   const hasDistinctScheduleLink =
     Boolean(candidate.scheduleLink) &&
     candidate.scheduleLink !== candidate.scheduleMeetingLink;
+  // Place and organiser share one line. Both are always shown: suppressing a
+  // repeat made the cell one line on some rows and two on others, which read as
+  // a ragged column and cost more than the repetition saved.
+  const placeAndOwner = [candidate.scheduleLocation, candidate.scheduleOrganizerName]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div className="min-w-0 space-y-0.5">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
-        <a
-          href={externalHref(candidate.scheduleMeetingLink)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
-        >
-          留档会议
-          <ExternalLink className="size-3.5 shrink-0 opacity-50" />
-        </a>
-        {hasDistinctScheduleLink && candidate.scheduleLink && (
-          <a
-            href={externalHref(candidate.scheduleLink)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            日程
-            <ExternalLink className="size-3.5 shrink-0 opacity-50" />
-          </a>
-        )}
-      </div>
-      {timeRange && (
-        <p className="text-xs tabular-nums text-muted-foreground">{timeRange}</p>
-      )}
-      {candidate.scheduleLocation && (
-        <p
-          className="truncate text-xs text-muted-foreground"
-          title={candidate.scheduleLocation}
-        >
-          {candidate.scheduleLocation}
+    <div className="min-w-0 space-y-1">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <p className="min-w-0 shrink truncate text-sm tabular-nums text-foreground">
+          {dayLabel && <span className="font-medium">{dayLabel} </span>}
+          {timeRange}
         </p>
-      )}
-      {candidate.scheduleOrganizerName && (
-        <p className="truncate text-xs text-muted-foreground" title={`预约讲师：${candidate.scheduleOrganizerName}`}>
-          预约讲师：{candidate.scheduleOrganizerName}
+        <span className="flex shrink-0 items-center">
+          <ScheduleIconLink
+            href={candidate.scheduleMeetingLink}
+            label="留档会议"
+            icon={Video}
+          />
+          {hasDistinctScheduleLink && candidate.scheduleLink && (
+            <ScheduleIconLink
+              href={candidate.scheduleLink}
+              label="日程"
+              icon={CalendarDays}
+            />
+          )}
+        </span>
+      </div>
+      {placeAndOwner && (
+        <p className="truncate text-xs text-muted-foreground" title={placeAndOwner}>
+          {placeAndOwner}
         </p>
       )}
       {candidate.status === "withdrawn" && candidate.withdrawReason && (
@@ -484,35 +487,118 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
   );
 };
 
-function ActionButton({
-  children,
-  disabled,
-  onClick,
-  tone = "default",
+/**
+ * Every actionable row gets exactly one control, so the column has a single
+ * shape that cannot go ragged: previously the same column held a solid brand
+ * pill, an outlined box, a lone ⋯ and an em dash, at four different widths.
+ *
+ * The menu button carries the *next step's* name rather than a generic "操作",
+ * so the row still tells you what to do without opening anything; the menu is
+ * where you actually do it, plus whatever secondary actions exist. The tone
+ * follows the action so "this row is your job" stays visible in the column.
+ */
+const ACTION_MENU_BUTTON =
+  "inline-flex h-9 w-full shrink-0 touch-manipulation items-center justify-center gap-1 rounded-full border px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 lg:h-8 lg:w-[5.75rem] lg:px-2";
+
+/** Brand tint marks the row's actual work; a hairline outline marks logistics. */
+const ACTION_TONE = {
+  work: "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20",
+  /* A 5% grey fill is imperceptible next to the tinted pills and read as an
+     unfinished control, so logistics get a visible hairline and no fill. */
+  logistics:
+    "border-foreground/20 bg-transparent text-foreground hover:bg-foreground/5",
+  destructive:
+    "border-rose-500/30 bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-300",
+} as const;
+
+function actionTone(action: InterviewAction) {
+  if (action.destructive) return ACTION_TONE.destructive;
+  return action.id === "evaluation" ? ACTION_TONE.work : ACTION_TONE.logistics;
+}
+
+const ACTION_ICONS: Record<InterviewActionId, typeof Video> = {
+  schedule: CalendarPlus,
+  "cancel-schedule": CalendarX2,
+  "confirm-ended": CircleCheck,
+  evaluation: FileText,
+  return: Undo2,
+};
+
+function ActionCell({
+  plan,
+  candidate,
+  busy,
+  align = "end",
+  onAction,
 }: {
-  children: ReactNode;
-  disabled?: boolean;
-  onClick: () => void;
-  tone?: "default" | "primary" | "danger";
+  plan: ReturnType<typeof deriveInterviewActions>;
+  candidate: Candidate;
+  busy: boolean;
+  align?: "start" | "end";
+  onAction: (action: InterviewAction, candidate: Candidate) => void;
 }) {
-  const toneClass =
-    tone === "primary"
-      ? "text-primary hover:text-primary"
-      : tone === "danger"
-        ? "text-destructive hover:text-destructive"
-        : "text-foreground hover:text-foreground";
+  const actions = [
+    ...(plan.primary ? [plan.primary] : []),
+    ...plan.overflow,
+  ];
+
+  if (actions.length === 0) {
+    // A finished row shows nothing at all — an em dash here read as debris, and
+    // the status badge already says the row is done. The one exception is a row
+    // the current user is locked out of, where naming the owner is the point.
+    if (!plan.lockedReason) return null;
+    return (
+      <span className="text-xs text-muted-foreground" title={plan.lockedReason}>
+        {plan.lockedReason}
+      </span>
+    );
+  }
 
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="ghost"
-      disabled={disabled}
-      onClick={onClick}
-      className={`h-8 px-2 text-sm font-normal shadow-none ${toneClass}`}
-    >
-      {children}
-    </Button>
+    // Click only. Opening on hover was tried and reverted: every row has a menu,
+    // so dragging the pointer across the table opened them in a cascade, and any
+    // delay short enough to feel responsive fired during a normal sweep.
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-slot="row-action-menu"
+          disabled={busy}
+          className={cn(
+            ACTION_MENU_BUTTON,
+            // The tone follows the primary only: a row whose sole option is a
+            // destructive one should not advertise itself in red.
+            plan.primary ? actionTone(plan.primary) : ACTION_TONE.logistics,
+          )}
+        >
+          <span className="truncate">{plan.primary?.label ?? "操作"}</span>
+          <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align={align === "start" ? "start" : "end"}
+        className="w-44"
+      >
+        {actions.map((action, index) => {
+          const Icon = ACTION_ICONS[action.id];
+          // Keep the destructive actions apart from the ordinary ones.
+          const needsDivider =
+            action.destructive && !actions[index - 1]?.destructive;
+          return (
+            <Fragment key={action.id}>
+              {needsDivider && <DropdownMenuSeparator />}
+              <DropdownMenuItem
+                variant={action.destructive ? "destructive" : "default"}
+                onSelect={() => onAction(action, candidate)}
+              >
+                <Icon aria-hidden="true" />
+                {action.label}
+              </DropdownMenuItem>
+            </Fragment>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -522,6 +608,7 @@ export const EvaluationTable = ({
   role,
   targetUserFlowId,
   targetScheduleId,
+  loading = false,
   onRefresh,
 }: {
   candidates: Candidate[];
@@ -529,14 +616,19 @@ export const EvaluationTable = ({
   role: number;
   targetUserFlowId?: number;
   targetScheduleId?: number;
+  loading?: boolean;
   onRefresh: () => void;
 }) => {
-  const safeCandidates = Array.isArray(candidates) ? candidates : [];
+  const safeCandidates = useMemo(
+    () => (Array.isArray(candidates) ? candidates : []),
+    [candidates],
+  );
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [portfolioCandidate, setPortfolioCandidate] = useState<Candidate | null>(null);
   const [returnConfirmCandidate, setReturnConfirmCandidate] = useState<Candidate | null>(null);
   const [returnReason, setReturnReason] = useState("");
   const [returnError, setReturnError] = useState<string | null>(null);
+  const [cancelConfirmCandidate, setCancelConfirmCandidate] = useState<Candidate | null>(null);
   const [schedulingId, setSchedulingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
@@ -563,6 +655,12 @@ export const EvaluationTable = ({
   const [groupSaving, setGroupSaving] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [applyGroupFilter, setApplyGroupFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<InterviewStatusKey | "mine" | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: "schedule",
+    dir: "asc",
+  });
   const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
   const groupOptionsKey = safeGroupOptions.join("\u0000");
 
@@ -579,7 +677,16 @@ export const EvaluationTable = ({
 
   useEffect(() => {
     setNow(Date.now());
+    // The "confirm the interview has ended" action unlocks with the clock, so a
+    // page left open all afternoon has to keep ticking.
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
+
+  const planFor = useCallback(
+    (candidate: Candidate) => deriveInterviewActions(candidate, role, now),
+    [role, now],
+  );
 
   const startEdit = (c: Candidate) => {
     setEvaluatingId(c.userFlowId);
@@ -632,9 +739,6 @@ export const EvaluationTable = ({
   };
 
   const canEditApplyGroup = role >= 2 && groupOptions.length > 0;
-  const visibleCandidates = applyGroupFilter
-    ? safeCandidates.filter((candidate) => candidate.applyGroup === applyGroupFilter)
-    : safeCandidates;
 
   const startGroupEdit = (c: Candidate) => {
     setGroupEditingCandidate(c);
@@ -820,6 +924,7 @@ export const EvaluationTable = ({
       } else {
         toast.success("面试预约已取消，取消邮件已发送");
       }
+      setCancelConfirmCandidate(null);
       cancelSchedule();
       onRefresh();
     } catch (error) {
@@ -828,6 +933,7 @@ export const EvaluationTable = ({
       setLoadingId(null);
     }
   };
+
   const handleReturnCandidate = async (candidate: Candidate) => {
     const validation = normalizeWithdrawalReason(returnReason);
     if (!validation.success) {
@@ -860,176 +966,380 @@ export const EvaluationTable = ({
     }
   };
 
-  if (safeCandidates.length === 0) {
-    return (
-      <div className="rounded-lg border bg-card p-10 text-center">
-        <p className="text-sm font-medium">暂无可评估的候选人</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          当前流程还没有可处理的报名人员。
-        </p>
-      </div>
-    );
-  }
+  const runAction = (action: InterviewAction, candidate: Candidate) => {
+    switch (action.id) {
+      case "schedule":
+        startSchedule(candidate);
+        break;
+      case "cancel-schedule":
+        setCancelConfirmCandidate(candidate);
+        break;
+      case "confirm-ended":
+        void handleConfirmScheduleEnded(candidate);
+        break;
+      case "evaluation":
+        startEdit(candidate);
+        break;
+      case "return":
+        setReturnConfirmCandidate(candidate);
+        setReturnReason("");
+        setReturnError(null);
+        break;
+    }
+  };
 
-  const statusCounts = new Map<string, number>();
-  for (const candidate of visibleCandidates) {
-    const key = getCandidateStatusKey(candidate);
-    statusCounts.set(key, (statusCounts.get(key) ?? 0) + 1);
-  }
-  const isTargetCandidate = (candidate: Candidate) =>
-    Boolean(
-      (targetUserFlowId && candidate.userFlowId === targetUserFlowId) ||
-        (targetScheduleId && candidate.scheduleId === targetScheduleId),
+  const searched = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    if (!query) return safeCandidates;
+    return safeCandidates.filter((candidate) =>
+      [candidate.name, candidate.studentId, candidate.qq].some((value) =>
+        String(value ?? "").toLocaleLowerCase().includes(query),
+      ),
     );
+  }, [safeCandidates, search]);
+
+  const groupScoped = useMemo(
+    () =>
+      applyGroupFilter
+        ? searched.filter((candidate) => candidate.applyGroup === applyGroupFilter)
+        : searched,
+    [searched, applyGroupFilter],
+  );
+
+  // Counts describe the search + group scope but ignore the status filter, so
+  // selecting a status chip cannot make every other chip read zero.
+  const statusCounts = useMemo(
+    () => countInterviewStatuses(groupScoped),
+    [groupScoped],
+  );
+
+  const isMine = useCallback(
+    (candidate: Candidate) => planFor(candidate).primary !== null,
+    [planFor],
+  );
+
+  const mineCount = useMemo(
+    () => groupScoped.filter(isMine).length,
+    [groupScoped, isMine],
+  );
+
+  const statusFilterOptions = useMemo(
+    () =>
+      INTERVIEW_STATUS_ORDER.map((key) => ({
+        key,
+        count: statusCounts[key],
+      })).filter((option) => option.count > 0),
+    [statusCounts],
+  );
+
+  const visibleCandidates = useMemo(() => {
+    let rows = groupScoped;
+    if (statusFilter === "mine") {
+      rows = rows.filter(isMine);
+    } else if (statusFilter) {
+      rows = rows.filter(
+        (candidate) => getInterviewStatus(candidate) === statusFilter,
+      );
+    }
+
+    const byStudentId = (a: Candidate, b: Candidate) =>
+      (a.studentId ?? "").localeCompare(b.studentId ?? "");
+    const direction = sort.dir === "asc" ? 1 : -1;
+    const compare = (a: Candidate, b: Candidate) => {
+      if (sort.key === "name") return a.name.localeCompare(b.name, "zh-Hans-CN");
+      if (sort.key === "status") {
+        return (
+          INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(a)) -
+          INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(b))
+        );
+      }
+      return (
+        (getTime(a.scheduleStartsAt) ?? Infinity) -
+        (getTime(b.scheduleStartsAt) ?? Infinity)
+      );
+    };
+
+    const sorted = [...rows];
+    sorted.sort((a, b) => {
+      if (sort.key === "schedule") {
+        // Candidates with no slot are their own bucket, so they stay at the
+        // bottom in both directions instead of floating up when descending.
+        const aTime = getTime(a.scheduleStartsAt);
+        const bTime = getTime(b.scheduleStartsAt);
+        if (aTime === null || bTime === null) {
+          if (aTime === bTime) return byStudentId(a, b);
+          return aTime === null ? 1 : -1;
+        }
+      }
+      return compare(a, b) * direction || byStudentId(a, b);
+    });
+    return sorted;
+  }, [groupScoped, statusFilter, sort, isMine]);
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) =>
+      current.key === key
+        ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" },
+    );
+  };
+
+  const renderSortableHead = (
+    label: string,
+    key: SortKey,
+    className: string,
+  ) => {
+    const active = sort.key === key;
+    return (
+      <TableHead
+        className={className}
+        aria-sort={
+          active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"
+        }
+      >
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          className={cn(
+            "group inline-flex items-center gap-1 rounded text-xs font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            active
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {label}
+          {active ? (
+            sort.dir === "asc" ? (
+              <ArrowUp className="size-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <ArrowDown className="size-3 shrink-0" aria-hidden="true" />
+            )
+          ) : (
+            <ArrowUpDown
+              className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60"
+              aria-hidden="true"
+            />
+          )}
+        </button>
+      </TableHead>
+    );
+  };
+
+  // Every matching candidate renders at once: interview flows are small enough
+  // that a pager only got in the way of scanning, and the 全部 chip already
+  // carries the total.
+  const isTargetCandidate = useCallback(
+    (candidate: Candidate) =>
+      Boolean(
+        (targetUserFlowId && candidate.userFlowId === targetUserFlowId) ||
+          (targetScheduleId && candidate.scheduleId === targetScheduleId),
+      ),
+    [targetUserFlowId, targetScheduleId],
+  );
+
+  const hasActiveFilter =
+    Boolean(search.trim()) ||
+    Boolean(applyGroupFilter) ||
+    Boolean(statusFilter);
+
+  const clearFilters = () => {
+    setSearch("");
+    setApplyGroupFilter(null);
+    setStatusFilter(null);
+  };
+
+  const selectStatusFilter = (value: InterviewStatusKey | "mine" | null) => {
+    setStatusFilter((current) => (current === value ? null : value));
+  };
+
+  // "Nothing matched the filters" and "this flow has nobody" need different copy,
+  // and that distinction has to come from the unfiltered rows.
+  const emptyMessage =
+    safeCandidates.length > 0
+      ? "没有符合条件的候选人。"
+      : "该流程暂时没有可处理的报名人员。";
+
+  const renderRowActions = (
+    candidate: Candidate,
+    align: "start" | "end" = "end",
+  ) => (
+    <ActionCell
+      plan={planFor(candidate)}
+      candidate={candidate}
+      busy={loadingId === candidate.userFlowId}
+      align={align}
+      onAction={runAction}
+    />
+  );
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
-      <div className="hidden items-center border-b border-border/60 py-3 lg:flex">
-        <div className={`${role >= 2 ? "w-[22%]" : "w-[26%]"} min-w-0 px-4`}>
-          <p className="text-sm font-medium">面评候选人</p>
-          <p className="text-xs text-muted-foreground">
-            预约面试后提交面评结果
-          </p>
-        </div>
-        {safeGroupOptions.length > 0 && (
-          <div className={`${role >= 2 ? "w-[12%]" : "w-[14%]"} pl-3`}>
-            <Select
-              value={applyGroupFilter ?? "all"}
-              onValueChange={(value) =>
-                setApplyGroupFilter(value === "all" ? null : value)
-              }
-            >
-              <SelectTrigger
-                className="h-8 w-full truncate text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
-                aria-label="按投递组别筛选候选人"
-                title={applyGroupFilter ?? "全部组别"}
+    <div className="min-w-0 rounded-lg border bg-card" aria-busy={loading}>
+      {/* Not sticky below lg: the stacked toolbar is ~150px tall on a phone and
+          would eat a fifth of the viewport for the whole scroll. */}
+      <div className="z-20 rounded-t-lg border-b bg-card/95 lg:sticky lg:top-0 lg:backdrop-blur-sm">
+        {/* One row, control group left and filters right: two small controls on
+            their own row left ~700px of empty toolbar at desktop widths. */}
+        <div className="flex flex-col gap-2.5 p-3 sm:p-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
+          <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-2">
+            <Input
+              placeholder="搜索姓名、学号或QQ"
+              aria-label="搜索面试候选人"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+              }}
+              className="h-9 min-w-0 flex-1 sm:w-[13rem] sm:flex-none"
+            />
+            {safeGroupOptions.length > 0 && (
+              <Select
+                value={applyGroupFilter ?? "all"}
+                onValueChange={(value) => {
+                  setApplyGroupFilter(value === "all" ? null : value);
+                }}
               >
-                <SelectValue placeholder="全部组别" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部组别</SelectItem>
-                {safeGroupOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className="h-9 w-full min-w-0 truncate text-xs sm:w-[8.5rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                  aria-label="按投递组别筛选候选人"
+                  title={applyGroupFilter ?? "全部组别"}
+                >
+                  <SelectValue placeholder="全部组别" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部组别</SelectItem>
+                  {safeGroupOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-        )}
-        <p className="ml-auto pr-4 text-xs text-muted-foreground">
-          {summaryItems
-            .map(
-              (item) =>
-                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
-            )
-            .join(" · ")}
-        </p>
-      </div>
-      <div className="flex flex-col gap-2 border-b border-border/60 px-4 py-3 lg:hidden">
-        <div className="space-y-1">
-          <p className="text-sm font-medium">面评候选人</p>
-          <p className="text-xs text-muted-foreground">
-            预约面试后提交面评结果
-          </p>
-        </div>
-        {safeGroupOptions.length > 0 && (
-          <Select
-            value={applyGroupFilter ?? "all"}
-            onValueChange={(value) =>
-              setApplyGroupFilter(value === "all" ? null : value)
-            }
-          >
-            <SelectTrigger
-                              className="h-8 w-full truncate text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
-                              aria-label="按投递组别筛选候选人"
-                title={applyGroupFilter ?? "全部组别"}
-            >
-              <SelectValue placeholder="全部组别" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部组别</SelectItem>
-              {safeGroupOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
+
+          {/* Hidden while loading: the rows still belong to the previous flow,
+              so showing their counts under the new flow's title would lie. */}
+          {statusCounts.total > 0 && !loading && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                aria-pressed={statusFilter === null}
+                className={statusFilterChipClass(statusFilter === null)}
+                onClick={() => selectStatusFilter(null)}
+              >
+                全部
+                <span className="tabular-nums opacity-60">{statusCounts.total}</span>
+              </button>
+              {mineCount > 0 && (
+                <>
+                  <button
+                    type="button"
+                    aria-pressed={statusFilter === "mine"}
+                    className={mineFilterChipClass(statusFilter === "mine")}
+                    onClick={() => selectStatusFilter("mine")}
+                  >
+                    待我处理
+                    <span className="tabular-nums opacity-70">{mineCount}</span>
+                  </button>
+                  <span
+                    className="mx-0.5 h-4 w-px shrink-0 bg-border"
+                    aria-hidden="true"
+                  />
+                </>
+              )}
+              {statusFilterOptions.map(({ key, count }) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={statusFilter === key}
+                  className={statusFilterChipClass(statusFilter === key)}
+                  title={interviewStatusMeta[key].description}
+                  onClick={() => selectStatusFilter(key)}
+                >
+                  {interviewStatusMeta[key].label}
+                  <span className="tabular-nums opacity-60">{count}</span>
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-        )}
-        <p className="text-xs text-muted-foreground">
-          {summaryItems
-            .map(
-              (item) =>
-                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
-            )
-            .join(" · ")}
-        </p>
-      </div>
-      <div className="hidden min-w-0 lg:block">
-        <Table className="w-full table-fixed" containerClassName="overflow-x-auto">
-          {role >= 2 ? (
-            <colgroup>
-              <col className="w-[22%]" />
-              <col className="w-[12%]" />
-              <col className="w-[19%]" />
-              <col className="w-[17%]" />
-              <col className="w-[13%]" />
-              <col className="w-[17%]" />
-            </colgroup>
-          ) : (
-            <colgroup>
-              <col className="w-[26%]" />
-              <col className="w-[14%]" />
-              <col className="w-[23%]" />
-              <col className="w-[19%]" />
-              <col className="w-[18%]" />
-            </colgroup>
+            </div>
           )}
+        </div>
+      </div>
+
+      <div className="hidden min-w-0 rounded-b-lg lg:block">
+        {/* Content-driven widths with hints, not `table-fixed` percentages: fixed
+            percentages left every column with its own share of dead space, which
+            is what made the columns look unevenly spaced. */}
+        {/* Widths are tuned so each column ends up with the same trailing space
+            (~105px at a 1230px table), not merely the same percentage: equal
+            percentages on unequal content is what made some gaps look tight and
+            others cavernous. Sized for production data — a 2-4 character name
+            and a student id of one letter plus eight digits, which is far
+            shorter than the demo seed. `table-auto` keeps min-content as a
+            floor, so nothing clips at narrow widths. */}
+        <Table className="w-full min-w-[52rem]" containerClassName="overflow-x-auto">
           <TableHeader>
             <TableRow className="border-b border-border/60 hover:bg-transparent">
-              <TableHead className="h-10 px-4 text-xs font-medium text-muted-foreground">候选人</TableHead>
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">会议</TableHead>
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">状态</TableHead>
+              {renderSortableHead(
+                "候选人",
+                "name",
+                "h-10 w-[19%] px-4 text-xs font-medium text-muted-foreground",
+              )}
+              <TableHead className="h-10 w-[12%] px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
+              <TableHead className="h-10 w-[15%] px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
+              {renderSortableHead(
+                "面试安排",
+                "schedule",
+                "h-10 w-[23%] px-3 text-xs font-medium text-muted-foreground",
+              )}
+              {renderSortableHead(
+                "状态",
+                "status",
+                "h-10 w-[15%] px-3 text-right text-xs font-medium text-muted-foreground",
+              )}
               {role >= 2 && (
-                <TableHead className="h-10 px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
+                <TableHead className="h-10 w-[16%] px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
               )}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleCandidates.length === 0 && (
+            {loading ? (
+              Array.from({ length: 5 }, (_, index) => (
+                <TableRow key={`skeleton-${index}`} className="border-b border-border/40">
+                  {Array.from({ length: role >= 2 ? 6 : 5 }, (_, cellIndex) => (
+                    <TableCell key={cellIndex} className="px-4 py-2.5">
+                      {/* Mirrors the real two-line cell: the schedule cell's
+                          icon links are size-6, so its first line is 24px, not
+                          the 20px of a text line. Matching that keeps the page
+                          from shifting when the data lands. */}
+                      <div className="space-y-1">
+                        <Skeleton className="h-6 w-3/5 max-w-[7rem]" />
+                        <Skeleton className="h-4 w-4/5 max-w-[5rem]" />
+                      </div>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : visibleCandidates.length === 0 ? (
               <TableRow className="border-b-0">
                 <TableCell
                   colSpan={role >= 2 ? 6 : 5}
-                  className="h-24 text-center text-sm text-muted-foreground"
+                  className="h-32 px-4 text-center"
                 >
-                  该组别暂无候选人
+                  <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+                  {hasActiveFilter && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={clearFilters}
+                    >
+                      清除筛选
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
-            )}
-            {visibleCandidates.map((c) => {
-              const isEditing = evaluatingId === c.userFlowId;
-              const isRejected = c.status === "failed";
-              const busy = loadingId === c.userFlowId;
-              const scheduleEnded = c.scheduleMeetingStatus === "ended";
-              const canConfirmScheduleEnded =
-                now !== null &&
-                Boolean(c.scheduleMeetingLink) &&
-                !scheduleEnded &&
-                (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
-              const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
-              const canManageSchedule =
-                c.status !== "withdrawn" &&
-                (!c.scheduleMeetingLink || c.canManageSchedule);
-              const canReturnCandidate =
-                c.status !== "withdrawn" &&
-                (!c.scheduleMeetingLink || c.canManageSchedule || role >= 3);
-              const canSubmitEvaluation =
-                c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
-
-              return (
+            ) : (
+              visibleCandidates.map((c) => (
                 <TableRow
                   key={c.userFlowId}
                   id={
@@ -1040,19 +1350,19 @@ export const EvaluationTable = ({
                   className={
                     isTargetCandidate(c)
                       ? "scroll-mt-24 bg-muted/40 hover:bg-muted/40"
-                      : "border-b border-border/40 last:border-0 hover:bg-muted/15"
+                      : "border-b border-border/40 last:border-0 hover:bg-muted/30"
                   }
                 >
-                  <TableCell className="px-4 py-3 align-middle">
+                  <TableCell className="px-4 py-2 align-middle">
                     <CandidateIdentity
-                       name={c.name}
-                       studentId={c.studentId}
-                       qq={c.qq}
-                       uid={c.uid}
-                       role={role}
-                     />
+                      name={c.name}
+                      studentId={c.studentId}
+                      qq={c.qq}
+                      uid={c.uid}
+                      role={role}
+                    />
                   </TableCell>
-                  <TableCell className="px-3 py-3 align-middle">
+                  <TableCell className="px-3 py-2 align-middle">
                     <ApplyGroupText
                       value={c.applyGroup}
                       editable={canEditApplyGroup}
@@ -1060,274 +1370,145 @@ export const EvaluationTable = ({
                       editLabel={`修改${c.name}的投递组别`}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-3 align-middle">
+                  <TableCell className="px-3 py-2 align-middle">
                     <PortfolioLink
                       value={c.portfolioLink}
                       description={c.portfolioDescription}
                       onOpen={() => setPortfolioCandidate(c)}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-3 align-middle">
-                    <ScheduleInfo candidate={c} />
-                  </TableCell>
-                  <TableCell className="px-3 py-3 align-middle">
-                    <div className="space-y-1">
-                      <EvalStatusText
-                        evalStatus={c.evalStatus}
-                        flowStatus={c.status}
-                        scheduleMeetingLink={c.scheduleMeetingLink}
-                        scheduleEnded={scheduleEnded}
-                        returnReason={c.evalReturnReason}
-                      />
+                  <TableCell className="px-3 py-2 align-middle">
+                    {/* A fixed content height keeps rows uniform: an unbooked
+                        candidate is one line where a booked one is two, and the
+                        resulting 4px wobble reads as uneven row spacing. */}
+                    <div className="flex min-h-[2.75rem] min-w-0 flex-col justify-center">
+                      <ScheduleInfo candidate={c} now={now} />
                     </div>
                   </TableCell>
+                  <TableCell className="px-3 py-2 align-middle text-right">
+                    <EvalStatusText candidate={c} />
+                  </TableCell>
                   {role >= 2 && (
-                    <TableCell className="min-w-[16rem] px-4 py-3 align-middle text-right">
-                      {!canEvaluate ? (
-                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-                          {canManageSchedule && (
-                            <ActionButton onClick={() => startSchedule(c)}>
-                              {c.scheduleMeetingLink ? "改约" : "预约"}
-                            </ActionButton>
-                          )}
-                          {c.scheduleMeetingLink && canManageSchedule && (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() => handleCancelSchedule(c)}
-                            >
-                              {busy ? "处理中" : "取消"}
-                            </ActionButton>
-                          )}
-                          {canReturnCandidate && (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() => {
-                                setReturnConfirmCandidate(c);
-                                setReturnReason("");
-                                setReturnError(null);
-                              }}
-                            >
-                              {busy ? "处理中" : "退回"}
-                            </ActionButton>
-                          )}
-                          {canConfirmScheduleEnded && canManageSchedule && (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() => handleConfirmScheduleEnded(c)}
-                            >
-                              {busy ? "处理中" : "确认结束"}
-                            </ActionButton>
-                          )}
-                          {!canManageSchedule && role < 3 && (
-                            <span className="text-sm text-muted-foreground">
-                              等待预约讲师面试
-                            </span>
-                          )}
-                        </div>
-                      ) : isEditing ? (
-                        <span className="text-sm text-muted-foreground">正在编辑…</span>
-                      ) : c.evalStatus === "submitted" || c.evalStatus === "returned" ? (
-                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-                          {c.canEditEvaluation ? (
-                            <ActionButton onClick={() => startEdit(c)}>
-                              {c.evalStatus === "returned" ? "重写面评" : "修改"}
-                            </ActionButton>
-                          ) : role >= 3 ? (
-                            <span className="text-sm text-muted-foreground">
-                              {c.evalStatus === "returned" ? "等待讲师重写面评" : "待面评审批"}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">
-                              {c.evalStatus === "returned" ? "面评已退回，请讲师重写" : "预约讲师已提交面评"}
-                            </span>
-                          )}
-                        </div>
-                      ) : c.evalStatus === "approved" || c.evalStatus === "rejected" ? (
-                        <span className="text-sm text-muted-foreground">已归档</span>
-                      ) : isRejected ? (
-                        <span className="text-sm text-muted-foreground">已结束</span>
-                      ) : (
-                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-                          {canManageSchedule && (
-                            <ActionButton onClick={() => startSchedule(c)}>改约</ActionButton>
-                          )}
-                          {canSubmitEvaluation ? (
-                            <ActionButton tone="primary" onClick={() => startEdit(c)}>填写面评</ActionButton>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">
-                              等待预约讲师提交面评
-                            </span>
-                          )}
-                        </div>
-                      )}
+                    <TableCell className="px-4 py-2 align-middle text-right">
+                      {renderRowActions(c)}
                     </TableCell>
                   )}
                 </TableRow>
-              );
-            })}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
 
       {/* Mobile card view */}
-      <div className="flex flex-col divide-y divide-border lg:hidden">
-        {visibleCandidates.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            该组别暂无候选人
+      <div className="flex flex-col divide-y divide-border rounded-b-lg lg:hidden">
+        {loading ? (
+          // Structural mirror of a real card, so the list does not jump on load.
+          <div className="flex flex-col divide-y divide-border">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div
+                key={`skeleton-${index}`}
+                data-slot="candidate-card-skeleton"
+                className="flex flex-col gap-3 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-5 w-28" />
+                <div className="space-y-1">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <div className="border-t border-border/60 pt-3">
+                  <Skeleton className="h-8 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : visibleCandidates.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 p-8 text-center">
+            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+            {hasActiveFilter && (
+              <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                清除筛选
+              </Button>
+            )}
           </div>
         ) : (
           visibleCandidates.map((c) => {
-          const isEditing = evaluatingId === c.userFlowId;
-          const isRejected = c.status === "failed";
-          const busy = loadingId === c.userFlowId;
-          const scheduleEnded = c.scheduleMeetingStatus === "ended";
-          const canConfirmScheduleEnded =
-            now !== null &&
-            Boolean(c.scheduleMeetingLink) &&
-            !scheduleEnded &&
-            (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
-          const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
-          const canManageSchedule =
-            c.status !== "withdrawn" &&
-            (!c.scheduleMeetingLink || c.canManageSchedule);
-          const canReturnCandidate =
-            c.status !== "withdrawn" &&
-            (!c.scheduleMeetingLink || c.canManageSchedule || role >= 3);
-          const canSubmitEvaluation =
-            c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
-
-          return (
-            <div
-              key={c.userFlowId}
-              id={
-                isTargetCandidate(c)
-                  ? `user-flow-${c.userFlowId}-mobile`
-                  : undefined
-              }
-              className={
-                isTargetCandidate(c)
-                  ? "flex scroll-mt-24 flex-col gap-3 bg-muted/30 p-4"
-                  : "flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40"
-              }
-            >
-              <div className="flex items-start justify-between gap-3">
-                    <CandidateIdentity
-                       name={c.name}
-                       studentId={c.studentId}
-                       qq={c.qq}
-                       uid={c.uid}
-                       role={role}
-                     />
-                <div className="space-y-1">
-                  <EvalStatusText
-                    evalStatus={c.evalStatus}
-                    flowStatus={c.status}
-                    scheduleMeetingLink={c.scheduleMeetingLink}
-                    scheduleEnded={scheduleEnded}
-                    returnReason={c.evalReturnReason}
+            const plan = planFor(c);
+            // A card gives the action row a divider, so an empty one reads as a
+            // broken section. On desktop the column still needs its "—" marker.
+            const hasActionArea =
+              Boolean(plan.primary) ||
+              plan.overflow.length > 0 ||
+              Boolean(plan.lockedReason);
+            return (
+              <div
+                key={c.userFlowId}
+                data-slot="candidate-card"
+                id={
+                  isTargetCandidate(c)
+                    ? `user-flow-${c.userFlowId}-mobile`
+                    : undefined
+                }
+                className={
+                  isTargetCandidate(c)
+                    ? "flex scroll-mt-24 flex-col gap-3 bg-muted/30 p-4"
+                    : "flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40"
+                }
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <CandidateIdentity
+                    name={c.name}
+                    studentId={c.studentId}
+                    qq={c.qq}
+                    uid={c.uid}
+                    role={role}
+                  />
+                  {/* shrink-0: a long name must truncate itself, not squeeze the badge. */}
+                  <div className="shrink-0">
+                    <EvalStatusText candidate={c} />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <ApplyGroupText
+                    value={c.applyGroup}
+                    editable={canEditApplyGroup}
+                    onEdit={() => startGroupEdit(c)}
+                    editLabel={`修改${c.name}的投递组别`}
+                  />
+                  <span className="text-muted-foreground/40" aria-hidden="true">
+                    ·
+                  </span>
+                  <PortfolioLink
+                    value={c.portfolioLink}
+                    description={c.portfolioDescription}
+                    onOpen={() => setPortfolioCandidate(c)}
                   />
                 </div>
+                <ScheduleInfo candidate={c} now={now} />
+                {role >= 2 && hasActionArea && (
+                  <div className="border-t border-border/60 pt-3">
+                    <ActionCell
+                      plan={plan}
+                      candidate={c}
+                      busy={loadingId === c.userFlowId}
+                      align="start"
+                      onAction={runAction}
+                    />
+                  </div>
+                )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <ApplyGroupText
-                  value={c.applyGroup}
-                  editable={canEditApplyGroup}
-                  onEdit={() => startGroupEdit(c)}
-                  editLabel={`修改${c.name}的投递组别`}
-                />
-                <PortfolioLink
-                  value={c.portfolioLink}
-                  description={c.portfolioDescription}
-                  onOpen={() => setPortfolioCandidate(c)}
-                />
-              </div>
-              <ScheduleInfo candidate={c} />
-              {role >= 2 && (
-                !canEvaluate ? (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {canManageSchedule && (
-                      <ActionButton onClick={() => startSchedule(c)}>
-                        {c.scheduleMeetingLink ? "改约" : "预约"}
-                      </ActionButton>
-                    )}
-                    {c.scheduleMeetingLink && canManageSchedule && (
-                      <ActionButton
-                        disabled={busy}
-                        onClick={() => handleCancelSchedule(c)}
-                      >
-                        {busy ? "处理中" : "取消"}
-                      </ActionButton>
-                    )}
-                    {canReturnCandidate && (
-                      <ActionButton
-                        disabled={busy}
-                        onClick={() => {
-                          setReturnConfirmCandidate(c);
-                          setReturnReason("");
-                          setReturnError(null);
-                        }}
-                      >
-                        {busy ? "处理中" : "退回"}
-                      </ActionButton>
-                    )}
-                    {canConfirmScheduleEnded && canManageSchedule && (
-                      <ActionButton
-                        disabled={busy}
-                        onClick={() => handleConfirmScheduleEnded(c)}
-                      >
-                        {busy ? "处理中" : "确认结束"}
-                      </ActionButton>
-                    )}
-                    {!canManageSchedule && role < 3 && (
-                      <span className="text-sm text-muted-foreground">
-                        等待预约讲师面试
-                      </span>
-                    )}
-                  </div>
-                ) : isEditing ? (
-                  <div className="pt-1 text-sm text-muted-foreground">
-                    正在编辑面评
-                  </div>
-                ) : c.evalStatus === "submitted" || c.evalStatus === "returned" ? (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {c.canEditEvaluation ? (
-                      <ActionButton onClick={() => startEdit(c)}>
-                        {c.evalStatus === "returned" ? "重写面评" : "修改"}
-                      </ActionButton>
-                    ) : role >= 3 ? (
-                      <span className="text-sm text-muted-foreground">
-                        {c.evalStatus === "returned" ? "等待讲师重写面评" : "待面评审批"}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {c.evalStatus === "returned" ? "面评已退回，请讲师重写" : "预约讲师已提交面评"}
-                      </span>
-                    )}
-                  </div>
-                ) : c.evalStatus === "approved" || c.evalStatus === "rejected" ? (
-                  <div className="pt-1 text-sm text-muted-foreground">已归档</div>
-                ) : isRejected ? (
-                  <div className="pt-1 text-sm text-muted-foreground">已结束</div>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {canManageSchedule && (
-                      <ActionButton onClick={() => startSchedule(c)}>改约</ActionButton>
-                    )}
-                    {canSubmitEvaluation ? (
-                      <ActionButton tone="primary" onClick={() => startEdit(c)}>填写面评</ActionButton>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        等待预约讲师提交面评
-                      </span>
-                    )}
-                  </div>
-                )
-              )}
-            </div>
-          );
+            );
           })
         )}
       </div>
+
       <Dialog
         open={Boolean(portfolioCandidate)}
         onOpenChange={(open) => {
@@ -1584,6 +1765,49 @@ export const EvaluationTable = ({
         </DialogContent>
       </Dialog>
       <Dialog
+        open={Boolean(cancelConfirmCandidate)}
+        onOpenChange={(open) => {
+          if (!open) setCancelConfirmCandidate(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认取消面试预约</DialogTitle>
+            <DialogDescription>
+              {cancelConfirmCandidate
+                ? `将删除 ${cancelConfirmCandidate.name} 的飞书日程与留档会议，并向候选人发送取消邮件。取消后该候选人回到「待预约」，需要重新预约。`
+                : "将删除飞书日程与留档会议，并发送取消邮件。"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCancelConfirmCandidate(null)}
+              disabled={loadingId !== null}
+            >
+              保留预约
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={loadingId !== null}
+              loading={
+                cancelConfirmCandidate
+                  ? loadingId === cancelConfirmCandidate.userFlowId
+                  : false
+              }
+              onClick={() => {
+                if (!cancelConfirmCandidate) return;
+                return handleCancelSchedule(cancelConfirmCandidate);
+              }}
+            >
+              确认取消预约
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
         open={!!schedulingCandidate}
         onOpenChange={(open) => {
           if (!open) cancelSchedule();
@@ -1622,7 +1846,7 @@ export const EvaluationTable = ({
             {schedulingCandidate?.scheduleMeetingLink && (
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="mb-1 text-xs text-muted-foreground">当前留档会议</p>
-                <ScheduleInfo candidate={schedulingCandidate} />
+                <ScheduleInfo candidate={schedulingCandidate} now={now} />
               </div>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1698,8 +1922,11 @@ export const EvaluationTable = ({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => handleCancelSchedule(schedulingCandidate)}
-                  loading={loadingId === schedulingCandidate.userFlowId}
+                  onClick={() => {
+                    const candidate = schedulingCandidate;
+                    cancelSchedule();
+                    setCancelConfirmCandidate(candidate);
+                  }}
                 >
                   取消预约
                 </Button>
