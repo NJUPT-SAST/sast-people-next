@@ -192,11 +192,7 @@ export const RecruitmentContent = ({
       <section className="rounded-lg border bg-card">
         {/* The select explains itself; the "选择流程 / 切换后会刷新" copy was two
             lines of chrome above the list. */}
-        <div
-          className={`flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:gap-4 ${
-            isEvaluationWorkspace ? 'lg:justify-between' : 'lg:justify-end'
-          }`}
-        >
+        <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           {isEvaluationWorkspace && (
             <Tabs
               value={interviewFlowType}
@@ -219,33 +215,34 @@ export const RecruitmentContent = ({
             defaultFlowTypeId={flowId}
             onChange={handleFlowChange}
           />
-        </div>
 
-        {/* Interview totals live in the 全部 chip and the row list, so repeating
-            总人数 and 流程类型 here only added a third copy of the same numbers. */}
-        {!isEvaluationWorkspace && flowId && !loading && !loadError && (
-          <div className="flex flex-wrap gap-x-6 gap-y-2 border-t px-4 py-2.5 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Users className="size-4" />
-              <span>总人数</span>
-              <span className="font-semibold tabular-nums text-foreground">
-                {safeScoreData.length}
-              </span>
+          {/* Written mode only, and on the same line as the selector: with the
+              heading gone, a separate row left the card half empty. Interview
+              totals live in the 全部 chip instead of here. */}
+          {!isEvaluationWorkspace && flowId && !loading && !loadError && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Users className="size-4" />
+                <span>总人数</span>
+                <span className="font-semibold tabular-nums text-foreground">
+                  {safeScoreData.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <BadgeCheck className="size-4" />
+                <span>平均分</span>
+                <span className="font-semibold tabular-nums text-foreground">
+                  {averageScore.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <ClipboardList className="size-4" />
+                <span>流程类型</span>
+                <span className="font-medium text-foreground">笔试成绩</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <BadgeCheck className="size-4" />
-              <span>平均分</span>
-              <span className="font-semibold tabular-nums text-foreground">
-                {averageScore.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <ClipboardList className="size-4" />
-              <span>流程类型</span>
-              <span className="font-medium text-foreground">笔试成绩</span>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </section>
 
       {!flowId ? (
