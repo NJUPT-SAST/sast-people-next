@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   CalendarDays,
   ExternalLink,
   Eye,
@@ -120,10 +123,16 @@ type Candidate = {
 };
 
 type SortKey = "schedule" | "name" | "status";
+type SortDir = "asc" | "desc";
+
+// Shared chip chrome. The focus ring matches components/ui/button.tsx — plain
+// <button> chips would otherwise fall back to the UA outline.
+const CHIP_BASE =
+  "inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:py-1";
 
 const statusFilterChipClass = (active: boolean) =>
   cn(
-    "inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
+    CHIP_BASE,
     active
       ? "border-foreground/20 bg-foreground/10 font-medium text-foreground"
       : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -135,7 +144,7 @@ const statusFilterChipClass = (active: boolean) =>
  */
 const mineFilterChipClass = (active: boolean) =>
   cn(
-    "inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
+    CHIP_BASE,
     active
       ? "border-primary/40 bg-primary/10 font-medium text-primary"
       : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -419,9 +428,11 @@ const ScheduleIconLink = ({
 const ScheduleInfo = ({
   candidate,
   now,
+  showOrganizer = true,
 }: {
   candidate: Candidate;
   now: number | null;
+  showOrganizer?: boolean;
 }) => {
   if (!candidate.scheduleMeetingLink) {
     return (
@@ -443,8 +454,12 @@ const ScheduleInfo = ({
   const hasDistinctScheduleLink =
     Boolean(candidate.scheduleLink) &&
     candidate.scheduleLink !== candidate.scheduleMeetingLink;
-  // Place and organiser share one line so the row stays two lines tall.
-  const placeAndOwner = [candidate.scheduleLocation, candidate.scheduleOrganizerName]
+  // Place and organiser share one line so the row stays two lines tall, and the
+  // organiser is dropped when the row above already named the same person.
+  const placeAndOwner = [
+    candidate.scheduleLocation,
+    showOrganizer ? candidate.scheduleOrganizerName : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -524,6 +539,7 @@ function ActionCell({
           variant={plan.primary.id === "evaluation" ? "default" : "outline"}
           disabled={busy}
           onClick={() => onAction(plan.primary!, candidate)}
+          className="h-9 lg:h-8"
         >
           {plan.primary.label}
         </Button>
@@ -535,7 +551,7 @@ function ActionCell({
               type="button"
               size="icon"
               variant="ghost"
-              className="size-8"
+              className="size-9 lg:size-8"
               disabled={busy}
               aria-label={`更多操作：${candidate.name}`}
             >
@@ -614,7 +630,10 @@ export const EvaluationTable = ({
   const [applyGroupFilter, setApplyGroupFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<InterviewStatusKey | "mine" | null>(null);
-  const [sortBy, setSortBy] = useState<SortKey>("schedule");
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: "schedule",
+    dir: "asc",
+  });
   const [page, setPage] = useState(1);
   const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
   const groupOptionsKey = safeGroupOptions.join("\u0000");
@@ -999,32 +1018,87 @@ export const EvaluationTable = ({
 
     const byStudentId = (a: Candidate, b: Candidate) =>
       (a.studentId ?? "").localeCompare(b.studentId ?? "");
-    const byName = (a: Candidate, b: Candidate) =>
-      a.name.localeCompare(b.name, "zh-Hans-CN");
+    const direction = sort.dir === "asc" ? 1 : -1;
+    const compare = (a: Candidate, b: Candidate) => {
+      if (sort.key === "name") return a.name.localeCompare(b.name, "zh-Hans-CN");
+      if (sort.key === "status") {
+        return (
+          INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(a)) -
+          INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(b))
+        );
+      }
+      return (
+        (getTime(a.scheduleStartsAt) ?? Infinity) -
+        (getTime(b.scheduleStartsAt) ?? Infinity)
+      );
+    };
 
     const sorted = [...rows];
-    if (sortBy === "name") {
-      sorted.sort((a, b) => byName(a, b) || byStudentId(a, b));
-    } else if (sortBy === "status") {
-      sorted.sort(
-        (a, b) =>
-          INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(a)) -
-            INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(b)) ||
-          (getTime(a.scheduleStartsAt) ?? Infinity) -
-            (getTime(b.scheduleStartsAt) ?? Infinity) ||
-          byStudentId(a, b),
-      );
-    } else {
-      // Next interview first; anyone without a slot falls to the bottom.
-      sorted.sort(
-        (a, b) =>
-          (getTime(a.scheduleStartsAt) ?? Infinity) -
-            (getTime(b.scheduleStartsAt) ?? Infinity) ||
-          byStudentId(a, b),
-      );
-    }
+    sorted.sort((a, b) => {
+      if (sort.key === "schedule") {
+        // Candidates with no slot are their own bucket, so they stay at the
+        // bottom in both directions instead of floating up when descending.
+        const aTime = getTime(a.scheduleStartsAt);
+        const bTime = getTime(b.scheduleStartsAt);
+        if (aTime === null || bTime === null) {
+          if (aTime === bTime) return byStudentId(a, b);
+          return aTime === null ? 1 : -1;
+        }
+      }
+      return compare(a, b) * direction || byStudentId(a, b);
+    });
     return sorted;
-  }, [groupScoped, statusFilter, sortBy, isMine]);
+  }, [groupScoped, statusFilter, sort, isMine]);
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) =>
+      current.key === key
+        ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" },
+    );
+    setPage(1);
+  };
+
+  const renderSortableHead = (
+    label: string,
+    key: SortKey,
+    className: string,
+  ) => {
+    const active = sort.key === key;
+    return (
+      <TableHead
+        className={className}
+        aria-sort={
+          active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"
+        }
+      >
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          className={cn(
+            "group inline-flex items-center gap-1 rounded text-xs font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            active
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {label}
+          {active ? (
+            sort.dir === "asc" ? (
+              <ArrowUp className="size-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <ArrowDown className="size-3 shrink-0" aria-hidden="true" />
+            )
+          ) : (
+            <ArrowUpDown
+              className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60"
+              aria-hidden="true"
+            />
+          )}
+        </button>
+      </TableHead>
+    );
+  };
 
   const totalPages = Math.max(1, Math.ceil(visibleCandidates.length / DEFAULT_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -1088,6 +1162,11 @@ export const EvaluationTable = ({
       ? "没有符合条件的候选人。"
       : "该流程暂时没有可处理的报名人员。";
 
+  // Repeating the same organiser down every row is noise; name them once per run.
+  const shouldShowOrganizer = (index: number) =>
+    pagedCandidates[index]?.scheduleOrganizerName !==
+    pagedCandidates[index - 1]?.scheduleOrganizerName;
+
   const renderRowActions = (
     candidate: Candidate,
     align: "start" | "end" = "end",
@@ -1103,7 +1182,9 @@ export const EvaluationTable = ({
 
   return (
     <div className="min-w-0 rounded-lg border bg-card" aria-busy={loading}>
-      <div className="sticky top-0 z-20 rounded-t-lg border-b bg-card/95 backdrop-blur-sm">
+      {/* Not sticky below lg: the stacked toolbar is ~150px tall on a phone and
+          would eat a fifth of the viewport for the whole scroll. */}
+      <div className="z-20 rounded-t-lg border-b bg-card/95 lg:sticky lg:top-0 lg:backdrop-blur-sm">
         <div className="flex flex-col gap-3 p-3 sm:p-4">
           <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
             <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-2">
@@ -1142,28 +1223,6 @@ export const EvaluationTable = ({
                   </SelectContent>
                 </Select>
               )}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-xs text-muted-foreground">排序</span>
-              <Select
-                value={sortBy}
-                onValueChange={(value) => {
-                  setSortBy(value as SortKey);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger
-                  className="h-9 w-[7.5rem] text-xs"
-                  aria-label="候选人排序方式"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="schedule">面试时间</SelectItem>
-                  <SelectItem value="name">姓名</SelectItem>
-                  <SelectItem value="status">状态</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
@@ -1237,11 +1296,23 @@ export const EvaluationTable = ({
           )}
           <TableHeader>
             <TableRow className="border-b border-border/60 hover:bg-transparent">
-              <TableHead className="h-10 px-4 text-xs font-medium text-muted-foreground">候选人</TableHead>
+              {renderSortableHead(
+                "候选人",
+                "name",
+                "h-10 px-4 text-xs font-medium text-muted-foreground",
+              )}
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">面试安排</TableHead>
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">状态</TableHead>
+              {renderSortableHead(
+                "面试安排",
+                "schedule",
+                "h-10 px-3 text-xs font-medium text-muted-foreground",
+              )}
+              {renderSortableHead(
+                "状态",
+                "status",
+                "h-10 px-3 text-xs font-medium text-muted-foreground",
+              )}
               {role >= 2 && (
                 <TableHead className="h-10 px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
               )}
@@ -1252,8 +1323,15 @@ export const EvaluationTable = ({
               Array.from({ length: 5 }, (_, index) => (
                 <TableRow key={`skeleton-${index}`} className="border-b border-border/40">
                   {Array.from({ length: role >= 2 ? 6 : 5 }, (_, cellIndex) => (
-                    <TableCell key={cellIndex} className="px-4 py-3">
-                      <Skeleton className="h-4 w-full max-w-[8rem]" />
+                    <TableCell key={cellIndex} className="px-4 py-2.5">
+                      {/* Mirrors the real two-line cell: the schedule cell's
+                          icon links are size-6, so its first line is 24px, not
+                          the 20px of a text line. Matching that keeps the page
+                          from shifting when the data lands. */}
+                      <div className="space-y-0.5">
+                        <Skeleton className="h-6 w-3/5 max-w-[7rem]" />
+                        <Skeleton className="h-4 w-4/5 max-w-[5rem]" />
+                      </div>
                     </TableCell>
                   ))}
                 </TableRow>
@@ -1279,7 +1357,7 @@ export const EvaluationTable = ({
                 </TableCell>
               </TableRow>
             ) : (
-              pagedCandidates.map((c) => (
+              pagedCandidates.map((c, index) => (
                 <TableRow
                   key={c.userFlowId}
                   id={
@@ -1318,7 +1396,11 @@ export const EvaluationTable = ({
                     />
                   </TableCell>
                   <TableCell className="px-3 py-2.5 align-middle">
-                    <ScheduleInfo candidate={c} now={now} />
+                    <ScheduleInfo
+                      candidate={c}
+                      now={now}
+                      showOrganizer={shouldShowOrganizer(index)}
+                    />
                   </TableCell>
                   <TableCell className="px-3 py-2.5 align-middle">
                     <EvalStatusText candidate={c} />
@@ -1338,9 +1420,30 @@ export const EvaluationTable = ({
       {/* Mobile card view */}
       <div className="flex flex-col divide-y divide-border rounded-b-lg lg:hidden">
         {loading ? (
-          <div className="flex flex-col gap-3 p-4">
+          // Structural mirror of a real card, so the list does not jump on load.
+          <div className="flex flex-col divide-y divide-border">
             {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={`skeleton-${index}`} className="h-24 w-full" />
+              <div
+                key={`skeleton-${index}`}
+                data-slot="candidate-card-skeleton"
+                className="flex flex-col gap-3 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-5 w-28" />
+                <div className="space-y-0.5">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <div className="border-t border-border/60 pt-3">
+                  <Skeleton className="h-8 w-24" />
+                </div>
+              </div>
             ))}
           </div>
         ) : pagedCandidates.length === 0 ? (
@@ -1353,9 +1456,10 @@ export const EvaluationTable = ({
             )}
           </div>
         ) : (
-          pagedCandidates.map((c) => (
+          pagedCandidates.map((c, index) => (
             <div
               key={c.userFlowId}
+              data-slot="candidate-card"
               id={
                 isTargetCandidate(c)
                   ? `user-flow-${c.userFlowId}-mobile`
@@ -1380,21 +1484,32 @@ export const EvaluationTable = ({
                   <EvalStatusText candidate={c} />
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <ApplyGroupText
                   value={c.applyGroup}
                   editable={canEditApplyGroup}
                   onEdit={() => startGroupEdit(c)}
                   editLabel={`修改${c.name}的投递组别`}
                 />
+                <span className="text-muted-foreground/40" aria-hidden="true">
+                  ·
+                </span>
                 <PortfolioLink
                   value={c.portfolioLink}
                   description={c.portfolioDescription}
                   onOpen={() => setPortfolioCandidate(c)}
                 />
               </div>
-              <ScheduleInfo candidate={c} now={now} />
-              {role >= 2 && <div className="pt-1">{renderRowActions(c, "start")}</div>}
+              <ScheduleInfo
+                candidate={c}
+                now={now}
+                showOrganizer={shouldShowOrganizer(index)}
+              />
+              {role >= 2 && (
+                <div className="border-t border-border/60 pt-3">
+                  {renderRowActions(c, "start")}
+                </div>
+              )}
             </div>
           ))
         )}

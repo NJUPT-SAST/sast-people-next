@@ -65,7 +65,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
   }, [flowId, onStatusChange]);
 
   if (loading || !summary) return null;
-  const { counts, publication, templates, rows } = summary;
+  const { counts, publication, rows } = summary;
   const published = publication?.status === "published";
   const publicationInProgress = publication?.status === "publishing";
   const publish = async () => {
@@ -93,28 +93,30 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
         ? { label: "有未完成结果", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
         : { label: "可以发布", className: "border-primary/30 bg-primary/10 text-primary" };
 
+  const statusSentence = published
+    ? "结果已发布，名单和结果已锁定。"
+    : publicationInProgress
+      ? "结果正在发布，请稍候。"
+      : counts.unfinished > 0
+        ? `还有 ${counts.unfinished} 人未完成最终结果，完成后才可发布。`
+        : "所有人的最终结果已完成，可以发布。";
+
   return (
-    <section className="flex flex-col gap-3 rounded-lg border bg-card p-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
-      <div className="min-w-0 space-y-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <LockKeyhole className="size-4 text-muted-foreground" aria-hidden="true" />
-          <span className="text-sm font-medium">结果发布</span>
-          <Badge variant="outline" className={publicationBadge.className}>
-            {publicationBadge.label}
-          </Badge>
-        </div>
-        <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
-          {published
-            ? "结果已发布，名单和结果已锁定。"
-            : publicationInProgress
-              ? "结果正在发布，请稍候。"
-              : counts.unfinished > 0
-                ? `还有 ${counts.unfinished} 人未完成最终结果，完成后才可发布。`
-                : "所有人的最终结果已完成，可以发布。"}
-        </p>
-        <p className="text-xs leading-5 text-muted-foreground">通过模板 {templates.accepted.updatedAt ? "已配置" : "默认模板"}，不通过模板 {templates.rejected.updatedAt ? "已配置" : "默认模板"}。发布前请确认本年度文案。</p>
+    // One line at desktop: this is a once-per-flow action, it should not take a
+    // block of prime space above the list. The template reminder lives in the
+    // confirmation dialog, where the decision is actually made.
+    <section className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3 lg:flex-row lg:items-center lg:gap-4 lg:py-2.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <LockKeyhole className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="text-sm font-medium">结果发布</span>
+        <Badge variant="outline" className={publicationBadge.className}>
+          {publicationBadge.label}
+        </Badge>
+        <span className="text-xs leading-5 text-muted-foreground">
+          {statusSentence}
+        </span>
       </div>
-      <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
+      <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap lg:ml-auto lg:flex-none">
         <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={() => setRosterOpen(true)} disabled={rows.length === 0}>
           <ClipboardList data-icon="inline-start" />查看完整名单
         </Button>

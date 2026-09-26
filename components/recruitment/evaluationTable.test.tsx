@@ -1019,6 +1019,78 @@ describe("EvaluationTable", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("sorts from the column headers and keeps unbooked candidates last", async () => {
+    const user = userEvent.setup();
+    renderTable([
+      makeScheduledCandidate({
+        userFlowId: 1,
+        name: "较早",
+        studentId: "B001",
+        scheduleStartsAt: "2026-09-27T10:00:00+08:00",
+      }),
+      makeCandidate({ userFlowId: 2, name: "未预约", studentId: "B002" }),
+      makeScheduledCandidate({
+        userFlowId: 3,
+        name: "较晚",
+        studentId: "B003",
+        scheduleStartsAt: "2026-09-28T10:00:00+08:00",
+      }),
+    ]);
+
+    const firstColumn = () =>
+      Array.from(document.querySelectorAll("table tbody tr td:first-child")).map(
+        (cell) => cell.textContent ?? "",
+      );
+
+    const scheduleHead = screen.getByRole("button", { name: "面试安排" });
+    expect(scheduleHead.closest("th")).toHaveAttribute("aria-sort", "ascending");
+    expect(firstColumn()[0]).toContain("较早");
+
+    await user.click(scheduleHead);
+
+    expect(scheduleHead.closest("th")).toHaveAttribute("aria-sort", "descending");
+    expect(firstColumn()[0]).toContain("较晚");
+    // Descending must not float a slotless candidate to the top.
+    expect(firstColumn()[2]).toContain("未预约");
+    expect(screen.getByRole("button", { name: "候选人" }).closest("th")).toHaveAttribute(
+      "aria-sort",
+      "none",
+    );
+  });
+
+  it("sorts by name when the candidate header is clicked", async () => {
+    const user = userEvent.setup();
+    renderTable([
+      makeCandidate({ userFlowId: 1, name: "赵六", studentId: "B001" }),
+      makeCandidate({ userFlowId: 2, name: "阿七", studentId: "B002" }),
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "候选人" }));
+
+    const firstColumn = Array.from(
+      document.querySelectorAll("table tbody tr td:first-child"),
+    ).map((cell) => cell.textContent ?? "");
+    expect(firstColumn[0]).toContain("阿七");
+    expect(firstColumn[1]).toContain("赵六");
+  });
+
+  it("names the organiser once per run of identical organisers", () => {
+    renderTable([
+      makeScheduledCandidate({ userFlowId: 1, name: "甲" }),
+      makeScheduledCandidate({ userFlowId: 2, name: "乙" }),
+      makeScheduledCandidate({
+        userFlowId: 3,
+        name: "丙",
+        scheduleOrganizerName: "孙老师",
+      }),
+    ]);
+
+    const rows = Array.from(document.querySelectorAll("table tbody tr"));
+    expect(rows[0].textContent).toContain("钱老师");
+    expect(rows[1].textContent).not.toContain("钱老师");
+    expect(rows[2].textContent).toContain("孙老师");
+  });
+
   it("paginates and reveals the page holding a deep-linked candidate", () => {
     const candidates = Array.from({ length: 30 }, (_, index) =>
       makeCandidate({

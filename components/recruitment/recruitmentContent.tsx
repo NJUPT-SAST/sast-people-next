@@ -190,32 +190,30 @@ export const RecruitmentContent = ({
   return (
     <div className="min-w-0 space-y-4">
       <section className="rounded-lg border bg-card">
-        <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 flex-col gap-3">
-            {isEvaluationWorkspace && (
-              <Tabs
-                value={interviewFlowType}
-                onValueChange={handleInterviewFlowTypeChange}
-              >
-                <TabsList className="h-9 max-w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-fit">
-                  {interviewTypeTabs.map((tab) => (
-                    <TabsTrigger
-                      key={tab.value}
-                      value={tab.value}
-                    >
-                      {tab.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            )}
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">选择流程</p>
-              <p className="text-xs text-muted-foreground">
-                切换流程后，下方列表会自动刷新对应报名人员。
-              </p>
-            </div>
-          </div>
+        {/* The select explains itself; the "选择流程 / 切换后会刷新" copy was two
+            lines of chrome above the list. */}
+        <div
+          className={`flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:gap-4 ${
+            isEvaluationWorkspace ? 'lg:justify-between' : 'lg:justify-end'
+          }`}
+        >
+          {isEvaluationWorkspace && (
+            <Tabs
+              value={interviewFlowType}
+              onValueChange={handleInterviewFlowTypeChange}
+            >
+              <TabsList className="h-9 max-w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-fit">
+                {interviewTypeTabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
           <SelectFlow
             flowTypes={visibleFlowTypes}
             defaultFlowTypeId={flowId}
