@@ -354,10 +354,9 @@ describe("EvaluationTable", () => {
       '[data-slot="interview-status-badge"][data-status="unscheduled"]',
     );
     expect(unscheduledBadge).toHaveTextContent("待预约");
-    expect(unscheduledBadge).toHaveClass(
-      "text-slate-700",
-      "dark:text-slate-300",
-    );
+    // In-progress states stay neutral and carry their hue in a dot.
+    expect(unscheduledBadge).toHaveClass("bg-muted/40", "text-foreground/75");
+    expect(unscheduledBadge?.querySelector("span")).toHaveClass("bg-slate-400");
     expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
     await user.type(
@@ -999,6 +998,25 @@ describe("EvaluationTable", () => {
     // Rows and their counts belong to the previous flow until the load lands.
     expect(screen.queryAllByRole("button", { name: "张三" })).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /^全部/ })).not.toBeInTheDocument();
+  });
+
+  it("collapses a same-day interview slot to a single date", () => {
+    renderTable([makeScheduledCandidate()]);
+
+    // 12:00–12:30 on the same Beijing day: repeating the date is noise.
+    expect(
+      screen.getAllByText("09-26 12:00 – 12:30").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("keeps both dates when a slot crosses midnight", () => {
+    renderTable([
+      makeScheduledCandidate({ scheduleEndsAt: "2026-09-27T00:30:00+08:00" }),
+    ]);
+
+    expect(
+      screen.getAllByText("09-26 12:00 – 09-27 00:30").length,
+    ).toBeGreaterThan(0);
   });
 
   it("paginates and reveals the page holding a deep-linked candidate", () => {

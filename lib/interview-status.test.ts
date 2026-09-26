@@ -3,6 +3,7 @@ import {
   deriveInterviewActions,
   getInterviewStatus,
   INTERVIEW_STATUS_ORDER,
+  interviewStatusMeta,
   type InterviewCandidateLike,
 } from "./interview-status";
 
@@ -81,6 +82,34 @@ describe("getInterviewStatus", () => {
     expect(getInterviewStatus(candidate())).toBe("unscheduled");
     expect(getInterviewStatus(scheduled())).toBe("scheduled");
     expect(getInterviewStatus(ended())).toBe("ready");
+  });
+});
+
+describe("interviewStatusMeta tones", () => {
+  it("keeps in-progress states neutral and fills only outcomes and exceptions", () => {
+    // A column of these fills turns into a rainbow with no entry point, so the
+    // states a candidate merely passes through must stay quiet.
+    expect(interviewStatusMeta.unscheduled.tone).toBe("neutral");
+    expect(interviewStatusMeta.scheduled.tone).toBe("neutral");
+    expect(interviewStatusMeta.ready.tone).toBe("neutral");
+    expect(interviewStatusMeta.withdrawn.tone).toBe("muted");
+
+    expect(interviewStatusMeta.returned.tone).toBe("attention");
+    expect(interviewStatusMeta.pending.tone).toBe("attention");
+    expect(interviewStatusMeta.accepted.tone).toBe("success");
+    expect(interviewStatusMeta.rejected.tone).toBe("danger");
+  });
+
+  it("gives every neutral state a dot instead of a fill", () => {
+    for (const key of INTERVIEW_STATUS_ORDER) {
+      const meta = interviewStatusMeta[key];
+      if (meta.tone === "neutral") {
+        expect(meta.dotClassName).toBeTruthy();
+        expect(meta.badgeClassName).not.toMatch(/bg-(slate|sky|amber)-50\b/);
+      } else {
+        expect(meta.dotClassName).toBeNull();
+      }
+    }
   });
 });
 

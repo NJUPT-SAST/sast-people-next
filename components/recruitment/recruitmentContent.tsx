@@ -223,30 +223,28 @@ export const RecruitmentContent = ({
           />
         </div>
 
-        {flowId && !loading && !loadError && (
+        {/* Interview totals live in the 全部 chip and the row list, so repeating
+            总人数 and 流程类型 here only added a third copy of the same numbers. */}
+        {!isEvaluationWorkspace && flowId && !loading && !loadError && (
           <div className="flex flex-wrap gap-x-6 gap-y-2 border-t px-4 py-2.5 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Users className="size-4" />
               <span>总人数</span>
               <span className="font-semibold tabular-nums text-foreground">
-                {isEvaluationWorkspace ? safeEvalData.length : safeScoreData.length}
+                {safeScoreData.length}
               </span>
             </div>
-            {!isEvaluationWorkspace && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <BadgeCheck className="size-4" />
-                <span>平均分</span>
-                <span className="font-semibold tabular-nums text-foreground">
-                  {averageScore.toFixed(2)}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <BadgeCheck className="size-4" />
+              <span>平均分</span>
+              <span className="font-semibold tabular-nums text-foreground">
+                {averageScore.toFixed(2)}
+              </span>
+            </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <ClipboardList className="size-4" />
               <span>流程类型</span>
-              <span className="font-medium text-foreground">
-                {isEvaluationWorkspace ? '面试候选人' : '笔试成绩'}
-              </span>
+              <span className="font-medium text-foreground">笔试成绩</span>
             </div>
           </div>
         )}

@@ -30,56 +30,96 @@ export const INTERVIEW_STATUS_ORDER: InterviewStatusKey[] = [
   "withdrawn",
 ];
 
+/**
+ * How loudly a status should read in a dense column.
+ *
+ * Solid fills are reserved for outcomes and exceptions — the states that either
+ * ended the candidate's run or need somebody to intervene. The states a
+ * candidate simply passes through stay neutral and carry their hue in a dot, so
+ * a column of them does not turn into a rainbow with no visual entry point.
+ */
+export type InterviewStatusTone =
+  | "neutral"
+  | "attention"
+  | "success"
+  | "danger"
+  | "muted";
+
+export type InterviewStatusMeta = {
+  label: string;
+  description: string;
+  tone: InterviewStatusTone;
+  badgeClassName: string;
+  /** Null for tones that fill the badge solid or stay fully muted. */
+  dotClassName: string | null;
+};
+
+const NEUTRAL_BADGE =
+  "border-border bg-muted/40 text-foreground/75";
+
 export const interviewStatusMeta: Record<
   InterviewStatusKey,
-  { label: string; className: string; description: string }
+  InterviewStatusMeta
 > = {
   unscheduled: {
     label: "待预约",
-    className:
-      "border-slate-600/30 bg-slate-50 text-slate-700 dark:border-slate-400/30 dark:bg-slate-400/10 dark:text-slate-300",
+    tone: "neutral",
+    badgeClassName: NEUTRAL_BADGE,
+    dotClassName: "bg-slate-400",
     description: "还没有预约面试时间。",
   },
   scheduled: {
     label: "待面试",
-    className:
-      "border-sky-600/30 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300",
+    tone: "neutral",
+    badgeClassName: NEUTRAL_BADGE,
+    dotClassName: "bg-sky-500",
     description: "面试已预约，等待面试结束。",
   },
   ready: {
     label: "待评估",
-    className:
-      "border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300",
+    tone: "neutral",
+    badgeClassName: NEUTRAL_BADGE,
+    dotClassName: "bg-amber-500",
     description: "面试已结束，等待提交面评。",
   },
   returned: {
     label: "退回重写",
-    className:
+    tone: "attention",
+    badgeClassName:
       "border-orange-600/30 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300",
+    dotClassName: null,
     description: "面评被管理员退回，需要重写。",
   },
   pending: {
     label: "待终审",
-    className:
+    tone: "attention",
+    badgeClassName:
       "border-violet-600/30 bg-violet-50 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/10 dark:text-violet-300",
+    dotClassName: null,
     description: "面评已提交，等待管理员终审。",
   },
   accepted: {
     label: "已通过",
-    className:
+    tone: "success",
+    badgeClassName:
       "border-emerald-600/30 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300",
+    dotClassName: null,
     description: "已通过终审。",
   },
   rejected: {
     label: "不通过",
-    className:
+    tone: "danger",
+    badgeClassName:
       "border-rose-600/30 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300",
+    dotClassName: null,
     description: "未通过。",
   },
   withdrawn: {
     label: "已退回",
-    className:
-      "border-dashed border-muted-foreground/40 bg-muted text-muted-foreground",
+    tone: "muted",
+    badgeClassName:
+      "border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground",
+    dotClassName: null,
     description: "报名已被退回，候选人需重新报名。",
   },
 };

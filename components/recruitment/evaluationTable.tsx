@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CalendarDays,
   ExternalLink,
   Eye,
-  FileText,
-  FileX2,
   Link2,
   MoreHorizontal,
   RotateCcw,
+  Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -129,6 +129,18 @@ const statusFilterChipClass = (active: boolean) =>
       : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 
+/**
+ * "待我处理" crosses the status axis rather than being one of its values, so it
+ * gets the brand tint and a divider to keep the two groups readable.
+ */
+const mineFilterChipClass = (active: boolean) =>
+  cn(
+    "inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
+    active
+      ? "border-primary/40 bg-primary/10 font-medium text-primary"
+      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+  );
+
 const formatDateTimeLocal = (date: Date) => {
   const pad = (value: number) => String(value).padStart(2, "0");
   return [
@@ -180,6 +192,21 @@ const getTime = (value: Date | string | null) => {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * "09-26 12:00 – 12:30" for a same-day slot, falling back to repeating the date
+ * only when the interview actually crosses midnight. Slot lengths are minutes,
+ * so the date is almost always redundant.
+ */
+function formatScheduleRange(startsAt: string, endsAt: string) {
+  if (!startsAt) return endsAt;
+  if (!endsAt) return startsAt;
+  const [startDay] = startsAt.split(" ");
+  const [endDay, endClock] = endsAt.split(" ");
+  return startDay === endDay
+    ? `${startsAt} – ${endClock}`
+    : `${startsAt} – ${endsAt}`;
+}
 
 /** "今天" / "明天" / "昨天" so the next interview is findable at a glance. */
 function getRelativeDayLabel(
@@ -306,31 +333,21 @@ const PortfolioLink = ({
   description?: string | null;
   onOpen: () => void;
 }) => {
+  // A bordered button per row competed with the row's real action, so this is a
+  // quiet link instead — still reachable, no longer a second button.
   if (!value && !description) {
-    return (
-      <span className="inline-flex h-8 items-center gap-2 text-xs text-muted-foreground">
-        <span className="flex size-6 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20">
-          <FileX2 className="size-3.5 opacity-70" />
-        </span>
-        未提供
-      </span>
-    );
+    return <span className="text-sm text-muted-foreground">—</span>;
   }
 
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
       onClick={onOpen}
-      className="group h-8 max-w-full gap-2 border-border/70 bg-transparent px-2 text-xs font-medium text-foreground/80 shadow-none hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+      className="group inline-flex max-w-full items-center gap-1 text-sm text-foreground/85 underline-offset-4 transition-colors hover:text-primary hover:underline"
     >
-      <span className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
-        <FileText className="size-3.5" />
-      </span>
       <span className="truncate">查看作品</span>
       <Eye className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-    </Button>
+    </button>
   );
 };
 
@@ -342,12 +359,21 @@ const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
       data-slot="interview-status-badge"
       data-status={status}
       className={cn(
-        "inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-        meta.className,
+        "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium",
+        meta.badgeClassName,
       )}
       title={meta.description}
     >
-      {status === "returned" && <RotateCcw className="size-3" aria-hidden="true" />}
+      {status === "returned" ? (
+        <RotateCcw className="size-3 shrink-0" aria-hidden="true" />
+      ) : (
+        meta.dotClassName && (
+          <span
+            className={cn("size-1.5 shrink-0 rounded-full", meta.dotClassName)}
+            aria-hidden="true"
+          />
+        )
+      )}
       {meta.label}
     </span>
   );
@@ -369,6 +395,27 @@ const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
 
   return badge;
 };
+const ScheduleIconLink = ({
+  href,
+  label,
+  icon: Icon,
+}: {
+  href: string;
+  label: string;
+  icon: typeof Video;
+}) => (
+  <a
+    href={externalHref(href)}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label={label}
+    title={label}
+    className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+  >
+    <Icon className="size-3.5" aria-hidden="true" />
+  </a>
+);
+
 const ScheduleInfo = ({
   candidate,
   now,
@@ -391,57 +438,41 @@ const ScheduleInfo = ({
 
   const startsAt = formatScheduleTime(candidate.scheduleStartsAt);
   const endsAt = formatScheduleTime(candidate.scheduleEndsAt);
-  const timeRange = startsAt
-    ? `${startsAt}${endsAt ? ` – ${endsAt}` : ""}`
-    : endsAt;
+  const timeRange = formatScheduleRange(startsAt, endsAt);
   const dayLabel = getRelativeDayLabel(candidate.scheduleStartsAt, now);
   const hasDistinctScheduleLink =
     Boolean(candidate.scheduleLink) &&
     candidate.scheduleLink !== candidate.scheduleMeetingLink;
+  // Place and organiser share one line so the row stays two lines tall.
+  const placeAndOwner = [candidate.scheduleLocation, candidate.scheduleOrganizerName]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="min-w-0 space-y-0.5">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
-        <a
-          href={externalHref(candidate.scheduleMeetingLink)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground"
-        >
-          留档会议
-          <ExternalLink className="size-3.5 shrink-0 opacity-50" />
-        </a>
-        {hasDistinctScheduleLink && candidate.scheduleLink && (
-          <a
-            href={externalHref(candidate.scheduleLink)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            日程
-            <ExternalLink className="size-3.5 shrink-0 opacity-50" />
-          </a>
-        )}
-      </div>
-      {timeRange && (
-        <p className="text-xs tabular-nums text-muted-foreground">
-          {dayLabel && (
-            <span className="font-medium text-foreground">{dayLabel} </span>
-          )}
+      <div className="flex min-w-0 items-center gap-1.5">
+        <p className="min-w-0 shrink truncate text-sm tabular-nums text-foreground">
+          {dayLabel && <span className="font-medium">{dayLabel} </span>}
           {timeRange}
         </p>
-      )}
-      {candidate.scheduleLocation && (
-        <p
-          className="truncate text-xs text-muted-foreground"
-          title={candidate.scheduleLocation}
-        >
-          {candidate.scheduleLocation}
-        </p>
-      )}
-      {candidate.scheduleOrganizerName && (
-        <p className="truncate text-xs text-muted-foreground" title={`预约讲师：${candidate.scheduleOrganizerName}`}>
-          预约讲师：{candidate.scheduleOrganizerName}
+        <span className="flex shrink-0 items-center">
+          <ScheduleIconLink
+            href={candidate.scheduleMeetingLink}
+            label="留档会议"
+            icon={Video}
+          />
+          {hasDistinctScheduleLink && candidate.scheduleLink && (
+            <ScheduleIconLink
+              href={candidate.scheduleLink}
+              label="日程"
+              icon={CalendarDays}
+            />
+          )}
+        </span>
+      </div>
+      {placeAndOwner && (
+        <p className="truncate text-xs text-muted-foreground" title={placeAndOwner}>
+          {placeAndOwner}
         </p>
       )}
       {candidate.status === "withdrawn" && candidate.withdrawReason && (
@@ -469,13 +500,13 @@ function ActionCell({
   if (!plan.primary && plan.overflow.length === 0) {
     return plan.lockedReason ? (
       <span
-        className="text-sm text-muted-foreground"
+        className="text-xs text-muted-foreground"
         title={plan.lockedReason}
       >
         {plan.lockedReason}
       </span>
     ) : (
-      <span className="text-sm text-muted-foreground">—</span>
+      <span className="text-xs text-muted-foreground">—</span>
     );
   }
 
@@ -1150,15 +1181,21 @@ export const EvaluationTable = ({
                 <span className="tabular-nums opacity-60">{statusCounts.total}</span>
               </button>
               {mineCount > 0 && (
-                <button
-                  type="button"
-                  aria-pressed={statusFilter === "mine"}
-                  className={statusFilterChipClass(statusFilter === "mine")}
-                  onClick={() => selectStatusFilter("mine")}
-                >
-                  待我处理
-                  <span className="tabular-nums opacity-60">{mineCount}</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    aria-pressed={statusFilter === "mine"}
+                    className={mineFilterChipClass(statusFilter === "mine")}
+                    onClick={() => selectStatusFilter("mine")}
+                  >
+                    待我处理
+                    <span className="tabular-nums opacity-70">{mineCount}</span>
+                  </button>
+                  <span
+                    className="mx-0.5 h-4 w-px shrink-0 bg-border"
+                    aria-hidden="true"
+                  />
+                </>
               )}
               {statusFilterOptions.map(({ key, count }) => (
                 <button
@@ -1182,20 +1219,20 @@ export const EvaluationTable = ({
         <Table className="w-full table-fixed" containerClassName="overflow-x-auto">
           {role >= 2 ? (
             <colgroup>
-              <col className="w-[22%]" />
-              <col className="w-[12%]" />
-              <col className="w-[19%]" />
-              <col className="w-[17%]" />
+              <col className="w-[24%]" />
+              <col className="w-[10%]" />
+              <col className="w-[11%]" />
+              <col className="w-[27%]" />
               <col className="w-[13%]" />
-              <col className="w-[17%]" />
+              <col className="w-[15%]" />
             </colgroup>
           ) : (
             <colgroup>
-              <col className="w-[26%]" />
-              <col className="w-[14%]" />
-              <col className="w-[23%]" />
-              <col className="w-[19%]" />
-              <col className="w-[18%]" />
+              <col className="w-[28%]" />
+              <col className="w-[12%]" />
+              <col className="w-[13%]" />
+              <col className="w-[32%]" />
+              <col className="w-[15%]" />
             </colgroup>
           )}
           <TableHeader>
@@ -1253,10 +1290,10 @@ export const EvaluationTable = ({
                   className={
                     isTargetCandidate(c)
                       ? "scroll-mt-24 bg-muted/40 hover:bg-muted/40"
-                      : "border-b border-border/40 last:border-0 hover:bg-muted/15"
+                      : "border-b border-border/40 last:border-0 hover:bg-muted/30"
                   }
                 >
-                  <TableCell className="px-4 py-3 align-middle">
+                  <TableCell className="px-4 py-2.5 align-middle">
                     <CandidateIdentity
                       name={c.name}
                       studentId={c.studentId}
@@ -1265,7 +1302,7 @@ export const EvaluationTable = ({
                       role={role}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-3 align-middle">
+                  <TableCell className="px-3 py-2.5 align-middle">
                     <ApplyGroupText
                       value={c.applyGroup}
                       editable={canEditApplyGroup}
@@ -1273,21 +1310,21 @@ export const EvaluationTable = ({
                       editLabel={`修改${c.name}的投递组别`}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-3 align-middle">
+                  <TableCell className="px-3 py-2.5 align-middle">
                     <PortfolioLink
                       value={c.portfolioLink}
                       description={c.portfolioDescription}
                       onOpen={() => setPortfolioCandidate(c)}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-3 align-middle">
+                  <TableCell className="px-3 py-2.5 align-middle">
                     <ScheduleInfo candidate={c} now={now} />
                   </TableCell>
-                  <TableCell className="px-3 py-3 align-middle">
+                  <TableCell className="px-3 py-2.5 align-middle">
                     <EvalStatusText candidate={c} />
                   </TableCell>
                   {role >= 2 && (
-                    <TableCell className="min-w-[11rem] px-4 py-3 align-middle text-right">
+                    <TableCell className="min-w-[11rem] px-4 py-2.5 align-middle text-right">
                       {renderRowActions(c)}
                     </TableCell>
                   )}
@@ -1338,7 +1375,10 @@ export const EvaluationTable = ({
                   uid={c.uid}
                   role={role}
                 />
-                <EvalStatusText candidate={c} />
+                {/* shrink-0: a long name must truncate itself, not squeeze the badge. */}
+                <div className="shrink-0">
+                  <EvalStatusText candidate={c} />
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ApplyGroupText
@@ -1360,7 +1400,9 @@ export const EvaluationTable = ({
         )}
       </div>
 
-      {!loading && visibleCandidates.length > 0 && (
+      {/* Only worth showing once there is more than one page; otherwise the
+          "共 N 人" total just repeats the 全部 chip. */}
+      {!loading && totalPages > 1 && (
         <div className="rounded-b-lg border-t px-3 py-3 sm:px-4">
           <ListPagination
             totalItems={visibleCandidates.length}
