@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -498,7 +498,7 @@ const ScheduleInfo = ({
  * follows the action so "this row is your job" stays visible in the column.
  */
 const ACTION_MENU_BUTTON =
-  "inline-flex h-9 w-full shrink-0 touch-manipulation items-center justify-center gap-1 rounded-full border px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 lg:h-8 lg:w-auto lg:px-2.5";
+  "inline-flex h-9 w-full shrink-0 touch-manipulation items-center justify-center gap-1 rounded-full border px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 lg:h-8 lg:w-[5.75rem] lg:px-2";
 
 /** Brand tint marks the row's actual work; a hairline outline marks logistics. */
 const ACTION_TONE = {
@@ -537,10 +537,54 @@ function ActionCell({
   align?: "start" | "end";
   onAction: (action: InterviewAction, candidate: Candidate) => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const hoverTimer = useRef<number | null>(null);
+  const pointerOverRef = useRef(false);
   const actions = [
     ...(plan.primary ? [plan.primary] : []),
     ...plan.overflow,
   ];
+
+  useEffect(
+    () => () => {
+      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    },
+    [],
+  );
+
+  const clearHoverTimer = () => {
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  };
+
+  /**
+   * The menu opens on hover as well as on click, but only where a pointer can
+   * actually hover: on touch `pointerenter` fires on tap and would fight the
+   * click that follows. The delays let the pointer travel from the button into
+   * the menu without it closing underneath.
+   */
+  const canHover = () =>
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(hover: hover)").matches;
+  const openMenuSoon = () => {
+    if (!canHover()) return;
+    clearHoverTimer();
+    hoverTimer.current = window.setTimeout(() => setMenuOpen(true), 150);
+  };
+  const closeMenuSoon = () => {
+    if (!canHover()) return;
+    clearHoverTimer();
+    hoverTimer.current = window.setTimeout(() => {
+      // The menu is portalled, so leaving the button towards it fires a leave
+      // first. Ask whether the pointer actually landed inside before closing,
+      // rather than depending on the order the two events arrive in.
+      const panel = document.querySelector('[data-slot="row-action-menu-panel"]');
+      if (panel?.matches(":hover")) return;
+      setMenuOpen(false);
+    }, 200);
+  };
 
   if (actions.length === 0) {
     // A finished row shows nothing at all — an em dash here read as debris, and
@@ -555,12 +599,28 @@ function ActionCell({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      open={menuOpen}
+      onOpenChange={(next) => {
+        // Hover already opened it; a click while the pointer rests on the button
+        // must not toggle it shut, which made hover and click fight each other.
+        if (!next && pointerOverRef.current) return;
+        setMenuOpen(next);
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           data-slot="row-action-menu"
           disabled={busy}
+          onPointerEnter={() => {
+            pointerOverRef.current = true;
+            openMenuSoon();
+          }}
+          onPointerLeave={() => {
+            pointerOverRef.current = false;
+            closeMenuSoon();
+          }}
           className={cn(
             ACTION_MENU_BUTTON,
             // The tone follows the primary only: a row whose sole option is a
@@ -575,6 +635,9 @@ function ActionCell({
       <DropdownMenuContent
         align={align === "start" ? "start" : "end"}
         className="w-44"
+        data-slot="row-action-menu-panel"
+        onPointerEnter={clearHoverTimer}
+        onPointerLeave={closeMenuSoon}
       >
         {actions.map((action, index) => {
           const Icon = ACTION_ICONS[action.id];
@@ -1265,28 +1328,35 @@ export const EvaluationTable = ({
         {/* Content-driven widths with hints, not `table-fixed` percentages: fixed
             percentages left every column with its own share of dead space, which
             is what made the columns look unevenly spaced. */}
+        {/* Widths are tuned so each column ends up with the same trailing space
+            (~105px at a 1230px table), not merely the same percentage: equal
+            percentages on unequal content is what made some gaps look tight and
+            others cavernous. Sized for production data — a 2-4 character name
+            and a student id of one letter plus eight digits, which is far
+            shorter than the demo seed. `table-auto` keeps min-content as a
+            floor, so nothing clips at narrow widths. */}
         <Table className="w-full min-w-[52rem]" containerClassName="overflow-x-auto">
           <TableHeader>
             <TableRow className="border-b border-border/60 hover:bg-transparent">
               {renderSortableHead(
                 "候选人",
                 "name",
-                "h-10 w-[26%] px-4 text-xs font-medium text-muted-foreground",
+                "h-10 w-[19%] px-4 text-xs font-medium text-muted-foreground",
               )}
-              <TableHead className="h-10 w-[7%] px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
-              <TableHead className="h-10 w-[7%] px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
+              <TableHead className="h-10 w-[12%] px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
+              <TableHead className="h-10 w-[15%] px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
               {renderSortableHead(
                 "面试安排",
                 "schedule",
-                "h-10 w-[26%] px-3 text-xs font-medium text-muted-foreground",
+                "h-10 w-[23%] px-3 text-xs font-medium text-muted-foreground",
               )}
               {renderSortableHead(
                 "状态",
                 "status",
-                "h-10 w-[8%] px-3 text-right text-xs font-medium text-muted-foreground",
+                "h-10 w-[15%] px-3 text-right text-xs font-medium text-muted-foreground",
               )}
               {role >= 2 && (
-                <TableHead className="h-10 w-[10%] px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
+                <TableHead className="h-10 w-[16%] px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
               )}
             </TableRow>
           </TableHeader>
