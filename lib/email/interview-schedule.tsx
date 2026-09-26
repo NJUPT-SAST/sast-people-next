@@ -41,7 +41,7 @@ export async function renderInterviewScheduleEmailSubject(
   return renderInterviewScheduleTemplateText(setting.subjectTemplate, {
     candidateName: "同学",
     flowName,
-    organizerName: "讲师",
+    organizerName: "李四",
     startsAt: "",
     endsAt: "",
     location: "",
@@ -110,7 +110,7 @@ export async function renderInterviewScheduleEmailPreview(
     kind,
     candidateName: "张三",
     flowName: "2026 免试招新 Demo",
-    organizerName: "讲师",
+    organizerName: "李四",
     startsAt: new Date("2026-06-05T11:00:00+08:00"),
     endsAt: new Date("2026-06-05T11:30:00+08:00"),
     location: "仙林校区大学生活动中心 101",

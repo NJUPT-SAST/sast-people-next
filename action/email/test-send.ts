@@ -61,6 +61,10 @@ export async function sendEmailTest(
       templateKey,
         flowName,
         name: targetUser?.name ?? currentUser?.name ?? session.name ?? "同学",
+        // The test send shows whoever is sending it, so a withdrawal test shows
+        // the same 讲师 / 管理员 line the real email will.
+        operatorName: session.name,
+        operatorRole: session.role,
     });
     const result = await createRenderedTestEmailDelivery({
       ...request,
@@ -110,10 +114,14 @@ async function createTestRenderRequest({
   templateKey,
   flowName,
   name,
+  operatorName,
+  operatorRole,
 }: {
   templateKey: EmailTemplateKey;
   flowName: string;
   name: string;
+  operatorName: string;
+  operatorRole: number;
 }): Promise<EmailTemplateRenderRequest> {
   if (getEmailTemplateDefinition(templateKey)?.category === "result") {
     const setting = await getEmailTemplateSetting(templateKey);
@@ -137,6 +145,8 @@ async function createTestRenderRequest({
         candidateName: name,
         flowName,
         reason: "请补充作品集后重新报名。",
+        operatorName,
+        operatorRole,
       },
     };
   }
@@ -147,7 +157,7 @@ async function createTestRenderRequest({
     variables: {
       candidateName: name,
       flowName,
-      organizerName: "讲师",
+      organizerName: "李四",
       startsAt,
       endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
       location: "仙林校区大学生活动中心 101",
