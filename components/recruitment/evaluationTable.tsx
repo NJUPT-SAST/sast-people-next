@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { ExternalLink, Eye, FileText, FileX2, Link2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ExternalLink,
+  Eye,
+  FileText,
+  FileX2,
+  Link2,
+  MoreHorizontal,
+  RotateCcw,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -26,8 +34,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import {
+  DEFAULT_PAGE_SIZE,
+  ListPagination,
+} from "@/components/recruitment/listPagination";
+import {
+  countInterviewStatuses,
+  deriveInterviewActions,
+  getInterviewStatus,
+  INTERVIEW_STATUS_ORDER,
+  interviewStatusMeta,
+  type InterviewAction,
+  type InterviewStatusKey,
+} from "@/lib/interview-status";
 import { normalizeWithdrawalReason, WITHDRAWAL_REASON_MAX_LENGTH } from "@/lib/validation/user-flow";
 import { updateCandidateApplyGroup } from "@/action/user-flow/apply-group";
 import { createEvaluation } from "@/action/user-flow/evaluation";
@@ -54,7 +83,7 @@ import {
   getInterviewMeetingRoom,
   interviewMeetingRooms,
 } from "@/lib/interview-meeting-rooms";
-import { toBeijingWallClockDate } from "@/lib/timezone";
+import { formatBeijingDate, toBeijingWallClockDate } from "@/lib/timezone";
 
 type Candidate = {
   userFlowId: number;
@@ -90,140 +119,16 @@ type Candidate = {
   scheduleMeetingEndedAt: Date | string | null;
 };
 
-const evalStatusLabel = (
-  evalStatus: string | null,
-  flowStatus: string | null,
-  scheduleMeetingLink: string | null,
-  scheduleEnded: boolean,
-) => {
-  if (flowStatus === "withdrawn") {
-    return {
-      text: "已退回",
-      className:
-        "border-violet-600/30 bg-violet-50 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/10 dark:text-violet-300",
-    };
-  }
-  if (evalStatus === "approved" || flowStatus === "passed") {
-    return {
-      text: "已通过",
-      className:
-        "border-emerald-600/30 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300",
-    };
-  }
-  if (evalStatus === "rejected") {
-    return {
-      text: "不通过",
-      className:
-        "border-rose-600/30 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300",
-    };
-  }
-  if (evalStatus === "submitted") {
-    return {
-      text: "待审核",
-      className:
-        "border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300",
-    };
-  }
-  if (evalStatus === "returned") {
-    return {
-      text: "退回重写",
-      className:
-        "border-orange-600/30 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300",
-    };
-  }
-  if (flowStatus === "failed") {
-    return {
-      text: "不通过",
-      className:
-        "border-rose-600/30 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300",
-    };
-  }
-  if (!scheduleMeetingLink) {
-    return {
-      text: "待预约",
-      className:
-        "border-sky-600/30 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300",
-    };
-  }
-  if (!scheduleEnded) {
-    return {
-      text: "待面试",
-      className:
-        "border-cyan-600/30 bg-cyan-50 text-cyan-700 dark:border-cyan-400/30 dark:bg-cyan-400/10 dark:text-cyan-300",
-    };
-  }
-  return {
-    text: "待评估",
-    className:
-      "border-orange-600/30 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300",
-  };
-};
+type SortKey = "schedule" | "name" | "status";
 
-const EvalStatusText = ({
-  evalStatus,
-  flowStatus,
-  scheduleMeetingLink,
-  scheduleEnded,
-  returnReason,
-}: {
-  evalStatus: string | null;
-  flowStatus: string | null;
-  scheduleMeetingLink: string | null;
-  scheduleEnded: boolean;
-  returnReason?: string | null;
-}) => {
-  const status = evalStatusLabel(
-    evalStatus,
-    flowStatus,
-    scheduleMeetingLink,
-    scheduleEnded,
-  );
-  const badge = (
-    <span
-      className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-xs font-medium ${status.className}`}
-    >
-      {status.text}
-    </span>
+const statusFilterChipClass = (active: boolean) =>
+  cn(
+    "inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
+    active
+      ? "border-foreground/20 bg-foreground/10 font-medium text-foreground"
+      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 
-  return (
-    <div className="min-w-0 space-y-1">
-      {evalStatus === "returned" && returnReason ? (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>{badge}</TooltipTrigger>
-            <TooltipContent className="max-w-xs whitespace-pre-wrap break-words">
-              退回理由：{returnReason}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : (
-        badge
-      )}
-    </div>
-  );
-};
-
-
-
-const getCandidateStatusKey = (candidate: Candidate) => {
-  if (candidate.status === "withdrawn") return "withdrawn";
-  if (candidate.evalStatus === "approved" || candidate.status === "passed") return "accepted";
-  if (candidate.evalStatus === "rejected") return "evalRejected";
-  if (candidate.status === "failed") return "rejected";
-  if (candidate.evalStatus === "submitted") return "pending";
-  if (candidate.evalStatus === "returned") return "returned";
-  return "waiting";
-};
-
-const summaryItems = [
-  { key: "waiting", label: "待评估" },
-  { key: "pending", label: "待审核" },
-  { key: "returned", label: "退回重写" },
-  { key: "accepted", label: "已通过" },
-  { key: "evalRejected", label: "不通过" },
-  { key: "withdrawn", label: "已退回" },
-];
 const formatDateTimeLocal = (date: Date) => {
   const pad = (value: number) => String(value).padStart(2, "0");
   return [
@@ -273,6 +178,22 @@ const getTime = (value: Date | string | null) => {
   const time = date.getTime();
   return Number.isNaN(time) ? null : time;
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "今天" / "明天" / "昨天" so the next interview is findable at a glance. */
+function getRelativeDayLabel(
+  value: Date | string | null,
+  now: number | null,
+): string | null {
+  if (!value || now === null) return null;
+  const target = formatBeijingDate(value);
+  if (target === "-") return null;
+  if (target === formatBeijingDate(now)) return "今天";
+  if (target === formatBeijingDate(now + DAY_MS)) return "明天";
+  if (target === formatBeijingDate(now - DAY_MS)) return "昨天";
+  return null;
+}
 
 function CandidateIdentity({
   name,
@@ -412,7 +333,49 @@ const PortfolioLink = ({
     </Button>
   );
 };
-const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
+
+const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
+  const status = getInterviewStatus(candidate);
+  const meta = interviewStatusMeta[status];
+  const badge = (
+    <span
+      data-slot="interview-status-badge"
+      data-status={status}
+      className={cn(
+        "inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
+        meta.className,
+      )}
+      title={meta.description}
+    >
+      {status === "returned" && <RotateCcw className="size-3" aria-hidden="true" />}
+      {meta.label}
+    </span>
+  );
+
+  // A returned evaluation carries the admin's reason; surface it on hover.
+  const returnReason = candidate.evalReturnReason ?? candidate.withdrawReason;
+  if (status === "returned" && returnReason) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>{badge}</TooltipTrigger>
+          <TooltipContent className="max-w-xs whitespace-pre-wrap break-words">
+            退回理由：{returnReason}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return badge;
+};
+const ScheduleInfo = ({
+  candidate,
+  now,
+}: {
+  candidate: Candidate;
+  now: number | null;
+}) => {
   if (!candidate.scheduleMeetingLink) {
     return (
       <div className="min-w-0 space-y-0.5">
@@ -431,6 +394,7 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
   const timeRange = startsAt
     ? `${startsAt}${endsAt ? ` – ${endsAt}` : ""}`
     : endsAt;
+  const dayLabel = getRelativeDayLabel(candidate.scheduleStartsAt, now);
   const hasDistinctScheduleLink =
     Boolean(candidate.scheduleLink) &&
     candidate.scheduleLink !== candidate.scheduleMeetingLink;
@@ -460,7 +424,12 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
         )}
       </div>
       {timeRange && (
-        <p className="text-xs tabular-nums text-muted-foreground">{timeRange}</p>
+        <p className="text-xs tabular-nums text-muted-foreground">
+          {dayLabel && (
+            <span className="font-medium text-foreground">{dayLabel} </span>
+          )}
+          {timeRange}
+        </p>
       )}
       {candidate.scheduleLocation && (
         <p
@@ -484,35 +453,78 @@ const ScheduleInfo = ({ candidate }: { candidate: Candidate }) => {
   );
 };
 
-function ActionButton({
-  children,
-  disabled,
-  onClick,
-  tone = "default",
+function ActionCell({
+  plan,
+  candidate,
+  busy,
+  align = "end",
+  onAction,
 }: {
-  children: ReactNode;
-  disabled?: boolean;
-  onClick: () => void;
-  tone?: "default" | "primary" | "danger";
+  plan: ReturnType<typeof deriveInterviewActions>;
+  candidate: Candidate;
+  busy: boolean;
+  align?: "start" | "end";
+  onAction: (action: InterviewAction, candidate: Candidate) => void;
 }) {
-  const toneClass =
-    tone === "primary"
-      ? "text-primary hover:text-primary"
-      : tone === "danger"
-        ? "text-destructive hover:text-destructive"
-        : "text-foreground hover:text-foreground";
+  if (!plan.primary && plan.overflow.length === 0) {
+    return plan.lockedReason ? (
+      <span
+        className="text-sm text-muted-foreground"
+        title={plan.lockedReason}
+      >
+        {plan.lockedReason}
+      </span>
+    ) : (
+      <span className="text-sm text-muted-foreground">—</span>
+    );
+  }
 
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="ghost"
-      disabled={disabled}
-      onClick={onClick}
-      className={`h-8 px-2 text-sm font-normal shadow-none ${toneClass}`}
+    <div
+      className={cn(
+        "flex flex-nowrap items-center gap-1.5 whitespace-nowrap",
+        align === "start" ? "justify-start" : "justify-end",
+      )}
     >
-      {children}
-    </Button>
+      {plan.primary && (
+        <Button
+          type="button"
+          size="sm"
+          variant={plan.primary.id === "evaluation" ? "default" : "outline"}
+          disabled={busy}
+          onClick={() => onAction(plan.primary!, candidate)}
+        >
+          {plan.primary.label}
+        </Button>
+      )}
+      {plan.overflow.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8"
+              disabled={busy}
+              aria-label={`更多操作：${candidate.name}`}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {plan.overflow.map((action) => (
+              <DropdownMenuItem
+                key={action.id}
+                variant={action.destructive ? "destructive" : "default"}
+                onSelect={() => onAction(action, candidate)}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
   );
 }
 
@@ -522,6 +534,7 @@ export const EvaluationTable = ({
   role,
   targetUserFlowId,
   targetScheduleId,
+  loading = false,
   onRefresh,
 }: {
   candidates: Candidate[];
@@ -529,14 +542,19 @@ export const EvaluationTable = ({
   role: number;
   targetUserFlowId?: number;
   targetScheduleId?: number;
+  loading?: boolean;
   onRefresh: () => void;
 }) => {
-  const safeCandidates = Array.isArray(candidates) ? candidates : [];
+  const safeCandidates = useMemo(
+    () => (Array.isArray(candidates) ? candidates : []),
+    [candidates],
+  );
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [portfolioCandidate, setPortfolioCandidate] = useState<Candidate | null>(null);
   const [returnConfirmCandidate, setReturnConfirmCandidate] = useState<Candidate | null>(null);
   const [returnReason, setReturnReason] = useState("");
   const [returnError, setReturnError] = useState<string | null>(null);
+  const [cancelConfirmCandidate, setCancelConfirmCandidate] = useState<Candidate | null>(null);
   const [schedulingId, setSchedulingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
@@ -563,6 +581,10 @@ export const EvaluationTable = ({
   const [groupSaving, setGroupSaving] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [applyGroupFilter, setApplyGroupFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<InterviewStatusKey | "mine" | null>(null);
+  const [sortBy, setSortBy] = useState<SortKey>("schedule");
+  const [page, setPage] = useState(1);
   const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
   const groupOptionsKey = safeGroupOptions.join("\u0000");
 
@@ -579,7 +601,16 @@ export const EvaluationTable = ({
 
   useEffect(() => {
     setNow(Date.now());
+    // The "confirm the interview has ended" action unlocks with the clock, so a
+    // page left open all afternoon has to keep ticking.
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
+
+  const planFor = useCallback(
+    (candidate: Candidate) => deriveInterviewActions(candidate, role, now),
+    [role, now],
+  );
 
   const startEdit = (c: Candidate) => {
     setEvaluatingId(c.userFlowId);
@@ -632,9 +663,6 @@ export const EvaluationTable = ({
   };
 
   const canEditApplyGroup = role >= 2 && groupOptions.length > 0;
-  const visibleCandidates = applyGroupFilter
-    ? safeCandidates.filter((candidate) => candidate.applyGroup === applyGroupFilter)
-    : safeCandidates;
 
   const startGroupEdit = (c: Candidate) => {
     setGroupEditingCandidate(c);
@@ -820,6 +848,7 @@ export const EvaluationTable = ({
       } else {
         toast.success("面试预约已取消，取消邮件已发送");
       }
+      setCancelConfirmCandidate(null);
       cancelSchedule();
       onRefresh();
     } catch (error) {
@@ -828,6 +857,7 @@ export const EvaluationTable = ({
       setLoadingId(null);
     }
   };
+
   const handleReturnCandidate = async (candidate: Candidate) => {
     const validation = normalizeWithdrawalReason(returnReason);
     if (!validation.success) {
@@ -860,113 +890,295 @@ export const EvaluationTable = ({
     }
   };
 
-  if (safeCandidates.length === 0) {
-    return (
-      <div className="rounded-lg border bg-card p-10 text-center">
-        <p className="text-sm font-medium">暂无可评估的候选人</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          当前流程还没有可处理的报名人员。
-        </p>
-      </div>
-    );
-  }
+  const runAction = (action: InterviewAction, candidate: Candidate) => {
+    switch (action.id) {
+      case "schedule":
+        startSchedule(candidate);
+        break;
+      case "cancel-schedule":
+        setCancelConfirmCandidate(candidate);
+        break;
+      case "confirm-ended":
+        void handleConfirmScheduleEnded(candidate);
+        break;
+      case "evaluation":
+        startEdit(candidate);
+        break;
+      case "return":
+        setReturnConfirmCandidate(candidate);
+        setReturnReason("");
+        setReturnError(null);
+        break;
+    }
+  };
 
-  const statusCounts = new Map<string, number>();
-  for (const candidate of visibleCandidates) {
-    const key = getCandidateStatusKey(candidate);
-    statusCounts.set(key, (statusCounts.get(key) ?? 0) + 1);
-  }
-  const isTargetCandidate = (candidate: Candidate) =>
-    Boolean(
-      (targetUserFlowId && candidate.userFlowId === targetUserFlowId) ||
-        (targetScheduleId && candidate.scheduleId === targetScheduleId),
+  const searched = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    if (!query) return safeCandidates;
+    return safeCandidates.filter((candidate) =>
+      [candidate.name, candidate.studentId, candidate.qq].some((value) =>
+        String(value ?? "").toLocaleLowerCase().includes(query),
+      ),
     );
+  }, [safeCandidates, search]);
+
+  const groupScoped = useMemo(
+    () =>
+      applyGroupFilter
+        ? searched.filter((candidate) => candidate.applyGroup === applyGroupFilter)
+        : searched,
+    [searched, applyGroupFilter],
+  );
+
+  // Counts describe the search + group scope but ignore the status filter, so
+  // selecting a status chip cannot make every other chip read zero.
+  const statusCounts = useMemo(
+    () => countInterviewStatuses(groupScoped),
+    [groupScoped],
+  );
+
+  const isMine = useCallback(
+    (candidate: Candidate) => planFor(candidate).primary !== null,
+    [planFor],
+  );
+
+  const mineCount = useMemo(
+    () => groupScoped.filter(isMine).length,
+    [groupScoped, isMine],
+  );
+
+  const statusFilterOptions = useMemo(
+    () =>
+      INTERVIEW_STATUS_ORDER.map((key) => ({
+        key,
+        count: statusCounts[key],
+      })).filter((option) => option.count > 0),
+    [statusCounts],
+  );
+
+  const visibleCandidates = useMemo(() => {
+    let rows = groupScoped;
+    if (statusFilter === "mine") {
+      rows = rows.filter(isMine);
+    } else if (statusFilter) {
+      rows = rows.filter(
+        (candidate) => getInterviewStatus(candidate) === statusFilter,
+      );
+    }
+
+    const byStudentId = (a: Candidate, b: Candidate) =>
+      (a.studentId ?? "").localeCompare(b.studentId ?? "");
+    const byName = (a: Candidate, b: Candidate) =>
+      a.name.localeCompare(b.name, "zh-Hans-CN");
+
+    const sorted = [...rows];
+    if (sortBy === "name") {
+      sorted.sort((a, b) => byName(a, b) || byStudentId(a, b));
+    } else if (sortBy === "status") {
+      sorted.sort(
+        (a, b) =>
+          INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(a)) -
+            INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(b)) ||
+          (getTime(a.scheduleStartsAt) ?? Infinity) -
+            (getTime(b.scheduleStartsAt) ?? Infinity) ||
+          byStudentId(a, b),
+      );
+    } else {
+      // Next interview first; anyone without a slot falls to the bottom.
+      sorted.sort(
+        (a, b) =>
+          (getTime(a.scheduleStartsAt) ?? Infinity) -
+            (getTime(b.scheduleStartsAt) ?? Infinity) ||
+          byStudentId(a, b),
+      );
+    }
+    return sorted;
+  }, [groupScoped, statusFilter, sortBy, isMine]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleCandidates.length / DEFAULT_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedCandidates = useMemo(
+    () =>
+      visibleCandidates.slice(
+        (safePage - 1) * DEFAULT_PAGE_SIZE,
+        safePage * DEFAULT_PAGE_SIZE,
+      ),
+    [visibleCandidates, safePage],
+  );
+
+  const isTargetCandidate = useCallback(
+    (candidate: Candidate) =>
+      Boolean(
+        (targetUserFlowId && candidate.userFlowId === targetUserFlowId) ||
+          (targetScheduleId && candidate.scheduleId === targetScheduleId),
+      ),
+    [targetUserFlowId, targetScheduleId],
+  );
+
+  // The email log links here with ?userFlowId= / ?scheduleId= and expects the row
+  // to be highlighted. With paging on it could sit on a later page, so reveal it
+  // once — without fighting the user's own paging afterwards.
+  const targetKey =
+    targetUserFlowId || targetScheduleId
+      ? `${targetUserFlowId ?? ""}:${targetScheduleId ?? ""}`
+      : "";
+  const revealedTargetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!targetKey || revealedTargetRef.current === targetKey) return;
+    const index = visibleCandidates.findIndex(isTargetCandidate);
+    // Not in the current flow (or still loading) — leave the ref unset and retry
+    // on the next data change rather than pinning the user to page 1.
+    if (index < 0) return;
+    revealedTargetRef.current = targetKey;
+    setPage(Math.floor(index / DEFAULT_PAGE_SIZE) + 1);
+  }, [targetKey, visibleCandidates, isTargetCandidate]);
+
+  const hasActiveFilter =
+    Boolean(search.trim()) ||
+    Boolean(applyGroupFilter) ||
+    Boolean(statusFilter);
+
+  const clearFilters = () => {
+    setSearch("");
+    setApplyGroupFilter(null);
+    setStatusFilter(null);
+    setPage(1);
+  };
+
+  const selectStatusFilter = (value: InterviewStatusKey | "mine" | null) => {
+    setStatusFilter((current) => (current === value ? null : value));
+    setPage(1);
+  };
+
+  // "Nothing matched the filters" and "this flow has nobody" need different copy,
+  // and that distinction has to come from the unfiltered rows.
+  const emptyMessage =
+    safeCandidates.length > 0
+      ? "没有符合条件的候选人。"
+      : "该流程暂时没有可处理的报名人员。";
+
+  const renderRowActions = (
+    candidate: Candidate,
+    align: "start" | "end" = "end",
+  ) => (
+    <ActionCell
+      plan={planFor(candidate)}
+      candidate={candidate}
+      busy={loadingId === candidate.userFlowId}
+      align={align}
+      onAction={runAction}
+    />
+  );
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
-      <div className="hidden items-center border-b border-border/60 py-3 lg:flex">
-        <div className={`${role >= 2 ? "w-[22%]" : "w-[26%]"} min-w-0 px-4`}>
-          <p className="text-sm font-medium">面评候选人</p>
-          <p className="text-xs text-muted-foreground">
-            预约面试后提交面评结果
-          </p>
-        </div>
-        {safeGroupOptions.length > 0 && (
-          <div className={`${role >= 2 ? "w-[12%]" : "w-[14%]"} pl-3`}>
-            <Select
-              value={applyGroupFilter ?? "all"}
-              onValueChange={(value) =>
-                setApplyGroupFilter(value === "all" ? null : value)
-              }
-            >
-              <SelectTrigger
-                className="h-8 w-full truncate text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
-                aria-label="按投递组别筛选候选人"
-                title={applyGroupFilter ?? "全部组别"}
+    <div className="min-w-0 rounded-lg border bg-card" aria-busy={loading}>
+      <div className="sticky top-0 z-20 rounded-t-lg border-b bg-card/95 backdrop-blur-sm">
+        <div className="flex flex-col gap-3 p-3 sm:p-4">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
+            <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-2">
+              <Input
+                placeholder="搜索姓名、学号或QQ"
+                aria-label="搜索面试候选人"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                className="h-9 min-w-0 flex-1 sm:w-[13rem] sm:flex-none"
+              />
+              {safeGroupOptions.length > 0 && (
+                <Select
+                  value={applyGroupFilter ?? "all"}
+                  onValueChange={(value) => {
+                    setApplyGroupFilter(value === "all" ? null : value);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger
+                    className="h-9 w-full min-w-0 truncate text-xs sm:w-[8.5rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                    aria-label="按投递组别筛选候选人"
+                    title={applyGroupFilter ?? "全部组别"}
+                  >
+                    <SelectValue placeholder="全部组别" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部组别</SelectItem>
+                    {safeGroupOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-xs text-muted-foreground">排序</span>
+              <Select
+                value={sortBy}
+                onValueChange={(value) => {
+                  setSortBy(value as SortKey);
+                  setPage(1);
+                }}
               >
-                <SelectValue placeholder="全部组别" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部组别</SelectItem>
-                {safeGroupOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className="h-9 w-[7.5rem] text-xs"
+                  aria-label="候选人排序方式"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="schedule">面试时间</SelectItem>
+                  <SelectItem value="name">姓名</SelectItem>
+                  <SelectItem value="status">状态</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        )}
-        <p className="ml-auto pr-4 text-xs text-muted-foreground">
-          {summaryItems
-            .map(
-              (item) =>
-                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
-            )
-            .join(" · ")}
-        </p>
-      </div>
-      <div className="flex flex-col gap-2 border-b border-border/60 px-4 py-3 lg:hidden">
-        <div className="space-y-1">
-          <p className="text-sm font-medium">面评候选人</p>
-          <p className="text-xs text-muted-foreground">
-            预约面试后提交面评结果
-          </p>
-        </div>
-        {safeGroupOptions.length > 0 && (
-          <Select
-            value={applyGroupFilter ?? "all"}
-            onValueChange={(value) =>
-              setApplyGroupFilter(value === "all" ? null : value)
-            }
-          >
-            <SelectTrigger
-                              className="h-8 w-full truncate text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
-                              aria-label="按投递组别筛选候选人"
-                title={applyGroupFilter ?? "全部组别"}
-            >
-              <SelectValue placeholder="全部组别" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部组别</SelectItem>
-              {safeGroupOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
+
+          {/* Hidden while loading: the rows still belong to the previous flow,
+              so showing their counts under the new flow's title would lie. */}
+          {statusCounts.total > 0 && !loading && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                aria-pressed={statusFilter === null}
+                className={statusFilterChipClass(statusFilter === null)}
+                onClick={() => selectStatusFilter(null)}
+              >
+                全部
+                <span className="tabular-nums opacity-60">{statusCounts.total}</span>
+              </button>
+              {mineCount > 0 && (
+                <button
+                  type="button"
+                  aria-pressed={statusFilter === "mine"}
+                  className={statusFilterChipClass(statusFilter === "mine")}
+                  onClick={() => selectStatusFilter("mine")}
+                >
+                  待我处理
+                  <span className="tabular-nums opacity-60">{mineCount}</span>
+                </button>
+              )}
+              {statusFilterOptions.map(({ key, count }) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={statusFilter === key}
+                  className={statusFilterChipClass(statusFilter === key)}
+                  title={interviewStatusMeta[key].description}
+                  onClick={() => selectStatusFilter(key)}
+                >
+                  {interviewStatusMeta[key].label}
+                  <span className="tabular-nums opacity-60">{count}</span>
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-        )}
-        <p className="text-xs text-muted-foreground">
-          {summaryItems
-            .map(
-              (item) =>
-                `${item.label} ${statusCounts.get(item.key) ?? 0}`,
-            )
-            .join(" · ")}
-        </p>
+            </div>
+          )}
+        </div>
       </div>
-      <div className="hidden min-w-0 lg:block">
+
+      <div className="hidden min-w-0 rounded-b-lg lg:block">
         <Table className="w-full table-fixed" containerClassName="overflow-x-auto">
           {role >= 2 ? (
             <colgroup>
@@ -991,7 +1203,7 @@ export const EvaluationTable = ({
               <TableHead className="h-10 px-4 text-xs font-medium text-muted-foreground">候选人</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">会议</TableHead>
+              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">面试安排</TableHead>
               <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">状态</TableHead>
               {role >= 2 && (
                 <TableHead className="h-10 px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
@@ -999,37 +1211,38 @@ export const EvaluationTable = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleCandidates.length === 0 && (
+            {loading ? (
+              Array.from({ length: 5 }, (_, index) => (
+                <TableRow key={`skeleton-${index}`} className="border-b border-border/40">
+                  {Array.from({ length: role >= 2 ? 6 : 5 }, (_, cellIndex) => (
+                    <TableCell key={cellIndex} className="px-4 py-3">
+                      <Skeleton className="h-4 w-full max-w-[8rem]" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : pagedCandidates.length === 0 ? (
               <TableRow className="border-b-0">
                 <TableCell
                   colSpan={role >= 2 ? 6 : 5}
-                  className="h-24 text-center text-sm text-muted-foreground"
+                  className="h-32 px-4 text-center"
                 >
-                  该组别暂无候选人
+                  <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+                  {hasActiveFilter && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={clearFilters}
+                    >
+                      清除筛选
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
-            )}
-            {visibleCandidates.map((c) => {
-              const isEditing = evaluatingId === c.userFlowId;
-              const isRejected = c.status === "failed";
-              const busy = loadingId === c.userFlowId;
-              const scheduleEnded = c.scheduleMeetingStatus === "ended";
-              const canConfirmScheduleEnded =
-                now !== null &&
-                Boolean(c.scheduleMeetingLink) &&
-                !scheduleEnded &&
-                (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
-              const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
-              const canManageSchedule =
-                c.status !== "withdrawn" &&
-                (!c.scheduleMeetingLink || c.canManageSchedule);
-              const canReturnCandidate =
-                c.status !== "withdrawn" &&
-                (!c.scheduleMeetingLink || c.canManageSchedule || role >= 3);
-              const canSubmitEvaluation =
-                c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
-
-              return (
+            ) : (
+              pagedCandidates.map((c) => (
                 <TableRow
                   key={c.userFlowId}
                   id={
@@ -1045,12 +1258,12 @@ export const EvaluationTable = ({
                 >
                   <TableCell className="px-4 py-3 align-middle">
                     <CandidateIdentity
-                       name={c.name}
-                       studentId={c.studentId}
-                       qq={c.qq}
-                       uid={c.uid}
-                       role={role}
-                     />
+                      name={c.name}
+                      studentId={c.studentId}
+                      qq={c.qq}
+                      uid={c.uid}
+                      role={role}
+                    />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
                     <ApplyGroupText
@@ -1068,135 +1281,42 @@ export const EvaluationTable = ({
                     />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
-                    <ScheduleInfo candidate={c} />
+                    <ScheduleInfo candidate={c} now={now} />
                   </TableCell>
                   <TableCell className="px-3 py-3 align-middle">
-                    <div className="space-y-1">
-                      <EvalStatusText
-                        evalStatus={c.evalStatus}
-                        flowStatus={c.status}
-                        scheduleMeetingLink={c.scheduleMeetingLink}
-                        scheduleEnded={scheduleEnded}
-                        returnReason={c.evalReturnReason}
-                      />
-                    </div>
+                    <EvalStatusText candidate={c} />
                   </TableCell>
                   {role >= 2 && (
-                    <TableCell className="min-w-[16rem] px-4 py-3 align-middle text-right">
-                      {!canEvaluate ? (
-                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-                          {canManageSchedule && (
-                            <ActionButton onClick={() => startSchedule(c)}>
-                              {c.scheduleMeetingLink ? "改约" : "预约"}
-                            </ActionButton>
-                          )}
-                          {c.scheduleMeetingLink && canManageSchedule && (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() => handleCancelSchedule(c)}
-                            >
-                              {busy ? "处理中" : "取消"}
-                            </ActionButton>
-                          )}
-                          {canReturnCandidate && (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() => {
-                                setReturnConfirmCandidate(c);
-                                setReturnReason("");
-                                setReturnError(null);
-                              }}
-                            >
-                              {busy ? "处理中" : "退回"}
-                            </ActionButton>
-                          )}
-                          {canConfirmScheduleEnded && canManageSchedule && (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() => handleConfirmScheduleEnded(c)}
-                            >
-                              {busy ? "处理中" : "确认结束"}
-                            </ActionButton>
-                          )}
-                          {!canManageSchedule && role < 3 && (
-                            <span className="text-sm text-muted-foreground">
-                              等待预约讲师面试
-                            </span>
-                          )}
-                        </div>
-                      ) : isEditing ? (
-                        <span className="text-sm text-muted-foreground">正在编辑…</span>
-                      ) : c.evalStatus === "submitted" || c.evalStatus === "returned" ? (
-                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-                          {c.canEditEvaluation ? (
-                            <ActionButton onClick={() => startEdit(c)}>
-                              {c.evalStatus === "returned" ? "重写面评" : "修改"}
-                            </ActionButton>
-                          ) : role >= 3 ? (
-                            <span className="text-sm text-muted-foreground">
-                              {c.evalStatus === "returned" ? "等待讲师重写面评" : "待面评审批"}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">
-                              {c.evalStatus === "returned" ? "面评已退回，请讲师重写" : "预约讲师已提交面评"}
-                            </span>
-                          )}
-                        </div>
-                      ) : c.evalStatus === "approved" || c.evalStatus === "rejected" ? (
-                        <span className="text-sm text-muted-foreground">已归档</span>
-                      ) : isRejected ? (
-                        <span className="text-sm text-muted-foreground">已结束</span>
-                      ) : (
-                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-                          {canManageSchedule && (
-                            <ActionButton onClick={() => startSchedule(c)}>改约</ActionButton>
-                          )}
-                          {canSubmitEvaluation ? (
-                            <ActionButton tone="primary" onClick={() => startEdit(c)}>填写面评</ActionButton>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">
-                              等待预约讲师提交面评
-                            </span>
-                          )}
-                        </div>
-                      )}
+                    <TableCell className="min-w-[11rem] px-4 py-3 align-middle text-right">
+                      {renderRowActions(c)}
                     </TableCell>
                   )}
                 </TableRow>
-              );
-            })}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
 
       {/* Mobile card view */}
-      <div className="flex flex-col divide-y divide-border lg:hidden">
-        {visibleCandidates.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            该组别暂无候选人
+      <div className="flex flex-col divide-y divide-border rounded-b-lg lg:hidden">
+        {loading ? (
+          <div className="flex flex-col gap-3 p-4">
+            {Array.from({ length: 4 }, (_, index) => (
+              <Skeleton key={`skeleton-${index}`} className="h-24 w-full" />
+            ))}
+          </div>
+        ) : pagedCandidates.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 p-8 text-center">
+            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+            {hasActiveFilter && (
+              <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                清除筛选
+              </Button>
+            )}
           </div>
         ) : (
-          visibleCandidates.map((c) => {
-          const isEditing = evaluatingId === c.userFlowId;
-          const isRejected = c.status === "failed";
-          const busy = loadingId === c.userFlowId;
-          const scheduleEnded = c.scheduleMeetingStatus === "ended";
-          const canConfirmScheduleEnded =
-            now !== null &&
-            Boolean(c.scheduleMeetingLink) &&
-            !scheduleEnded &&
-            (getTime(c.scheduleStartsAt) ?? Number.POSITIVE_INFINITY) <= now;
-          const canEvaluate = scheduleEnded || c.evalStatus !== null || isRejected;
-          const canManageSchedule =
-            c.status !== "withdrawn" &&
-            (!c.scheduleMeetingLink || c.canManageSchedule);
-          const canReturnCandidate =
-            c.status !== "withdrawn" &&
-            (!c.scheduleMeetingLink || c.canManageSchedule || role >= 3);
-          const canSubmitEvaluation =
-            c.canEditEvaluation && (!c.scheduleMeetingLink || c.canManageSchedule);
-
-          return (
+          pagedCandidates.map((c) => (
             <div
               key={c.userFlowId}
               id={
@@ -1211,22 +1331,14 @@ export const EvaluationTable = ({
               }
             >
               <div className="flex items-start justify-between gap-3">
-                    <CandidateIdentity
-                       name={c.name}
-                       studentId={c.studentId}
-                       qq={c.qq}
-                       uid={c.uid}
-                       role={role}
-                     />
-                <div className="space-y-1">
-                  <EvalStatusText
-                    evalStatus={c.evalStatus}
-                    flowStatus={c.status}
-                    scheduleMeetingLink={c.scheduleMeetingLink}
-                    scheduleEnded={scheduleEnded}
-                    returnReason={c.evalReturnReason}
-                  />
-                </div>
+                <CandidateIdentity
+                  name={c.name}
+                  studentId={c.studentId}
+                  qq={c.qq}
+                  uid={c.uid}
+                  role={role}
+                />
+                <EvalStatusText candidate={c} />
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ApplyGroupText
@@ -1241,93 +1353,24 @@ export const EvaluationTable = ({
                   onOpen={() => setPortfolioCandidate(c)}
                 />
               </div>
-              <ScheduleInfo candidate={c} />
-              {role >= 2 && (
-                !canEvaluate ? (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {canManageSchedule && (
-                      <ActionButton onClick={() => startSchedule(c)}>
-                        {c.scheduleMeetingLink ? "改约" : "预约"}
-                      </ActionButton>
-                    )}
-                    {c.scheduleMeetingLink && canManageSchedule && (
-                      <ActionButton
-                        disabled={busy}
-                        onClick={() => handleCancelSchedule(c)}
-                      >
-                        {busy ? "处理中" : "取消"}
-                      </ActionButton>
-                    )}
-                    {canReturnCandidate && (
-                      <ActionButton
-                        disabled={busy}
-                        onClick={() => {
-                          setReturnConfirmCandidate(c);
-                          setReturnReason("");
-                          setReturnError(null);
-                        }}
-                      >
-                        {busy ? "处理中" : "退回"}
-                      </ActionButton>
-                    )}
-                    {canConfirmScheduleEnded && canManageSchedule && (
-                      <ActionButton
-                        disabled={busy}
-                        onClick={() => handleConfirmScheduleEnded(c)}
-                      >
-                        {busy ? "处理中" : "确认结束"}
-                      </ActionButton>
-                    )}
-                    {!canManageSchedule && role < 3 && (
-                      <span className="text-sm text-muted-foreground">
-                        等待预约讲师面试
-                      </span>
-                    )}
-                  </div>
-                ) : isEditing ? (
-                  <div className="pt-1 text-sm text-muted-foreground">
-                    正在编辑面评
-                  </div>
-                ) : c.evalStatus === "submitted" || c.evalStatus === "returned" ? (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {c.canEditEvaluation ? (
-                      <ActionButton onClick={() => startEdit(c)}>
-                        {c.evalStatus === "returned" ? "重写面评" : "修改"}
-                      </ActionButton>
-                    ) : role >= 3 ? (
-                      <span className="text-sm text-muted-foreground">
-                        {c.evalStatus === "returned" ? "等待讲师重写面评" : "待面评审批"}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {c.evalStatus === "returned" ? "面评已退回，请讲师重写" : "预约讲师已提交面评"}
-                      </span>
-                    )}
-                  </div>
-                ) : c.evalStatus === "approved" || c.evalStatus === "rejected" ? (
-                  <div className="pt-1 text-sm text-muted-foreground">已归档</div>
-                ) : isRejected ? (
-                  <div className="pt-1 text-sm text-muted-foreground">已结束</div>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {canManageSchedule && (
-                      <ActionButton onClick={() => startSchedule(c)}>改约</ActionButton>
-                    )}
-                    {canSubmitEvaluation ? (
-                      <ActionButton tone="primary" onClick={() => startEdit(c)}>填写面评</ActionButton>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        等待预约讲师提交面评
-                      </span>
-                    )}
-                  </div>
-                )
-              )}
+              <ScheduleInfo candidate={c} now={now} />
+              {role >= 2 && <div className="pt-1">{renderRowActions(c, "start")}</div>}
             </div>
-          );
-          })
+          ))
         )}
       </div>
+
+      {!loading && visibleCandidates.length > 0 && (
+        <div className="rounded-b-lg border-t px-3 py-3 sm:px-4">
+          <ListPagination
+            totalItems={visibleCandidates.length}
+            pageSize={DEFAULT_PAGE_SIZE}
+            currentPage={safePage}
+            onPageChange={setPage}
+          />
+        </div>
+      )}
+
       <Dialog
         open={Boolean(portfolioCandidate)}
         onOpenChange={(open) => {
@@ -1584,6 +1627,49 @@ export const EvaluationTable = ({
         </DialogContent>
       </Dialog>
       <Dialog
+        open={Boolean(cancelConfirmCandidate)}
+        onOpenChange={(open) => {
+          if (!open) setCancelConfirmCandidate(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认取消面试预约</DialogTitle>
+            <DialogDescription>
+              {cancelConfirmCandidate
+                ? `将删除 ${cancelConfirmCandidate.name} 的飞书日程与留档会议，并向候选人发送取消邮件。取消后该候选人回到「待预约」，需要重新预约。`
+                : "将删除飞书日程与留档会议，并发送取消邮件。"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCancelConfirmCandidate(null)}
+              disabled={loadingId !== null}
+            >
+              保留预约
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={loadingId !== null}
+              loading={
+                cancelConfirmCandidate
+                  ? loadingId === cancelConfirmCandidate.userFlowId
+                  : false
+              }
+              onClick={() => {
+                if (!cancelConfirmCandidate) return;
+                return handleCancelSchedule(cancelConfirmCandidate);
+              }}
+            >
+              确认取消预约
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
         open={!!schedulingCandidate}
         onOpenChange={(open) => {
           if (!open) cancelSchedule();
@@ -1622,7 +1708,7 @@ export const EvaluationTable = ({
             {schedulingCandidate?.scheduleMeetingLink && (
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="mb-1 text-xs text-muted-foreground">当前留档会议</p>
-                <ScheduleInfo candidate={schedulingCandidate} />
+                <ScheduleInfo candidate={schedulingCandidate} now={now} />
               </div>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1698,8 +1784,11 @@ export const EvaluationTable = ({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => handleCancelSchedule(schedulingCandidate)}
-                  loading={loadingId === schedulingCandidate.userFlowId}
+                  onClick={() => {
+                    const candidate = schedulingCandidate;
+                    cancelSchedule();
+                    setCancelConfirmCandidate(candidate);
+                  }}
                 >
                   取消预约
                 </Button>
