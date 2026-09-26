@@ -31,13 +31,10 @@ export const INTERVIEW_STATUS_ORDER: InterviewStatusKey[] = [
 ];
 
 /**
- * How loudly a status should read in a dense column.
- *
- * Solid fills are reserved for outcomes and exceptions — the states that either
- * ended the candidate's run or need somebody to intervene. The states a
- * candidate simply passes through stay neutral. Every status then carries its
- * own hue in a dot, so the badge has exactly one shape across the column and
- * the labels line up.
+ * What kind of state this is, for anything that needs to reason about the
+ * column beyond its colour: `neutral` states are the ones a candidate simply
+ * passes through, `attention` ones need somebody to intervene, and the rest are
+ * outcomes.
  */
 export type InterviewStatusTone =
   | "neutral"
@@ -46,16 +43,37 @@ export type InterviewStatusTone =
   | "danger"
   | "muted";
 
+/**
+ * One tint recipe, one entry per hue. Every badge is built from this table, so
+ * a new status cannot drift into its own hand-matched light/dark pair.
+ *
+ * Text keeps a `-700` value in light and a `-300` value in dark against the same
+ * 10% fill, which is what makes eight hues read as one set rather than eight
+ * separate decisions.
+ */
+const TINT = {
+  slate:
+    "border-slate-500/30 bg-slate-500/10 text-slate-800 dark:text-slate-300",
+  sky: "border-sky-500/30 bg-sky-500/10 text-sky-800 dark:text-sky-300",
+  amber:
+    "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+  /* Amber and orange sit next to each other, so "needs rework" is separated by
+     weight rather than by hue: a denser fill reads as escalated. */
+  orange:
+    "border-orange-500/40 bg-orange-500/15 text-orange-800 dark:text-orange-300",
+  violet:
+    "border-violet-500/30 bg-violet-500/10 text-violet-800 dark:text-violet-300",
+  emerald:
+    "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
+  rose: "border-rose-500/30 bg-rose-500/10 text-rose-800 dark:text-rose-300",
+} as const;
+
 export type InterviewStatusMeta = {
   label: string;
   description: string;
   tone: InterviewStatusTone;
   badgeClassName: string;
-  /** Every badge has one, so the leading slot is never a different width. */
-  dotClassName: string;
 };
-
-const NEUTRAL_BADGE = "border-border bg-muted/50 text-foreground/75";
 
 export const interviewStatusMeta: Record<
   InterviewStatusKey,
@@ -64,62 +82,52 @@ export const interviewStatusMeta: Record<
   unscheduled: {
     label: "待预约",
     tone: "neutral",
-    badgeClassName: NEUTRAL_BADGE,
-    dotClassName: "bg-slate-400",
+    badgeClassName: TINT.slate,
     description: "还没有预约面试时间。",
   },
   scheduled: {
     label: "待面试",
     tone: "neutral",
-    badgeClassName: NEUTRAL_BADGE,
-    dotClassName: "bg-sky-500",
+    badgeClassName: TINT.sky,
     description: "面试已预约，等待面试结束。",
   },
   ready: {
     label: "待评估",
     tone: "neutral",
-    badgeClassName: NEUTRAL_BADGE,
-    dotClassName: "bg-amber-500",
+    badgeClassName: TINT.amber,
     description: "面试已结束，等待提交面评。",
   },
   returned: {
     label: "退回重写",
     tone: "attention",
-    badgeClassName:
-      "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300",
-    dotClassName: "bg-orange-500",
+    badgeClassName: TINT.orange,
     description: "面评被管理员退回，需要重写。",
   },
   pending: {
     label: "待终审",
     tone: "attention",
-    badgeClassName:
-      "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-    dotClassName: "bg-violet-500",
+    badgeClassName: TINT.violet,
     description: "面评已提交，等待管理员终审。",
   },
   accepted: {
     label: "已通过",
     tone: "success",
-    badgeClassName:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-    dotClassName: "bg-emerald-500",
+    badgeClassName: TINT.emerald,
     description: "已通过终审。",
   },
   rejected: {
     label: "不通过",
     tone: "danger",
-    badgeClassName:
-      "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
-    dotClassName: "bg-rose-500",
+    badgeClassName: TINT.rose,
     description: "未通过。",
   },
   withdrawn: {
     label: "已退回",
     tone: "muted",
+    // The dashed border and empty fill already mute this; the label still has to
+    // clear 4.5:1, which `text-muted-foreground` does not in light mode.
     badgeClassName:
-      "border-dashed border-muted-foreground/40 bg-transparent text-muted-foreground",
-    dotClassName: "bg-muted-foreground/40",
+      "border-dashed border-muted-foreground/40 bg-transparent text-foreground/70 dark:text-muted-foreground",
     description: "报名已被退回，候选人需重新报名。",
   },
 };
@@ -201,9 +209,13 @@ export type InterviewAction = {
 
 export type InterviewActionPlan = {
   status: InterviewStatusKey;
-  /** The one action worth showing as a button. */
+  /**
+   * The row's next step in the flow. Never a destructive action: 退回 is an
+   * escape hatch, not a recommended next move, so naming it here would
+   * overstate it (and on a phone it became a full-width destructive bar).
+   */
   primary: InterviewAction | null;
-  /** Everything else, folded into the `⋯` menu. */
+  /** Everything else, listed in the row's menu. */
   overflow: InterviewAction[];
   /** Why nothing is actionable here, phrased for the current user. */
   lockedReason: string | null;
@@ -284,30 +296,20 @@ export function deriveInterviewActions(
   }
 
   if (candidate.evalStatus === "submitted" || candidate.evalStatus === "returned") {
-    const returned = candidate.evalStatus === "returned";
     if (candidate.canEditEvaluation) {
       return {
         status,
         primary: {
           id: "evaluation",
-          label: returned ? "重写面评" : "修改",
+          label: candidate.evalStatus === "returned" ? "重写面评" : "修改",
         },
         overflow: [],
         lockedReason: null,
       };
     }
-    return {
-      status,
-      primary: null,
-      overflow: [],
-      lockedReason: returned
-        ? role >= 3
-          ? "等待讲师重写面评"
-          : "面评已退回，等待讲师重写"
-        : role >= 3
-          ? "待面评审批"
-          : "面评已提交，等待管理员终审",
-    };
+    // "待面评审批" / "等待讲师重写面评" only restated the badge next to them, so
+    // the action column stays empty instead of repeating it in words.
+    return { status, primary: null, overflow: [], lockedReason: null };
   }
 
   if (candidate.evalStatus === "approved" || candidate.evalStatus === "rejected") {

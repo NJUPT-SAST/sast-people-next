@@ -100,6 +100,7 @@ jest.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="row-menu">{children}</div>
   ),
+  DropdownMenuSeparator: () => <hr data-testid="row-menu-separator" />,
   DropdownMenuItem: ({
     children,
     onSelect,
@@ -354,9 +355,9 @@ describe("EvaluationTable", () => {
       '[data-slot="interview-status-badge"][data-status="unscheduled"]',
     );
     expect(unscheduledBadge).toHaveTextContent("待预约");
-    // In-progress states stay neutral and carry their hue in a dot.
-    expect(unscheduledBadge).toHaveClass("bg-muted/50", "text-foreground/75");
-    expect(unscheduledBadge?.querySelector("span")).toHaveClass("bg-slate-400");
+    // One pill shape for every status, no leading dot, hue from the tint table.
+    expect(unscheduledBadge).toHaveClass("bg-slate-500/10", "text-slate-800");
+    expect(unscheduledBadge?.querySelector("span")).toBeNull();
     expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
     await user.type(
@@ -368,11 +369,13 @@ describe("EvaluationTable", () => {
     );
     expect(returnInterviewCandidate).toHaveBeenCalledWith(42, "测试退回理由");
 
-    // One primary action per row; the rest fold into the row menu.
-    expect(screen.getAllByRole("button", { name: "预约" }).length).toBeGreaterThan(0);
+    // One control per row, named after the next step, holding every action.
     const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    expect(rowMenu.getByRole("button", { name: "预约" })).toBeInTheDocument();
     expect(rowMenu.getByRole("button", { name: "退回" })).toBeInTheDocument();
-    expect(rowMenu.queryByRole("button", { name: "预约" })).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "预约" }).length,
+    ).toBeGreaterThan(1);
   });
 
   it("shows withdrawn candidates as withdrawn instead of waiting", () => {
@@ -518,7 +521,9 @@ describe("EvaluationTable", () => {
       />,
     );
 
-    await user.click(screen.getAllByRole("button", { name: "填写面评" })[0]);
+    // Actions live in the row menu; the trigger only names the next step.
+    const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    await user.click(rowMenu.getByRole("button", { name: "填写面评" }));
     await user.click(screen.getByRole("button", { name: "提交面评" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("请填写面评内容后再提交。");
@@ -565,9 +570,15 @@ describe("EvaluationTable", () => {
     );
 
     expect(screen.queryByRole("button", { name: "修改" })).not.toBeInTheDocument();
+    // No note either: the 待终审 badge already says whose turn it is.
     expect(
-      screen.getAllByText("面评已提交，等待管理员终审").length,
-    ).toBeGreaterThan(0);
+      screen.queryByText("面评已提交，等待管理员终审"),
+    ).not.toBeInTheDocument();
+    expect(
+      document.querySelector(
+        '[data-slot="interview-status-badge"][data-status="pending"]',
+      ),
+    ).toBeInTheDocument();
   });
 
   it("opens portfolio link and description from the work button", async () => {
@@ -1074,7 +1085,7 @@ describe("EvaluationTable", () => {
     expect(firstColumn[1]).toContain("赵六");
   });
 
-  it("names the organiser once per run of identical organisers", () => {
+  it("names the organiser on every row so the column stays even", () => {
     renderTable([
       makeScheduledCandidate({ userFlowId: 1, name: "甲" }),
       makeScheduledCandidate({ userFlowId: 2, name: "乙" }),
@@ -1085,9 +1096,11 @@ describe("EvaluationTable", () => {
       }),
     ]);
 
+    // Suppressing the repeat made the schedule cell two lines on one row and one
+    // line on the next, which read as a ragged column.
     const rows = Array.from(document.querySelectorAll("table tbody tr"));
     expect(rows[0].textContent).toContain("钱老师");
-    expect(rows[1].textContent).not.toContain("钱老师");
+    expect(rows[1].textContent).toContain("钱老师");
     expect(rows[2].textContent).toContain("孙老师");
   });
 

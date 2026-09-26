@@ -1,15 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   CalendarDays,
+  CalendarPlus,
+  CalendarX2,
+  ChevronDown,
+  CircleCheck,
   ExternalLink,
   Eye,
+  FileText,
   Link2,
-  MoreHorizontal,
+  Undo2,
   Video,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +45,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
@@ -53,6 +59,7 @@ import {
   INTERVIEW_STATUS_ORDER,
   interviewStatusMeta,
   type InterviewAction,
+  type InterviewActionId,
   type InterviewStatusKey,
 } from "@/lib/interview-status";
 import { normalizeWithdrawalReason, WITHDRAWAL_REASON_MAX_LENGTH } from "@/lib/validation/user-flow";
@@ -242,7 +249,7 @@ function CandidateIdentity({
   const meta = [studentId || null, qq ? `QQ ${qq}` : null].filter(Boolean);
 
   return (
-    <div className="min-w-0 space-y-0.5">
+    <div className="min-w-0 space-y-1">
       <ViewUserInfoSheet
         userInfo={{ id: uid, name, studentId }}
         currentUserRole={role}
@@ -363,15 +370,11 @@ const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
       data-slot="interview-status-badge"
       data-status={status}
       className={cn(
-        "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium",
+        "inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-xs font-medium",
         meta.badgeClassName,
       )}
       title={meta.description}
     >
-      <span
-        className={cn("size-1.5 shrink-0 rounded-full", meta.dotClassName)}
-        aria-hidden="true"
-      />
       {meta.label}
     </span>
   );
@@ -417,15 +420,13 @@ const ScheduleIconLink = ({
 const ScheduleInfo = ({
   candidate,
   now,
-  showOrganizer = true,
 }: {
   candidate: Candidate;
   now: number | null;
-  showOrganizer?: boolean;
 }) => {
   if (!candidate.scheduleMeetingLink) {
     return (
-      <div className="min-w-0 space-y-0.5">
+      <div className="min-w-0 space-y-1">
         <span className="text-sm text-muted-foreground">未预约</span>
         {candidate.status === "withdrawn" && candidate.withdrawReason && (
           <p className="truncate text-xs text-destructive" title={candidate.withdrawReason}>
@@ -443,17 +444,15 @@ const ScheduleInfo = ({
   const hasDistinctScheduleLink =
     Boolean(candidate.scheduleLink) &&
     candidate.scheduleLink !== candidate.scheduleMeetingLink;
-  // Place and organiser share one line so the row stays two lines tall, and the
-  // organiser is dropped when the row above already named the same person.
-  const placeAndOwner = [
-    candidate.scheduleLocation,
-    showOrganizer ? candidate.scheduleOrganizerName : null,
-  ]
+  // Place and organiser share one line. Both are always shown: suppressing a
+  // repeat made the cell one line on some rows and two on others, which read as
+  // a ragged column and cost more than the repetition saved.
+  const placeAndOwner = [candidate.scheduleLocation, candidate.scheduleOrganizerName]
     .filter(Boolean)
     .join(" · ");
 
   return (
-    <div className="min-w-0 space-y-0.5">
+    <div className="min-w-0 space-y-1">
       <div className="flex min-w-0 items-center gap-1.5">
         <p className="min-w-0 shrink truncate text-sm tabular-nums text-foreground">
           {dayLabel && <span className="font-medium">{dayLabel} </span>}
@@ -488,6 +487,43 @@ const ScheduleInfo = ({
   );
 };
 
+/**
+ * Every actionable row gets exactly one control, so the column has a single
+ * shape that cannot go ragged: previously the same column held a solid brand
+ * pill, an outlined box, a lone ⋯ and an em dash, at four different widths.
+ *
+ * The menu button carries the *next step's* name rather than a generic "操作",
+ * so the row still tells you what to do without opening anything; the menu is
+ * where you actually do it, plus whatever secondary actions exist. The tone
+ * follows the action so "this row is your job" stays visible in the column.
+ */
+const ACTION_MENU_BUTTON =
+  "inline-flex h-9 w-full shrink-0 touch-manipulation items-center justify-center gap-1 rounded-full border px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 lg:h-8 lg:w-auto lg:px-2.5";
+
+/** Brand tint marks the row's actual work; a hairline outline marks logistics. */
+const ACTION_TONE = {
+  work: "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20",
+  /* A 5% grey fill is imperceptible next to the tinted pills and read as an
+     unfinished control, so logistics get a visible hairline and no fill. */
+  logistics:
+    "border-foreground/20 bg-transparent text-foreground hover:bg-foreground/5",
+  destructive:
+    "border-rose-500/30 bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-300",
+} as const;
+
+function actionTone(action: InterviewAction) {
+  if (action.destructive) return ACTION_TONE.destructive;
+  return action.id === "evaluation" ? ACTION_TONE.work : ACTION_TONE.logistics;
+}
+
+const ACTION_ICONS: Record<InterviewActionId, typeof Video> = {
+  schedule: CalendarPlus,
+  "cancel-schedule": CalendarX2,
+  "confirm-ended": CircleCheck,
+  evaluation: FileText,
+  return: Undo2,
+};
+
 function ActionCell({
   plan,
   candidate,
@@ -501,70 +537,65 @@ function ActionCell({
   align?: "start" | "end";
   onAction: (action: InterviewAction, candidate: Candidate) => void;
 }) {
-  if (!plan.primary && plan.overflow.length === 0) {
-    // A finished row gets a deliberate "nothing to do" mark rather than a note
-    // that restates the status badge beside it.
-    return plan.lockedReason ? (
-      <span
-        className="text-xs text-muted-foreground"
-        title={plan.lockedReason}
-      >
+  const actions = [
+    ...(plan.primary ? [plan.primary] : []),
+    ...plan.overflow,
+  ];
+
+  if (actions.length === 0) {
+    // A finished row shows nothing at all — an em dash here read as debris, and
+    // the status badge already says the row is done. The one exception is a row
+    // the current user is locked out of, where naming the owner is the point.
+    if (!plan.lockedReason) return null;
+    return (
+      <span className="text-xs text-muted-foreground" title={plan.lockedReason}>
         {plan.lockedReason}
-      </span>
-    ) : (
-      <span className="text-xs text-muted-foreground/40" aria-hidden="true">
-        —
       </span>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "flex flex-nowrap items-center gap-1",
-        align === "start" ? "justify-start" : "justify-end",
-      )}
-    >
-      {plan.primary && (
-        <Button
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
           type="button"
-          size="sm"
-          variant={plan.primary.id === "evaluation" ? "default" : "outline"}
+          data-slot="row-action-menu"
           disabled={busy}
-          onClick={() => onAction(plan.primary!, candidate)}
-          className="h-9 min-w-[5.5rem] lg:h-8"
+          className={cn(
+            ACTION_MENU_BUTTON,
+            // The tone follows the primary only: a row whose sole option is a
+            // destructive one should not advertise itself in red.
+            plan.primary ? actionTone(plan.primary) : ACTION_TONE.logistics,
+          )}
         >
-          {plan.primary.label}
-        </Button>
-      )}
-      {plan.overflow.length > 0 && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-9 text-muted-foreground hover:text-foreground lg:size-8"
-              disabled={busy}
-              aria-label={`更多操作：${candidate.name}`}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {plan.overflow.map((action) => (
+          <span className="truncate">{plan.primary?.label ?? "操作"}</span>
+          <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align={align === "start" ? "start" : "end"}
+        className="w-44"
+      >
+        {actions.map((action, index) => {
+          const Icon = ACTION_ICONS[action.id];
+          // Keep the destructive actions apart from the ordinary ones.
+          const needsDivider =
+            action.destructive && !actions[index - 1]?.destructive;
+          return (
+            <Fragment key={action.id}>
+              {needsDivider && <DropdownMenuSeparator />}
               <DropdownMenuItem
-                key={action.id}
                 variant={action.destructive ? "destructive" : "default"}
                 onSelect={() => onAction(action, candidate)}
               >
+                <Icon aria-hidden="true" />
                 {action.label}
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </div>
+            </Fragment>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1125,11 +1156,6 @@ export const EvaluationTable = ({
       ? "没有符合条件的候选人。"
       : "该流程暂时没有可处理的报名人员。";
 
-  // Repeating the same organiser down every row is noise; name them once per run.
-  const shouldShowOrganizer = (index: number) =>
-    visibleCandidates[index]?.scheduleOrganizerName !==
-    visibleCandidates[index - 1]?.scheduleOrganizerName;
-
   const renderRowActions = (
     candidate: Candidate,
     align: "start" | "end" = "end",
@@ -1148,43 +1174,43 @@ export const EvaluationTable = ({
       {/* Not sticky below lg: the stacked toolbar is ~150px tall on a phone and
           would eat a fifth of the viewport for the whole scroll. */}
       <div className="z-20 rounded-t-lg border-b bg-card/95 lg:sticky lg:top-0 lg:backdrop-blur-sm">
-        <div className="flex flex-col gap-3 p-3 sm:p-4">
-          <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
-            <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-2">
-              <Input
-                placeholder="搜索姓名、学号或QQ"
-                aria-label="搜索面试候选人"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
+        {/* One row, control group left and filters right: two small controls on
+            their own row left ~700px of empty toolbar at desktop widths. */}
+        <div className="flex flex-col gap-2.5 p-3 sm:p-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
+          <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-2">
+            <Input
+              placeholder="搜索姓名、学号或QQ"
+              aria-label="搜索面试候选人"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+              }}
+              className="h-9 min-w-0 flex-1 sm:w-[13rem] sm:flex-none"
+            />
+            {safeGroupOptions.length > 0 && (
+              <Select
+                value={applyGroupFilter ?? "all"}
+                onValueChange={(value) => {
+                  setApplyGroupFilter(value === "all" ? null : value);
                 }}
-                className="h-9 min-w-0 flex-1 sm:w-[13rem] sm:flex-none"
-              />
-              {safeGroupOptions.length > 0 && (
-                <Select
-                  value={applyGroupFilter ?? "all"}
-                  onValueChange={(value) => {
-                    setApplyGroupFilter(value === "all" ? null : value);
-                  }}
+              >
+                <SelectTrigger
+                  className="h-9 w-full min-w-0 truncate text-xs sm:w-[8.5rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                  aria-label="按投递组别筛选候选人"
+                  title={applyGroupFilter ?? "全部组别"}
                 >
-                  <SelectTrigger
-                    className="h-9 w-full min-w-0 truncate text-xs sm:w-[8.5rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
-                    aria-label="按投递组别筛选候选人"
-                    title={applyGroupFilter ?? "全部组别"}
-                  >
-                    <SelectValue placeholder="全部组别" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部组别</SelectItem>
-                    {safeGroupOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+                  <SelectValue placeholder="全部组别" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部组别</SelectItem>
+                  {safeGroupOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Hidden while loading: the rows still belong to the previous flow,
@@ -1236,46 +1262,31 @@ export const EvaluationTable = ({
       </div>
 
       <div className="hidden min-w-0 rounded-b-lg lg:block">
-        <Table className="w-full table-fixed" containerClassName="overflow-x-auto">
-          {role >= 2 ? (
-            <colgroup>
-              <col className="w-[24%]" />
-              <col className="w-[10%]" />
-              <col className="w-[11%]" />
-              <col className="w-[27%]" />
-              <col className="w-[13%]" />
-              <col className="w-[15%]" />
-            </colgroup>
-          ) : (
-            <colgroup>
-              <col className="w-[28%]" />
-              <col className="w-[12%]" />
-              <col className="w-[13%]" />
-              <col className="w-[32%]" />
-              <col className="w-[15%]" />
-            </colgroup>
-          )}
+        {/* Content-driven widths with hints, not `table-fixed` percentages: fixed
+            percentages left every column with its own share of dead space, which
+            is what made the columns look unevenly spaced. */}
+        <Table className="w-full min-w-[52rem]" containerClassName="overflow-x-auto">
           <TableHeader>
             <TableRow className="border-b border-border/60 hover:bg-transparent">
               {renderSortableHead(
                 "候选人",
                 "name",
-                "h-10 px-4 text-xs font-medium text-muted-foreground",
+                "h-10 w-[26%] px-4 text-xs font-medium text-muted-foreground",
               )}
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
-              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
+              <TableHead className="h-10 w-[7%] px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
+              <TableHead className="h-10 w-[7%] px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
               {renderSortableHead(
                 "面试安排",
                 "schedule",
-                "h-10 px-3 text-xs font-medium text-muted-foreground",
+                "h-10 w-[26%] px-3 text-xs font-medium text-muted-foreground",
               )}
               {renderSortableHead(
                 "状态",
                 "status",
-                "h-10 px-3 text-xs font-medium text-muted-foreground",
+                "h-10 w-[8%] px-3 text-right text-xs font-medium text-muted-foreground",
               )}
               {role >= 2 && (
-                <TableHead className="h-10 px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
+                <TableHead className="h-10 w-[10%] px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -1289,7 +1300,7 @@ export const EvaluationTable = ({
                           icon links are size-6, so its first line is 24px, not
                           the 20px of a text line. Matching that keeps the page
                           from shifting when the data lands. */}
-                      <div className="space-y-0.5">
+                      <div className="space-y-1">
                         <Skeleton className="h-6 w-3/5 max-w-[7rem]" />
                         <Skeleton className="h-4 w-4/5 max-w-[5rem]" />
                       </div>
@@ -1318,7 +1329,7 @@ export const EvaluationTable = ({
                 </TableCell>
               </TableRow>
             ) : (
-              visibleCandidates.map((c, index) => (
+              visibleCandidates.map((c) => (
                 <TableRow
                   key={c.userFlowId}
                   id={
@@ -1332,7 +1343,7 @@ export const EvaluationTable = ({
                       : "border-b border-border/40 last:border-0 hover:bg-muted/30"
                   }
                 >
-                  <TableCell className="px-4 py-2.5 align-middle">
+                  <TableCell className="px-4 py-2 align-middle">
                     <CandidateIdentity
                       name={c.name}
                       studentId={c.studentId}
@@ -1341,7 +1352,7 @@ export const EvaluationTable = ({
                       role={role}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-2.5 align-middle">
+                  <TableCell className="px-3 py-2 align-middle">
                     <ApplyGroupText
                       value={c.applyGroup}
                       editable={canEditApplyGroup}
@@ -1349,25 +1360,26 @@ export const EvaluationTable = ({
                       editLabel={`修改${c.name}的投递组别`}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-2.5 align-middle">
+                  <TableCell className="px-3 py-2 align-middle">
                     <PortfolioLink
                       value={c.portfolioLink}
                       description={c.portfolioDescription}
                       onOpen={() => setPortfolioCandidate(c)}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-2.5 align-middle">
-                    <ScheduleInfo
-                      candidate={c}
-                      now={now}
-                      showOrganizer={shouldShowOrganizer(index)}
-                    />
+                  <TableCell className="px-3 py-2 align-middle">
+                    {/* A fixed content height keeps rows uniform: an unbooked
+                        candidate is one line where a booked one is two, and the
+                        resulting 4px wobble reads as uneven row spacing. */}
+                    <div className="flex min-h-[2.75rem] min-w-0 flex-col justify-center">
+                      <ScheduleInfo candidate={c} now={now} />
+                    </div>
                   </TableCell>
-                  <TableCell className="px-3 py-2.5 align-middle">
+                  <TableCell className="px-3 py-2 align-middle text-right">
                     <EvalStatusText candidate={c} />
                   </TableCell>
                   {role >= 2 && (
-                    <TableCell className="min-w-[11rem] px-4 py-2.5 align-middle text-right">
+                    <TableCell className="px-4 py-2 align-middle text-right">
                       {renderRowActions(c)}
                     </TableCell>
                   )}
@@ -1390,14 +1402,14 @@ export const EvaluationTable = ({
                 className="flex flex-col gap-3 p-4"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     <Skeleton className="h-5 w-24" />
                     <Skeleton className="h-4 w-32" />
                   </div>
                   <Skeleton className="h-6 w-16 rounded-full" />
                 </div>
                 <Skeleton className="h-5 w-28" />
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   <Skeleton className="h-5 w-40" />
                   <Skeleton className="h-4 w-24" />
                 </div>
@@ -1417,7 +1429,7 @@ export const EvaluationTable = ({
             )}
           </div>
         ) : (
-          visibleCandidates.map((c, index) => {
+          visibleCandidates.map((c) => {
             const plan = planFor(c);
             // A card gives the action row a divider, so an empty one reads as a
             // broken section. On desktop the column still needs its "—" marker.
@@ -1469,11 +1481,7 @@ export const EvaluationTable = ({
                     onOpen={() => setPortfolioCandidate(c)}
                   />
                 </div>
-                <ScheduleInfo
-                  candidate={c}
-                  now={now}
-                  showOrganizer={shouldShowOrganizer(index)}
-                />
+                <ScheduleInfo candidate={c} now={now} />
                 {role >= 2 && hasActionArea && (
                   <div className="border-t border-border/60 pt-3">
                     <ActionCell

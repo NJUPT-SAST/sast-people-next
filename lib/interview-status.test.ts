@@ -100,22 +100,27 @@ describe("interviewStatusMeta tones", () => {
     expect(interviewStatusMeta.rejected.tone).toBe("danger");
   });
 
-  it("gives every status a dot so the badge shape never varies", () => {
-    for (const key of INTERVIEW_STATUS_ORDER) {
-      const meta = interviewStatusMeta[key];
-      expect(meta.dotClassName).toBeTruthy();
+  it("builds every active badge from the same tint recipe", () => {
+    // One fill alpha, one border alpha, one text step per theme, across all
+    // seven coloured statuses.
+    const coloured = INTERVIEW_STATUS_ORDER.filter((key) => key !== "withdrawn");
+    for (const key of coloured) {
+      const className = interviewStatusMeta[key].badgeClassName;
+      expect(className).toMatch(/\bbg-[a-z]+-500\/1[05]\b/);
+      expect(className).toMatch(/\bborder-[a-z]+-500\/[34]0\b/);
+      expect(className).toMatch(/\btext-[a-z]+-800\b/);
+      expect(className).toMatch(/\bdark:text-[a-z]+-300\b/);
+      // No hand-matched light-mode solid left behind.
+      expect(className).not.toMatch(/\bbg-[a-z]+-50\b/);
+      expect(className).not.toMatch(/\bdark:bg-/);
     }
   });
 
-  it("uses one alpha recipe for the tinted fills in both themes", () => {
-    // Hand-written per-status light/dark pairs are what made the column read
-    // as several unrelated badges rather than one system.
-    for (const key of ["returned", "pending", "accepted", "rejected"] as const) {
-      expect(interviewStatusMeta[key].badgeClassName).toMatch(
-        /bg-[a-z]+-500\/10/,
-      );
-      expect(interviewStatusMeta[key].badgeClassName).not.toMatch(/bg-[a-z]+-50\b/);
-    }
+  it("gives each coloured status its own hue", () => {
+    const hues = INTERVIEW_STATUS_ORDER.filter((key) => key !== "withdrawn").map(
+      (key) => interviewStatusMeta[key].badgeClassName.match(/\bbg-([a-z]+)-500/)?.[1],
+    );
+    expect(new Set(hues).size).toBe(hues.length);
   });
 });
 
@@ -238,13 +243,16 @@ describe("deriveInterviewActions", () => {
     expect(plan.lockedReason).toBe("由 钱老师 预约，仅其本人可操作");
   });
 
-  it("still lets an admin return another organiser's booking", () => {
+  it("keeps a destructive-only row unannounced", () => {
     const plan = deriveInterviewActions(
       scheduled({ canManageSchedule: false, canEditEvaluation: false }),
       3,
       NOW,
     );
 
+    // 退回 is the only thing an admin can do here, but it is an escape hatch
+    // rather than the next step, so it stays in the menu and the row shows the
+    // generic label instead of advertising itself in red.
     expect(plan.primary).toBeNull();
     expect(plan.overflow).toEqual([
       { id: "return", label: "退回", destructive: true },
@@ -252,45 +260,36 @@ describe("deriveInterviewActions", () => {
     expect(plan.lockedReason).toBeNull();
   });
 
-  it("explains who a submitted evaluation is waiting on", () => {
-    expect(
-      deriveInterviewActions(
-        ended({
-          evalStatus: "submitted",
-          canManageSchedule: false,
-          canEditEvaluation: false,
-        }),
-        2,
-        NOW,
-      ).lockedReason,
-    ).toBe("面评已提交，等待管理员终审");
-
-    expect(
-      deriveInterviewActions(
-        ended({
-          evalStatus: "submitted",
-          canManageSchedule: false,
-          canEditEvaluation: false,
-        }),
-        3,
-        NOW,
-      ).lockedReason,
-    ).toBe("待面评审批");
-  });
-
-  it("lets an admin see that a returned evaluation is back with the lecturer", () => {
+  it("keeps two or more secondary actions behind the menu", () => {
     const plan = deriveInterviewActions(
-      ended({
-        evalStatus: "returned",
-        canManageSchedule: false,
-        canEditEvaluation: false,
-      }),
-      3,
+      scheduled({ scheduleStartsAt: PAST }),
+      2,
       NOW,
     );
 
-    expect(plan.primary).toBeNull();
-    expect(plan.lockedReason).toBe("等待讲师重写面评");
+    expect(plan.primary).toEqual({ id: "confirm-ended", label: "确认结束" });
+    expect(plan.overflow).toHaveLength(3);
+  });
+
+  it("says nothing when a note would only restate the badge", () => {
+    // 待终审 and 退回重写 already say this in the status column, so the action
+    // column stays empty rather than repeating it in words.
+    for (const evalStatus of ["submitted", "returned"] as const) {
+      for (const role of [2, 3]) {
+        const plan = deriveInterviewActions(
+          ended({
+            evalStatus,
+            canManageSchedule: false,
+            canEditEvaluation: false,
+          }),
+          role,
+          NOW,
+        );
+        expect(plan.primary).toBeNull();
+        expect(plan.overflow).toEqual([]);
+        expect(plan.lockedReason).toBeNull();
+      }
+    }
   });
 
   it("lets the author rewrite a returned evaluation", () => {
