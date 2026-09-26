@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -10,7 +10,6 @@ import {
   Eye,
   Link2,
   MoreHorizontal,
-  RotateCcw,
   Video,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -47,10 +46,6 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import {
-  DEFAULT_PAGE_SIZE,
-  ListPagination,
-} from "@/components/recruitment/listPagination";
 import {
   countInterviewStatuses,
   deriveInterviewActions,
@@ -373,16 +368,10 @@ const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
       )}
       title={meta.description}
     >
-      {status === "returned" ? (
-        <RotateCcw className="size-3 shrink-0" aria-hidden="true" />
-      ) : (
-        meta.dotClassName && (
-          <span
-            className={cn("size-1.5 shrink-0 rounded-full", meta.dotClassName)}
-            aria-hidden="true"
-          />
-        )
-      )}
+      <span
+        className={cn("size-1.5 shrink-0 rounded-full", meta.dotClassName)}
+        aria-hidden="true"
+      />
       {meta.label}
     </span>
   );
@@ -513,6 +502,8 @@ function ActionCell({
   onAction: (action: InterviewAction, candidate: Candidate) => void;
 }) {
   if (!plan.primary && plan.overflow.length === 0) {
+    // A finished row gets a deliberate "nothing to do" mark rather than a note
+    // that restates the status badge beside it.
     return plan.lockedReason ? (
       <span
         className="text-xs text-muted-foreground"
@@ -521,14 +512,16 @@ function ActionCell({
         {plan.lockedReason}
       </span>
     ) : (
-      <span className="text-xs text-muted-foreground">—</span>
+      <span className="text-xs text-muted-foreground/40" aria-hidden="true">
+        —
+      </span>
     );
   }
 
   return (
     <div
       className={cn(
-        "flex flex-nowrap items-center gap-1.5 whitespace-nowrap",
+        "flex flex-nowrap items-center gap-1",
         align === "start" ? "justify-start" : "justify-end",
       )}
     >
@@ -539,7 +532,7 @@ function ActionCell({
           variant={plan.primary.id === "evaluation" ? "default" : "outline"}
           disabled={busy}
           onClick={() => onAction(plan.primary!, candidate)}
-          className="h-9 lg:h-8"
+          className="h-9 min-w-[5.5rem] lg:h-8"
         >
           {plan.primary.label}
         </Button>
@@ -551,7 +544,7 @@ function ActionCell({
               type="button"
               size="icon"
               variant="ghost"
-              className="size-9 lg:size-8"
+              className="size-9 text-muted-foreground hover:text-foreground lg:size-8"
               disabled={busy}
               aria-label={`更多操作：${candidate.name}`}
             >
@@ -634,7 +627,6 @@ export const EvaluationTable = ({
     key: "schedule",
     dir: "asc",
   });
-  const [page, setPage] = useState(1);
   const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
   const groupOptionsKey = safeGroupOptions.join("\u0000");
 
@@ -1056,7 +1048,6 @@ export const EvaluationTable = ({
         ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
         : { key, dir: "asc" },
     );
-    setPage(1);
   };
 
   const renderSortableHead = (
@@ -1100,17 +1091,9 @@ export const EvaluationTable = ({
     );
   };
 
-  const totalPages = Math.max(1, Math.ceil(visibleCandidates.length / DEFAULT_PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const pagedCandidates = useMemo(
-    () =>
-      visibleCandidates.slice(
-        (safePage - 1) * DEFAULT_PAGE_SIZE,
-        safePage * DEFAULT_PAGE_SIZE,
-      ),
-    [visibleCandidates, safePage],
-  );
-
+  // Every matching candidate renders at once: interview flows are small enough
+  // that a pager only got in the way of scanning, and the 全部 chip already
+  // carries the total.
   const isTargetCandidate = useCallback(
     (candidate: Candidate) =>
       Boolean(
@@ -1119,24 +1102,6 @@ export const EvaluationTable = ({
       ),
     [targetUserFlowId, targetScheduleId],
   );
-
-  // The email log links here with ?userFlowId= / ?scheduleId= and expects the row
-  // to be highlighted. With paging on it could sit on a later page, so reveal it
-  // once — without fighting the user's own paging afterwards.
-  const targetKey =
-    targetUserFlowId || targetScheduleId
-      ? `${targetUserFlowId ?? ""}:${targetScheduleId ?? ""}`
-      : "";
-  const revealedTargetRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!targetKey || revealedTargetRef.current === targetKey) return;
-    const index = visibleCandidates.findIndex(isTargetCandidate);
-    // Not in the current flow (or still loading) — leave the ref unset and retry
-    // on the next data change rather than pinning the user to page 1.
-    if (index < 0) return;
-    revealedTargetRef.current = targetKey;
-    setPage(Math.floor(index / DEFAULT_PAGE_SIZE) + 1);
-  }, [targetKey, visibleCandidates, isTargetCandidate]);
 
   const hasActiveFilter =
     Boolean(search.trim()) ||
@@ -1147,12 +1112,10 @@ export const EvaluationTable = ({
     setSearch("");
     setApplyGroupFilter(null);
     setStatusFilter(null);
-    setPage(1);
   };
 
   const selectStatusFilter = (value: InterviewStatusKey | "mine" | null) => {
     setStatusFilter((current) => (current === value ? null : value));
-    setPage(1);
   };
 
   // "Nothing matched the filters" and "this flow has nobody" need different copy,
@@ -1164,8 +1127,8 @@ export const EvaluationTable = ({
 
   // Repeating the same organiser down every row is noise; name them once per run.
   const shouldShowOrganizer = (index: number) =>
-    pagedCandidates[index]?.scheduleOrganizerName !==
-    pagedCandidates[index - 1]?.scheduleOrganizerName;
+    visibleCandidates[index]?.scheduleOrganizerName !==
+    visibleCandidates[index - 1]?.scheduleOrganizerName;
 
   const renderRowActions = (
     candidate: Candidate,
@@ -1194,7 +1157,6 @@ export const EvaluationTable = ({
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);
-                  setPage(1);
                 }}
                 className="h-9 min-w-0 flex-1 sm:w-[13rem] sm:flex-none"
               />
@@ -1203,7 +1165,6 @@ export const EvaluationTable = ({
                   value={applyGroupFilter ?? "all"}
                   onValueChange={(value) => {
                     setApplyGroupFilter(value === "all" ? null : value);
-                    setPage(1);
                   }}
                 >
                   <SelectTrigger
@@ -1336,7 +1297,7 @@ export const EvaluationTable = ({
                   ))}
                 </TableRow>
               ))
-            ) : pagedCandidates.length === 0 ? (
+            ) : visibleCandidates.length === 0 ? (
               <TableRow className="border-b-0">
                 <TableCell
                   colSpan={role >= 2 ? 6 : 5}
@@ -1357,7 +1318,7 @@ export const EvaluationTable = ({
                 </TableCell>
               </TableRow>
             ) : (
-              pagedCandidates.map((c, index) => (
+              visibleCandidates.map((c, index) => (
                 <TableRow
                   key={c.userFlowId}
                   id={
@@ -1446,7 +1407,7 @@ export const EvaluationTable = ({
               </div>
             ))}
           </div>
-        ) : pagedCandidates.length === 0 ? (
+        ) : visibleCandidates.length === 0 ? (
           <div className="flex flex-col items-center gap-3 p-8 text-center">
             <p className="text-sm text-muted-foreground">{emptyMessage}</p>
             {hasActiveFilter && (
@@ -1456,77 +1417,79 @@ export const EvaluationTable = ({
             )}
           </div>
         ) : (
-          pagedCandidates.map((c, index) => (
-            <div
-              key={c.userFlowId}
-              data-slot="candidate-card"
-              id={
-                isTargetCandidate(c)
-                  ? `user-flow-${c.userFlowId}-mobile`
-                  : undefined
-              }
-              className={
-                isTargetCandidate(c)
-                  ? "flex scroll-mt-24 flex-col gap-3 bg-muted/30 p-4"
-                  : "flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40"
-              }
-            >
-              <div className="flex items-start justify-between gap-3">
-                <CandidateIdentity
-                  name={c.name}
-                  studentId={c.studentId}
-                  qq={c.qq}
-                  uid={c.uid}
-                  role={role}
-                />
-                {/* shrink-0: a long name must truncate itself, not squeeze the badge. */}
-                <div className="shrink-0">
-                  <EvalStatusText candidate={c} />
+          visibleCandidates.map((c, index) => {
+            const plan = planFor(c);
+            // A card gives the action row a divider, so an empty one reads as a
+            // broken section. On desktop the column still needs its "—" marker.
+            const hasActionArea =
+              Boolean(plan.primary) ||
+              plan.overflow.length > 0 ||
+              Boolean(plan.lockedReason);
+            return (
+              <div
+                key={c.userFlowId}
+                data-slot="candidate-card"
+                id={
+                  isTargetCandidate(c)
+                    ? `user-flow-${c.userFlowId}-mobile`
+                    : undefined
+                }
+                className={
+                  isTargetCandidate(c)
+                    ? "flex scroll-mt-24 flex-col gap-3 bg-muted/30 p-4"
+                    : "flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40"
+                }
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <CandidateIdentity
+                    name={c.name}
+                    studentId={c.studentId}
+                    qq={c.qq}
+                    uid={c.uid}
+                    role={role}
+                  />
+                  {/* shrink-0: a long name must truncate itself, not squeeze the badge. */}
+                  <div className="shrink-0">
+                    <EvalStatusText candidate={c} />
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <ApplyGroupText
-                  value={c.applyGroup}
-                  editable={canEditApplyGroup}
-                  onEdit={() => startGroupEdit(c)}
-                  editLabel={`修改${c.name}的投递组别`}
-                />
-                <span className="text-muted-foreground/40" aria-hidden="true">
-                  ·
-                </span>
-                <PortfolioLink
-                  value={c.portfolioLink}
-                  description={c.portfolioDescription}
-                  onOpen={() => setPortfolioCandidate(c)}
-                />
-              </div>
-              <ScheduleInfo
-                candidate={c}
-                now={now}
-                showOrganizer={shouldShowOrganizer(index)}
-              />
-              {role >= 2 && (
-                <div className="border-t border-border/60 pt-3">
-                  {renderRowActions(c, "start")}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <ApplyGroupText
+                    value={c.applyGroup}
+                    editable={canEditApplyGroup}
+                    onEdit={() => startGroupEdit(c)}
+                    editLabel={`修改${c.name}的投递组别`}
+                  />
+                  <span className="text-muted-foreground/40" aria-hidden="true">
+                    ·
+                  </span>
+                  <PortfolioLink
+                    value={c.portfolioLink}
+                    description={c.portfolioDescription}
+                    onOpen={() => setPortfolioCandidate(c)}
+                  />
                 </div>
-              )}
-            </div>
-          ))
+                <ScheduleInfo
+                  candidate={c}
+                  now={now}
+                  showOrganizer={shouldShowOrganizer(index)}
+                />
+                {role >= 2 && hasActionArea && (
+                  <div className="border-t border-border/60 pt-3">
+                    <ActionCell
+                      plan={plan}
+                      candidate={c}
+                      busy={loadingId === c.userFlowId}
+                      align="start"
+                      onAction={runAction}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
-
-      {/* Only worth showing once there is more than one page; otherwise the
-          "共 N 人" total just repeats the 全部 chip. */}
-      {!loading && totalPages > 1 && (
-        <div className="rounded-b-lg border-t px-3 py-3 sm:px-4">
-          <ListPagination
-            totalItems={visibleCandidates.length}
-            pageSize={DEFAULT_PAGE_SIZE}
-            currentPage={safePage}
-            onPageChange={setPage}
-          />
-        </div>
-      )}
 
       <Dialog
         open={Boolean(portfolioCandidate)}

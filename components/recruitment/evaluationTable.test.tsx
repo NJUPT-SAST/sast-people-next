@@ -355,7 +355,7 @@ describe("EvaluationTable", () => {
     );
     expect(unscheduledBadge).toHaveTextContent("待预约");
     // In-progress states stay neutral and carry their hue in a dot.
-    expect(unscheduledBadge).toHaveClass("bg-muted/40", "text-foreground/75");
+    expect(unscheduledBadge).toHaveClass("bg-muted/50", "text-foreground/75");
     expect(unscheduledBadge?.querySelector("span")).toHaveClass("bg-slate-400");
     expect(screen.getAllByText("前端组").length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "退回" })[0]);
@@ -1091,7 +1091,7 @@ describe("EvaluationTable", () => {
     expect(rows[2].textContent).toContain("孙老师");
   });
 
-  it("paginates and reveals the page holding a deep-linked candidate", () => {
+  it("renders every match instead of paging through them", () => {
     const candidates = Array.from({ length: 30 }, (_, index) =>
       makeCandidate({
         userFlowId: index + 1,
@@ -1103,12 +1103,13 @@ describe("EvaluationTable", () => {
 
     renderTable(candidates, { targetUserFlowId: 28 });
 
-    // 25 rows per page, so #28 would be hidden if the page were left at 1.
-    expect(
-      screen.getByRole("button", { name: "第 2 页" }),
-    ).toHaveAttribute("aria-current", "page");
+    expect(document.querySelectorAll("table tbody tr")).toHaveLength(30);
+    expect(document.querySelectorAll("[data-slot=candidate-card]")).toHaveLength(30);
+    // The deep-linked row is still marked, but nothing is hidden behind a page.
     expect(document.getElementById("user-flow-28-desktop")).toBeInTheDocument();
-    expect(document.getElementById("user-flow-1-desktop")).not.toBeInTheDocument();
-    expect(screen.getByText(/共 30 人/)).toBeInTheDocument();
+    expect(screen.getAllByText("候选人30").length).toBeGreaterThan(0);
+    // No numbered pager.
+    expect(screen.queryByRole("button", { name: /第 \d+ 页/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下一页" })).not.toBeInTheDocument();
   });
 });

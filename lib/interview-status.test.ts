@@ -100,15 +100,21 @@ describe("interviewStatusMeta tones", () => {
     expect(interviewStatusMeta.rejected.tone).toBe("danger");
   });
 
-  it("gives every neutral state a dot instead of a fill", () => {
+  it("gives every status a dot so the badge shape never varies", () => {
     for (const key of INTERVIEW_STATUS_ORDER) {
       const meta = interviewStatusMeta[key];
-      if (meta.tone === "neutral") {
-        expect(meta.dotClassName).toBeTruthy();
-        expect(meta.badgeClassName).not.toMatch(/bg-(slate|sky|amber)-50\b/);
-      } else {
-        expect(meta.dotClassName).toBeNull();
-      }
+      expect(meta.dotClassName).toBeTruthy();
+    }
+  });
+
+  it("uses one alpha recipe for the tinted fills in both themes", () => {
+    // Hand-written per-status light/dark pairs are what made the column read
+    // as several unrelated badges rather than one system.
+    for (const key of ["returned", "pending", "accepted", "rejected"] as const) {
+      expect(interviewStatusMeta[key].badgeClassName).toMatch(
+        /bg-[a-z]+-500\/10/,
+      );
+      expect(interviewStatusMeta[key].badgeClassName).not.toMatch(/bg-[a-z]+-50\b/);
     }
   });
 });
@@ -299,19 +305,18 @@ describe("deriveInterviewActions", () => {
     expect(plan.lockedReason).toBeNull();
   });
 
-  it("closes out archived and failed candidates", () => {
-    expect(
-      deriveInterviewActions(ended({ evalStatus: "approved" }), 3, NOW)
-        .lockedReason,
-    ).toBe("已归档");
-    expect(
-      deriveInterviewActions(ended({ evalStatus: "rejected" }), 3, NOW)
-        .lockedReason,
-    ).toBe("已归档");
-    expect(
-      deriveInterviewActions(candidate({ status: "failed" }), 3, NOW)
-        .lockedReason,
-    ).toBe("已结束");
+  it("leaves decided and failed candidates with no action and no note", () => {
+    // A note here only restated the status badge in the next column.
+    for (const evalStatus of ["approved", "rejected"] as const) {
+      const plan = deriveInterviewActions(ended({ evalStatus }), 3, NOW);
+      expect(plan.primary).toBeNull();
+      expect(plan.overflow).toEqual([]);
+      expect(plan.lockedReason).toBeNull();
+    }
+
+    const failed = deriveInterviewActions(candidate({ status: "failed" }), 3, NOW);
+    expect(failed.primary).toBeNull();
+    expect(failed.lockedReason).toBeNull();
   });
 
   it("leaves a withdrawn row with no actions and no permission excuse", () => {
