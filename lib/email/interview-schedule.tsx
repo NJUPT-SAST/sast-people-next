@@ -110,7 +110,7 @@ export async function renderInterviewScheduleEmailPreview(
     kind,
     candidateName: "张三",
     flowName: "2026 免试招新 Demo",
-    organizerName: "Demo Lecturer",
+    organizerName: "讲师",
     startsAt: new Date("2026-06-05T11:00:00+08:00"),
     endsAt: new Date("2026-06-05T11:30:00+08:00"),
     location: "仙林校区大学生活动中心 101",

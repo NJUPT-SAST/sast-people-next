@@ -147,7 +147,7 @@ async function createTestRenderRequest({
     variables: {
       candidateName: name,
       flowName,
-      organizerName: "Demo Lecturer",
+      organizerName: "讲师",
       startsAt,
       endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
       location: "仙林校区大学生活动中心 101",

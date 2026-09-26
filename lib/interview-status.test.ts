@@ -271,24 +271,29 @@ describe("deriveInterviewActions", () => {
     expect(plan.overflow).toHaveLength(3);
   });
 
-  it("says nothing when a note would only restate the badge", () => {
-    // 待终审 and 退回重写 already say this in the status column, so the action
-    // column stays empty rather than repeating it in words.
+  it("names the organiser for a locked lecturer but not for an admin", () => {
+    const locked = {
+      evalStatus: "returned" as const,
+      canManageSchedule: false,
+      canEditEvaluation: false,
+    };
+
+    // The lecturer is blocked by ownership, which the badge cannot express.
+    const lecturer = deriveInterviewActions(ended(locked), 2, NOW);
+    expect(lecturer.primary).toBeNull();
+    expect(lecturer.overflow).toEqual([]);
+    expect(lecturer.lockedReason).toBe("由 钱老师 预约，仅其本人可操作");
+
+    // An admin is not blocked by ownership — this step is simply not theirs, and
+    // the badge already says where it stands.
     for (const evalStatus of ["submitted", "returned"] as const) {
-      for (const role of [2, 3]) {
-        const plan = deriveInterviewActions(
-          ended({
-            evalStatus,
-            canManageSchedule: false,
-            canEditEvaluation: false,
-          }),
-          role,
-          NOW,
-        );
-        expect(plan.primary).toBeNull();
-        expect(plan.overflow).toEqual([]);
-        expect(plan.lockedReason).toBeNull();
-      }
+      const admin = deriveInterviewActions(
+        ended({ ...locked, evalStatus }),
+        3,
+        NOW,
+      );
+      expect(admin.primary).toBeNull();
+      expect(admin.lockedReason).toBeNull();
     }
   });
 

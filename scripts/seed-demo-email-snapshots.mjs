@@ -42,19 +42,19 @@ if (!process.env.DATABASE_URL) {
 const demoDeliveries = [
   {
     id: 501,
-    name: "Demo Freshman D",
+    name: "欧阳文博",
     flowName: "2026 春季笔试招新 Demo",
     accept: true,
   },
   {
     id: 502,
-    name: "Demo Freshman C",
+    name: "张昊然",
     flowName: "2026 春季笔试招新 Demo",
     accept: false,
   },
   {
     id: 503,
-    name: "Demo Freshman E",
+    name: "吴承宇",
     flowName: "2026 春季笔试招新 Demo",
     accept: false,
   },

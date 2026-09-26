@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -537,54 +537,10 @@ function ActionCell({
   align?: "start" | "end";
   onAction: (action: InterviewAction, candidate: Candidate) => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const hoverTimer = useRef<number | null>(null);
-  const pointerOverRef = useRef(false);
   const actions = [
     ...(plan.primary ? [plan.primary] : []),
     ...plan.overflow,
   ];
-
-  useEffect(
-    () => () => {
-      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
-    },
-    [],
-  );
-
-  const clearHoverTimer = () => {
-    if (hoverTimer.current !== null) {
-      window.clearTimeout(hoverTimer.current);
-      hoverTimer.current = null;
-    }
-  };
-
-  /**
-   * The menu opens on hover as well as on click, but only where a pointer can
-   * actually hover: on touch `pointerenter` fires on tap and would fight the
-   * click that follows. The delays let the pointer travel from the button into
-   * the menu without it closing underneath.
-   */
-  const canHover = () =>
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(hover: hover)").matches;
-  const openMenuSoon = () => {
-    if (!canHover()) return;
-    clearHoverTimer();
-    hoverTimer.current = window.setTimeout(() => setMenuOpen(true), 150);
-  };
-  const closeMenuSoon = () => {
-    if (!canHover()) return;
-    clearHoverTimer();
-    hoverTimer.current = window.setTimeout(() => {
-      // The menu is portalled, so leaving the button towards it fires a leave
-      // first. Ask whether the pointer actually landed inside before closing,
-      // rather than depending on the order the two events arrive in.
-      const panel = document.querySelector('[data-slot="row-action-menu-panel"]');
-      if (panel?.matches(":hover")) return;
-      setMenuOpen(false);
-    }, 200);
-  };
 
   if (actions.length === 0) {
     // A finished row shows nothing at all — an em dash here read as debris, and
@@ -599,28 +555,15 @@ function ActionCell({
   }
 
   return (
-    <DropdownMenu
-      open={menuOpen}
-      onOpenChange={(next) => {
-        // Hover already opened it; a click while the pointer rests on the button
-        // must not toggle it shut, which made hover and click fight each other.
-        if (!next && pointerOverRef.current) return;
-        setMenuOpen(next);
-      }}
-    >
+    // Click only. Opening on hover was tried and reverted: every row has a menu,
+    // so dragging the pointer across the table opened them in a cascade, and any
+    // delay short enough to feel responsive fired during a normal sweep.
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           data-slot="row-action-menu"
           disabled={busy}
-          onPointerEnter={() => {
-            pointerOverRef.current = true;
-            openMenuSoon();
-          }}
-          onPointerLeave={() => {
-            pointerOverRef.current = false;
-            closeMenuSoon();
-          }}
           className={cn(
             ACTION_MENU_BUTTON,
             // The tone follows the primary only: a row whose sole option is a
@@ -635,9 +578,6 @@ function ActionCell({
       <DropdownMenuContent
         align={align === "start" ? "start" : "end"}
         className="w-44"
-        data-slot="row-action-menu-panel"
-        onPointerEnter={clearHoverTimer}
-        onPointerLeave={closeMenuSoon}
       >
         {actions.map((action, index) => {
           const Icon = ACTION_ICONS[action.id];

@@ -307,9 +307,16 @@ export function deriveInterviewActions(
         lockedReason: null,
       };
     }
-    // "待面评审批" / "等待讲师重写面评" only restated the badge next to them, so
-    // the action column stays empty instead of repeating it in words.
-    return { status, primary: null, overflow: [], lockedReason: null };
+    // For a lecturer the block is ownership, and naming the organiser is the one
+    // thing the badge cannot say. For an admin it is simply not their step — the
+    // badge already reads 待终审 / 退回重写 and they act from 面评审批 — so
+    // claiming "only the organiser may act" there would be wrong.
+    return {
+      status,
+      primary: null,
+      overflow: [],
+      lockedReason: role >= 3 ? null : organizerPhrase(candidate),
+    };
   }
 
   if (candidate.evalStatus === "approved" || candidate.evalStatus === "rejected") {

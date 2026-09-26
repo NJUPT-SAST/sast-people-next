@@ -570,10 +570,14 @@ describe("EvaluationTable", () => {
     );
 
     expect(screen.queryByRole("button", { name: "修改" })).not.toBeInTheDocument();
-    // No note either: the 待终审 badge already says whose turn it is.
+    // No restated status text, but the block is explained: the badge cannot say
+    // who owns the row.
     expect(
       screen.queryByText("面评已提交，等待管理员终审"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText("由 钱老师 预约，仅其本人可操作").length,
+    ).toBeGreaterThan(0);
     expect(
       document.querySelector(
         '[data-slot="interview-status-badge"][data-status="pending"]',
