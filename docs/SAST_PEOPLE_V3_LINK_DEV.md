@@ -170,7 +170,8 @@ People v3 当前依赖以下 Link API：
 | 当前用户资料 | `GET` | `/user/profile` | `user:read` |
 | 用户列表 | `GET` | `/admin/users` | `admin:read` |
 | 用户详情 | `GET` | `/admin/users/{id}` | `admin:read` |
-| 更新用户 | `PUT` | `/admin/users/{id}` | `admin:write` |
+| 批量同步角色 | `PUT` | `/admin/users` | `admin:write` |
+| 更新单个用户（People 已不再调用） | `PUT` | `/admin/users/{id}` | `admin:write` |
 | 封禁用户 | `DELETE` | `/admin/users/{id}` | `admin:write` |
 
 ### 7.1 People 需要的用户字段

@@ -248,13 +248,16 @@ export function deriveInterviewActions(
 ): InterviewActionPlan {
   const status = getInterviewStatus(candidate);
   const isWithdrawn = candidate.status === "withdrawn";
-  const isRejected = candidate.status === "failed";
+  // A flow outcome (passed or failed) is a decision: nothing on the row is left
+  // to schedule or return, whether or not an evaluation was ever written.
+  const isDecided =
+    candidate.status === "passed" || candidate.status === "failed";
   const scheduleEnded = candidate.scheduleMeetingStatus === "ended";
   const hasSchedule = Boolean(candidate.scheduleMeetingLink);
   const startsAt = toTime(candidate.scheduleStartsAt);
   const canConfirmEnded =
     now !== null && hasSchedule && !scheduleEnded && (startsAt ?? Infinity) <= now;
-  const canEvaluate = scheduleEnded || candidate.evalStatus !== null || isRejected;
+  const canEvaluate = scheduleEnded || candidate.evalStatus !== null || isDecided;
   const canManageSchedule =
     !isWithdrawn && (!hasSchedule || candidate.canManageSchedule);
   const canReturn = !isWithdrawn && (!hasSchedule || candidate.canManageSchedule || role >= 3);
@@ -324,7 +327,7 @@ export function deriveInterviewActions(
     return { status, primary: null, overflow: [], lockedReason: null };
   }
 
-  if (isRejected) {
+  if (isDecided) {
     return { status, primary: null, overflow: [], lockedReason: null };
   }
 

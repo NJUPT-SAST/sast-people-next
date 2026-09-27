@@ -142,7 +142,8 @@ export const ViewUserInfoSheet = ({
   const [detailUserInfo, setDetailUserInfo] = useState<UserInfoInput | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const displayUserInfo = detailUserInfo ?? userInfo;
-  const role = displayUserInfo.role ?? 0;
+  const role = displayUserInfo.role;
+  const roleLabel = role === null || role === undefined ? '未知' : roleName[role] ?? '未知';
   const departments = displayUserInfo.departments ?? [];
 
   const handleOpenChange = async (open: boolean) => {
@@ -183,7 +184,7 @@ export const ViewUserInfoSheet = ({
               <SheetTitle className="flex items-center gap-3">
                 <span className="min-w-0 truncate text-xl">{displayUserInfo.name || '未知用户'}</span>
                 <Badge variant="secondary" className="shrink-0">
-                  {roleName[role] ?? '未知'}
+                  {roleLabel}
                 </Badge>
               </SheetTitle>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -264,7 +265,7 @@ export const ViewUserInfoSheet = ({
 
           <InfoSection title="权限">
             <InfoRow label="角色">
-              <TextValue value={roleName[role] ?? '未知'} />
+              <TextValue value={roleLabel} />
             </InfoRow>
           </InfoSection>
 

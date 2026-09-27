@@ -156,7 +156,7 @@ test.describe("email center prelaunch", () => {
     const testForm = page
       .locator("form")
       .filter({ has: page.getByPlaceholder("请填写测试学号") });
-    await testForm.getByPlaceholder("请填写测试学号").fill("001");
+    await testForm.getByPlaceholder("请填写测试学号").fill("B00040001");
     await testForm.getByRole("button", { name: "登录", exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   });

@@ -321,6 +321,14 @@ describe("deriveInterviewActions", () => {
     const failed = deriveInterviewActions(candidate({ status: "failed" }), 3, NOW);
     expect(failed.primary).toBeNull();
     expect(failed.lockedReason).toBeNull();
+
+    // A passed flow status is just as final even though no evaluation exists, so
+    // it must not keep offering to schedule, reschedule, or return the row.
+    const passed = deriveInterviewActions(candidate({ status: "passed" }), 2, NOW);
+    expect(passed.status).toBe("accepted");
+    expect(passed.primary).toBeNull();
+    expect(passed.overflow).toEqual([]);
+    expect(passed.lockedReason).toBeNull();
   });
 
   it("leaves a withdrawn row with no actions and no permission excuse", () => {
