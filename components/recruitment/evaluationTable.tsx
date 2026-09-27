@@ -1013,9 +1013,11 @@ export const EvaluationTable = ({
     [groupScoped],
   );
 
+  // The action column only exists for role >= 2, so a lower role must not see
+  // rows counted as "待我处理" that it has no way to act on.
   const isMine = useCallback(
-    (candidate: Candidate) => planFor(candidate).primary !== null,
-    [planFor],
+    (candidate: Candidate) => role >= 2 && planFor(candidate).primary !== null,
+    [planFor, role],
   );
 
   const mineCount = useMemo(

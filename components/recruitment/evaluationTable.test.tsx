@@ -977,6 +977,17 @@ describe("EvaluationTable", () => {
     expect(screen.getAllByRole("button", { name: "我的" }).length).toBeGreaterThan(0);
   });
 
+  it("hides the 待我处理 chip from roles that cannot act on rows", () => {
+    renderTable(
+      [makeCandidate({ userFlowId: 1, name: "未预约同学" })],
+      { role: 1 },
+    );
+
+    // The action column only exists for role >= 2, so the chip must not
+    // advertise rows this user has no way to act on.
+    expect(screen.queryByRole("button", { name: /^待我处理/ })).toBeNull();
+  });
+
   it("confirms before cancelling a booking", async () => {
     const user = userEvent.setup();
     jest.mocked(cancelInterviewSchedule).mockResolvedValue({ success: true });
