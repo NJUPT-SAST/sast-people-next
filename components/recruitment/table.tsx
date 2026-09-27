@@ -144,7 +144,9 @@ export function DataTable<TData, TValue>({
   const rowModelRows = table.getRowModel().rows ?? [];
   const totalScoreColumn =
     table.getAllLeafColumns().find((column) => column.id === 'totalScore') ?? null;
-  const selectedMutableRows = table.getSelectedRowModel().flatRows ?? [];
+  // Only rows still visible under the current filter count as selected, so a
+  // filtered-out row can never be changed by a batch outcome it is not shown in.
+  const selectedMutableRows = table.getFilteredSelectedRowModel().flatRows ?? [];
   const canEditOutcomes = !resultsLocked && selectedMutableRows.length > 0;
   const summaryStatuses = ['ungraded', 'ongoing', 'passed', 'failed', 'withdrawn', 'not_started'];
   const columnWidthClass: Record<string, string> = {

@@ -218,6 +218,34 @@ describe("Recruitment DataTable", () => {
     expect(screen.getAllByText("目标同学").length).toBeGreaterThan(0);
   });
 
+  it("applies batch outcomes only to selected rows that stay in the filter", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          { uid: 1, stepId: 3, name: "张三", totalScore: "90", status: "ongoing" },
+          { uid: 2, stepId: 3, name: "目标同学", totalScore: "70", status: "ongoing" },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getAllByLabelText("select-1")[0]);
+
+    const search = screen.getByRole("textbox", { name: "搜索笔试考生" });
+    await user.type(search, "目标");
+
+    // The selected row is filtered out, so it must not be counted or changed.
+    expect(screen.queryByText(/已选/)).not.toBeInTheDocument();
+    const passButton = screen.getByRole("button", { name: "设为通过" });
+    expect(passButton).toBeDisabled();
+    await user.click(passButton);
+    expect(mockBatchSetOutcomeByUid).not.toHaveBeenCalled();
+  });
+
   it("uses distinct target ids for desktop and mobile render paths", () => {
     render(
       <DataTable

@@ -5,7 +5,7 @@ const webhookSecret =
   process.env.EMAIL_WEBHOOK_SECRET ?? "playwright-webhook-secret";
 
 const signInAsLocalAdmin = (context: Parameters<typeof signInAs>[0]) =>
-  signInAs(context, { uid: 1, role: 3, name: "Local Admin" });
+  signInAs(context, { uid: 1, role: 3, name: "管理员" });
 
 test.describe("email center prelaunch", () => {
   test.describe.configure({ timeout: 90_000 });
@@ -156,7 +156,7 @@ test.describe("email center prelaunch", () => {
     const testForm = page
       .locator("form")
       .filter({ has: page.getByPlaceholder("请填写测试学号") });
-    await testForm.getByPlaceholder("请填写测试学号").fill("001");
+    await testForm.getByPlaceholder("请填写测试学号").fill("B00040001");
     await testForm.getByRole("button", { name: "登录", exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   });

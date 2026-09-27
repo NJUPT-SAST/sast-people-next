@@ -29,6 +29,7 @@ export const SelectFlow = ({
       <SelectTrigger
         className="h-10 w-full truncate md:w-[320px]"
         disabled={!hasFlowTypes}
+        aria-label="选择流程"
       >
         <SelectValue placeholder="请选择需要操作的类别" />
       </SelectTrigger>
