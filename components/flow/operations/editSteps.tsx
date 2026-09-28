@@ -27,6 +27,8 @@ import { updateFlowStep } from '@/action/flow/flow-step/update';
 import { displayFlow } from '@/types/flow';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateTimeInput } from '@/components/ui/datetime-input';
+import { departmentLabel } from '@/const/department';
+import { DepartmentSelect, GroupDepartmentMapping, pickGroupDepartments } from '../departmentFields';
 import { useFlowStepsInfoClient } from '@/hooks/useFlowStepsInfoClient';
 
 const writtenRecruitmentSteps = (flowId: number): fullStepType[] => [
@@ -101,7 +103,7 @@ const evaluationSteps = (flowId: number): fullStepType[] => [
   },
 ];
 
-export const EditSteps = ({ data, autoOpen = false, linkOnly = false }: { data: displayFlow; autoOpen?: boolean; linkOnly?: boolean }) => {
+export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseDepartment = false }: { data: displayFlow; autoOpen?: boolean; linkOnly?: boolean; canChooseDepartment?: boolean }) => {
   const editFlowForm = useForm<z.infer<typeof editFlowSchema>>({
     resolver: zodResolver(editFlowSchema),
     defaultValues: {
@@ -141,6 +143,20 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false }: { data: 
   const [editableSteps, setEditableSteps] = useState<fullStepType[]>(fixedStepList);
   const [groupOptionsText, setGroupOptionsText] = useState(() =>
     (data.groupOptions ?? []).join('\n'),
+  );
+  const [department, setDepartment] = useState<string | null>(data.department ?? null);
+  const [groupDepartments, setGroupDepartments] = useState<Record<string, string>>(
+    data.groupDepartments ?? {},
+  );
+  /* 与保存时一致的组别解析：去空行、去重 */
+  const parsedGroupOptions = useMemo(
+    () =>
+      groupOptionsText
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '')
+        .filter((line, index, lines) => lines.indexOf(line) === index),
+    [groupOptionsText],
   );
 
   useEffect(() => {
@@ -274,6 +290,30 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false }: { data: 
               />
             )}
 
+            <div className="grid gap-2">
+              <Label>归属部门</Label>
+              {canChooseDepartment ? (
+                <DepartmentSelect
+                  allowGlobal
+                  disabled={isSubmitting}
+                  value={department}
+                  onChange={setDepartment}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">{departmentLabel(department)}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                部长只能维护本部门的流程；组别映射用于把共享流程的报名记录落到具体部门。
+              </p>
+            </div>
+
+            <GroupDepartmentMapping
+              groupOptions={parsedGroupOptions}
+              value={groupDepartments}
+              onChange={setGroupDepartments}
+              disabled={isSubmitting}
+            />
+
             {/* 保存流程元数据按钮 */}
             <div className="flex justify-end mt-4 gap-2">
               <Button
@@ -283,16 +323,16 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false }: { data: 
                 onClick={() => {
                   const values = editFlowForm.getValues();
                   // 编辑态保留原始文本以支持自由换行，保存时再解析为组别数组
-                  const parsedGroups = groupOptionsText
-                    .split(/\r?\n/)
-                    .map((line) => line.trim())
-                    .filter((line) => line !== '')
-                    .filter((line, index, lines) => lines.indexOf(line) === index);
-                  setGroupOptionsText(parsedGroups.join('\n'));
+                  setGroupOptionsText(parsedGroupOptions.join('\n'));
                   toast.promise(
                     updateFlow(values.id!, {
                       ...values,
-                      groupOptions: parsedGroups,
+                      groupOptions: parsedGroupOptions,
+                      department,
+                      groupDepartments: pickGroupDepartments(
+                        parsedGroupOptions,
+                        groupDepartments,
+                      ),
                     }),
                     {
                       loading: '正在保存流程信息',

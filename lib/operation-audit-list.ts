@@ -10,6 +10,11 @@ import {
   operationAudit,
   userFlow,
 } from "@/db/schema";
+import {
+  departmentScopeFilter,
+  getDepartmentScope,
+  type DepartmentScope,
+} from "@/lib/authz";
 import { verifyRole } from "@/lib/dal";
 import { listLinkUsers } from "@/lib/link/admin";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
@@ -167,15 +172,27 @@ function getDateEnd(value: string) {
   return value ? parseOperationAuditDate(value, true) : null;
 }
 
-async function buildWhereConditions({
-  actor,
-  action,
-  actionGroup,
-  resourceType,
-  from,
-  to,
-}: NormalizedOperationAuditListParams) {
+async function buildWhereConditions(
+  {
+    actor,
+    action,
+    actionGroup,
+    resourceType,
+    from,
+    to,
+  }: NormalizedOperationAuditListParams,
+  scope: DepartmentScope,
+) {
   const conditions: SQL<unknown>[] = [];
+
+  /* 部门维度的审计可见性：未归属部门的记录（NULL）只有管理员可见 */
+  const departmentCondition = departmentScopeFilter(
+    operationAudit.department,
+    scope,
+  );
+  if (departmentCondition) {
+    conditions.push(departmentCondition);
+  }
 
   if (action) {
     conditions.push(eq(operationAudit.action, action));
@@ -262,9 +279,10 @@ const findLinkActorIds = async (keyword: string) => {
 export async function listOperationAudit(params: OperationAuditListParams) {
   await verifyRole(3);
 
+  const scope = await getDepartmentScope();
   const normalized = normalizeOperationAuditListParams(params);
   const offset = (normalized.page - 1) * normalized.pageSize;
-  const whereConditions = await buildWhereConditions(normalized);
+  const whereConditions = await buildWhereConditions(normalized, scope);
 
   const [totalCountResult, rawLogs] = await Promise.all([
     db
@@ -281,6 +299,7 @@ export async function listOperationAudit(params: OperationAuditListParams) {
         action: operationAudit.action,
         resourceType: operationAudit.resourceType,
         resourceId: operationAudit.resourceId,
+        department: operationAudit.department,
         metadata: operationAudit.metadata,
         createdAt: operationAudit.createdAt,
       })

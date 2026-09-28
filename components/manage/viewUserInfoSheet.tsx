@@ -15,13 +15,15 @@ import { ExternalLink, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { userType } from '@/types/user';
 import originalDayjs from '@/lib/dayjs';
+import { departmentLabel } from '@/const/department';
 import { useUserInfoById as getUserInfoById } from '@/hooks/useUserInfoById';
 
 const roleName: Record<number, string> = {
   0: '新同学',
   1: '部员',
   2: '讲师',
-  3: '管理员',
+  3: '部长',
+  4: '管理员',
 };
 
 const linkStateLabel: Record<string, string> = {
@@ -219,12 +221,12 @@ export const ViewUserInfoSheet = ({
                 value={`${displayUserInfo.college || '-'} / ${displayUserInfo.major || '-'}`}
               />
             </InfoRow>
-            <InfoRow label="方向">
+            <InfoRow label="所属部门">
               <TextValue
                 value={
                   departments.length > 0
-                    ? departments.join('、')
-                    : '-'
+                    ? departments.map((item) => departmentLabel(item)).join('、')
+                    : departmentLabel(null, '未设置部门')
                 }
               />
             </InfoRow>

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import { db } from "@/db/drizzle";
 import { feedbackReport } from "@/db/schema";
-import { verifyRole } from "@/lib/dal";
+import { verifyAdmin } from "@/lib/authz";
 import { writeOperationAudit } from "@/lib/operation-audit";
 
 const statusSchema = z.enum(["pending", "in_progress", "resolved"]);
@@ -13,7 +13,7 @@ const reportIdSchema = z.number().int().positive();
 const resolutionNoteSchema = z.string().max(10000);
 
 export async function listFeedbackReports(status = "all") {
-  await verifyRole(3);
+  await verifyAdmin();
   const filter = status === "all" ? undefined : statusSchema.parse(status);
   return db
     .select()
@@ -30,7 +30,7 @@ export async function updateFeedbackReport(
   status: "pending" | "in_progress" | "resolved",
   resolutionNote?: string,
 ) {
-  const session = await verifyRole(3);
+  const session = await verifyAdmin();
   const reportId = reportIdSchema.parse(id);
   const validatedStatus = statusSchema.parse(status);
   const note = resolutionNote === undefined
@@ -47,6 +47,7 @@ export async function updateFeedbackReport(
     .where(eq(feedbackReport.id, reportId))
     .returning({
       id: feedbackReport.id,
+      department: feedbackReport.department,
       resolvedBy: feedbackReport.resolvedBy,
       resolvedAt: feedbackReport.resolvedAt,
       resolutionNote: feedbackReport.resolutionNote,
@@ -59,6 +60,7 @@ export async function updateFeedbackReport(
     action: "feedback.status.update",
     resourceType: "feedback_report",
     resourceId: id,
+    department: updated.department,
     metadata: { status: validatedStatus, hasResolutionNote: Boolean(note) },
   });
   revalidatePath("/dashboard/feedback");
@@ -66,7 +68,7 @@ export async function updateFeedbackReport(
 }
 
 export async function updateFeedbackResolutionNote(id: number, resolutionNote: string) {
-  await verifyRole(3);
+  await verifyAdmin();
   const reportId = reportIdSchema.parse(id);
   const note = resolutionNoteSchema.parse(resolutionNote).trim() || null;
   const [updated] = await db

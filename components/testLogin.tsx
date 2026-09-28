@@ -6,11 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
-export const TestLogin = () => {
+export type MockLoginAccount = {
+  studentId: string;
+  name: string;
+  roleLabel: string;
+  departmentLabel: string;
+};
+
+export const TestLogin = ({ accounts = [] }: { accounts?: MockLoginAccount[] }) => {
   const router = useRouter();
+  const [studentId, setStudentId] = useState("");
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -39,11 +48,41 @@ export const TestLogin = () => {
           disabled={useFormStatus().pending}
           type="text"
           name="studentId"
+          value={studentId}
+          onChange={(event) => setStudentId(event.target.value)}
           placeholder="请填写测试学号"
           className="h-11 border-[#dbe5da] bg-white text-[#18231d] placeholder:text-[#8a968e] focus-visible:ring-[#18A058]/30"
         />
         <FormContentWithStatus />
       </form>
+      {accounts.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs text-[#66756c]">
+            可用测试账号（点击填入学号）
+          </p>
+          <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto pr-1">
+            {accounts.map((account) => (
+              <button
+                key={account.studentId}
+                type="button"
+                onClick={() => setStudentId(account.studentId)}
+                className={`rounded-full border px-2.5 py-1 text-left text-[11px] leading-4 transition-colors ${
+                  studentId === account.studentId
+                    ? "border-[#18A058] bg-[#18A058]/10 text-[#18231d]"
+                    : "border-[#dbe5da] bg-white text-[#66756c] hover:border-[#18A058]/50 hover:text-[#18231d]"
+                }`}
+              >
+                <span className="font-medium">{account.studentId}</span>
+                {" · "}
+                {account.name}
+                {" · "}
+                {account.roleLabel}
+                {account.departmentLabel ? ` · ${account.departmentLabel}` : ""}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

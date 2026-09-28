@@ -16,6 +16,7 @@ import {
   TableCell,
 } from '../ui/table';
 import originalDayjs from '@/lib/dayjs';
+import { departmentLabel } from '@/const/department';
 import { Operations } from './operations';
 
 const flowTypeLabel: Record<string, string> = {
@@ -55,6 +56,18 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
     },
   },
   {
+    accessorKey: 'department',
+    header: '归属部门',
+    accessorFn: (data) => data.department,
+    cell({ row }) {
+      return (
+        <span className="text-sm text-muted-foreground">
+          {departmentLabel(row.original.department)}
+        </span>
+      );
+    },
+  },
+  {
     accessorKey: 'startedAt',
     header: '开始时间',
     accessorFn: (data) => data.startedAt,
@@ -87,10 +100,6 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
         <span className="col-span-4 text-right">操作</span>
       </div>
     ),
-    cell({ row }) {
-      const data = row.original;
-      return <Operations data={data} />;
-    },
   },
 ];
 
@@ -98,12 +107,17 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   initialEditFlowId?: number;
+  /* 当前账号可编辑的流程 id；未列出的流程只读 */
+  editableFlowIds?: number[];
+  canChooseDepartment?: boolean;
 }
 
 export function FlowTable<TData extends displayFlow, TValue>({
   columns,
   data,
   initialEditFlowId,
+  editableFlowIds = [],
+  canChooseDepartment = false,
 }: DataTableProps<TData, TValue>) {
   const tableData = Array.isArray(data) ? data : [];
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -119,10 +133,11 @@ export function FlowTable<TData extends displayFlow, TValue>({
       <div className="hidden xl:block">
         <Table className="table-fixed" containerClassName="overflow-x-visible">
           <colgroup>
-            <col className="w-[34%]" />
+            <col className="w-[30%]" />
+            <col className="w-[12%]" />
             <col className="w-[14%]" />
-            <col className="w-[16%]" />
-            <col className="w-[16%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
             <col className="w-[20%]" />
           </colgroup>
           <TableHeader>
@@ -168,7 +183,14 @@ export function FlowTable<TData extends displayFlow, TValue>({
                       }
                     >
                       {cell.column.id === 'operations'
-                        ? <Operations data={row.original} initialEditFlowId={initialEditFlowId} />
+                        ? (
+                          <Operations
+                            data={row.original}
+                            initialEditFlowId={initialEditFlowId}
+                            canEdit={editableFlowIds.includes(row.original.id)}
+                            canChooseDepartment={canChooseDepartment}
+                          />
+                        )
                         : flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -202,6 +224,10 @@ export function FlowTable<TData extends displayFlow, TValue>({
               </div>
               <div className="text-sm space-y-2 px-1">
                 <div className="text-muted-foreground break-words">{row.original.description || '-'}</div>
+                <div className="flex justify-between items-center text-muted-foreground">
+                  <span>归属部门</span>
+                  <span className="text-foreground">{departmentLabel(row.original.department)}</span>
+                </div>
                 <div className="flex justify-between items-center text-muted-foreground pt-2">
                   <span>开始时间</span>
                   <span className="text-foreground text-xs font-mono">{originalDayjs(row.original.startedAt).format('YYYY-MM-DD HH:mm')}</span>
@@ -212,7 +238,12 @@ export function FlowTable<TData extends displayFlow, TValue>({
                 </div>
               </div>
               <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-                <Operations data={row.original} initialEditFlowId={initialEditFlowId} />
+                <Operations
+                  data={row.original}
+                  initialEditFlowId={initialEditFlowId}
+                  canEdit={editableFlowIds.includes(row.original.id)}
+                  canChooseDepartment={canChooseDepartment}
+                />
               </div>
             </div>
           ))
@@ -223,5 +254,3 @@ export function FlowTable<TData extends displayFlow, TValue>({
     </div>
   );
 }
-
-

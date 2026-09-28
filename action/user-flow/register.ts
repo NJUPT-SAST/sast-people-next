@@ -9,6 +9,7 @@ import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 import { isValidExternalUrl } from "@/lib/link";
 import { formatBeijingDateTime } from "@/lib/timezone";
 import { writeOperationAudit } from "@/lib/operation-audit";
+import { resolveUserFlowDepartment } from "@/lib/flow-access";
 
 /** 查找 flow 下指定 order 的步骤 ID */
 async function findStepIdByOrder(
@@ -45,6 +46,8 @@ export const register = async (
   try {
     session = await verifySession();
     const createdUserFlowIds: number[] = [];
+    /* 首次落库记录的归属，用于审计 */
+    let primaryDepartment: string | null = null;
     if (session.uid !== uid) {
       return {
         success: false,
@@ -104,6 +107,9 @@ export const register = async (
           title: flow.title,
           type: flow.type,
           groupOptions: flow.groupOptions,
+          /* 报名归属：流程归属部门 + 组别映射 */
+          department: flow.department,
+          groupDepartments: flow.groupDepartments,
         })
         .from(flow)
         .where(and(eq(flow.id, flowId), eq(flow.isDeleted, false)))
@@ -120,6 +126,8 @@ export const register = async (
 
       const now = new Date();
       const { startedAt, endedAt, title, type, groupOptions } = flowInfo[0];
+      const flowDepartment = flowInfo[0].department;
+      const groupDepartments = flowInfo[0].groupDepartments;
       const interviewFlowTypes = [
         "recruitment_exemption",
         "woc",
@@ -332,6 +340,15 @@ export const register = async (
       // 逐组创建/恢复
       for (const submission of normalized) {
         const existing = existingByGroup.get(submission.group ?? null);
+        // 归属在报名时按「组别映射 → 流程归属」解析并固化
+        const department = resolveUserFlowDepartment(
+          groupDepartments,
+          submission.group,
+          flowDepartment,
+        );
+        if (createdUserFlowIds.length === 0) {
+          primaryDepartment = department;
+        }
         if (existing) {
           await tx
             .update(userFlow)
@@ -342,6 +359,7 @@ export const register = async (
               portfolioLink: submission.portfolioLink,
               portfolioDescription: submission.portfolioDescription,
               applyGroup: submission.group ?? null,
+              department,
               updatedAt: new Date(),
             })
             .where(eq(userFlow.id, existing.id));
@@ -357,6 +375,7 @@ export const register = async (
               portfolioLink: submission.portfolioLink,
               portfolioDescription: submission.portfolioDescription,
               applyGroup: submission.group ?? null,
+              department,
             })
             .returning();
           createdUserFlowIds.push(newFlow.id);
@@ -375,6 +394,7 @@ export const register = async (
         action: "user_flow.register",
         resourceType: "user_flow",
         resourceId: createdUserFlowIds[0],
+        department: primaryDepartment,
         metadata: {
           flowId,
           targetUserId: uid,

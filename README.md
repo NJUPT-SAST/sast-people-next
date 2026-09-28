@@ -16,6 +16,7 @@ SAST People owns the recruitment and review process. User identity, profile data
 | Interview scheduling | SAST People + Feishu | Calendar events, video meetings, bot cards, reminders |
 | Result notifications | SAST People | Email center templates, batches, retries, rate limits, delivery audits |
 | Admin operations | SAST People | User lookup, role edits, bans, operation audit, error log |
+| Department access control | SAST People + SAST Link | Department comes from the Link profile; flows, registrations, grading, evaluations, emails and audit trails are scoped to the owning department, and the platform-wide surface is limited to Link `admin` accounts |
 | Observability | SAST People | Sentry, health checks, server error logging |
 
 ## Core Features
@@ -163,6 +164,22 @@ This starts:
 - Inngest dev server targeting `http://localhost:3001/api/inngest`
 - Email preview server on port `3002`
 
+Before starting, the script stops any instance left over from a previous run (recorded in `tmp/dev-all.pid` plus processes holding `3001`/`3002`), so a crashed or forgotten run does not block the next one. `Ctrl+C` stops the app servers and the containers.
+
+### Local test accounts (Link mock)
+
+With `LINK_USE_MOCK=true`, the login page lists every mock account; click one to fill its student id. Accounts cover all seven departments:
+
+| Student ID | Role | Department |
+| --- | --- | --- |
+| `B00000000` | 管理员 (role 4, Link `admin`) | 跨部门 |
+| `B11111111` … `B77777777` | 部长 (role 3, Link `manager`) | 软件研发部 / 多媒体部 / 电子部 / 办公室 / 外联部 / 科宣部 / 赛事部 |
+| `B<d>0000001` | 讲师 (role 2, Link `lecturer`) | 对应部门，例如 `B10000001` |
+| `B<d>0000002` / `B<d>0000003` | 部员 (role 1, Link `member`) | 对应部门，例如 `B10000002` |
+| `B00040001` … `B00040011` | 原有演示账号 | 混合角色与部门 |
+
+`pnpm db:seed:demo` seeds demo departments and email-template rows; `B00000000` (Link user id `101`) is the mock `admin`, so it can manage departments and templates right away.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in local values:
@@ -234,6 +251,7 @@ This does not require rebuilding or copying a new image. Build-time public varia
 | [docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md](docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md) | Interview scheduling design |
 | [docs/email-center-design.md](docs/email-center-design.md) | Email center platform design |
 | [docs/email-center-flow-redesign.md](docs/email-center-flow-redesign.md) | Email center administrator workflow and information architecture |
+| [docs/department-access-control.md](docs/department-access-control.md) | Department-level access control model and rollout |
 | [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) | Pre-release and staging checklist |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 
@@ -243,7 +261,7 @@ This does not require rebuilding or copying a new image. Build-time public varia
 | --- | --- |
 | `pnpm dev` | Start the Next.js development server on port `3000` |
 | `pnpm dev:db` | Alias of `pnpm dev` |
-| `pnpm dev:local` | Start local PostgreSQL, Inngest, and Next.js on port `3000`; shut down PostgreSQL and Inngest when Next.js stops |
+| `pnpm dev:local` | Start local PostgreSQL + Inngest containers, Next.js on `3001`, and the email preview on `3002`; stops instances left over from a previous run, and shuts all of it down when Next.js stops |
 | `pnpm dev:full` | Start Next.js (`3001`), Inngest, and email preview (`3002`) |
 | `pnpm db:dev:up` | Start local Docker PostgreSQL on port `55432` |
 | `pnpm db:dev:down` | Stop local Docker PostgreSQL |
@@ -325,7 +343,7 @@ Current core tables:
 | `email_send_rate_limit` | Global send rate-limit buckets |
 | `operation_audit` | Administrative operation audit logs |
 
-People business tables store Link user IDs after the v3.1 migration. See [People database schema](docs/PEOPLE_DATABASE_SCHEMA.md) for field-level details.
+People business tables store Link user IDs after the v3 migration. See [People database schema](docs/PEOPLE_DATABASE_SCHEMA.md) for field-level details.
 
 ## Verification
 

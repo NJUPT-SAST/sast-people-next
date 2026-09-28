@@ -2,7 +2,7 @@ import "server-only";
 
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
+import { emailBatch, emailDelivery, flow, normalizeDepartmentKey, userFlow } from "@/db/schema";
 import event from "@/event";
 import { getEducationEmail } from "@/lib/email/address";
 import {
@@ -34,6 +34,8 @@ export type CreateResultEmailBatchInput = {
   accept: boolean;
   createdBy: number;
   flowType?: string;
+  /** 模板归属部门；缺省时按流程归属部门解析 */
+  department?: string | null;
   templateSetting?: ResultEmailTemplateSetting;
 };
 
@@ -63,6 +65,7 @@ export async function createResultEmailBatch({
   accept,
   createdBy,
   flowType = "recruitment",
+  department: requestedDepartment,
   templateSetting: confirmedTemplateSetting,
 }: CreateResultEmailBatchInput) {
   const sourceStatus = accept ? "passed" : "failed";
@@ -74,6 +77,7 @@ export async function createResultEmailBatch({
       userFlowId: userFlow.id,
       userId: userFlow.fkUserId,
       flowName: flow.title,
+      flowDepartment: flow.department,
     })
     .from(userFlow)
     .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
@@ -244,7 +248,12 @@ export async function createResultEmailBatch({
 
   const flowKind = getResultEmailFlowKind(flowType);
   const templateKey = getResultEmailTemplateKey(flowKind, accept);
-  const templateSetting = confirmedTemplateSetting ?? await getEmailTemplateSetting(templateKey);
+  /* 模板归属：显式入参优先，否则回落流程归属部门；未归属部门的流程用全局默认模板 */
+  const department =
+    requestedDepartment !== undefined
+      ? normalizeDepartmentKey(requestedDepartment)
+      : normalizeDepartmentKey(targets[0].flowDepartment);
+  const templateSetting = confirmedTemplateSetting ?? await getEmailTemplateSetting(templateKey, department);
   const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
   const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
     flowId,
@@ -264,6 +273,7 @@ export async function createResultEmailBatch({
           flowKind,
           setting: templateSetting,
         },
+        department,
       });
 
       return {

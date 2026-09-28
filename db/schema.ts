@@ -25,6 +25,27 @@ export const flowGroupOptionsSchema = z
   )
   .max(30, "组别数量不能超过 30 个");
 
+/* 组别 → 部门 映射（键为 flow.group_options 中的组别名，值为 Link 部门标识） */
+export const flowGroupDepartmentsSchema = z
+  .record(
+    z.string().trim().min(1).max(100),
+    z.string().trim().min(1).max(64),
+  )
+  .refine((value) => Object.keys(value).length <= 30, "组别数量不能超过 30 个");
+
+export const departmentKeySchema = z
+  .string()
+  .trim()
+  .min(1, "部门不能为空")
+  .max(64, "部门标识不能超过 64 字");
+
+/* 部门标识来自 SAST Link，People 侧按不透明字符串处理 */
+export const normalizeDepartmentKey = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 64 ? trimmed : null;
+};
+
 export const flowStepTypeEnum = pgEnum("flow_step_type_enum", [
   "registering",
   "checking",
@@ -90,6 +111,10 @@ export const flow = pgTable("flow", {
   groupOptions: jsonb("group_options").$type<
     z.infer<typeof flowGroupOptionsSchema>
   >(),
+  /* 流程归属部门（Link 部门标识），NULL = 全局流程，仅管理员可见可改 */
+  department: varchar("department", { length: 64 }),
+  /* 组别 → 部门 映射：共享流程按候选人选择的组别定部门 */
+  groupDepartments: jsonb("group_departments").$type<Record<string, string>>(),
   /* Link 用户 ID */
   ownerId: integer("owner_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -100,7 +125,9 @@ export const flow = pgTable("flow", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
   isDeleted: boolean("is_deleted").default(false),
-});
+}, (table) => ({
+  departmentIdx: index("flow_department_idx").on(table.department, table.isDeleted),
+}));
 
 export const flowStep = pgTable("flow_step", {
   id: serial("id").primaryKey(),
@@ -126,6 +153,8 @@ export const userFlow = pgTable("user_flow", {
   progressStatus: progressStatusEnum("progress_status"),
   /* 候选人报名时选择的投递组别 */
   applyGroup: varchar("apply_group", { length: 100 }),
+  /* 报名记录归属部门（Link 部门标识）：报名时按组别映射 → 流程归属解析后固化 */
+  department: varchar("department", { length: 64 }),
   /* 讲师/管理员退回面试时填写的理由 */
   withdrawReason: text("withdraw_reason"),
   /* FK → flow_step.id。step 被物理删除时置 NULL */
@@ -153,6 +182,7 @@ export const userFlow = pgTable("user_flow", {
     .on(table.fkFlowId, table.fkUserId, table.applyGroup)
     .where(sql`${table.applyGroup} IS NOT NULL`),
   userIdIdx: index("user_flow_fk_user_id_idx").on(table.fkUserId),
+  departmentIdx: index("user_flow_department_idx").on(table.department),
 }));
 
 export const problem = pgTable("problem", {
@@ -311,7 +341,9 @@ export const emailSendRateLimit = pgTable("email_send_rate_limit", {
 
 export const emailTemplateSetting = pgTable("email_template_setting", {
   id: serial("id").primaryKey(),
-  templateKey: varchar("template_key", { length: 80 }).notNull().unique(),
+  templateKey: varchar("template_key", { length: 80 }).notNull(),
+  /* 模板覆盖归属部门（Link 部门标识），NULL = 全局默认 */
+  department: varchar("department", { length: 64 }),
   subjectTemplate: varchar("subject_template", { length: 255 }).notNull(),
   titleTemplate: varchar("title_template", { length: 255 }).notNull().default(""),
   subtitleTemplate: varchar("subtitle_template", { length: 255 }).notNull().default(""),
@@ -330,11 +362,18 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
-});
+}, (table) => ({
+  templateKeyDepartmentUnique: uniqueIndex(
+    "email_template_setting_key_department_uidx",
+  ).on(table.templateKey, sql`coalesce(${table.department}, '')`),
+  departmentIdx: index("email_template_setting_department_idx").on(table.department),
+}));
 
 export const emailTemplateContent = pgTable("email_template_content", {
   id: serial("id").primaryKey(),
-  templateKey: varchar("template_key", { length: 80 }).notNull().unique(),
+  templateKey: varchar("template_key", { length: 80 }).notNull(),
+  /* 模板覆盖归属部门（Link 部门标识），NULL = 全局默认 */
+  department: varchar("department", { length: 64 }),
   subjectTemplate: varchar("subject_template", { length: 255 }).notNull(),
   titleTemplate: varchar("title_template", { length: 255 }).notNull(),
   bodyTemplate: text("body_template").notNull(),
@@ -343,7 +382,12 @@ export const emailTemplateContent = pgTable("email_template_content", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
-});
+}, (table) => ({
+  templateKeyDepartmentUnique: uniqueIndex(
+    "email_template_content_key_department_uidx",
+  ).on(table.templateKey, sql`coalesce(${table.department}, '')`),
+  departmentIdx: index("email_template_content_department_idx").on(table.department),
+}));
 
 export const userPoint = pgTable("user_point", {
   id: serial("id").primaryKey(),
@@ -419,6 +463,10 @@ export const peopleSession = pgTable("people_session", {
   uid: integer("uid").notNull(),
   name: varchar("name", { length: 30 }).notNull(),
   role: integer("role").notNull(),
+  /* 当前用户所属部门（Link 部门标识），授权判定的依据 */
+  department: varchar("department", { length: 64 }),
+  /* 上次从 Link 回源同步部门的时刻 */
+  departmentSyncedAt: timestamp("department_synced_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   linkAccessToken: text("link_access_token"),
   linkRefreshToken: text("link_refresh_token"),
@@ -519,6 +567,8 @@ export const operationAudit = pgTable("operation_audit", {
   action: varchar("action", { length: 80 }).notNull(),
   resourceType: varchar("resource_type", { length: 80 }).notNull(),
   resourceId: integer("resource_id"),
+  /* 目标资源归属部门（Link 部门标识），用于部门维度的审计可见性 */
+  department: varchar("department", { length: 64 }),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
@@ -528,6 +578,10 @@ export const operationAudit = pgTable("operation_audit", {
     table.resourceId,
   ),
   createdAtIdx: index("operation_audit_created_at_idx").on(table.createdAt),
+  departmentIdx: index("operation_audit_department_idx").on(
+    table.department,
+    table.createdAt,
+  ),
 }));
 
 export const feedbackReport = pgTable("feedback_report", {
@@ -551,8 +605,11 @@ export const feedbackReport = pgTable("feedback_report", {
   resolutionNote: text("resolution_note"),
   resolvedBy: integer("resolved_by"),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  /* 提交人所属部门（Link 部门标识） */
+  department: varchar("department", { length: 64 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   userIdx: index("feedback_report_user_id_idx").on(table.fkUserId),
   createdAtIdx: index("feedback_report_created_at_idx").on(table.createdAt),
+  departmentIdx: index("feedback_report_department_idx").on(table.department),
 }));

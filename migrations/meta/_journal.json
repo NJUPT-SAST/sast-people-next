@@ -421,6 +421,20 @@
       "when": 1789250000004,
       "tag": "0059_feedback_status",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1789250000005,
+      "tag": "0060_department_scoped_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1789250000006,
+      "tag": "0061_email_template_departments",
+      "breakpoints": true
     }
   ]
 }

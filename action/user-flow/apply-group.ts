@@ -2,7 +2,10 @@
 
 import { db } from "@/db/drizzle";
 import { flow, userFlow } from "@/db/schema";
-import { verifyRole, verifySession } from "@/lib/dal";
+import { verifySession } from "@/lib/dal";
+import { verifyScopedRole } from "@/lib/authz";
+import type { FlowScopedSession } from "@/action/flow/department-utils";
+import { assertUserFlowInScope, resolveUserFlowDepartment } from "@/lib/flow-access";
 import { logServerError } from "@/lib/server-error-log";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { assertFlowResultsEditable } from "@/lib/flow-result-publication-guard";
@@ -17,6 +20,10 @@ type GroupContext = {
   flowType: string | null;
   flowGroupOptions: unknown;
   progressStatus: string | null;
+  /* 报名记录当前归属（改投递组别时按新组别重算） */
+  department: string | null;
+  flowDepartment: string | null;
+  flowGroupDepartments: Record<string, string> | null;
 };
 
 async function loadGroupContext(
@@ -29,6 +36,9 @@ async function loadGroupContext(
       flowType: flow.type,
       flowGroupOptions: flow.groupOptions,
       progressStatus: userFlow.progressStatus,
+      department: userFlow.department,
+      flowDepartment: flow.department,
+      flowGroupDepartments: flow.groupDepartments,
     })
     .from(userFlow)
     .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
@@ -109,9 +119,20 @@ export const updateApplyGroup = async (
       return { success: false, error: { message: error } };
     }
 
+    // 组别变更后同步重算归属，避免沿用旧组别的部门
+    const department = resolveUserFlowDepartment(
+      context.flowGroupDepartments,
+      applyGroup.trim(),
+      context.flowDepartment,
+    );
+
     await db
       .update(userFlow)
-      .set({ applyGroup: applyGroup.trim(), updatedAt: new Date() })
+      .set({
+        applyGroup: applyGroup.trim(),
+        department,
+        updatedAt: new Date(),
+      })
       .where(eq(userFlow.id, userFlowId));
 
     await writeOperationAudit({
@@ -120,6 +141,7 @@ export const updateApplyGroup = async (
       action: "user_flow.apply_group.update",
       resourceType: "user_flow",
       resourceId: userFlowId,
+      department,
       metadata: { applyGroup: applyGroup.trim(), targetUserId: context.uid },
     });
 
@@ -143,15 +165,17 @@ export const updateCandidateApplyGroup = async (
   userFlowId: number,
   applyGroup: string,
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
     const context = await loadGroupContext(userFlowId);
 
     if (!context) {
       return { success: false, error: { message: "报名记录不存在" } };
     }
+    // 讲师/管理员只能改本部门的候选人
+    assertUserFlowInScope(session.scope, context.department);
 
     const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     if (flowRecord) await assertFlowResultsEditable(flowRecord.flowId);
@@ -166,9 +190,20 @@ export const updateCandidateApplyGroup = async (
       return { success: false, error: { message: error } };
     }
 
+    // 组别变更后同步重算归属
+    const department = resolveUserFlowDepartment(
+      context.flowGroupDepartments,
+      applyGroup.trim(),
+      context.flowDepartment,
+    );
+
     await db
       .update(userFlow)
-      .set({ applyGroup: applyGroup.trim(), updatedAt: new Date() })
+      .set({
+        applyGroup: applyGroup.trim(),
+        department,
+        updatedAt: new Date(),
+      })
       .where(eq(userFlow.id, userFlowId));
 
     await writeOperationAudit({
@@ -177,6 +212,7 @@ export const updateCandidateApplyGroup = async (
       action: "user_flow.apply_group.mark",
       resourceType: "user_flow",
       resourceId: userFlowId,
+      department,
       metadata: { applyGroup: applyGroup.trim(), targetUserId: context.uid },
     });
 

@@ -25,6 +25,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import type { interviewEvaluation } from "@/db/schema";
 import originalDayjs from "@/lib/dayjs";
 import { externalHref } from "@/lib/link";
+import { departmentLabel } from "@/const/department";
 import { ViewUserInfoSheet } from "@/components/manage/viewUserInfoSheet";
 
 export type EvaluationRow = {
@@ -35,6 +36,8 @@ export type EvaluationRow = {
   portfolioLink: string | null;
   portfolioDescription: string | null;
   applyGroup: string | null;
+  /* 候选人归属部门（Link 部门标识），审批列表已按可见范围收敛 */
+  department?: string | null;
   scheduleMeetingLink: string | null;
   meetingMinuteLink: string | null;
   authorName: string | null;
@@ -101,10 +104,13 @@ export const ApprovalsContent = ({
   initialEvaluations,
   initialLoadError = false,
   currentUserRole = 3,
+  canFilterDepartments = false,
 }: {
   initialEvaluations?: EvaluationRow[];
   initialLoadError?: boolean;
   currentUserRole?: number;
+  /** 管理员（role 4）可按部门筛选；部长只会看到本部门的数据 */
+  canFilterDepartments?: boolean;
 }) => {
   const [evaluations, setEvaluations] = useState<EvaluationRow[]>(
     Array.isArray(initialEvaluations) ? initialEvaluations : [],
@@ -117,6 +123,7 @@ export const ApprovalsContent = ({
   const [archiveFlowType, setArchiveFlowType] = useState("all");
   const [archiveFlowTitle, setArchiveFlowTitle] = useState("all");
   const [archiveDecision, setArchiveDecision] = useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
   const [returnTarget, setReturnTarget] = useState<number | null>(null);
   const [returnReason, setReturnReason] = useState("");
   const [returnError, setReturnError] = useState<string | null>(null);
@@ -224,8 +231,19 @@ export const ApprovalsContent = ({
     );
   }
 
-  const pending = evaluations.filter((e) => e.evaluation.status === "submitted");
-  const archived = evaluations.filter((e) => e.evaluation.status !== "submitted");
+  const departmentKeys = Array.from(
+    new Set(
+      evaluations
+        .map((row) => row.department)
+        .filter((department): department is string => Boolean(department)),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "zh-CN"));
+  const departmentScoped =
+    departmentFilter === "all"
+      ? evaluations
+      : evaluations.filter((row) => row.department === departmentFilter);
+  const pending = departmentScoped.filter((e) => e.evaluation.status === "submitted");
+  const archived = departmentScoped.filter((e) => e.evaluation.status !== "submitted");
   const normalizedArchiveQuery = archiveQuery.trim().toLocaleLowerCase();
   const filteredArchived = archived.filter((row) => {
     const matchesQuery = !normalizedArchiveQuery || [
@@ -260,6 +278,21 @@ export const ApprovalsContent = ({
         <p className="text-sm text-muted-foreground">
           待审批 <span className="ml-1 text-lg font-semibold text-foreground tabular-nums">{pending.length}</span> 条
         </p>
+        {canFilterDepartments && departmentKeys.length > 1 && (
+          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+            <SelectTrigger aria-label="按部门筛选" className="w-[9.5rem]">
+              <SelectValue placeholder="全部部门" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部部门</SelectItem>
+              {departmentKeys.map((department) => (
+                <SelectItem key={department} value={department}>
+                  {departmentLabel(department)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {(archived.length > 0 || showArchived) && (
           <Button
             variant="outline"
@@ -411,6 +444,12 @@ export const ApprovalsContent = ({
                     ) : (
                       <span className="text-muted-foreground/70">未提供</span>
                     )}
+                  </span>
+                  <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+                    <span className="text-muted-foreground">投递部门</span>
+                    <span className="min-w-0 break-words font-medium text-foreground">
+                      {departmentLabel(row.department)}
+                    </span>
                   </span>
                 </div>
               </CardHeader>

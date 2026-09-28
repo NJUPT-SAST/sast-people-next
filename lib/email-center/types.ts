@@ -64,7 +64,7 @@ export type InterviewEmailRenderVariables =
   | InterviewScheduleEmailRenderVariables
   | InterviewWithdrawalEmailVariables;
 
-export type EmailTemplateRenderRequest =
+export type EmailTemplateRenderRequest = (
   | {
       templateKey: ResultEmailTemplateKey;
       variables: ResultEmailRenderVariables;
@@ -76,7 +76,11 @@ export type EmailTemplateRenderRequest =
   | {
       templateKey: InterviewWithdrawalEmailTemplateKey;
       variables: InterviewWithdrawalEmailVariables;
-    };
+    }
+) & {
+  /* 部门模板覆盖：渲染时按该部门解析模板，缺省用全局默认 */
+  department?: string | null;
+};
 
 export type CreateRenderedEmailDeliveryInput = EmailTemplateRenderRequest & {
   toAddress: string;

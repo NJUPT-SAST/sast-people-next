@@ -2,9 +2,9 @@ import "server-only";
 
 import { SESSION, SESSION_ID_PATTERN } from "@/const/cookie";
 import { db } from "@/db/drizzle";
-import { peopleSession } from "@/db/schema";
+import { normalizeDepartmentKey, peopleSession } from "@/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secret";
-import { and, eq, gt, lt } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, or } from "drizzle-orm";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
@@ -19,6 +19,8 @@ export type SessionData = {
   uid: number;
   name: string;
   role: number;
+  /* Link 部门标识；null 表示尚未同步或该用户没有部门 */
+  department: string | null;
   expiresAt: Date;
   linkAccessToken?: string | null;
   linkRefreshToken?: string | null;
@@ -58,6 +60,7 @@ const toSessionData = (
   uid: record.uid,
   name: record.name,
   role: record.role,
+  department: record.department ?? null,
   expiresAt: record.expiresAt,
   linkAccessToken: includeLinkTokens && record.linkAccessToken
     ? decryptStoredToken(record.linkAccessToken)
@@ -111,9 +114,11 @@ export async function createSession(
   role: number,
   linkTokens?: LinkSessionTokens,
   linkAdminTokenMarker?: Required<Pick<LinkSessionTokens, "accessToken" | "accessTokenExpiresAt">>,
+  department?: string | null,
 ) {
   const expiresAt = new Date(Date.now() + sessionLifetimeMs(role));
   const id = crypto.randomBytes(32).toString("base64url");
+  const normalizedDepartment = normalizeDepartmentKey(department ?? null);
 
   const previousSessionId = await getSessionIdFromCookie();
   if (previousSessionId) {
@@ -125,6 +130,8 @@ export async function createSession(
     uid,
     name,
     role,
+    department: normalizedDepartment,
+    departmentSyncedAt: new Date(),
     expiresAt,
     linkAccessToken: linkTokens?.accessToken
       ? encryptSecret(linkTokens.accessToken)
@@ -174,6 +181,39 @@ export async function updateLinkSessionTokens(
     .update(peopleSession)
     .set(values)
     .where(eq(peopleSession.id, sessionId));
+}
+
+/* Link 资料（角色 + 部门）回源的最小间隔：5 分钟内不重复打 Link，角色变化则立即写入 */
+const DEPARTMENT_SYNC_TTL_MS = 5 * 60 * 1000;
+
+/* dashboard 布局每次回源 Link profile 后调用；只在从未同步或超过最小间隔时回写（≤5 分钟跟上 Link 的角色/部门变化） */
+export async function syncCurrentSessionIdentity(identity: {
+  role: number;
+  department: string | null;
+}) {
+  const id = await getSessionIdFromCookie();
+  if (!id) return;
+
+  const normalized = normalizeDepartmentKey(identity.department);
+  await db
+    .update(peopleSession)
+    .set({
+      role: identity.role,
+      department: normalized,
+      departmentSyncedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(peopleSession.id, id),
+        or(
+          isNull(peopleSession.departmentSyncedAt),
+          lt(
+            peopleSession.departmentSyncedAt,
+            new Date(Date.now() - DEPARTMENT_SYNC_TTL_MS),
+          ),
+        ),
+      ),
+    );
 }
 
 export async function deleteSession() {

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findUserFlowId } from '@/action/user-flow/find';
+import { DepartmentAccessError } from '@/lib/authz';
+import { verifySession } from '@/lib/dal';
 import { logServerError } from '@/lib/server-error-log';
 
 export async function GET(request: NextRequest) {
   try {
+    // 入口鉴权：未登录时由 verifySession 统一处理
+    await verifySession();
+
     const { searchParams } = new URL(request.url);
     const studentId = searchParams.get('studentId');
     const flowId = searchParams.get('flowId');
@@ -40,14 +45,20 @@ export async function GET(request: NextRequest) {
           : '该考生笔试结果已确认，不能再修改评分',
     });
   } catch (error) {
-    const { searchParams } = new URL(request.url);
+    const { pathname, searchParams } = new URL(request.url);
     logServerError('api:user-flow:get', error, {
-      path: request.nextUrl.pathname,
+      path: pathname,
       method: request.method,
       action: 'find-user-flow',
       studentId: searchParams.get('studentId'),
       flowId: Number(searchParams.get('flowId')) || null,
     });
+    if (error instanceof DepartmentAccessError) {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 403 },
+      );
+    }
     return NextResponse.json(
       { success: false, message: error instanceof Error ? error.message : '查询失败' },
       { status: 500 }

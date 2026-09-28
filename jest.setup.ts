@@ -12,6 +12,18 @@ Object.assign(globalThis, {
   TextEncoder,
 });
 
+/* jsdom 缺少 Radix（Select / DropdownMenu 等）依赖的指针与滚动 API（node 环境无 Element） */
+if (typeof Element !== 'undefined') {
+  for (const method of ['hasPointerCapture', 'setPointerCapture', 'releasePointerCapture'] as const) {
+    if (!Element.prototype[method]) {
+      Element.prototype[method] = jest.fn();
+    }
+  }
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = jest.fn();
+  }
+}
+
 type MockNextImageProps = React.ComponentPropsWithoutRef<'img'> & {
   priority?: boolean;
   fill?: boolean;

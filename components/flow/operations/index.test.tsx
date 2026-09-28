@@ -16,7 +16,7 @@ jest.mock("./duplicate", () => ({
 
 describe("Operations", () => {
   it("uses the unified flow editor for written recruitment flows", () => {
-    render(<Operations data={{ id: 15, type: "recruitment" } as never} />);
+    render(<Operations data={{ id: 15, type: "recruitment" } as never} canEdit />);
 
     expect(screen.getByText("edit-steps")).toBeInTheDocument();
     expect(screen.getByText("duplicate-flow")).toBeInTheDocument();
@@ -25,7 +25,7 @@ describe("Operations", () => {
   });
 
   it("does not expose exam-only controls for non-written flows", () => {
-    render(<Operations data={{ id: 15, type: "woc" } as never} />);
+    render(<Operations data={{ id: 15, type: "woc" } as never} canEdit />);
 
     expect(screen.getByText("edit-steps")).toBeInTheDocument();
     expect(screen.getByText("duplicate-flow")).toBeInTheDocument();

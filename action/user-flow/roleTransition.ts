@@ -3,13 +3,12 @@
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
 import { updateLinkUserRoles } from "@/lib/link/admin";
-import { peopleRoleToLinkRole } from "@/lib/link/role";
+import { MANAGER_ROLE, peopleRoleToLinkRole } from "@/lib/link/role";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-const ADMIN_ROLE = 3;
 const LINK_BATCH_ROLE_UPDATE_LIMIT = 500;
 
 const roleGrantedByFlow = (flowType: string) => {
@@ -71,7 +70,7 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingF
     const user = users.get(uid);
     const calculatedRole = calculatedRoles.get(uid) ?? 0;
     // People must never automatically change an administrator role.
-    if (!user || user.role === null || user.role >= ADMIN_ROLE || user.role === calculatedRole) {
+    if (!user || user.role === null || user.role >= MANAGER_ROLE || user.role === calculatedRole) {
       continue;
     }
     const ids = idsByRole.get(calculatedRole) ?? [];

@@ -2,10 +2,12 @@ import { PageHeader, PageTitle } from "@/components/route";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Suspense } from "react";
 import { AddFlow } from "@/components/flow/add";
+import { getDepartmentScope } from "@/lib/authz";
 import { FlowTableServer } from "./flowTable";
 
 const FlowPage = async ({ searchParams }: { searchParams: Promise<{ edit?: string }> }) => {
   const params = await searchParams;
+  const scope = await getDepartmentScope();
   return (
     <>
       <PageHeader className="border-b pb-4">
@@ -16,12 +18,12 @@ const FlowPage = async ({ searchParams }: { searchParams: Promise<{ edit?: strin
           </p>
         </div>
         <div className="w-full shrink-0 sm:w-auto">
-          <AddFlow />
+          <AddFlow canChooseDepartment={scope.kind === "all"} />
         </div>
       </PageHeader>
       <div className="mt-1">
         <Suspense fallback={<Skeleton className="h-[200px] w-full" />}>
-          <FlowTableServer initialEditFlowId={params.edit ? Number(params.edit) : undefined} />
+          <FlowTableServer initialEditFlowId={params.edit ? Number(params.edit) : undefined} scope={scope} />
         </Suspense>
       </div>
     </>

@@ -1,5 +1,6 @@
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
+import { verifySession } from "@/lib/dal";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
@@ -12,6 +13,8 @@ export default async function RecruitmentRedirect({
     scheduleId?: string;
   }>;
 }) {
+  // 服务端入口自带鉴权，不依赖 layout
+  await verifySession();
   const params = await searchParams;
 
   // No params at all → default to interviews

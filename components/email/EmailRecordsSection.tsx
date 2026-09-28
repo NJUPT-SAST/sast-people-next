@@ -23,6 +23,7 @@ import {
   getDeliveryStatusBadgeClass,
 } from "./emailDashboardConstants";
 import { EmailRecordActions } from "./EmailRecordActions";
+import { departmentLabel } from "@/const/department";
 import type {
   EmailDeliveryPage,
   EmailDeliveryRecord,
@@ -200,6 +201,8 @@ export function EmailRecordsSection({
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {delivery.userName || "未知收件人"}
                   {delivery.flowTitle ? ` · ${delivery.flowTitle}` : ""}
+                  {" · "}
+                  {delivery.flowDepartment ? departmentLabel(delivery.flowDepartment) : "全局流程"}
                   {" · "}
                   {formatDate(delivery.sentAt ?? delivery.createdAt)}
                 </p>

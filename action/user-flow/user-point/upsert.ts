@@ -1,6 +1,8 @@
 import { db } from "@/db/drizzle";
-import { flowStep, operationAudit, problem, userFlow, userPoint } from "@/db/schema";
-import { verifyRole } from "@/lib/dal";
+import { flowStep, normalizeDepartmentKey, operationAudit, problem, userFlow, userPoint } from "@/db/schema";
+import { verifyScopedRole, type DepartmentScope } from "@/lib/authz";
+import type { FlowScopedSession } from "@/action/flow/department-utils";
+import { assertUserFlowInScope } from "@/lib/flow-access";
 import { logServerError } from "@/lib/server-error-log";
 import { and, desc, eq, gte, inArray, InferInsertModel, sql } from "drizzle-orm";
 
@@ -31,6 +33,7 @@ type ScoreAuditChange = {
 
 type ValidatedScoreChanges = {
   targetUserId: number;
+  department: string | null;
   changes: ScoreAuditChange[];
 };
 
@@ -43,12 +46,14 @@ async function writeAggregatedScoreAudit(
     actorRole,
     userFlowId,
     targetUserId,
+    department,
     changes,
   }: {
     actorId: number;
     actorRole: number | null;
     userFlowId: number;
     targetUserId: number;
+    department: string | null;
     changes: ScoreAuditChange[];
   },
 ) {
@@ -73,6 +78,7 @@ async function writeAggregatedScoreAudit(
       action: "review.score.upsert",
       resourceType: "user_flow",
       resourceId: userFlowId,
+      department: normalizeDepartmentKey(department),
       metadata: { targetUserId, scoreChanges: changes, saveCount: 1 },
       createdAt: now,
     });
@@ -169,6 +175,7 @@ function normalizePointValues(values: Array<PointInsertValue>): NormalizedPointV
 async function validateScoreChanges(
   tx: Tx,
   { userFlowId, problemIds, values }: NormalizedPointValues,
+  scope: DepartmentScope,
 ): Promise<ValidatedScoreChanges> {
   await tx.execute(
     sql`select 1 from ${userFlow} where ${userFlow.id} = ${userFlowId} for update`,
@@ -179,6 +186,7 @@ async function validateScoreChanges(
       flowId: userFlow.fkFlowId,
       progressStatus: userFlow.progressStatus,
       targetUserId: userFlow.fkUserId,
+      department: userFlow.department,
     })
     .from(userFlow)
     .where(eq(userFlow.id, userFlowId))
@@ -187,6 +195,9 @@ async function validateScoreChanges(
   if (!targetUserFlow) {
     throw new Error("未找到考生流程");
   }
+
+  // 只能给本部门可见的候选人评分
+  assertUserFlowInScope(scope, targetUserFlow.department);
 
   if (
     targetUserFlow.progressStatus === "passed" ||
@@ -255,6 +266,7 @@ async function validateScoreChanges(
 
   return {
     targetUserId: targetUserFlow.targetUserId,
+    department: targetUserFlow.department,
     changes: changes.filter(
       (change) =>
         change.previousScore !== change.nextScore ||
@@ -263,7 +275,7 @@ async function validateScoreChanges(
   };
 }
 
-function getScoreOverwriteCondition(session: Awaited<ReturnType<typeof verifyRole>>) {
+function getScoreOverwriteCondition(session: Pick<FlowScopedSession, "uid" | "role">) {
   if (session.role >= 3) {
     return sql`true`;
   }
@@ -277,16 +289,16 @@ export const upsertPoint = async (
   point: number,
   note?: string | null,
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
     const actor = session;
     const normalized = normalizePointValues([
       { fkUserFlowId: userFlowId, fkProblemId: problemId, points: point, note },
     ]);
     const { rows } = await db.transaction(async (tx) => {
-      const validated = await validateScoreChanges(tx, normalized);
+      const validated = await validateScoreChanges(tx, normalized, actor.scope);
       const rows = await tx
         .insert(userPoint)
         .values({
@@ -309,6 +321,7 @@ export const upsertPoint = async (
           actorRole: actor.role,
           userFlowId,
           targetUserId: validated.targetUserId,
+          department: validated.department,
           changes: validated.changes,
         });
       }
@@ -338,15 +351,15 @@ export const upsertPoint = async (
 };
 
 export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
     const actor = session;
     const normalized = normalizePointValues(values);
     const actorId = actor.uid;
     await db.transaction(async (tx) => {
-      const validated = await validateScoreChanges(tx, normalized);
+      const validated = await validateScoreChanges(tx, normalized, actor.scope);
       const rows = await tx
         .insert(userPoint)
         .values(
@@ -379,6 +392,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
           actorRole: actor.role,
           userFlowId: normalized.userFlowId,
           targetUserId: validated.targetUserId,
+          department: validated.department,
           changes: validated.changes,
         });
       }

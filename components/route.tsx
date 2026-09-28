@@ -14,6 +14,7 @@ import {
   ScrollText,
   Info,
   MessageSquareText,
+  Building2,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -25,6 +26,7 @@ import {
 } from './ui/breadcrumb';
 import { cn } from '@/lib/utils';
 import { SENTRY_ISSUES_URL } from '@/lib/sentry';
+import { ADMIN_ROLE, LECTURER_ROLE, MANAGER_ROLE } from '@/lib/link/role';
 
 export type MenuGroupId = 'me' | 'work' | 'manage';
 
@@ -34,6 +36,10 @@ export interface MenuItem {
   path: string;
   group: MenuGroupId;
   externalHref?: string;
+  /** 可见所需的最低角色（默认 0：所有登录用户） */
+  minRole?: number;
+  /** 需要部门归属（无部门账号的页面会被重定向，导航不再展示；管理员不受限） */
+  requiresDepartment?: boolean;
 }
 
 export const menuGroupLabels: Record<MenuGroupId, string> = {
@@ -62,54 +68,77 @@ export const menuItems: MenuItem[] = [
     icon: ClipboardPenLine,
     path: '/review',
     group: 'work',
+    requiresDepartment: true,
+    minRole: LECTURER_ROLE,
   },
   {
     title: '用户管理',
     icon: Users,
     path: '/manage',
     group: 'manage',
+    minRole: LECTURER_ROLE,
   },
   {
     title: '笔试管理',
     icon: NotepadTextDashed,
     path: '/exams',
     group: 'work',
+    requiresDepartment: true,
+    minRole: LECTURER_ROLE,
   },
   {
     title: '面试管理',
     icon: CalendarCheck,
     path: '/interviews',
     group: 'work',
+    requiresDepartment: true,
+    minRole: LECTURER_ROLE,
   },
   {
     title: '邮件中心',
     icon: Mail,
     path: '/emails',
     group: 'work',
+    requiresDepartment: true,
+    minRole: MANAGER_ROLE,
   },
   {
     title: '流程管理',
     icon: SquareChartGantt,
     path: '/flow',
     group: 'manage',
+    requiresDepartment: true,
+    minRole: MANAGER_ROLE,
+  },
+  {
+    title: '部门管理',
+    icon: Building2,
+    path: '/departments',
+    group: 'manage',
+    minRole: ADMIN_ROLE,
   },
   {
     title: '面评审批',
     icon: ClipboardCheck,
     path: '/approvals',
     group: 'work',
+    requiresDepartment: true,
+    minRole: MANAGER_ROLE,
   },
   {
     title: '操作审计',
     icon: ScrollText,
     path: '/audit',
     group: 'manage',
+    requiresDepartment: true,
+    minRole: MANAGER_ROLE,
   },
   {
     title: '反馈记录',
     icon: MessageSquareText,
     path: '/feedback',
     group: 'manage',
+    minRole: ADMIN_ROLE,
   },
   {
     title: '错误日志',
@@ -117,6 +146,7 @@ export const menuItems: MenuItem[] = [
     path: '/error-log',
     group: 'manage',
     externalHref: SENTRY_ISSUES_URL,
+    minRole: ADMIN_ROLE,
   },
   {
     title: '关于与反馈',
@@ -132,34 +162,30 @@ export function isItemActive(pathname: string, itemPath: string): boolean {
 }
 
 export function getMenuItemTitle(item: MenuItem, role?: number): string {
-  if (item.path === '/manage' && role === 2) return '成员目录';
+  if (item.path === '/manage' && role === LECTURER_ROLE) return '成员目录';
   return item.title;
 }
 
-export function getVisibleMenuItems(role: number): MenuItem[] {
-  const withoutAbout = (items: MenuItem[]) => items.filter((item) => item.path !== '/about');
-  if (role === 0 || role === 1) {
-    return withoutAbout(menuItems.filter((item) => item.group === 'me'));
-  }
-  if (role === 2) {
-    return withoutAbout(menuItems.filter(
+export function getVisibleMenuItems(
+  role: number,
+  hasDepartment = true,
+): MenuItem[] {
+  return menuItems
+    .filter((item) => item.path !== '/about')
+    .filter((item) => role >= (item.minRole ?? 0))
+    .filter(
       (item) =>
-        item.group === 'me' ||
-        item.path === '/review' ||
-        item.path === '/manage' ||
-        item.path === '/exams' ||
-        item.path === '/interviews',
-    ));
-  }
-  return withoutAbout(menuItems);
+        !item.requiresDepartment || role >= ADMIN_ROLE || hasDepartment,
+    );
 }
 
 export const aboutMenuItem = menuItems.find((item) => item.path === '/about')!;
 
 export function getMenuGroups(
   role: number,
+  hasDepartment = true,
 ): Array<{ id: MenuGroupId; label: string; items: MenuItem[] }> {
-  const visible = getVisibleMenuItems(role);
+  const visible = getVisibleMenuItems(role, hasDepartment);
   return menuGroupOrder
     .map((id) => ({
       id,

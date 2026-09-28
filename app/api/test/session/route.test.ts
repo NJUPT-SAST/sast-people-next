@@ -54,6 +54,29 @@ describe("Playwright test session route", () => {
         accessToken: "playwright-link-access-token",
         accessTokenExpiresAt: expect.any(Number),
       }),
+      null,
+    );
+  });
+
+  it("carries the department for department-scoped test sessions", async () => {
+    process.env.PLAYWRIGHT_TEST_MODE = "1";
+
+    await POST(
+      requestWithBody({
+        uid: 7,
+        role: 2,
+        name: "Lecturer",
+        department: "software",
+      }) as never,
+    );
+
+    expect(mockCreateSession).toHaveBeenCalledWith(
+      7,
+      "Lecturer",
+      2,
+      expect.anything(),
+      expect.anything(),
+      "software",
     );
   });
 });

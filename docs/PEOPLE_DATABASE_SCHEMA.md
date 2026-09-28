@@ -3,13 +3,13 @@
 | 项目 | 内容 |
 | --- | --- |
 | 文档状态 | Draft |
-| 适用分支 | `v3.1` |
+| 适用分支 | `v3` |
 | 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql` 至 `migrations/0026_email_center_production_hardening.sql` |
 | 最后更新 | 2026-06-10 |
 
 ## 1. 边界
 
-People v3.1 数据库只维护招新、流程、评分、面评、邮件和审计等业务数据。
+People v3 数据库只维护招新、流程、评分、面评、邮件和审计等业务数据。
 
 用户基础资料、账号状态、角色和第三方身份绑定由 SAST Link 维护。People 业务表中的用户字段保存 Link 用户 ID，不再对旧 People `public.user.id` 建外键。
 
@@ -391,7 +391,7 @@ flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
 | `user_flow.fk_current_step_id` → `flow_step` | SET NULL | step 被物理删除后不阻断用户流程 |
 | `interview_schedule.fk_evaluation_id` → `interview_evaluation` | SET NULL | 删除或重建面评时保留已创建日程记录 |
 
-## 11. v3.1 用户 ID 迁移口径
+## 11. v3 用户 ID 迁移口径
 
 `migrations/0011_link_user_ids.sql` 会移除以下业务表到旧 `public.user` 的外键约束：
 

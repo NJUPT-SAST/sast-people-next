@@ -1,8 +1,9 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { problem } from '@/db/schema';
-import { verifyRole } from '@/lib/dal';
+import { flow, flowStep, problem } from '@/db/schema';
+import { verifyManager } from '@/lib/authz';
+import { assertFlowEditable } from '@/lib/flow-access';
 import { problemType } from '@/types/problem';
 import { eq, and, notInArray, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -16,9 +17,25 @@ export const updateProblems = async (
   problems: problemType,
   flowId: number,
 ) => {
-  const session = await verifyRole(3);
+  const session = await verifyManager();
 
   try {
+    const [flowRow] = await db
+      .select({ department: flow.department })
+      .from(flow)
+      .where(eq(flow.id, flowId))
+      .limit(1);
+    if (!flowRow) throw new Error('流程不存在');
+    assertFlowEditable(session.scope, flowRow.department);
+
+    /* 步骤必须属于该流程，避免借其他流程的归属绕过部门校验 */
+    const [stepRow] = await db
+      .select({ id: flowStep.id })
+      .from(flowStep)
+      .where(and(eq(flowStep.id, stepId), eq(flowStep.fkFlowId, flowId)))
+      .limit(1);
+    if (!stepRow) throw new Error('流程步骤不存在');
+
     const existingProblems = await db
       .select()
       .from(problem)
@@ -98,6 +115,7 @@ export const updateProblems = async (
       action: 'flow.update_problems',
       resourceType: 'flow',
       resourceId: flowId,
+      department: flowRow.department,
       metadata: {
         stepId,
         problemGroups: Object.keys(problems),

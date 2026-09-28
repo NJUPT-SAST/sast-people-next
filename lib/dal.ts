@@ -20,6 +20,8 @@ export const verifySession = cache(async () => {
       uid,
       role: session.role as number,
       name: session.name as string,
+      /* 授权判定用：Link 部门标识，null 表示没有部门归属 */
+      department: session.department ?? null,
     };
   } catch (err) {
     if (isNextControlFlowError(err)) throw err;

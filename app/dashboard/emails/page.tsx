@@ -21,8 +21,12 @@ import { PageTitle } from "@/components/route";
 import { getEmailCenterConfigSummary } from "@/lib/email-center/config";
 import {
   normalizeEmailCenterTab,
+  type EmailCenterTab,
 } from "@/components/email/emailDashboardConstants";
 import { emailTemplateDefinitions } from "@/lib/email-center/registry";
+import { getDepartmentScope } from "@/lib/authz";
+import { normalizeDepartmentKey } from "@/db/schema";
+import { verifyRole } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
 import { MailCheck } from "lucide-react";
 
@@ -31,11 +35,36 @@ export default async function EmailDashboardPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await verifyRole(3);
+  /* 模板管理入口 = role 3 + 部门 scope：部门账号只能管理本部门覆盖，无部门归属不展示模板页 */
+  const departmentScope = await getDepartmentScope();
+  const canManageTemplates = departmentScope.kind !== "none";
   let data: Awaited<ReturnType<typeof loadEmailDashboardData>>;
   const awaitedSearchParams = await searchParams;
+  const requestedTab = normalizeEmailCenterTab(
+    getSearchParam(awaitedSearchParams, "tab"),
+  );
+  const requestedDepartment = normalizeDepartmentKey(
+    getSearchParam(awaitedSearchParams, "department"),
+  );
+  /* 模板归属：管理员按 URL 切换（缺省全局默认），部门账号固定在本部门覆盖 */
+  const selectedDepartment =
+    departmentScope.kind === "all"
+      ? requestedDepartment
+      : departmentScope.kind === "department"
+        ? departmentScope.department
+        : null;
+  const activeTab: EmailCenterTab =
+    requestedTab === "templates" && !canManageTemplates
+      ? "status"
+      : requestedTab;
 
   try {
-    data = await loadEmailDashboardData(awaitedSearchParams);
+    data = await loadEmailDashboardData(
+      activeTab,
+      awaitedSearchParams,
+      selectedDepartment,
+    );
   } catch (error) {
     logServerError("dashboard:emails", error, {
       path: "/dashboard/emails",
@@ -82,7 +111,9 @@ export default async function EmailDashboardPage({
           {...data}
           emailCenterConfig={emailCenterConfig}
           templateDefinitions={emailTemplateDefinitions}
-          activeTab={getSearchParam(awaitedSearchParams, "tab")}
+          activeTab={activeTab}
+          canManageTemplates={canManageTemplates}
+          department={selectedDepartment}
           initialFlowId={initialFlowId}
         />
       </div>
@@ -106,10 +137,10 @@ function parseOptionalPositiveInt(value: string | undefined) {
 }
 
 async function loadEmailDashboardData(
+  activeTab: EmailCenterTab,
   searchParams: Record<string, string | string[] | undefined>,
+  department: string | null,
 ) {
-  const activeTab = normalizeEmailCenterTab(getSearchParam(searchParams, "tab"));
-
   if (activeTab === "tasks") {
     const [batches, flowTargets, resultDeliveryStates] = await Promise.all([
       listEmailBatches(),
@@ -136,10 +167,10 @@ async function loadEmailDashboardData(
       interviewSchedulePreviews,
     ] = await Promise.all([
       listEmailFlowOptions(),
-      listEmailTemplateSettings(),
-      getResultEmailPreviews(),
-      listInterviewScheduleEmailTemplates(),
-      getInterviewScheduleEmailPreviews(),
+      listEmailTemplateSettings(department),
+      getResultEmailPreviews(department),
+      listInterviewScheduleEmailTemplates(department),
+      getInterviewScheduleEmailPreviews(department),
     ]);
     return {
       flowOptions,

@@ -1,5 +1,6 @@
 "use server";
-import { verifyRole } from "@/lib/dal";
+import { verifyManager } from "@/lib/authz";
+import { assertFlowEditable } from "@/lib/flow-access";
 import { db } from "@/db/drizzle";
 import {
   requireBooleanInput,
@@ -18,13 +19,16 @@ export const batchSendEmail = async (
   acceptInput: unknown,
   excludedUserIdsInput?: unknown,
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let actorId: number | null = null;
+  let actorRole: number | null = null;
   let flowId: number | null = null;
   let accept: boolean | null = null;
   let targetUserIds: number[] = [];
 
   try {
-    session = await verifyRole(3);
+    const session = await verifyManager();
+    actorId = session.uid;
+    actorRole = session.role;
     targetUserIds = requirePositiveIntegerArrayInput(uidInput, "收件人用户 ID");
     flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
     accept = requireBooleanInput(acceptInput, "结果通知类型");
@@ -34,12 +38,13 @@ export const batchSendEmail = async (
           (Array.isArray(excludedUserIdsInput) ? excludedUserIdsInput : [])
             .map((value) => requirePositiveIntegerInput(value, "排除发送的用户 ID")),
         ));
-    const actorId = session.uid;
     const [flowRecord] = await db
-      .select({ type: flow.type })
+      .select({ type: flow.type, department: flow.department })
       .from(flow)
       .where(eq(flow.id, flowId))
       .limit(1);
+    /* 邮件批次归属流程：只有流程归属部门或管理员可以创建 */
+    assertFlowEditable(session.scope, flowRecord?.department, "无权为其他部门的流程发送邮件");
     const result = await createResultEmailBatch({
       userIds: targetUserIds,
       flowId,
@@ -50,11 +55,12 @@ export const batchSendEmail = async (
 
     if (result.batchId) {
       await writeOperationAudit({
-        actorId,
+        actorId: session.uid,
         actorRole: session.role,
         action: "email.batch.create",
         resourceType: "email_batch",
         resourceId: result.batchId,
+        department: flowRecord?.department ?? null,
         metadata: {
           flowId,
           accept,
@@ -76,8 +82,8 @@ export const batchSendEmail = async (
 
     logServerError("email:batchSend", error, {
       path: "/dashboard/review",
-      userId: session?.uid ?? null,
-      role: session?.role ?? null,
+      userId: actorId,
+      role: actorRole,
       action,
       flowId,
       metadata: {

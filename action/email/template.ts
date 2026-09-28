@@ -1,8 +1,15 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { emailTemplateSetting } from "@/db/schema";
+import { emailTemplateSetting, normalizeDepartmentKey } from "@/db/schema";
+import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
 import { verifyRole } from "@/lib/dal";
+import {
+  canEditTemplateRow,
+  pickTemplateSettingRow,
+  resolveTemplateEditTarget,
+  templateReadFilter,
+} from "@/lib/email-center/template-access";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import {
@@ -11,10 +18,32 @@ import {
 } from "@/lib/email/template-settings";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import type { ResultEmailTemplateKey } from "@/lib/email-center/types";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 type ResultEmailTemplateValues = Omit<ResultEmailTemplateSetting, "templateKey" | "updatedAt">;
+
+type EmailTemplateSettingRecord = typeof emailTemplateSetting.$inferSelect;
+
+/** 解析后的结果模板：`department` 为命中覆盖行的归属部门，NULL = 落到全局默认 / 内置默认 */
+export type ResultEmailTemplateResolvedSetting = ResultEmailTemplateSetting & {
+  department: string | null;
+};
+
+/** 列表行：额外给出当前账号能否编辑该行、展示值是否来自真实存在的覆盖行 */
+export type ResultEmailTemplateSettingRow = ResultEmailTemplateResolvedSetting & {
+  id: number | null;
+  editable: boolean;
+  hasOverride: boolean;
+};
+
+export type ResultEmailTemplateSettingsPayload = {
+  rows: ResultEmailTemplateSettingRow[];
+  /** 可选模板归属部门：管理员 = 数据库中已出现的部门（可再手填），部门账号 = 仅本部门 */
+  departments: string[];
+  /** 当前账号的写入范围，UI 据此锁定「模板归属」选择器 */
+  scope: DepartmentScope;
+};
 
 const requiredFieldLabels: Record<keyof ResultEmailTemplateValues, string> = {
   subjectTemplate: "邮件标题",
@@ -117,74 +146,150 @@ function validateResultEmailTemplateValues(
   return { ok: true };
 }
 
-export async function listEmailTemplateSettings() {
-  await verifyRole(3);
+/**
+ * 合并解析结果模板：内置默认 → 全局默认行 → 命中的部门覆盖行。
+ * 文案字段为空时继续回落到内置默认，避免历史空行渲染出空白邮件。
+ */
+function mergeResultEmailTemplateSetting(
+  templateKey: string,
+  saved: EmailTemplateSettingRecord | null,
+): ResultEmailTemplateResolvedSetting {
+  const fallback = defaultResultEmailTemplateSettings.find(
+    (item) => item.templateKey === templateKey,
+  )!;
+  if (!saved) return { ...fallback, department: null };
 
-  const rows = await db.select().from(emailTemplateSetting);
-  return defaultResultEmailTemplateSettings.map((fallback) => {
-    const saved = rows.find((item) => item.templateKey === fallback.templateKey);
-    return {
-      ...fallback,
-      ...saved,
-      titleTemplate: saved?.titleTemplate?.trim() || fallback.titleTemplate,
-      subtitleTemplate: saved?.subtitleTemplate?.trim() || fallback.subtitleTemplate,
-      resultBadgeTemplate: saved?.resultBadgeTemplate?.trim() || fallback.resultBadgeTemplate,
-      resultTitleTemplate: saved?.resultTitleTemplate?.trim() || fallback.resultTitleTemplate,
-      resultSummaryTemplate: saved?.resultSummaryTemplate?.trim() || fallback.resultSummaryTemplate,
-      bodyTemplate: saved?.bodyTemplate?.trim() || fallback.bodyTemplate,
-    };
-  });
+  return {
+    templateKey,
+    updatedAt: saved.updatedAt,
+    subjectTemplate: saved.subjectTemplate,
+    titleTemplate: saved.titleTemplate?.trim() || fallback.titleTemplate,
+    subtitleTemplate: saved.subtitleTemplate?.trim() || fallback.subtitleTemplate,
+    resultBadgeTemplate: saved.resultBadgeTemplate?.trim() || fallback.resultBadgeTemplate,
+    resultTitleTemplate: saved.resultTitleTemplate?.trim() || fallback.resultTitleTemplate,
+    resultSummaryTemplate: saved.resultSummaryTemplate?.trim() || fallback.resultSummaryTemplate,
+    bodyTemplate: saved.bodyTemplate?.trim() || fallback.bodyTemplate,
+    memberInfoFormUrl: saved.memberInfoFormUrl,
+    feishuGroupUrl: saved.feishuGroupUrl,
+    calendarUrl: saved.calendarUrl,
+    feishuRegisterHelpUrl: saved.feishuRegisterHelpUrl,
+    contactEmail: saved.contactEmail,
+    memberFormLabel: saved.memberFormLabel,
+    feishuGroupName: saved.feishuGroupName,
+    department: saved.department ?? null,
+  };
 }
 
-export async function getResultEmailPreviews() {
+/** 可归属部门：管理员取库中已出现的部门（可再手填），部门账号仅本部门 */
+async function listResultTemplateDepartments(scope: DepartmentScope) {
+  if (scope.kind === "department") return [scope.department];
+  if (scope.kind === "none") return [];
+
+  const rows = await db
+    .selectDistinct({ department: emailTemplateSetting.department })
+    .from(emailTemplateSetting);
+  return rows
+    .map((row) => row.department)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
+export async function listEmailTemplateSettings(
+  department?: string | null,
+  scope?: DepartmentScope,
+): Promise<ResultEmailTemplateSettingsPayload> {
   await verifyRole(3);
-  const settings = await listEmailTemplateSettings();
+  const effectiveScope = scope ?? (await getDepartmentScope());
+  const readFilter = templateReadFilter(
+    emailTemplateSetting.department,
+    effectiveScope,
+  );
+  const savedRows = readFilter
+    ? await db.select().from(emailTemplateSetting).where(readFilter)
+    : await db.select().from(emailTemplateSetting);
+
+  const target = normalizeDepartmentKey(department);
+  const rows = defaultResultEmailTemplateSettings.map((fallback) => {
+    const saved = pickTemplateSettingRow(
+      savedRows.filter((row) => row.templateKey === fallback.templateKey),
+      target,
+    );
+    return {
+      ...mergeResultEmailTemplateSetting(fallback.templateKey, saved),
+      id: saved?.id ?? null,
+      editable: canEditTemplateRow(effectiveScope, saved?.department ?? null),
+      hasOverride: saved !== null && saved.department === target,
+    } satisfies ResultEmailTemplateSettingRow;
+  });
+
+  return {
+    rows,
+    departments: await listResultTemplateDepartments(effectiveScope),
+    scope: effectiveScope,
+  };
+}
+
+/**
+ * 预览当前账号可见范围内的模板：管理员按入参选部门（缺省全局默认），
+ * 部门账号可在全局默认与本部门之间选择、跨部门入参回落本部门，无部门账号只看全局默认。
+ */
+export async function getResultEmailPreviews(department?: string | null) {
+  await verifyRole(3);
+  const scope = await getDepartmentScope();
+  const requested = normalizeDepartmentKey(department);
+  /* 部门账号只能在全局默认（null）与本部门之间取模板，跨部门入参一律回落到本部门 */
+  const target =
+    scope.kind === "none"
+      ? null
+      : scope.kind === "department" &&
+          requested !== null &&
+          requested !== scope.department
+        ? scope.department
+        : requested;
+
   const entries = await Promise.all(
-    settings.map(async (setting) => {
+    defaultResultEmailTemplateSettings.map(async (fallback) => {
+      const setting = await getEmailTemplateSetting(fallback.templateKey, target);
       const rendered = await renderEmailTemplate({
-        templateKey: setting.templateKey as ResultEmailTemplateKey,
+        templateKey: fallback.templateKey as ResultEmailTemplateKey,
         variables: {
           name: "同学",
           flowName: "示例流程",
           setting,
           genericGreeting: true,
         },
+        department: target,
       });
-      return [setting.templateKey, rendered.html] as const;
+      return [fallback.templateKey, rendered.html] as const;
     }),
   );
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
-export async function getEmailTemplateSetting(templateKey: string) {
-  const [saved] = await db
+/** 渲染取模板：部门覆盖 → 全局默认 → 内置默认（无任何行时返回内置默认文案） */
+export async function getEmailTemplateSetting(
+  templateKey: string,
+  department?: string | null,
+): Promise<ResultEmailTemplateResolvedSetting> {
+  const rows = await db
     .select()
     .from(emailTemplateSetting)
-    .where(eq(emailTemplateSetting.templateKey, templateKey))
-    .limit(1);
+    .where(eq(emailTemplateSetting.templateKey, templateKey));
+  const saved = pickTemplateSettingRow(rows, department);
 
-  const fallback = defaultResultEmailTemplateSettings.find(
-    (item) => item.templateKey === templateKey,
-  )!;
-  return saved
-    ? {
-        ...fallback,
-        ...saved,
-        titleTemplate: saved.titleTemplate?.trim() || fallback.titleTemplate,
-        subtitleTemplate: saved.subtitleTemplate?.trim() || fallback.subtitleTemplate,
-        resultBadgeTemplate: saved.resultBadgeTemplate?.trim() || fallback.resultBadgeTemplate,
-        resultTitleTemplate: saved.resultTitleTemplate?.trim() || fallback.resultTitleTemplate,
-        resultSummaryTemplate: saved.resultSummaryTemplate?.trim() || fallback.resultSummaryTemplate,
-        bodyTemplate: saved.bodyTemplate?.trim() || fallback.bodyTemplate,
-      }
-    : fallback;
+  return mergeResultEmailTemplateSetting(templateKey, saved);
 }
 
 export async function updateEmailTemplateSetting(
   templateKey: string,
   values: ResultEmailTemplateValues,
+  department?: string | null,
 ) {
   const session = await verifyRole(3);
+  const scope = await getDepartmentScope();
+  const target = resolveTemplateEditTarget(scope, department);
+  const targetDepartment = target.kind === "department" ? target.department : null;
+
   const normalized = normalizeResultEmailTemplateValues(values);
   const validation = validateResultEmailTemplateValues(normalized, templateKey);
 
@@ -196,20 +301,28 @@ export async function updateEmailTemplateSetting(
     const [existing] = await db
       .select({ id: emailTemplateSetting.id })
       .from(emailTemplateSetting)
-      .where(eq(emailTemplateSetting.templateKey, templateKey))
+      .where(
+        and(
+          eq(emailTemplateSetting.templateKey, templateKey),
+          targetDepartment === null
+            ? isNull(emailTemplateSetting.department)
+            : eq(emailTemplateSetting.department, targetDepartment),
+        ),
+      )
       .limit(1);
     let templateSettingId = existing?.id ?? null;
 
     if (existing) {
       await db
         .update(emailTemplateSetting)
-        .set(normalized)
-        .where(eq(emailTemplateSetting.templateKey, templateKey));
+        .set({ ...normalized, department: targetDepartment })
+        .where(eq(emailTemplateSetting.id, existing.id));
     } else {
       const [created] = await db
         .insert(emailTemplateSetting)
         .values({
           templateKey,
+          department: targetDepartment,
           ...normalized,
         })
         .returning({ id: emailTemplateSetting.id });
@@ -222,8 +335,10 @@ export async function updateEmailTemplateSetting(
       action: "email.template.update",
       resourceType: "email_template_setting",
       resourceId: templateSettingId,
+      department: targetDepartment,
       metadata: {
         templateKey,
+        department: targetDepartment,
         mode: existing ? "update" : "create",
         changedFields: Object.keys(normalized),
       },
@@ -237,7 +352,7 @@ export async function updateEmailTemplateSetting(
       userId: session.uid,
       role: session.role,
       action: "update-email-template",
-      metadata: { templateKey },
+      metadata: { templateKey, department: targetDepartment },
     });
 
     const message = error instanceof Error ? error.message : String(error);
@@ -252,5 +367,77 @@ export async function updateEmailTemplateSetting(
     }
 
     return { ok: false, message: "模板保存失败，请查看错误日志。" };
+  }
+}
+
+/**
+ * 删除模板覆盖行，渲染随即回落到全局默认；管理员删除全局默认行后回落到内置默认文案。
+ * 目标行不存在时抛「模板未覆盖，无需重置」。
+ */
+export async function resetEmailTemplateSetting(
+  templateKey: string,
+  department?: string | null,
+) {
+  const session = await verifyRole(3);
+  const scope = await getDepartmentScope();
+  const target = resolveTemplateEditTarget(scope, department);
+  const targetDepartment = target.kind === "department" ? target.department : null;
+
+  const [existing] = await db
+    .select({ id: emailTemplateSetting.id })
+    .from(emailTemplateSetting)
+    .where(
+      and(
+        eq(emailTemplateSetting.templateKey, templateKey),
+        targetDepartment === null
+          ? isNull(emailTemplateSetting.department)
+          : eq(emailTemplateSetting.department, targetDepartment),
+      ),
+    )
+    .limit(1);
+
+  if (!existing) {
+    throw new Error("模板未覆盖，无需重置。");
+  }
+
+  try {
+    const deleted = await db
+      .delete(emailTemplateSetting)
+      .where(
+        and(
+          eq(emailTemplateSetting.templateKey, templateKey),
+          targetDepartment === null
+            ? isNull(emailTemplateSetting.department)
+            : eq(emailTemplateSetting.department, targetDepartment),
+        ),
+      )
+      .returning({ id: emailTemplateSetting.id });
+
+    await writeOperationAudit({
+      actorId: session.uid,
+      actorRole: session.role,
+      action: "email.template.reset",
+      resourceType: "email_template_setting",
+      resourceId: deleted[0]?.id ?? existing.id,
+      department: targetDepartment,
+      metadata: {
+        templateKey,
+        department: targetDepartment,
+        deletedCount: deleted.length,
+      },
+    });
+
+    revalidatePath("/dashboard/emails");
+    return { ok: true };
+  } catch (error) {
+    logServerError("email:resetTemplate", error, {
+      path: "/dashboard/emails",
+      userId: session.uid,
+      role: session.role,
+      action: "reset-email-template",
+      metadata: { templateKey, department: targetDepartment },
+    });
+
+    return { ok: false, message: "模板重置失败，请查看错误日志。" };
   }
 }

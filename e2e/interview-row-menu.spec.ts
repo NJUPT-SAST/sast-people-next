@@ -13,7 +13,7 @@ import { signInAs } from "./session";
  * is only observable here.
  */
 
-const admin = { uid: 1, role: 3, name: "管理员" } as const;
+const admin = { uid: 1, role: 4, name: "管理员", department: "software" } as const;
 
 // The route compiles on first request in a dev server, which can outlast the
 // suite's default budget.

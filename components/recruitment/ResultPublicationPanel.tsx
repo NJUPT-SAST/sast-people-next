@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { publishFlowResults, getFlowResultPublicationSummary } from "@/action/flow/result-publication";
+import { departmentLabel } from "@/const/department";
 import Link from "next/link";
 
 type Summary = Awaited<ReturnType<typeof getFlowResultPublicationSummary>>;
@@ -145,12 +146,18 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
                 <TableRow>
                   <TableHead>姓名</TableHead>
                   <TableHead>学号</TableHead>
+                  <TableHead>投递部门</TableHead>
                   <TableHead>组别</TableHead>
                   <TableHead>最终结果</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((row) => {
+                  // 投递部门由流程结果汇总行提供；未提供时按“未归属部门”展示，不阻断名单
+                  const department =
+                    "department" in row && typeof row.department === "string"
+                      ? row.department
+                      : null;
                   const status = row.status === "passed"
                     ? { label: "通过", className: "text-emerald-600" }
                     : row.status === "failed"
@@ -162,6 +169,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
                     <TableRow key={row.userFlowId}>
                       <TableCell className="font-medium">{row.name}</TableCell>
                       <TableCell className="font-mono text-xs">{row.studentId ?? "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{departmentLabel(department)}</TableCell>
                       <TableCell>{row.applyGroup ?? "-"}</TableCell>
                       <TableCell className={status.className}>{status.label}</TableCell>
                     </TableRow>

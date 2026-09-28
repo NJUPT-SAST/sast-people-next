@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 
 import Review from "./page";
-import { useFlowList } from "@/hooks/useFlowList";
+import { useDepartmentFlowList } from "@/hooks/useFlowList";
 
 jest.mock("@/hooks/useFlowList", () => ({
-  useFlowList: jest.fn(),
+  useDepartmentFlowList: jest.fn(),
 }));
 jest.mock("@/components/route", () => ({
   PageHeader: ({ children }: { children: React.ReactNode }) => <header>{children}</header>,
@@ -34,7 +34,7 @@ jest.mock("@/components/review/reviewSheet", () => ({
   ReviewSheet: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-const mockUseFlowList = jest.mocked(useFlowList);
+const mockUseFlowList = jest.mocked(useDepartmentFlowList);
 
 describe("Review", () => {
   beforeEach(() => {
@@ -55,6 +55,8 @@ describe("Review", () => {
         description: null,
         type: "recruitment",
         groupOptions: null,
+        department: null,
+        groupDepartments: null,
         ownerId: 1,
         createdAt: new Date("2026-08-01T00:00:00.000Z"),
         startedAt: new Date("2026-08-16T00:00:00.000Z"),
@@ -68,6 +70,8 @@ describe("Review", () => {
         description: null,
         type: "recruitment",
         groupOptions: null,
+        department: null,
+        groupDepartments: null,
         ownerId: 1,
         createdAt: new Date("2026-08-01T00:00:00.000Z"),
         startedAt: new Date("2026-08-14T00:00:00.000Z"),
@@ -81,6 +85,8 @@ describe("Review", () => {
         description: null,
         type: "recruitment",
         groupOptions: null,
+        department: null,
+        groupDepartments: null,
         ownerId: 1,
         createdAt: new Date("2026-08-01T00:00:00.000Z"),
         startedAt: new Date("2026-08-01T00:00:00.000Z"),

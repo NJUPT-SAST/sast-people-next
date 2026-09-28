@@ -153,6 +153,7 @@ export function DataTable<TData, TValue>({
     select: 'w-12',
     studentId: 'w-[5.5rem]',
     name: 'w-[9rem]',
+    department: 'w-[7rem]',
     qq: 'w-[7rem]',
     status: 'w-[6rem]',
     problemScores: 'w-[6.5rem]',
@@ -402,6 +403,7 @@ export function DataTable<TData, TValue>({
             const totalScoreCell = cellById.get('totalScore');
             const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
             const qqCell = cellById.get('qq');
+            const departmentCell = cellById.get('department');
             const qqText = qqCell
               ? String(toRecruitmentRow(row).qq ?? '').trim()
               : '';
@@ -440,6 +442,15 @@ export function DataTable<TData, TValue>({
                       </span>
                       {qqText && (
                         <span className="min-w-0 truncate">· QQ {qqText}</span>
+                      )}
+                      {departmentCell && (
+                        <span className="min-w-0 truncate" title="投递部门">
+                          ·{' '}
+                          {flexRender(
+                            departmentCell.column.columnDef.cell,
+                            departmentCell.getContext(),
+                          )}
+                        </span>
                       )}
                     </div>
                     {role >= 2 && problemScoresCell && (

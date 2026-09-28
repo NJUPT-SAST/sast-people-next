@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from '../ui/dialog';
 import { ViewUserInfoSheet } from '@/components/manage/viewUserInfoSheet';
+import { departmentLabel } from '@/const/department';
 import { MessageSquareText } from 'lucide-react';
 
 const statusLabel: Record<string, string> = {
@@ -126,6 +127,18 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
             </button>
           }
         />
+      );
+    },
+  },
+  {
+    accessorKey: 'department',
+    header: '投递部门',
+    cell: ({ getValue }) => {
+      const label = departmentLabel(getValue() as string | null);
+      return (
+        <span className="truncate text-sm text-muted-foreground" title={label}>
+          {label}
+        </span>
       );
     },
   },

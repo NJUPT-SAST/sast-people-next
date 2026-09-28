@@ -16,7 +16,7 @@ export const unregister = async (userFlowId: number) => {
     session = await verifySession();
 
     const record = await db
-      .select({ id: userFlow.id, fkUserId: userFlow.fkUserId, flowId: userFlow.fkFlowId })
+      .select({ id: userFlow.id, fkUserId: userFlow.fkUserId, flowId: userFlow.fkFlowId, department: userFlow.department })
       .from(userFlow)
       .where(eq(userFlow.id, userFlowId))
       .limit(1);
@@ -34,6 +34,7 @@ export const unregister = async (userFlowId: number) => {
       action: "user_flow.unregister",
       resourceType: "user_flow",
       resourceId: userFlowId,
+      department: record[0].department,
       metadata: {
         flowId: record[0].flowId,
         targetUserId: session.uid,

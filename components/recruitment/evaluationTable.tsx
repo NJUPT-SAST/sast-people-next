@@ -89,6 +89,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { externalHref } from "@/lib/link";
+import { departmentLabel } from "@/const/department";
 import { FeishuOAuthStatus } from "@/components/feishu-oauth-status";
 import { ViewUserInfoSheet } from "@/components/manage/viewUserInfoSheet";
 import {
@@ -108,6 +109,8 @@ type Candidate = {
   portfolioLink: string | null;
   portfolioDescription: string | null;
   applyGroup: string | null;
+  /* 候选人归属部门（Link 部门标识），由服务端按可见范围过滤 */
+  department?: string | null;
   evalId: number | null;
   evalContent: string | null;
   evalMeetingLink: string | null;
@@ -1407,12 +1410,17 @@ export const EvaluationTable = ({
                     />
                   </TableCell>
                   <TableCell className="px-3 py-2 align-middle">
-                    <ApplyGroupText
-                      value={c.applyGroup}
-                      editable={canEditApplyGroup}
-                      onEdit={() => startGroupEdit(c)}
-                      editLabel={`修改${c.name}的投递组别`}
-                    />
+                    <div className="min-w-0">
+                      <ApplyGroupText
+                        value={c.applyGroup}
+                        editable={canEditApplyGroup}
+                        onEdit={() => startGroupEdit(c)}
+                        editLabel={`修改${c.name}的投递组别`}
+                      />
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground" title="投递部门">
+                        {departmentLabel(c.department)}
+                      </p>
+                    </div>
                   </TableCell>
                   <TableCell className="px-3 py-2 align-middle">
                     <PortfolioLink
@@ -1526,6 +1534,9 @@ export const EvaluationTable = ({
                     onEdit={() => startGroupEdit(c)}
                     editLabel={`修改${c.name}的投递组别`}
                   />
+                  <span className="truncate text-xs text-muted-foreground" title="投递部门">
+                    {departmentLabel(c.department)}
+                  </span>
                   <span className="text-muted-foreground/40" aria-hidden="true">
                     ·
                   </span>

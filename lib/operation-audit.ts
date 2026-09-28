@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/db/drizzle";
-import { operationAudit } from "@/db/schema";
+import { normalizeDepartmentKey, operationAudit } from "@/db/schema";
 import { logServerError } from "@/lib/server-error-log";
 
 export type OperationAuditInput = {
@@ -11,6 +11,8 @@ export type OperationAuditInput = {
   action: string;
   resourceType: string;
   resourceId?: number | null;
+  /* 目标资源所属部门（Link 部门标识）；null 表示全局操作，仅管理员可见 */
+  department?: string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -21,6 +23,7 @@ export async function writeOperationAudit({
   action,
   resourceType,
   resourceId = null,
+  department = null,
   metadata,
 }: OperationAuditInput) {
   try {
@@ -31,6 +34,7 @@ export async function writeOperationAudit({
       action,
       resourceType,
       resourceId,
+      department: normalizeDepartmentKey(department),
       metadata,
     });
   } catch (error) {
@@ -42,6 +46,7 @@ export async function writeOperationAudit({
         actorType,
         resourceType,
         resourceId,
+        department: normalizeDepartmentKey(department),
       },
     });
   }

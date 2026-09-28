@@ -28,6 +28,7 @@ export const updatePortfolioLink = async (
         flowId: userFlow.fkFlowId,
         flowType: flow.type,
         progressStatus: userFlow.progressStatus,
+        department: userFlow.department,
       })
       .from(userFlow)
       .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
@@ -78,6 +79,7 @@ export const updatePortfolioLink = async (
       action: "user_flow.portfolio.update",
       resourceType: "user_flow",
       resourceId: userFlowId,
+      department: record.department,
       metadata: {
         flowId: record.flowId,
         targetUserId: session.uid,

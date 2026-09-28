@@ -58,7 +58,12 @@ export async function syncInterviewScheduleFromFeishuEvent({
   if (!schedule) return { synced: false as const, reason: "schedule_not_found" as const };
 
   const [target] = await db
-    .select({ candidateId: userFlow.fkUserId, flowId: flow.id, flowTitle: flow.title })
+    .select({
+      candidateId: userFlow.fkUserId,
+      flowId: flow.id,
+      flowTitle: flow.title,
+      department: userFlow.department,
+    })
     .from(userFlow)
     .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
     .where(eq(userFlow.id, schedule.userFlowId))
@@ -85,6 +90,7 @@ export async function syncInterviewScheduleFromFeishuEvent({
         userFlowId: schedule.userFlowId,
         relatedScheduleId: schedule.id,
         createdBy: schedule.organizerId,
+        department: target.department,
         variables: {
           candidateName: userMap.get(target.candidateId)?.name ?? "同学",
           flowName: target.flowTitle,

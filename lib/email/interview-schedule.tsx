@@ -36,8 +36,9 @@ function formatDateTime(date: Date) {
 export async function renderInterviewScheduleEmailSubject(
   flowName: string,
   kind: InterviewScheduleEmailVariables["kind"] = "created",
+  department?: string | null,
 ) {
-  const setting = await getInterviewScheduleTemplateSetting(kind);
+  const setting = await getInterviewScheduleTemplateSetting(kind, department);
   return renderInterviewScheduleTemplateText(setting.subjectTemplate, {
     candidateName: "同学",
     flowName,
@@ -75,8 +76,9 @@ export async function renderInterviewScheduleEmail({
   endsAt,
   location,
   note,
-}: InterviewScheduleEmailVariables) {
-  const setting = await getInterviewScheduleTemplateSetting(kind);
+  department,
+}: InterviewScheduleEmailVariables & { department?: string | null }) {
+  const setting = await getInterviewScheduleTemplateSetting(kind, department);
   const variables = getTemplateVariables({
     candidateName,
     flowName,
@@ -105,6 +107,7 @@ export async function renderInterviewScheduleEmail({
 
 export async function renderInterviewScheduleEmailPreview(
   kind: InterviewScheduleEmailKind = "created",
+  department?: string | null,
 ) {
   return renderInterviewScheduleEmail({
     kind,
@@ -115,5 +118,6 @@ export async function renderInterviewScheduleEmailPreview(
     endsAt: new Date("2026-06-05T11:30:00+08:00"),
     location: "仙林校区大学生活动中心 101",
     note: "请提前准备作品介绍。",
+    department,
   });
 }

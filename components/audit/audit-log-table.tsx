@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { listOperationAudit } from "@/lib/operation-audit-list";
+import { departmentLabel } from "@/const/department";
 
 type AuditLogResult = Awaited<ReturnType<typeof listOperationAudit>>;
 type AuditLogItem = AuditLogResult["logs"][number];
@@ -72,6 +73,8 @@ const actionLabels: Record<string, string> = {
   "flow.result.publish": "发布流程结果",
   "user.update_role": "修改用户角色",
   "user.ban": "禁用用户",
+  "department.flow.assign": "调整流程归属部门",
+  "department.user_flow.assign": "调整报名记录归属部门",
   "user_flow.register": "报名流程",
   "user_flow.unregister": "取消报名",
   "user_flow.withdraw": "退回面试报名",
@@ -156,10 +159,11 @@ const metadataValueLabels: Record<string, string> = {
 };
 
 const actorRoleLabels: Record<number, string> = {
-  0: "普通用户",
-  1: "成员",
+  0: "新同学",
+  1: "部员",
   2: "讲师",
-  3: "管理员",
+  3: "部长",
+  4: "管理员",
 };
 
 function getActorLabel(item: AuditLogItem) {
@@ -276,6 +280,8 @@ function MetadataDetails({ item }: { item: AuditLogItem }) {
         <dd>{getActionLabel(item.action)}</dd>
         <dt className="text-muted-foreground">资源</dt>
         <dd>{item.resourceLabel ?? item.resourceType}{item.resourceId ? ` #${item.resourceId}` : ""}</dd>
+        <dt className="text-muted-foreground">归属部门</dt>
+        <dd>{item.department ? departmentLabel(item.department) : "全局（未归属部门）"}</dd>
         {targetUserLabel && (
           <>
             <dt className="text-muted-foreground">对象</dt>
@@ -362,6 +368,7 @@ function AuditLogMobileItem({ item }: { item: AuditLogItem }) {
       <div className="flex items-center justify-between gap-3">
         <span className="truncate text-xs text-muted-foreground">
           {item.actorName ?? "未知用户"}（{getActorLabel(item)}） · {item.resourceLabel ?? item.resourceType}
+          {item.department ? ` · ${departmentLabel(item.department)}` : ""}
         </span>
         <AuditDetailDialog item={item} />
       </div>
@@ -479,8 +486,11 @@ export function AuditLogTable({
                     <TableCell className="px-4 py-2 align-middle">
                       <div className="min-w-0">
                         <p className="truncate text-sm">{item.resourceLabel ?? item.resourceType}</p>
-                        {item.resourceId ? (
-                          <p className="font-mono text-xs text-muted-foreground">#{item.resourceId}</p>
+                        {item.resourceId || item.department ? (
+                          <p className="truncate font-mono text-xs text-muted-foreground">
+                            {item.resourceId ? `#${item.resourceId}` : ""}
+                            {item.department ? ` · ${departmentLabel(item.department)}` : ""}
+                          </p>
                         ) : null}
                       </div>
                     </TableCell>

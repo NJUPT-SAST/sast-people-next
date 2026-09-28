@@ -5,6 +5,8 @@ import { sendEmailBatch } from "@/action/email/send";
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
+import { departmentScopeFilter, getDepartmentScope, type DepartmentScope, verifyManager } from "@/lib/authz";
+import { assertFlowEditable } from "@/lib/flow-access";
 import { verifyRole } from "@/lib/dal";
 import {
   requireBooleanInput,
@@ -19,19 +21,31 @@ import { assertFlowResultsPublished } from "@/lib/flow-result-publication-guard"
 
 const resultFlowTypes = ["recruitment", "recruitment_exemption", "woc", "soc"] as const;
 
+/* 邮件批次归属于流程：只有流程归属部门或管理员可以创建 / 发送 */
+async function assertFlowEmailEditable(scope: DepartmentScope, flowId: number) {
+  const [sourceFlow] = await db
+    .select({ department: flow.department })
+    .from(flow)
+    .where(eq(flow.id, flowId))
+    .limit(1);
+  assertFlowEditable(scope, sourceFlow?.department, "无权为其他部门的流程发送邮件");
+}
+
 export async function listEmailFlowTargets() {
   await verifyRole(3);
+  const scope = await getDepartmentScope();
 
   const flows = await db
     .select({
       id: flow.id,
       title: flow.title,
       type: flow.type,
+      department: flow.department,
       createdAt: flow.createdAt,
     })
     .from(flow)
     .innerJoin(flowResultPublication, and(eq(flowResultPublication.fkFlowId, flow.id), eq(flowResultPublication.status, "published")))
-    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes)))
+    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes), departmentScopeFilter(flow.department, scope)))
     .orderBy(desc(flow.createdAt));
 
   if (flows.length === 0) return [];
@@ -61,8 +75,8 @@ export async function listEmailFlowTargets() {
 
   return Promise.all(flows.map(async (item) => {
     const flowKind = getResultEmailFlowKind(item.type);
-    const acceptedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(flowKind, true));
-    const rejectedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(flowKind, false));
+    const acceptedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(flowKind, true), item.department);
+    const rejectedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(flowKind, false), item.department);
     const flowTargets = hydratedTargets.filter((target) => target.flowId === item.id);
     const passed = flowTargets.filter((t) => t.status === "passed");
     const failed = flowTargets.filter((t) => t.status === "failed");
@@ -75,6 +89,7 @@ export async function listEmailFlowTargets() {
             setting: acceptedSetting,
             genericGreeting: true,
           },
+          department: item.department,
         })
       : null;
     const rejectedPreview = failed[0]
@@ -86,6 +101,7 @@ export async function listEmailFlowTargets() {
             setting: rejectedSetting,
             genericGreeting: true,
           },
+          department: item.department,
         })
       : null;
 
@@ -105,6 +121,7 @@ export async function listEmailFlowTargets() {
 
 export async function listEmailFlowOptions() {
   await verifyRole(3);
+  const scope = await getDepartmentScope();
 
   return db
     .select({
@@ -112,7 +129,7 @@ export async function listEmailFlowOptions() {
       title: flow.title,
     })
     .from(flow)
-    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes)))
+    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes), departmentScopeFilter(flow.department, scope)))
     .orderBy(desc(flow.createdAt));
 }
 
@@ -121,7 +138,7 @@ export async function createResultEmailBatchFromFlow(
   acceptInput: unknown,
   excludedUserIdsInput?: unknown,
 ) {
-  await verifyRole(3);
+  const { scope } = await verifyManager();
   const flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
   const accept = requireBooleanInput(acceptInput, "结果通知类型");
   const excludedUserIds = excludedUserIdsInput === undefined
@@ -130,6 +147,7 @@ export async function createResultEmailBatchFromFlow(
         (Array.isArray(excludedUserIdsInput) ? excludedUserIdsInput : [])
           .map((value) => requirePositiveIntegerInput(value, "排除发送的用户 ID")),
       ));
+  await assertFlowEmailEditable(scope, flowId);
   await assertFlowResultsPublished(flowId);
   const sourceStatus = accept ? "passed" : "failed";
   const rows = await db
@@ -158,9 +176,10 @@ export async function sendResultEmailFromFlow(
   acceptInput: unknown,
   excludedUserIdsInput?: unknown,
 ) {
-  await verifyRole(3);
+  const { scope } = await verifyManager();
   const flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
   const accept = requireBooleanInput(acceptInput, "结果通知类型");
+  await assertFlowEmailEditable(scope, flowId);
   const batch = await createResultEmailBatchFromFlow(flowId, accept, excludedUserIdsInput);
   if (!batch.batchId) return { batchId: null, queuedCount: 0, excludedCount: batch.excludedCount };
   const sent = await sendEmailBatch(batch.batchId);

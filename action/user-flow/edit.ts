@@ -2,7 +2,9 @@
 
 import { db } from '@/db/drizzle';
 import { flow, flowStep, userFlow } from '@/db/schema';
-import { verifyRole } from '@/lib/dal';
+import { type DepartmentScope, verifyManager } from '@/lib/authz';
+import type { FlowScopedSession } from '@/action/flow/department-utils';
+import { assertFlowEditable, assertUserFlowInScope } from '@/lib/flow-access';
 import { logServerError } from '@/lib/server-error-log';
 import { writeOperationAudit } from '@/lib/operation-audit';
 import { assertFlowResultsEditable } from '@/lib/flow-result-publication-guard';
@@ -63,21 +65,35 @@ const assertUserFlowCanBeManuallyAdjusted = async (userFlowId: number) => {
   }
 };
 
+/** 批量操作按流程归属收敛：流程不属本部门时整批拒绝，返回流程归属供审计落库 */
+const assertFlowInScope = async (scope: DepartmentScope, flowId: number) => {
+  const [record] = await db
+    .select({ department: flow.department })
+    .from(flow)
+    .where(eq(flow.id, flowId))
+    .limit(1);
+
+  if (!record) throw new Error("Flow not found");
+  assertFlowEditable(scope, record.department);
+  return record.department;
+};
+
 export const forward = async (userFlowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     const [uf] = await db
-      .select({ flowId: userFlow.fkFlowId, currentOrder: flowStep.order })
+      .select({ flowId: userFlow.fkFlowId, currentOrder: flowStep.order, department: userFlow.department })
       .from(userFlow)
       .innerJoin(flowStep, eq(userFlow.fkCurrentStepId, flowStep.id))
       .where(eq(userFlow.id, userFlowId))
       .limit(1);
     if (!uf) throw new Error("User flow not found");
+    assertUserFlowInScope(session.scope, uf.department);
     const nextStepId = await findStepIdByOrder(uf.flowId, uf.currentOrder + 1);
     await db.update(userFlow).set({ fkCurrentStepId: nextStepId, updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.forward', resourceType: 'user_flow', resourceId: userFlowId });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.forward', resourceType: 'user_flow', resourceId: userFlowId, department: uf.department });
   } catch (error) {
     logServerError("user-flow:forward", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "forward-user-flow", userFlowId });
     throw error;
@@ -85,11 +101,12 @@ export const forward = async (userFlowId: number) => {
 };
 
 export const finish = async (userFlowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   try {
-    session = await verifyRole(3);
-    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
+    session = await verifyManager();
+    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId, department: userFlow.department }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     if (!flowRecord) throw new Error("User flow not found");
+    assertUserFlowInScope(session.scope, flowRecord.department);
     await assertFlowResultsEditable(flowRecord.flowId);
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     await assertDirectOutcomeAllowed(userFlowId);
@@ -97,7 +114,7 @@ export const finish = async (userFlowId: number) => {
     if (!record[0]) throw new Error("User flow not found");
     const { fkUserId } = record[0];
     await db.update(userFlow).set({ progressStatus: "passed", updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.finish', resourceType: 'user_flow', resourceId: userFlowId, metadata: { userId: fkUserId } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.finish', resourceType: 'user_flow', resourceId: userFlowId, department: flowRecord.department, metadata: { userId: fkUserId } });
   } catch (error) {
     logServerError("user-flow:finish", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "finish-user-flow", userFlowId });
     throw error;
@@ -105,17 +122,18 @@ export const finish = async (userFlowId: number) => {
 };
 
 export const reject = async (userFlowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   try {
-    session = await verifyRole(3);
-    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
+    session = await verifyManager();
+    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId, department: userFlow.department }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     if (!flowRecord) throw new Error("User flow not found");
+    assertUserFlowInScope(session.scope, flowRecord.department);
     await assertFlowResultsEditable(flowRecord.flowId);
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     await assertDirectOutcomeAllowed(userFlowId);
     const [record] = await db.select({ fkUserId: userFlow.fkUserId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     await db.update(userFlow).set({ progressStatus: "failed", updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.reject', resourceType: 'user_flow', resourceId: userFlowId, metadata: { userId: record?.fkUserId ?? null } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.reject', resourceType: 'user_flow', resourceId: userFlowId, department: flowRecord.department, metadata: { userId: record?.fkUserId ?? null } });
   } catch (error) {
     logServerError("user-flow:reject", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "reject-user-flow", userFlowId });
     throw error;
@@ -123,15 +141,16 @@ export const reject = async (userFlowId: number) => {
 };
 
 export const reopen = async (userFlowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   try {
-    session = await verifyRole(3);
-    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
+    session = await verifyManager();
+    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId, department: userFlow.department }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     if (!flowRecord) throw new Error("User flow not found");
+    assertUserFlowInScope(session.scope, flowRecord.department);
     await assertFlowResultsEditable(flowRecord.flowId);
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     await db.update(userFlow).set({ progressStatus: "ongoing", updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.reopen', resourceType: 'user_flow', resourceId: userFlowId });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.reopen', resourceType: 'user_flow', resourceId: userFlowId, department: flowRecord.department });
   } catch (error) {
     logServerError("user-flow:reopen", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "reopen-user-flow", userFlowId });
     throw error;
@@ -139,18 +158,19 @@ export const reopen = async (userFlowId: number) => {
 };
 
 export const backward = async (userFlowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   try {
-    session = await verifyRole(3);
-    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
+    session = await verifyManager();
+    const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId, department: userFlow.department }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     if (!flowRecord) throw new Error("User flow not found");
+    assertUserFlowInScope(session.scope, flowRecord.department);
     await assertFlowResultsEditable(flowRecord.flowId);
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     const [uf] = await db.select({ flowId: userFlow.fkFlowId, currentOrder: flowStep.order }).from(userFlow).innerJoin(flowStep, eq(userFlow.fkCurrentStepId, flowStep.id)).where(eq(userFlow.id, userFlowId)).limit(1);
     if (!uf) throw new Error("User flow not found");
     const prevStepId = await findStepIdByOrder(uf.flowId, uf.currentOrder - 1);
     await db.update(userFlow).set({ fkCurrentStepId: prevStepId, updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.backward', resourceType: 'user_flow', resourceId: userFlowId });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.backward', resourceType: 'user_flow', resourceId: userFlowId, department: flowRecord.department });
   } catch (error) {
     logServerError("user-flow:backward", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "backward-user-flow", userFlowId });
     throw error;
@@ -158,13 +178,14 @@ export const backward = async (userFlowId: number) => {
 };
 
 export const batchUpdate = async (flowId: number, stepOrder: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
+    const flowDepartment = await assertFlowInScope(session.scope, flowId);
     await assertFlowResultsEditable(flowId);
     const stepId = await findStepIdByOrder(flowId, stepOrder);
     await db.update(userFlow).set({ fkCurrentStepId: stepId, updatedAt: new Date() }).where(eq(userFlow.fkFlowId, flowId));
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.batch_update_step', resourceType: 'flow', resourceId: flowId, metadata: { stepOrder } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.batch_update_step', resourceType: 'flow', resourceId: flowId, department: flowDepartment, metadata: { stepOrder } });
   } catch (error) {
     logServerError("user-flow:batchUpdate", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "batch-update-user-flow-step", flowId, metadata: { stepOrder } });
     throw error;
@@ -177,15 +198,16 @@ export const batchEndByUid = async (
   statusStr: 'rejected' | 'accepted',
   uids: number[],
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
+    const flowDepartment = await assertFlowInScope(session.scope, flowId);
     await assertFlowResultsEditable(flowId);
     await assertBatchDirectOutcomeAllowed(flowId);
     const stepId = await findStepIdByOrder(flowId, stepOrder);
     const progressStatus = statusStr === 'accepted' ? 'passed' : 'failed';
     await db.update(userFlow).set({ progressStatus, fkCurrentStepId: stepId, updatedAt: new Date() }).where(and(eq(userFlow.fkFlowId, flowId), inArray(userFlow.fkUserId, uids)));
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.batch_end', resourceType: 'flow', resourceId: flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: 'user_flow.batch_end', resourceType: 'flow', resourceId: flowId, department: flowDepartment, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
   } catch (error) {
     logServerError("user-flow:batchEndByUid", error, { path: "/dashboard/review", userId: session?.uid ?? null, role: session?.role ?? null, action: "batch-end-user-flow", flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
     throw error;
@@ -198,10 +220,11 @@ export const batchSetOutcomeByUid = async (
   statusStr: 'passed' | 'failed' | 'withdrawn',
   uids: number[],
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
     if (uids.length === 0) return { updatedUserIds: [] };
+    const flowDepartment = await assertFlowInScope(session.scope, flowId);
     await assertFlowResultsEditable(flowId);
     await assertBatchDirectOutcomeAllowed(flowId);
     const stepId = await findStepIdByOrder(flowId, stepOrder);
@@ -233,6 +256,7 @@ export const batchSetOutcomeByUid = async (
       action: 'user_flow.batch_set_outcome',
       resourceType: 'flow',
       resourceId: flowId,
+      department: flowDepartment,
       metadata: {
         stepOrder,
         status: statusStr,

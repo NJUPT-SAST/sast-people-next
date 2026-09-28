@@ -10,6 +10,8 @@ import { ThemeToggle } from '@/components/theme-toggle';
 
 interface DashboardLayoutProps {
   role: number;
+  /** 当前账号的 Link 部门标识，仅用于导航展示 */
+  department: string | null;
   userCard: React.ReactNode;
   breadcrumb: React.ReactNode;
   children: React.ReactNode;
@@ -17,13 +19,18 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({
   role,
+  department,
   userCard,
   breadcrumb,
   children,
 }: DashboardLayoutProps) {
   return (
     <SidebarProvider>
-      <AppSidebar role={role} userCard={userCard} />
+      <AppSidebar
+        role={role}
+        department={department}
+        userCard={userCard}
+      />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-3 px-4 pt-safe">
           <SidebarTrigger

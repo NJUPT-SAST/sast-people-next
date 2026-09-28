@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 文档状态 | Draft |
-| 适用分支 | `v3.1` |
+| 适用分支 | `v3` |
 | 适用范围 | SAST People 用户体系改造、Link 接口对接、v3 数据迁移与联调 |
 | 最后更新 | 2026-06-04 |
 | Link OpenAPI | SAST-Link-Backend OpenAPI，`x-download-time=2026-06-04T03:51:35.694Z` |
@@ -136,14 +136,17 @@ Content-Type: application/json
 
 自动同步不会修改管理员角色。People 页面中的角色始终来自 Link 用户资料。
 
-角色映射关系：
+角色映射关系（与 Link `user_role_enum` 一一对应，未知 Link 角色一律按 `0` 处理）：
 
-| People role | Link role |
-| --- | --- |
-| `0` | `freshman` |
-| `1` | `member` |
-| `2` | `lecturer` |
-| `3` | `admin` |
+| People role | Link role | 名称 |
+| --- | --- | --- |
+| `0` | `freshman` | 新同学 |
+| `1` | `member` | 部员 |
+| `2` | `lecturer` | 讲师 |
+| `3` | `manager` | 部长 |
+| `4` | `admin` | 管理员 |
+
+Link 侧的角色权限边界（issue #249）：`manager`（部长）具备成员资料的读写能力，但不能写入 `admin` 账号、不能把任何账号提升为 `admin`，也不能访问 OAuth 客户端、审计日志与校友工单等平台面；这些能力只属于 `admin`（管理员）。
 
 ### 6.4 用户封禁
 
@@ -181,7 +184,7 @@ type LinkUserProfile = {
   id: number;
   name: string;
   login_email?: string | null;
-  role: "freshman" | "member" | "lecturer" | "admin";
+  role: "freshman" | "member" | "lecturer" | "manager" | "admin";
   state: "njupter" | "on-sast" | "retired-sast" | "is_deleted";
   email_type?: "njupt_email" | "sast_email";
   phone_number?: string | null;
@@ -213,7 +216,7 @@ type LinkUserProfile = {
 
 ### 7.2 当前 Link OpenAPI 状态
 
-根据 MCP 读取到的 Link OpenAPI v3.1（`x-download-time=2026-06-04T03:51:35.694Z`）：
+根据 MCP 读取到的 Link OpenAPI（`x-download-time=2026-06-04T03:51:35.694Z`，Link v2 API）：
 
 已存在：
 
@@ -226,7 +229,7 @@ type LinkUserProfile = {
 - `/admin/users/{id}` 的 `PUT`（People 已不再调用）
 - `/admin/users/{id}` 的 `DELETE`
 
-v3.1 已确认补齐 People 依赖字段：
+v3 已确认补齐 People 依赖字段：
 
 | 位置 | 已具备字段 |
 | --- | --- |
@@ -406,7 +409,7 @@ Link 契约确认后，按以下顺序联调：
 
 | 风险 | 影响 | 处理方式 |
 | --- | --- | --- |
-| Link 真实返回与 OpenAPI 不一致 | People 页面显示空字段或报名校验失败 | 保持 mock；按 v3.1 OpenAPI 对照真实响应并同步修正 |
+| Link 真实返回与 OpenAPI 不一致 | People 页面显示空字段或报名校验失败 | 保持 mock；按 Link OpenAPI 对照真实响应并同步修正 |
 | Link 权限不足 | lecturer/admin 页面调用失败 | 确认 `/admin/users` 权限策略 |
 | 业务表用户 ID 映射错误 | 报名、阅卷、邮件关联错误 | 使用 `people_legacy_user_map` 抽样校验 |
 | 本地 mock 误用 | 测试身份数据混入真实流程 | 生产必须设置 `LINK_USE_MOCK=false` |
@@ -415,7 +418,7 @@ Link 契约确认后，按以下顺序联调：
 
 当前状态：
 
-- v3.1 代码正在基于 Link OpenAPI v3.1 更新和联调。
+- v3 代码正在基于 Link OpenAPI 更新和联调。
 - v3 本地数据库迁移已完成。
 - Dependabot 旧 PR 已关闭。
 - 线上仍运行原版 People。
@@ -423,7 +426,7 @@ Link 契约确认后，按以下顺序联调：
 
 阻塞项：
 
-- 暂无已知接口契约阻塞；需要使用 Link v3.1 真实环境做端到端联调验证。
+- 暂无已知接口契约阻塞；需要使用 Link 真实环境做端到端联调验证。
 
 下一步：
 

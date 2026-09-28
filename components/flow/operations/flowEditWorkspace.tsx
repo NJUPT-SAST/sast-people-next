@@ -22,11 +22,13 @@ export function FlowEditWorkspace({
   steps,
   problemsByStep,
   defaultStepId,
+  canChooseDepartment = false,
 }: {
   data: displayFlow;
   steps?: ProblemStep[];
   problemsByStep?: Record<number, ProblemRow[]>;
   defaultStepId?: number;
+  canChooseDepartment?: boolean;
 }) {
   const flowEditorRef = useRef<FlowEditorHandle>(null);
   const problemsEditorRef = useRef<EditProblemsHandle>(null);
@@ -66,7 +68,7 @@ export function FlowEditWorkspace({
         <p className="text-xs text-muted-foreground">修改完成后点击右下角保存全部修改</p>
       </header>
 
-      <FlowEditor ref={flowEditorRef} data={data} embedded hideSaveButton />
+      <FlowEditor ref={flowEditorRef} data={data} embedded hideSaveButton canChooseDepartment={canChooseDepartment} />
       {data.type === "recruitment" && steps && problemsByStep && defaultStepId !== undefined && (
         <EditProblems
           ref={problemsEditorRef}

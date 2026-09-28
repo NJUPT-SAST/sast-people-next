@@ -37,12 +37,14 @@ function row({
   status,
   recommendation,
   reviewerName = null,
+  department = null,
 }: {
   id: number;
   candidateName: string;
   status: "submitted" | "approved" | "rejected";
   recommendation: "passed" | "failed" | null;
   reviewerName?: string | null;
+  department?: string | null;
 }) {
   return {
     evaluation: {
@@ -62,6 +64,7 @@ function row({
     portfolioLink: null,
     portfolioDescription: null,
     applyGroup: null,
+    department,
     scheduleMeetingLink: null,
     meetingMinuteLink: null,
     authorName: "讲师",
@@ -128,6 +131,40 @@ describe("ApprovalsContent", () => {
     expect(mockToastWarning).toHaveBeenCalledWith(
       "面评已退回，但讲师尚未绑定飞书，提醒未发送",
     );
+  });
+
+  it("lets administrators filter the list by department", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(
+      <ApprovalsContent
+        canFilterDepartments
+        initialEvaluations={[
+          row({ id: 21, candidateName: "软件同学", status: "submitted", recommendation: "passed", department: "software" }),
+          row({ id: 22, candidateName: "多媒体同学", status: "submitted", recommendation: "passed", department: "media" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("软件同学")).toBeInTheDocument();
+    expect(screen.getByText("多媒体同学")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "按部门筛选" }));
+    await user.click(await screen.findByRole("option", { name: "多媒体部" }));
+
+    expect(screen.queryByText("软件同学")).not.toBeInTheDocument();
+    expect(screen.getByText("多媒体同学")).toBeInTheDocument();
+  });
+
+  it("hides the department filter for managers who only see their own department", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({ id: 23, candidateName: "软件同学", status: "submitted", recommendation: "passed", department: "software" }),
+        ]}
+      />,
+    );
+
+    expect(screen.queryByRole("combobox", { name: "按部门筛选" })).not.toBeInTheDocument();
   });
 
   it("searches within every administrator-decided archive record", async () => {

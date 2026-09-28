@@ -94,6 +94,7 @@ export async function GET(request: NextRequest) {
             accessTokenExpiresAt: linkTokens.accessTokenExpiresAt,
           }
         : undefined,
+      profile.profile?.department ?? null,
     );
 
     return redirect("/dashboard");

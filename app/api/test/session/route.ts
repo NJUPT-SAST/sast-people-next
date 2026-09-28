@@ -1,3 +1,4 @@
+import { normalizeDepartmentKey } from "@/db/schema";
 import { createSession } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -5,6 +6,7 @@ type TestSessionRequest = {
   uid?: unknown;
   role?: unknown;
   name?: unknown;
+  department?: unknown;
 };
 
 export async function POST(request: NextRequest) {
@@ -36,6 +38,7 @@ export async function POST(request: NextRequest) {
     role,
     linkAdminTokenMarker,
     linkAdminTokenMarker,
+    normalizeDepartmentKey(body.department),
   );
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -1,7 +1,14 @@
 import "server-only";
 
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, emailDeliveryAttempt } from "@/db/schema";
+import {
+  emailBatch,
+  emailDelivery,
+  emailDeliveryAttempt,
+  flow,
+  normalizeDepartmentKey,
+  userFlow,
+} from "@/db/schema";
 import { assertEmailSendRateLimit } from "@/lib/email-center/rate-limit";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import { getFailedDeliveryRetryState } from "@/lib/email-center/retry-policy";
@@ -89,10 +96,47 @@ function getAttemptDurationMs(startedAt: Date, finishedAt: Date) {
   return Math.max(0, finishedAt.getTime() - startedAt.getTime());
 }
 
+/**
+ * 渲染前解析模板归属部门：显式入参优先（null = 全局默认模板），
+ * 缺省时按 user_flow.department → flow.department 逐级回退，
+ * 保证队列 / 后台渲染与流程归属部门一致。
+ */
+async function resolveRenderDepartment(input: {
+  department?: string | null;
+  userFlowId?: number | null;
+  flowId?: number | null;
+}) {
+  if (input.department !== undefined) {
+    return normalizeDepartmentKey(input.department);
+  }
+
+  if (input.userFlowId) {
+    const [row] = await db
+      .select({ department: userFlow.department })
+      .from(userFlow)
+      .where(eq(userFlow.id, input.userFlowId))
+      .limit(1);
+    const department = normalizeDepartmentKey(row?.department);
+    if (department) return department;
+  }
+
+  if (input.flowId) {
+    const [row] = await db
+      .select({ department: flow.department })
+      .from(flow)
+      .where(eq(flow.id, input.flowId))
+      .limit(1);
+    return normalizeDepartmentKey(row?.department);
+  }
+
+  return null;
+}
+
 export async function createRenderedEmailDelivery(
   input: CreateRenderedEmailDeliveryInput,
 ) {
-  const rendered = await renderEmailTemplate(input);
+  const department = await resolveRenderDepartment(input);
+  const rendered = await renderEmailTemplate({ ...input, department });
 
   const category = input.templateKey.startsWith("interview.")
     ? "interview"
@@ -119,7 +163,8 @@ export async function createRenderedEmailDelivery(
 export async function createRenderedTestEmailDelivery(
   input: CreateRenderedTestEmailDeliveryInput,
 ) {
-  const rendered = await renderEmailTemplate(input);
+  const department = await resolveRenderDepartment(input);
+  const rendered = await renderEmailTemplate({ ...input, department });
 
   return createEmailDelivery({
     category: "test",

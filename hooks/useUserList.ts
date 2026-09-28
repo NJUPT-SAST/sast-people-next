@@ -11,6 +11,11 @@ export type UserListParams = {
   sortOrder?: "asc" | "desc";
 };
 
+/**
+ * 成员目录：讲师及以上都能查看全部成员（Link 的用户目录本身也不限部门），
+ * 只按角色收敛敏感字段：手机号 role ≥ 3（部长/管理员），QQ role ≥ 2。
+ * 部门隔离作用于业务数据（流程/报名/评分/面评/排期/邮件/审计），不作用于成员目录。
+ */
 export const useUserList = async ({
   page,
   pageSize,

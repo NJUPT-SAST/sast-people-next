@@ -94,6 +94,7 @@ describe("renderEmailTemplate", () => {
     expect(renderInterviewScheduleEmailSubject).toHaveBeenCalledWith(
       "2026 免试招新",
       "cancelled",
+      undefined,
     );
     expect(renderInterviewScheduleEmail).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -120,11 +121,52 @@ describe("renderEmailTemplate", () => {
     });
     expect(renderInterviewWithdrawalEmailSubject).toHaveBeenCalledWith(
       "2026 免试招新",
+      undefined,
     );
     expect(renderInterviewWithdrawalEmail).toHaveBeenCalledWith({
       candidateName: "王五",
       flowName: "2026 免试招新",
       reason: "请补充作品集后重新报名。",
+      department: undefined,
     });
+  });
+
+  it("passes the department override to the interview renderers", async () => {
+    await renderEmailTemplate({
+      templateKey: "interview.schedule.created",
+      department: "software",
+      variables: {
+        candidateName: "李四",
+        flowName: "2026 免试招新",
+        organizerName: "讲师",
+        startsAt: new Date("2026-06-06T08:00:00.000Z"),
+        endsAt: new Date("2026-06-06T08:30:00.000Z"),
+      },
+    });
+    await renderEmailTemplate({
+      templateKey: "interview.application.withdrawn",
+      department: "software",
+      variables: {
+        candidateName: "王五",
+        flowName: "2026 免试招新",
+        reason: "请补充作品集后重新报名。",
+      },
+    });
+
+    expect(renderInterviewScheduleEmailSubject).toHaveBeenCalledWith(
+      "2026 免试招新",
+      "created",
+      "software",
+    );
+    expect(renderInterviewScheduleEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "created", department: "software" }),
+    );
+    expect(renderInterviewWithdrawalEmailSubject).toHaveBeenCalledWith(
+      "2026 免试招新",
+      "software",
+    );
+    expect(renderInterviewWithdrawalEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "请补充作品集后重新报名。", department: "software" }),
+    );
   });
 });

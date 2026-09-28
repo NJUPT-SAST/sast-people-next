@@ -5,6 +5,8 @@ import { PageTitle } from "@/components/route";
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
+import { getDepartmentScope } from "@/lib/authz";
+import { visibleFlowPredicate } from "@/lib/flow-access";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 const interviewFlowTypes = ["woc", "soc", "recruitment_exemption"] as const;
@@ -42,6 +44,7 @@ export async function RecruitmentWorkspacePage({
   searchParams: WorkspaceSearchParams;
 }) {
   const session = await verifySession();
+  const scope = await getDepartmentScope();
   const params = await searchParams;
   const isInterviewWorkspace = mode === "interview";
   const flowTypes = await db
@@ -58,6 +61,8 @@ export async function RecruitmentWorkspacePage({
         isInterviewWorkspace
           ? inArray(flow.type, interviewFlowTypes)
           : eq(flow.type, "recruitment"),
+        /* 流程选择器只展示与本部门相关的流程（管理员不过滤） */
+        visibleFlowPredicate(scope),
       ),
     )
     .orderBy(desc(flow.createdAt));

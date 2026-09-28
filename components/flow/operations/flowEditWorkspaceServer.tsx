@@ -4,8 +4,16 @@ import type { displayFlow } from "@/types/flow";
 import { eq } from "drizzle-orm";
 import { FlowEditWorkspace } from "@/components/flow/operations/flowEditWorkspace";
 
-export async function FlowEditWorkspaceServer({ data }: { data: displayFlow }) {
-  if (data.type !== "recruitment") return <FlowEditWorkspace data={data} />;
+export async function FlowEditWorkspaceServer({
+  data,
+  canChooseDepartment = false,
+}: {
+  data: displayFlow;
+  canChooseDepartment?: boolean;
+}) {
+  if (data.type !== "recruitment") {
+    return <FlowEditWorkspace data={data} canChooseDepartment={canChooseDepartment} />;
+  }
 
   const steps = await db
     .select({
@@ -34,6 +42,7 @@ export async function FlowEditWorkspaceServer({ data }: { data: displayFlow }) {
       steps={targetStep ? [targetStep] : []}
       problemsByStep={targetStep ? { [targetStep.id]: targetProblems } : {}}
       defaultStepId={targetStep?.id ?? 0}
+      canChooseDepartment={canChooseDepartment}
     />
   );
 }

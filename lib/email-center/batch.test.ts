@@ -197,9 +197,76 @@ describe("email batch service", () => {
           subjectTemplate: "{flowName} 结果通知",
         },
       },
+      department: null,
     });
     expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(mockDb.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("resolves the batch template by the flow department", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 205,
+        userId: 305,
+        flowName: "2026 春季招新",
+        flowDepartment: "software",
+      },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[305, { id: 305, name: "Eve", studentId: "B005" }]]),
+    );
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [305],
+        flowId: 9,
+        accept: true,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "recruitment.result.accepted",
+      "software",
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ department: "software" }),
+    );
+  });
+
+  it("prefers the explicit department over the flow department", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 206,
+        userId: 306,
+        flowName: "2026 春季招新",
+        flowDepartment: "software",
+      },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[306, { id: 306, name: "Frank", studentId: "B006" }]]),
+    );
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [306],
+        flowId: 10,
+        accept: false,
+        createdBy: 99,
+        department: "media",
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "recruitment.result.rejected",
+      "media",
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: "recruitment.result.rejected",
+        department: "media",
+      }),
+    );
   });
 
   it("selects the WoC result template for WoC flows", async () => {

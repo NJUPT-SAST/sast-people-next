@@ -1,5 +1,10 @@
 import { createInsertSchema } from "drizzle-zod";
-import { flow, flowGroupOptionsSchema } from "@/db/schema";
+import {
+  departmentKeySchema,
+  flow,
+  flowGroupDepartmentsSchema,
+  flowGroupOptionsSchema,
+} from "@/db/schema";
 import { z } from "zod/v4";
 
 export const fullFlowSchema = createInsertSchema(flow, {
@@ -9,6 +14,13 @@ export const fullFlowSchema = createInsertSchema(flow, {
   endedAt: z.date({ error: "请选择结束时间" }),
 });
 
+/* 归属部门：null 表示全局流程，仅管理员可指定 */
+const flowDepartmentSchema = {
+  department: departmentKeySchema.nullable().optional(),
+  groupOptions: flowGroupOptionsSchema.optional(),
+  groupDepartments: flowGroupDepartmentsSchema.optional(),
+};
+
 export const addFlowSchema = fullFlowSchema
   .pick({
     title: true,
@@ -17,6 +29,7 @@ export const addFlowSchema = fullFlowSchema
     startedAt: true,
     endedAt: true,
   })
+  .extend({ ...flowDepartmentSchema })
   .superRefine((data, ctx) => {
     if (!data.startedAt) {
       ctx.addIssue({
@@ -50,7 +63,7 @@ export const editFlowSchema = fullFlowSchema
   })
   .extend({
     endedAt: z.date().nullable().optional(),
-    groupOptions: flowGroupOptionsSchema.optional(),
+    ...flowDepartmentSchema,
   })
   .superRefine((data, ctx) => {
     if (!data.startedAt) {

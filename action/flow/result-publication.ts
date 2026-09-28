@@ -5,7 +5,8 @@ import { sendEmailBatch } from "@/action/email/send";
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
-import { verifyRole } from "@/lib/dal";
+import { verifyManager } from "@/lib/authz";
+import { assertFlowEditable, canEditFlow } from "@/lib/flow-access";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { syncUserRolesFromAcceptedFlows } from "@/action/user-flow/roleTransition";
@@ -22,6 +23,7 @@ type ResultSnapshotRow = {
   studentId: string | null;
   applyGroup: string | null;
   status: string;
+  department: string | null;
 };
 
 async function getFlowRows(flowId: number) {
@@ -31,6 +33,7 @@ async function getFlowRows(flowId: number) {
       userId: userFlow.fkUserId,
       applyGroup: userFlow.applyGroup,
       status: userFlow.progressStatus,
+      department: userFlow.department,
     })
     .from(userFlow)
     .where(eq(userFlow.fkFlowId, flowId));
@@ -44,25 +47,27 @@ async function getFlowRows(flowId: number) {
       studentId: user?.studentId ?? null,
       applyGroup: row.applyGroup ?? null,
       status: row.status ?? "not_started",
+      department: row.department ?? null,
     };
   });
 }
 
 export async function getFlowResultPublicationSummary(flowId: number) {
-  await verifyRole(3);
+  const session = await verifyManager();
   const [flowRow, publication] = await Promise.all([
-    db.select({ id: flow.id, title: flow.title, type: flow.type, createdAt: flow.createdAt }).from(flow).where(and(eq(flow.id, flowId), eq(flow.isDeleted, false))).limit(1),
+    db.select({ id: flow.id, title: flow.title, type: flow.type, department: flow.department, createdAt: flow.createdAt }).from(flow).where(and(eq(flow.id, flowId), eq(flow.isDeleted, false))).limit(1),
     db.select().from(flowResultPublication).where(eq(flowResultPublication.fkFlowId, flowId)).limit(1),
   ]);
   if (!flowRow[0]) throw new Error("流程不存在");
+  assertFlowEditable(session.scope, flowRow[0].department);
   const rows = await getFlowRows(flowId);
   const accepted = rows.filter((row) => row.status === "passed").length;
   const rejected = rows.filter((row) => row.status === "failed").length;
   const withdrawn = rows.filter((row) => row.status === "withdrawn").length;
   const unfinished = rows.filter((row) => !terminalStatuses.has(row.status)).length;
   const [acceptedTemplate, rejectedTemplate] = await Promise.all([
-    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, true)),
-    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, false)),
+    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, true), flowRow[0].department),
+    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, false), flowRow[0].department),
   ]);
   return {
     flow: flowRow[0],
@@ -89,9 +94,10 @@ export async function publishFlowResults(
   confirmTemplate: boolean,
   recipientUserFlowIds?: number[],
 ) {
-  const session = await verifyRole(3);
+  const session = await verifyManager();
   if (!confirmTemplate) throw new Error("发布前必须确认本年度通过和不通过邮件模板");
   const summary = await getFlowResultPublicationSummary(flowId);
+  assertFlowEditable(session.scope, summary.flow.department);
   if (summary.publication?.status === "published") throw new Error("该流程结果已经发布");
   if (summary.counts.unfinished > 0) throw new Error(`还有 ${summary.counts.unfinished} 名候选人没有最终结果，暂不能发布`);
 
@@ -104,8 +110,8 @@ export async function publishFlowResults(
   const selectedUserFlowIds = recipientUserFlowIds === undefined
     ? selectableUserFlowIds
     : new Set(recipientUserFlowIds.filter((id) => selectableUserFlowIds.has(id)));
-  const acceptedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, true));
-  const rejectedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, false));
+  const acceptedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, true), summary.flow.department);
+  const rejectedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, false), summary.flow.department);
   const resultSnapshot = {
     flowId,
     flowTitle: summary.flow.title,
@@ -168,6 +174,7 @@ export async function publishFlowResults(
       flowType: summary.flow.type,
       accept: true,
       createdBy: session.uid,
+      department: summary.flow.department,
       templateSetting: acceptedTemplate,
     });
     const rejectedBatch = await createResultEmailBatch({
@@ -177,6 +184,7 @@ export async function publishFlowResults(
       flowType: summary.flow.type,
       accept: false,
       createdBy: session.uid,
+      department: summary.flow.department,
       templateSetting: rejectedTemplate,
     });
     await Promise.all([acceptedBatch.batchId ? sendEmailBatch(acceptedBatch.batchId) : null, rejectedBatch.batchId ? sendEmailBatch(rejectedBatch.batchId) : null]);
@@ -185,7 +193,7 @@ export async function publishFlowResults(
       .where(and(eq(flowResultPublication.id, publication.id), eq(flowResultPublication.status, "publishing")))
       .returning({ id: flowResultPublication.id });
     if (!publishedPublication) throw new Error("流程发布状态已变更，请刷新后确认结果");
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.result.publish", resourceType: "flow_result_publication", resourceId: publication.id, metadata: { flowId, counts: summary.counts, notifiedUserFlowIds: [...selectedUserFlowIds] } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.result.publish", resourceType: "flow_result_publication", resourceId: publication.id, department: summary.flow.department, metadata: { flowId, counts: summary.counts, notifiedUserFlowIds: [...selectedUserFlowIds] } });
     revalidatePath("/dashboard/exams");
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/emails");
@@ -202,7 +210,13 @@ export async function publishFlowResults(
 }
 
 export async function getPublishedFlowResult(flowId: number) {
-  await verifyRole(3);
+  const session = await verifyManager();
+  const [flowRow] = await db
+    .select({ department: flow.department })
+    .from(flow)
+    .where(eq(flow.id, flowId))
+    .limit(1);
+  if (!flowRow || !canEditFlow(session.scope, flowRow.department)) return null;
   const [publication] = await db.select().from(flowResultPublication).where(and(eq(flowResultPublication.fkFlowId, flowId), eq(flowResultPublication.status, "published"))).limit(1);
   return publication ?? null;
 }

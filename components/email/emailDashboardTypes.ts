@@ -1,3 +1,12 @@
+import type {
+  ResultEmailTemplateSettingRow,
+  ResultEmailTemplateSettingsPayload,
+} from "@/action/email/template";
+import type {
+  InterviewScheduleTemplateListRow,
+  InterviewScheduleTemplateSettingsPayload,
+} from "@/lib/email/interview-template-settings";
+
 export type EmailBatch = Awaited<
   ReturnType<typeof import("@/action/email/list").listEmailBatches>
 >[number];
@@ -26,20 +35,21 @@ export type EmailFlowOption = Awaited<
   ReturnType<typeof import("@/action/email/workspace").listEmailFlowOptions>
 >[number];
 
-export type TemplateSetting = Awaited<
-  ReturnType<typeof import("@/action/email/template").listEmailTemplateSettings>
->[number];
+export type TemplateSettingsResult = ResultEmailTemplateSettingsPayload;
 
-export type InterviewScheduleTemplate = Awaited<
-  ReturnType<typeof import("@/action/email/interview-template").getInterviewScheduleEmailTemplate>
->;
+export type TemplateSetting = ResultEmailTemplateSettingRow;
 
-export type InterviewScheduleTemplates = Awaited<
-  ReturnType<typeof import("@/action/email/interview-template").listInterviewScheduleEmailTemplates>
->;
+export type InterviewTemplateSettingsResult =
+  InterviewScheduleTemplateSettingsPayload;
+
+export type InterviewScheduleTemplate = InterviewScheduleTemplateListRow;
+
+export type InterviewScheduleTemplates = InterviewScheduleTemplateSettingsPayload;
 
 export type InterviewSchedulePreviews = Awaited<
-  ReturnType<typeof import("@/action/email/interview-template").getInterviewScheduleEmailPreviews>
+  ReturnType<
+    typeof import("@/action/email/interview-template").getInterviewScheduleEmailPreviews
+  >
 >;
 
 export type ResultEmailPreviews = Awaited<

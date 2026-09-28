@@ -24,20 +24,32 @@ import {
   aboutMenuItem,
   type MenuItem,
 } from '@/components/route';
+import { departmentLabel } from '@/const/department';
 
 interface AppSidebarProps {
   role: number;
+  /** 当前账号的 Link 部门标识，仅用于展示 */
+  department: string | null;
   userCard: React.ReactNode;
 }
 
-function SidebarNav({ role }: { role: number }) {
+function SidebarNav({
+  role,
+  hasDepartment,
+}: {
+  role: number;
+  hasDepartment: boolean;
+}) {
   const pathname = usePathname();
   const { setOpenMobile, isMobile } = useSidebar();
   const prevPathname = useRef(pathname);
   const pendingHref = useRef<string | null>(null);
   const pendingTimer = useRef<number | null>(null);
 
-  const groups = useMemo(() => getMenuGroups(role), [role]);
+  const groups = useMemo(
+    () => getMenuGroups(role, hasDepartment),
+    [role, hasDepartment],
+  );
   const singleGroup = groups.length === 1;
 
   useEffect(() => {
@@ -122,7 +134,7 @@ function SidebarNav({ role }: { role: number }) {
   );
 }
 
-export function AppSidebar({ role, userCard }: AppSidebarProps) {
+export function AppSidebar({ role, department, userCard }: AppSidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader>
@@ -157,7 +169,7 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarNav role={role} />
+        <SidebarNav role={role} hasDepartment={department !== null} />
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border/60 p-2">
         <SidebarMenu className="mb-2">
@@ -167,6 +179,12 @@ export function AppSidebar({ role, userCard }: AppSidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <p
+          className="mb-1 truncate px-2 text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden"
+          title={`当前部门：${departmentLabel(department, '未设置部门')}${department ? `（${department}）` : ''}`}
+        >
+          当前部门：{departmentLabel(department, '未设置部门')}
+        </p>
         {userCard}
       </SidebarFooter>
     </Sidebar>

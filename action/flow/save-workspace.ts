@@ -1,8 +1,10 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { flow, flowStep, problem } from "@/db/schema";
-import { verifyRole } from "@/lib/dal";
+import { flow, flowStep, normalizeDepartmentKey, problem } from "@/db/schema";
+import { verifyManager } from "@/lib/authz";
+import { assertFlowEditable } from "@/lib/flow-access";
+import { resolveGroupDepartments } from "./department-utils";
 import { editFlowSchema } from "@/lib/validation/flow";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { fullStepType } from "@/types/step";
@@ -19,9 +21,38 @@ type WorkspaceInput = {
 };
 
 export async function saveFlowWorkspace(input: WorkspaceInput) {
-  const session = await verifyRole(3);
+  const session = await verifyManager();
   const values = editFlowSchema.parse(input.values);
   if (input.steps.length === 0) throw new Error("流程至少需要一个步骤");
+
+  const [flowRow] = await db
+    .select({ department: flow.department })
+    .from(flow)
+    .where(eq(flow.id, input.flowId))
+    .limit(1);
+  if (!flowRow) throw new Error("流程不存在");
+  assertFlowEditable(session.scope, flowRow.department);
+
+  const groupOptions = values.groupOptions?.length ? values.groupOptions : null;
+  const patch: Partial<typeof flow.$inferInsert> = {
+    title: values.title,
+    description: values.description,
+    startedAt: values.startedAt,
+    endedAt: values.endedAt,
+    groupOptions,
+    updatedAt: new Date(),
+  };
+
+  /* 只有管理员能改归属部门；部长保持原部门不变 */
+  if (session.scope.kind === "all" && values.department !== undefined) {
+    patch.department = normalizeDepartmentKey(values.department);
+  }
+  if (values.groupDepartments !== undefined) {
+    patch.groupDepartments = resolveGroupDepartments(
+      groupOptions,
+      values.groupDepartments,
+    );
+  }
 
   const problemRows = input.problems
     ? Object.values(input.problems.problems).flat().map((item) => ({
@@ -38,14 +69,7 @@ export async function saveFlowWorkspace(input: WorkspaceInput) {
   }
 
   await db.transaction(async (tx) => {
-    await tx.update(flow).set({
-      title: values.title,
-      description: values.description,
-      startedAt: values.startedAt,
-      endedAt: values.endedAt,
-      groupOptions: values.groupOptions?.length ? values.groupOptions : null,
-      updatedAt: new Date(),
-    }).where(eq(flow.id, input.flowId));
+    await tx.update(flow).set(patch).where(eq(flow.id, input.flowId));
 
     for (const step of input.steps) {
       await tx.insert(flowStep).values({
@@ -81,7 +105,7 @@ export async function saveFlowWorkspace(input: WorkspaceInput) {
     }
   });
 
-  await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.update_workspace", resourceType: "flow", resourceId: input.flowId, metadata: { stepCount: input.steps.length, problemCount: problemRows.length } });
+  await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.update_workspace", resourceType: "flow", resourceId: input.flowId, department: patch.department !== undefined ? patch.department : flowRow.department, metadata: { stepCount: input.steps.length, problemCount: problemRows.length, department: flowRow.department } });
   revalidatePath("/dashboard/flow");
   revalidatePath(`/dashboard/flow/edit?id=${input.flowId}`);
 }

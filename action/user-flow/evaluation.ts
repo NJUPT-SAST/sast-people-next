@@ -17,7 +17,9 @@ import {
   evaluationStepTypeForAction,
   type EvaluationFlowStepType,
 } from "@/lib/evaluation-state";
-import { verifyRole } from "@/lib/dal";
+import { departmentScopeFilter, verifyManager, verifyScopedRole } from "@/lib/authz";
+import type { FlowScopedSession } from "@/action/flow/department-utils";
+import { assertUserFlowInScope } from "@/lib/flow-access";
 import {
   loadFeishuApprovalNotificationRecord,
   sendFeishuApprovalCard,
@@ -201,7 +203,7 @@ async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
 
 async function safeNotifyFeishuApprovalGroup(
   evaluationId: number,
-  session: NonNullable<Awaited<ReturnType<typeof verifyRole>>>,
+  session: Pick<FlowScopedSession, "uid" | "role">,
 ) {
   try {
     return await notifyFeishuApprovalGroup(evaluationId);
@@ -223,10 +225,10 @@ export const createEvaluation = async (
   recommendation: EvaluationRecommendation,
   meetingLink?: string,
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
 
     if (!content.trim()) {
       return { success: false, error: { message: "面评内容不能为空" } };
@@ -239,6 +241,16 @@ export const createEvaluation = async (
         success: false,
         error: { message: `建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。` },
       };
+    }
+
+    // 面评只能写给本部门可见的候选人（管理员放行）
+    const [scopeTarget] = await db
+      .select({ department: userFlow.department })
+      .from(userFlow)
+      .where(eq(userFlow.id, userFlowId))
+      .limit(1);
+    if (scopeTarget) {
+      assertUserFlowInScope(session.scope, scopeTarget.department);
     }
 
     const hasMeetingLinkArg = meetingLink !== undefined;
@@ -434,6 +446,7 @@ export const createEvaluation = async (
       action: result.auditAction,
       resourceType: "interview_evaluation",
       resourceId: result.evaluationId,
+      department: scopeTarget?.department ?? null,
       metadata: {
         userFlowId,
         hasMeetingLink: hasMeetingLinkArg
@@ -463,11 +476,12 @@ export const createEvaluation = async (
 };
 
 export const approveEvaluation = async (evaluationId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   let affectedUserId: number | null = null;
+  let targetDepartment: string | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
 
     await db.transaction(async (tx) => {
       const [evalRecord] = await tx
@@ -483,6 +497,17 @@ export const approveEvaluation = async (evaluationId: number) => {
         .limit(1);
 
       if (!evalRecord) throw new Error("面评不存在");
+
+      const [uf] = await tx
+        .select({ fkUserId: userFlow.fkUserId, department: userFlow.department })
+        .from(userFlow)
+        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
+        .limit(1);
+
+      // 只能审批本部门候选人的面评
+      assertUserFlowInScope(session!.scope, uf?.department);
+      targetDepartment = uf?.department ?? null;
+
       if (!canApproveEvaluation(evalRecord.status)) {
         throw new Error("只能通过待终审的面评");
       }
@@ -504,12 +529,6 @@ export const approveEvaluation = async (evaluationId: number) => {
         })
         .where(eq(interviewEvaluation.id, evaluationId));
 
-      const [uf] = await tx
-        .select({ fkUserId: userFlow.fkUserId })
-        .from(userFlow)
-        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
-        .limit(1);
-
       if (uf) {
         affectedUserId = uf.fkUserId;
         await moveUserFlowInTx(
@@ -529,6 +548,7 @@ export const approveEvaluation = async (evaluationId: number) => {
       action: "evaluation.approve",
       resourceType: "interview_evaluation",
       resourceId: evaluationId,
+      department: targetDepartment,
       metadata: { affectedUserId },
     });
   } catch (error) {
@@ -544,10 +564,11 @@ export const approveEvaluation = async (evaluationId: number) => {
 };
 
 export const rejectEvaluation = async (evaluationId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
+  let targetDepartment: string | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
 
     await db.transaction(async (tx) => {
       const [evalRecord] = await tx
@@ -561,6 +582,17 @@ export const rejectEvaluation = async (evaluationId: number) => {
         .limit(1);
 
       if (!evalRecord) throw new Error("面评不存在");
+
+      const [uf] = await tx
+        .select({ department: userFlow.department })
+        .from(userFlow)
+        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
+        .limit(1);
+
+      // 只能判定本部门候选人的面评
+      assertUserFlowInScope(session!.scope, uf?.department);
+      targetDepartment = uf?.department ?? null;
+
       if (!canRejectEvaluation(evalRecord.status)) {
         throw new Error("只能判定待终审的面评为不通过");
       }
@@ -590,6 +622,7 @@ export const rejectEvaluation = async (evaluationId: number) => {
       action: "evaluation.reject",
       resourceType: "interview_evaluation",
       resourceId: evaluationId,
+      department: targetDepartment,
     });
   } catch (error) {
     logServerError("evaluation:reject", error, {
@@ -604,9 +637,10 @@ export const rejectEvaluation = async (evaluationId: number) => {
 };
 
 export const returnEvaluation = async (evaluationId: number, reason: string) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
+  let targetDepartment: string | null = null;
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
     const normalizedReason = reason.trim();
     if (!normalizedReason) throw new Error("请填写退回理由");
 
@@ -623,6 +657,17 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
         .for("update")
         .limit(1);
       if (!evaluation) throw new Error("面评不存在");
+
+      const [uf] = await tx
+        .select({ department: userFlow.department })
+        .from(userFlow)
+        .where(eq(userFlow.id, evaluation.userFlowId))
+        .limit(1);
+
+      // 只能退回本部门候选人的面评
+      assertUserFlowInScope(session!.scope, uf?.department);
+      targetDepartment = uf?.department ?? null;
+
       if (!canReturnEvaluation(evaluation.status)) throw new Error("只能退回待终审的面评");
       await tx.update(interviewEvaluation).set({
         status: "returned",
@@ -648,7 +693,7 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
     }
     revalidatePath("/dashboard/approvals");
     revalidatePath("/dashboard/interviews");
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "evaluation.return", resourceType: "interview_evaluation", resourceId: evaluationId, metadata: { reason: normalizedReason } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "evaluation.return", resourceType: "interview_evaluation", resourceId: evaluationId, department: targetDepartment, metadata: { reason: normalizedReason } });
     return {
       success: true as const,
       notificationSent: notificationStatus === "sent",
@@ -662,10 +707,10 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
 
 
 export const getAllEvaluations = async () => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
 
     const rows = await db
       .select({
@@ -674,6 +719,7 @@ export const getAllEvaluations = async () => {
         portfolioLink: userFlow.portfolioLink,
         portfolioDescription: userFlow.portfolioDescription,
         applyGroup: userFlow.applyGroup,
+        department: userFlow.department,
         authorId: interviewEvaluation.fkUserId,
         candidateId: userFlow.fkUserId,
         flowTitle: flow.title,
@@ -684,6 +730,8 @@ export const getAllEvaluations = async () => {
       .leftJoin(userFlow, eq(interviewEvaluation.fkUserFlowId, userFlow.id))
       .leftJoin(flow, eq(userFlow.fkFlowId, flow.id))
       .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
+      // 审批列表按部门可见性收敛：不在范围内直接查不到
+      .where(departmentScopeFilter(userFlow.department, session.scope))
       .orderBy(desc(interviewEvaluation.createdAt));
 
     const userFlowIds = rows
@@ -775,10 +823,10 @@ export const getAllEvaluations = async () => {
 };
 
 export const getEvaluationCandidates = async (flowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
 
     const candidates = await db
       .select({
@@ -789,6 +837,7 @@ export const getEvaluationCandidates = async (flowId: number) => {
         portfolioLink: userFlow.portfolioLink,
         portfolioDescription: userFlow.portfolioDescription,
         applyGroup: userFlow.applyGroup,
+        department: userFlow.department,
         evalId: interviewEvaluation.id,
         evalContent: interviewEvaluation.content,
         evalMeetingLink: interviewEvaluation.meetingLink,
@@ -806,6 +855,8 @@ export const getEvaluationCandidates = async (flowId: number) => {
         and(
           eq(userFlow.fkFlowId, flowId),
           ne(userFlow.progressStatus, "withdrawn"),
+          // 候选人列表按部门可见性收敛
+          departmentScopeFilter(userFlow.department, session.scope),
         ),
       );
 

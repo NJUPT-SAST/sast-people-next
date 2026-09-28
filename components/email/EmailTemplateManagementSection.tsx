@@ -5,7 +5,10 @@ import {
   updateInterviewScheduleEmailTemplate,
 } from "@/action/email/interview-template";
 import { sendEmailTest } from "@/action/email/test-send";
-import { updateEmailTemplateSetting } from "@/action/email/template";
+import {
+  resetEmailTemplateSetting,
+  updateEmailTemplateSetting,
+} from "@/action/email/template";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,12 +21,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { departmentLabel } from "@/const/department";
 import { cn } from "@/lib/utils";
-import { Save, Send, Settings2 } from "lucide-react";
+import { Save, Send, Settings2, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { EmailTemplateScopeSelector } from "./EmailTemplateScopeSelector";
 import {
   getSettingLabel,
   emailCategoryText,
@@ -33,10 +38,66 @@ import { PreviewDialog } from "./emailDashboardDialogs";
 import type {
   EmailTemplateDefinition,
   InterviewSchedulePreviews,
-  InterviewScheduleTemplates,
+  InterviewScheduleTemplate,
+  InterviewTemplateSettingsResult,
   ResultEmailPreviews,
   TemplateSetting,
+  TemplateSettingsResult,
 } from "./emailDashboardTypes";
+import {
+  getTemplateRowStatusLabel,
+  groupTemplateRowsByKey,
+  type TemplateRowStatus,
+} from "./emailDashboardUtils";
+
+/** 生效内容来源的徽章：本部门覆盖 / 全局默认（只读）/ 其他部门覆盖 */
+function TemplateOverrideBadge({
+  status,
+  readOnly,
+}: {
+  status: TemplateRowStatus;
+  readOnly: boolean;
+}) {
+  const tone: Record<TemplateRowStatus, string> = {
+    "department-override": "border-primary/40 text-primary",
+    "global-fallback": "border-border text-muted-foreground",
+    "global-default": "border-border text-muted-foreground",
+    "other-department": "border-chart-3/50 text-muted-foreground",
+    missing: "border-dashed text-muted-foreground",
+  };
+
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] leading-4",
+        tone[status],
+      )}
+    >
+      {getTemplateRowStatusLabel(status, { readOnly })}
+    </span>
+  );
+}
+
+/** 卡片提示：写到哪里、是否已有覆盖 */
+function getTemplateScopeHint({
+  targetDepartment,
+  hasOverride,
+}: {
+  targetDepartment: string | null;
+  hasOverride: boolean;
+}) {
+  if (!targetDepartment) {
+    return "当前编辑全局默认，未配置覆盖的部门都会用它。";
+  }
+  if (hasOverride) {
+    return `「${departmentLabel(targetDepartment)}」已有独立覆盖，改动不影响其他部门。`;
+  }
+  return `「${departmentLabel(targetDepartment)}」尚未覆盖，当前显示全局默认文案；保存会创建该部门的独立覆盖。`;
+}
+
+function getTargetLabel(department: string | null) {
+  return department ? `「${departmentLabel(department)}」` : "全局默认";
+}
 
 function createValuesFromForm(form: HTMLFormElement) {
   const data = new FormData(form);
@@ -88,9 +149,16 @@ function TemplateField({
 
 function TemplateDialog({
   setting,
+  department,
+  hasOverride,
+  writable,
   previewHtml,
 }: {
   setting: TemplateSetting;
+  /** 写入目标：null = 全局默认 */
+  department: string | null;
+  hasOverride: boolean;
+  writable: boolean;
   previewHtml: string | null;
 }) {
   const router = useRouter();
@@ -99,6 +167,7 @@ function TemplateDialog({
   const usesInternalGroup =
     isAcceptedTemplate &&
     (isRecruitmentTemplate || setting.templateKey.startsWith("soc."));
+  const targetLabel = getTargetLabel(department);
 
   return (
     <Dialog>
@@ -117,7 +186,12 @@ function TemplateDialog({
         <DialogHeader>
           <DialogTitle>{getSettingLabel(setting.templateKey)}</DialogTitle>
           <DialogDescription>
-            编辑邮件标题、结果卡片、正文和后续行动。保存后请先预览，再进行测试发送。
+            编辑邮件标题、结果卡片、正文和后续行动。当前写入目标：
+            {targetLabel}
+            {department && !hasOverride
+              ? "（尚未覆盖，保存会创建该部门的独立文案）"
+              : ""}
+            。保存后请先预览，再进行测试发送。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -126,13 +200,17 @@ function TemplateDialog({
             event.preventDefault();
             const values = createValuesFromForm(event.currentTarget);
             toast.promise(
-              updateEmailTemplateSetting(setting.templateKey, values).then((result) => {
+              updateEmailTemplateSetting(
+                setting.templateKey,
+                values,
+                department,
+              ).then((result) => {
                 if (!result.ok) throw new Error(result.message);
                 router.refresh();
               }),
               {
                 loading: "正在保存模板",
-                success: "模板已保存",
+                success: `模板已保存到${targetLabel}`,
                 error: (error) =>
                   error instanceof Error ? error.message : "保存失败",
               },
@@ -238,17 +316,56 @@ function TemplateDialog({
               />
             </>
           )}
-          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end md:col-span-2">
-            <PreviewDialog
-              title={`${getSettingLabel(setting.templateKey)}样张`}
-              html={previewHtml}
-              triggerLabel="预览"
-              description="样张使用固定示例数据；保存后刷新页面可看到最新链接与文案。"
-            />
-            <Button type="submit" className="w-full sm:w-auto">
-              <Save data-icon="inline-start" />
-              保存模板
-            </Button>
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between md:col-span-2">
+            {hasOverride && writable ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="sm:w-auto"
+                onClick={() => {
+                  toast.promise(
+                    resetEmailTemplateSetting(
+                      setting.templateKey,
+                      department,
+                    ).then((result) => {
+                      if (!result.ok) throw new Error(result.message);
+                      router.refresh();
+                    }),
+                    {
+                      loading: "正在恢复",
+                      success: department
+                        ? `已恢复为全局默认（删除${targetLabel}覆盖）`
+                        : "已恢复为内置默认文案",
+                      error: (error) =>
+                        error instanceof Error ? error.message : "恢复失败",
+                    },
+                  );
+                }}
+              >
+                <Undo2 data-icon="inline-start" />
+                {department ? "恢复为全局默认" : "恢复内置默认文案"}
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {department
+                  ? `保存会写入${targetLabel}覆盖，未覆盖前继续回落全局默认。`
+                  : "保存会写入全局默认，未覆盖的部门都会用它。"}
+              </span>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <PreviewDialog
+                title={`${getSettingLabel(setting.templateKey)}样张`}
+                html={previewHtml}
+                triggerLabel="预览"
+                description="样张使用固定示例数据；保存后刷新页面可看到最新链接与文案。"
+              />
+              {writable && (
+                <Button type="submit" className="w-full sm:w-auto">
+                  <Save data-icon="inline-start" />
+                  保存到{targetLabel}
+                </Button>
+              )}
+            </div>
           </div>
         </form>
       </DialogContent>
@@ -269,15 +386,23 @@ function createInterviewTemplateValues(form: HTMLFormElement) {
 function InterviewTemplateDialog({
   definition,
   setting,
+  department,
+  hasOverride,
+  writable,
   previewHtml,
 }: {
   definition: EmailTemplateDefinition;
-  setting: InterviewScheduleTemplates[number];
+  setting: InterviewScheduleTemplate;
+  /** 写入目标：null = 全局默认 */
+  department: string | null;
+  hasOverride: boolean;
+  writable: boolean;
   previewHtml: string | null;
 }) {
   const router = useRouter();
   const isWithdrawalTemplate =
     setting.templateKey === "interview.application.withdrawn";
+  const targetLabel = getTargetLabel(department);
 
   return (
     <Dialog>
@@ -299,6 +424,8 @@ function InterviewTemplateDialog({
             {isWithdrawalTemplate
               ? "编辑候选人报名被退回后的通知内容；退回理由会自动显示在邮件的信息卡片里。"
               : "编辑邮件开头的提示语。预约时间、地点和讲师会自动生成在邮件信息卡片里；候选人邮件不包含飞书会议入口。"}
+            当前写入目标：{targetLabel}
+            {department && !hasOverride ? "（尚未覆盖，保存会创建该部门的独立文案）" : ""}。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -307,13 +434,17 @@ function InterviewTemplateDialog({
             event.preventDefault();
             const values = createInterviewTemplateValues(event.currentTarget);
             toast.promise(
-              updateInterviewScheduleEmailTemplate(setting.templateKey, values).then((result) => {
+              updateInterviewScheduleEmailTemplate(
+                setting.templateKey,
+                values,
+                department,
+              ).then((result) => {
                 if (!result.ok) throw new Error(result.message);
                 router.refresh();
               }),
               {
                 loading: "正在保存模板",
-                success: "模板已保存",
+                success: `模板已保存到${targetLabel}`,
                 error: (error) =>
                   error instanceof Error ? error.message : "保存失败",
               },
@@ -366,24 +497,38 @@ function InterviewTemplateDialog({
           </div>
 
           <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              className="sm:w-auto"
-              onClick={() => {
-                toast.promise(
-                  resetInterviewScheduleEmailTemplate(setting.templateKey).then(() => router.refresh()),
-                  {
-                    loading: "正在重置模板",
-                    success: "模板已重置",
-                    error: (error) =>
-                      error instanceof Error ? error.message : "重置失败",
-                  },
-                );
-              }}
-            >
-              恢复默认
-            </Button>
+            {hasOverride && writable ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="sm:w-auto"
+                onClick={() => {
+                  toast.promise(
+                    resetInterviewScheduleEmailTemplate(
+                      setting.templateKey,
+                      department,
+                    ).then(() => router.refresh()),
+                    {
+                      loading: "正在恢复",
+                      success: department
+                        ? `已恢复为全局默认（删除${targetLabel}覆盖）`
+                        : "已恢复为内置默认文案",
+                      error: (error) =>
+                        error instanceof Error ? error.message : "恢复失败",
+                    },
+                  );
+                }}
+              >
+                <Undo2 data-icon="inline-start" />
+                {department ? "恢复为全局默认" : "恢复内置默认文案"}
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {department
+                  ? `保存会写入${targetLabel}覆盖，未覆盖前继续回落全局默认。`
+                  : "保存会写入全局默认，未覆盖的部门都会用它。"}
+              </span>
+            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <PreviewDialog
                 title={`${definition.name}样张`}
@@ -395,10 +540,12 @@ function InterviewTemplateDialog({
                     : "样张使用固定示例数据；真实发送时会替换为预约信息。"
                 }
               />
-              <Button type="submit">
-                <Save data-icon="inline-start" />
-                保存模板
-              </Button>
+              {writable && (
+                <Button type="submit">
+                  <Save data-icon="inline-start" />
+                  保存到{targetLabel}
+                </Button>
+              )}
             </div>
           </div>
         </form>
@@ -422,10 +569,13 @@ function getTemplateVariablesSummary(definition: EmailTemplateDefinition) {
 
 export function TestEmailButton({
   flowName,
+  department,
   templateDefinitions,
   defaultTemplateKey = "recruitment.result.accepted",
 }: {
   flowName?: string;
+  /** 测试发送跟随「模板归属」：null = 全局默认 */
+  department: string | null;
   templateDefinitions: EmailTemplateDefinition[];
   defaultTemplateKey?: EmailTemplateDefinition["key"];
 }) {
@@ -467,6 +617,11 @@ export function TestEmailButton({
               </option>
             ))}
           </select>
+          <p className="text-xs text-muted-foreground">
+            {department
+              ? `按${getTargetLabel(department)}的模板发送，该部门未覆盖时回落全局默认。`
+              : "按全局默认模板发送。"}
+          </p>
           {selectedTemplate && (
             <p className="text-xs text-muted-foreground">
               {emailCategoryText[selectedTemplate.category]} · 必填变量：
@@ -487,7 +642,11 @@ export function TestEmailButton({
         <Button
           onClick={() => {
             toast.promise(
-              sendEmailTest(address, selectedTemplateKey, flowName).then((result) => {
+              sendEmailTest(
+                selectedTemplateKey,
+                { toAddress: address, flowName },
+                department,
+              ).then((result) => {
                 if (!result.ok) throw new Error("测试邮件发送失败");
                 return result;
               }),
@@ -515,20 +674,33 @@ export function EmailTemplateManagementSection({
   interviewSchedulePreviews,
   selectedFlowTitle,
   templateDefinitions,
+  department,
+  onDepartmentChange,
 }: {
-  templateSettings: TemplateSetting[];
+  templateSettings: TemplateSettingsResult;
   resultEmailPreviews: ResultEmailPreviews;
-  interviewScheduleTemplates: InterviewScheduleTemplates;
+  interviewScheduleTemplates: InterviewTemplateSettingsResult;
   interviewSchedulePreviews: InterviewSchedulePreviews;
   selectedFlowTitle?: string;
   templateDefinitions: EmailTemplateDefinition[];
+  /** 当前模板归属：null = 全局默认 */
+  department: string | null;
+  onDepartmentChange: (department: string | null) => void;
 }) {
   const definitionMap = new Map<string, EmailTemplateDefinition>(
     templateDefinitions.map((definition) => [definition.key, definition]),
   );
-  const resultTemplateKeys = new Set(templateSettings.map((setting) => setting.templateKey));
-  const interviewTemplateSettingsMap = new Map(
-    interviewScheduleTemplates.map((setting) => [setting.templateKey, setting]),
+  const resultGroups = groupTemplateRowsByKey(templateSettings.rows, {
+    department,
+    scope: templateSettings.scope,
+  });
+  const interviewGroups = groupTemplateRowsByKey(
+    interviewScheduleTemplates.rows,
+    { department, scope: interviewScheduleTemplates.scope },
+  );
+  const resultGroupKeys = new Set(resultGroups.map((group) => group.templateKey));
+  const interviewGroupMap = new Map(
+    interviewGroups.map((group) => [group.templateKey, group]),
   );
   const interviewDefinitions = templateDefinitions.filter(
     (definition) => definition.category === "interview",
@@ -538,26 +710,33 @@ export function EmailTemplateManagementSection({
 
   const resultDefinitionsMissing = templateDefinitions.filter(
     (definition) =>
-      definition.category === "result" && !resultTemplateKeys.has(definition.key),
+      definition.category === "result" && !resultGroupKeys.has(definition.key),
   );
   const interviewCards = interviewDefinitions
     .map((definition) => {
       const templateKey = definition.key as keyof InterviewSchedulePreviews;
-      const setting = interviewTemplateSettingsMap.get(templateKey);
-      if (!setting) return null;
-      return { definition, setting, templateKey };
+      const group = interviewGroupMap.get(definition.key);
+      if (!group) return null;
+      return { definition, group, templateKey };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);
 
   return (
     <div className="flex flex-col gap-5">
       <section className="overflow-hidden rounded-lg border bg-card">
-        <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between lg:p-5">
-          <div>
+        <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-start lg:justify-between lg:p-5">
+          <div className="flex min-w-0 flex-col gap-2">
             <h2 className="text-sm font-semibold">模板管理</h2>
+            <EmailTemplateScopeSelector
+              value={department}
+              departments={templateSettings.departments}
+              scope={templateSettings.scope}
+              onChange={onDepartmentChange}
+            />
           </div>
           <TestEmailButton
             flowName={selectedFlowTitle}
+            department={department}
             templateDefinitions={templateDefinitions}
           />
         </div>
@@ -568,29 +747,52 @@ export function EmailTemplateManagementSection({
               <h3 className="text-sm font-semibold">结果通知</h3>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {templateSettings.map((setting) => (
-                <div key={setting.templateKey} className={templateCardClassName}>
+              {resultGroups.map((group) => (
+                <div key={group.templateKey} className={templateCardClassName}>
                   <div className="absolute inset-x-0 top-0 h-1 bg-primary/60" />
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="break-words text-sm font-semibold leading-5">
                         {getTemplateDisplayName(
-                          definitionMap.get(setting.templateKey),
-                          setting.templateKey,
+                          definitionMap.get(group.templateKey),
+                          group.templateKey,
                         )}
                       </h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {getTemplateScopeHint(group)}
+                      </p>
+                      {group.otherDepartments.length > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          其他部门覆盖：
+                          {group.otherDepartments
+                            .map((key) => departmentLabel(key))
+                            .join("、")}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                  
-                  <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
-                    <TemplateDialog
-                      setting={setting}
-                      previewHtml={resultEmailPreviews[setting.templateKey] ?? null}
+                    <TemplateOverrideBadge
+                      status={group.status}
+                      readOnly={group.readOnly}
                     />
+                  </div>
+
+                  <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
+                    {group.row && (
+                      <TemplateDialog
+                        setting={group.row}
+                        department={group.targetDepartment}
+                        hasOverride={group.hasOverride}
+                        writable={group.writable}
+                        previewHtml={
+                          resultEmailPreviews[group.templateKey] ?? null
+                        }
+                      />
+                    )}
                     <TestEmailButton
                       flowName={selectedFlowTitle}
+                      department={department}
                       templateDefinitions={templateDefinitions}
-                      defaultTemplateKey={setting.templateKey as EmailTemplateDefinition["key"]}
+                      defaultTemplateKey={group.templateKey as EmailTemplateDefinition["key"]}
                     />
                   </div>
                 </div>
@@ -608,13 +810,14 @@ export function EmailTemplateManagementSection({
                   <div className="mt-auto pt-4">
                     <TestEmailButton
                       flowName={selectedFlowTitle}
+                      department={department}
                       templateDefinitions={templateDefinitions}
                       defaultTemplateKey={definition.key}
                     />
                   </div>
                 </div>
               ))}
-              {templateSettings.length === 0 && resultDefinitionsMissing.length === 0 && (
+              {resultGroups.length === 0 && resultDefinitionsMissing.length === 0 && (
                 <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
                   暂无结果通知模板。
                 </div>
@@ -627,7 +830,7 @@ export function EmailTemplateManagementSection({
               <h3 className="text-sm font-semibold">面试通知</h3>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {interviewCards.map(({ definition, setting, templateKey }) => (
+              {interviewCards.map(({ definition, group, templateKey }) => (
                 <div key={definition.key} className={templateCardClassName}>
                   <div className="absolute inset-x-0 top-0 h-1 bg-chart-3/70" />
                   <div className="flex items-start justify-between gap-3">
@@ -635,18 +838,39 @@ export function EmailTemplateManagementSection({
                       <h3 className="break-words text-sm font-semibold leading-5">
                         {definition.name}
                       </h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {getTemplateScopeHint(group)}
+                      </p>
+                      {group.otherDepartments.length > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          其他部门覆盖：
+                          {group.otherDepartments
+                            .map((key) => departmentLabel(key))
+                            .join("、")}
+                        </p>
+                      )}
                     </div>
+                    <TemplateOverrideBadge
+                      status={group.status}
+                      readOnly={group.readOnly}
+                    />
                   </div>
                   <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
-                    <InterviewTemplateDialog
-                      definition={definition}
-                      setting={setting}
-                      previewHtml={
-                        interviewSchedulePreviews[templateKey] ?? null
-                      }
-                    />
+                    {group.row && (
+                      <InterviewTemplateDialog
+                        definition={definition}
+                        setting={group.row}
+                        department={group.targetDepartment}
+                        hasOverride={group.hasOverride}
+                        writable={group.writable}
+                        previewHtml={
+                          interviewSchedulePreviews[templateKey] ?? null
+                        }
+                      />
+                    )}
                     <TestEmailButton
                       flowName={selectedFlowTitle}
+                      department={department}
                       templateDefinitions={templateDefinitions}
                       defaultTemplateKey={definition.key}
                     />

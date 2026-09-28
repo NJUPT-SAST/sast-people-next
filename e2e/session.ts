@@ -4,6 +4,8 @@ type TestUser = {
   uid: number;
   role: number;
   name: string;
+  /** 部门隔离用 Link 部门标识：部门级页面（流程/笔试/面试/成员目录/邮件/审计）必须带上 */
+  department?: string;
 };
 
 export async function signInAs(context: BrowserContext, user: TestUser) {

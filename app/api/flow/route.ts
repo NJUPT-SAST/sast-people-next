@@ -2,18 +2,19 @@ import { db } from "@/db/drizzle";
 import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { flow, userFlow, flowStep, flowResultPublication } from "@/db/schema";
-import { verifyRole } from "@/lib/dal";
+import { departmentScopeFilter, verifyManager } from "@/lib/authz";
+import type { FlowScopedSession } from "@/action/flow/department-utils";
 import { logServerError } from "@/lib/server-error-log";
 import { displayUserFlow, computeStatus } from "@/types/userflow";
 import { fullStepType } from "@/types/step";
 
 export const GET = async (req: NextRequest) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   const searchParams = req.nextUrl.searchParams;
   const uid = Number(searchParams.get("uid"));
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
     if (!uid) {
       return NextResponse.json({ error: "Invalid uid" }, { status: 400 });
     }
@@ -23,7 +24,14 @@ export const GET = async (req: NextRequest) => {
       .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
       .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
       .leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId))
-      .where(and(eq(userFlow.fkUserId, uid), eq(flow.isDeleted, false)))
+      .where(
+        and(
+          eq(userFlow.fkUserId, uid),
+          eq(flow.isDeleted, false),
+          /* 只能查看本部门的报名记录，管理员不过滤 */
+          departmentScopeFilter(userFlow.department, session.scope),
+        ),
+      )
       .orderBy(flowStep.order);
 
     const currentStepIds = [

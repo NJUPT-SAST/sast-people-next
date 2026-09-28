@@ -90,10 +90,12 @@ export async function renderEmailTemplate(
         subject: await renderInterviewScheduleEmailSubject(
           request.variables.flowName,
           kind,
+          request.department,
         ),
         html: await renderInterviewScheduleEmail({
           ...request.variables,
           kind,
+          department: request.department,
         }),
       };
     }
@@ -101,8 +103,12 @@ export async function renderEmailTemplate(
       return {
         subject: await renderInterviewWithdrawalEmailSubject(
           request.variables.flowName,
+          request.department,
         ),
-        html: await renderInterviewWithdrawalEmail(request.variables),
+        html: await renderInterviewWithdrawalEmail({
+          ...request.variables,
+          department: request.department,
+        }),
       };
   }
 }

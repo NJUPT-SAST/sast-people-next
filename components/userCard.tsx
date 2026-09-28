@@ -24,6 +24,7 @@ export const UserCard: React.FC = async () => {
     session.role === 0 ? '新同学'
     : session.role === 1 ? '部员'
     : session.role === 2 ? '讲师'
+    : session.role === 3 ? '部长'
     : '管理员';
 
   return (

@@ -34,6 +34,7 @@ import {
 import { toast } from 'sonner';
 import { addFlow } from '@/action/flow/add';
 import { DateTimeInput } from '../ui/datetime-input';
+import { DepartmentSelect } from './departmentFields';
 import {
   addFlowSchema,
   editFlowSchema,
@@ -42,7 +43,7 @@ import {
 
 export { addFlowSchema, editFlowSchema, fullFlowSchema };
 
-export const AddFlow = () => {
+export const AddFlow = ({ canChooseDepartment = false }: { canChooseDepartment?: boolean }) => {
   const router = useRouter();
   const addFlowForm = useForm<z.infer<typeof addFlowSchema>>({
     resolver: zodResolver(addFlowSchema),
@@ -53,6 +54,7 @@ export const AddFlow = () => {
       type: 'recruitment' as const,
       startedAt: undefined,
       endedAt: undefined,
+      department: canChooseDepartment ? null : undefined,
     },
   });
   const { isSubmitting } = addFlowForm.formState;
@@ -129,6 +131,27 @@ export const AddFlow = () => {
                 </FormItem>
               )}
             />
+            {canChooseDepartment && (
+              <FormField
+                control={addFlowForm.control}
+                name="department"
+                disabled={isSubmitting}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>归属部门</FormLabel>
+                    <FormControl>
+                      <DepartmentSelect
+                        allowGlobal
+                        disabled={isSubmitting}
+                        value={field.value ?? null}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={addFlowForm.control}
               name="startedAt"

@@ -11,11 +11,12 @@ insert into flow (
   ended_at,
   updated_at,
   is_deleted,
-  group_options
+  group_options,
+  department
 ) values
-  (101, '2026 春季笔试招新 Demo', '覆盖报名、批卷、结果确认和邮件发送的本地演示流程。', 'recruitment', 1, now() - interval '10 days', now() - interval '7 days', now() + interval '14 days', now(), false, null),
-  (102, '2026 免试招新 Demo', '覆盖作品链接、讲师面评和管理员审批的本地演示流程。', 'recruitment_exemption', 1, now() - interval '9 days', now() - interval '7 days', now() + interval '14 days', now(), false, '["前端组","后端组","算法组"]'::jsonb),
-  (103, '2026 秋季笔试招新进行中 Demo', '正在进行中的笔试流程，覆盖报名、待批卷、待确认和部分最终结果。', 'recruitment', 1, now() - interval '2 days', now() - interval '1 day', now() + interval '21 days', now(), false, null)
+  (101, '2026 春季笔试招新 Demo', '覆盖报名、批卷、结果确认和邮件发送的本地演示流程。', 'recruitment', 1, now() - interval '10 days', now() - interval '7 days', now() + interval '14 days', now(), false, null, 'software'),
+  (102, '2026 免试招新 Demo', '覆盖作品链接、讲师面评和管理员审批的本地演示流程。', 'recruitment_exemption', 1, now() - interval '9 days', now() - interval '7 days', now() + interval '14 days', now(), false, '["前端组","后端组","算法组"]'::jsonb, 'software'),
+  (103, '2026 秋季笔试招新进行中 Demo', '正在进行中的笔试流程，覆盖报名、待批卷、待确认和部分最终结果。', 'recruitment', 1, now() - interval '2 days', now() - interval '1 day', now() + interval '21 days', now(), false, null, 'software')
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -25,7 +26,8 @@ on conflict (id) do update set
   ended_at = excluded.ended_at,
   updated_at = now(),
   is_deleted = false,
-  group_options = excluded.group_options;
+  group_options = excluded.group_options,
+  department = excluded.department;
 
 insert into flow_step (
   id,
@@ -82,33 +84,35 @@ insert into user_flow (
   portfolio_link,
   apply_group,
   fk_flow_id,
-  fk_user_id
+  fk_user_id,
+  department
 ) values
-  (201, 'failed', 1013, null, null, 101, 4),
-  (202, 'passed', 1013, null, null, 101, 5),
-  (203, 'failed', 1013, null, null, 101, 6),
-  (204, 'passed', 1013, null, null, 101, 7),
-  (205, 'failed', 1013, null, null, 101, 8),
-  (206, 'ongoing', 1022, 'https://portfolio-a.example.com/project', '前端组', 102, 4),
-  (207, 'ongoing', 1022, 'https://portfolio-b.example.com/project', '后端组', 102, 5),
-  (208, 'ongoing', 1022, 'https://portfolio-c.example.com/project', '算法组', 102, 6),
-  (209, 'ongoing', 1023, 'https://portfolio-d.example.com/project', '前端组', 102, 7),
-  (210, 'failed', 1023, 'https://portfolio-e.example.com/project', '后端组', 102, 8),
-  (211, 'passed', 1023, 'https://member.example.com/interview-project', '前端组', 102, 3),
-  (221, 'not_started', 1031, null, null, 103, 4),
-  (222, 'ongoing', 1031, null, null, 103, 5),
-  (223, 'ongoing', 1032, null, null, 103, 6),
-  (224, 'ongoing', 1032, null, null, 103, 7),
-  (225, 'passed', 1033, null, null, 103, 8),
-  (226, 'failed', 1033, null, null, 103, 9),
-  (227, 'withdrawn', 1032, null, null, 103, 10)
+  (201, 'failed', 1013, null, null, 101, 4, 'software'),
+  (202, 'passed', 1013, null, null, 101, 5, 'software'),
+  (203, 'failed', 1013, null, null, 101, 6, 'software'),
+  (204, 'passed', 1013, null, null, 101, 7, 'software'),
+  (205, 'failed', 1013, null, null, 101, 8, 'software'),
+  (206, 'ongoing', 1022, 'https://portfolio-a.example.com/project', '前端组', 102, 4, 'software'),
+  (207, 'ongoing', 1022, 'https://portfolio-b.example.com/project', '后端组', 102, 5, 'software'),
+  (208, 'ongoing', 1022, 'https://portfolio-c.example.com/project', '算法组', 102, 6, 'software'),
+  (209, 'ongoing', 1023, 'https://portfolio-d.example.com/project', '前端组', 102, 7, 'software'),
+  (210, 'failed', 1023, 'https://portfolio-e.example.com/project', '后端组', 102, 8, 'software'),
+  (211, 'passed', 1023, 'https://member.example.com/interview-project', '前端组', 102, 3, 'software'),
+  (221, 'not_started', 1031, null, null, 103, 4, 'software'),
+  (222, 'ongoing', 1031, null, null, 103, 5, 'software'),
+  (223, 'ongoing', 1032, null, null, 103, 6, 'software'),
+  (224, 'ongoing', 1032, null, null, 103, 7, 'software'),
+  (225, 'passed', 1033, null, null, 103, 8, 'software'),
+  (226, 'failed', 1033, null, null, 103, 9, 'software'),
+  (227, 'withdrawn', 1032, null, null, 103, 10, 'software')
 on conflict (id) do update set
   progress_status = excluded.progress_status,
   fk_current_step_id = excluded.fk_current_step_id,
   portfolio_link = excluded.portfolio_link,
   apply_group = excluded.apply_group,
   fk_flow_id = excluded.fk_flow_id,
-  fk_user_id = excluded.fk_user_id;
+  fk_user_id = excluded.fk_user_id,
+  department = excluded.department;
 
 insert into flow_result_publication (
   fk_flow_id,
@@ -288,7 +292,7 @@ insert into email_template_setting (
 ) values
   ('recruitment.result.accepted', '{flowName} 结果通知', 'https://forms.example.com/member-info', 'https://feishu.example.com/group', 'https://calendar.example.com/sast', 'https://docs.example.com/register-help', 'sast@example.com', '成员信息登记表', 'SAST 2026 新生群', now()),
   ('recruitment.result.rejected', '{flowName} 结果通知', 'https://forms.example.com/member-info', 'https://feishu.example.com/group', 'https://calendar.example.com/sast', 'https://docs.example.com/register-help', 'sast@example.com', '成员信息登记表', 'SAST 2026 新生群', now())
-on conflict (template_key) do update set
+on conflict ("template_key", coalesce("department", '')) do update set
   subject_template = excluded.subject_template,
   member_info_form_url = excluded.member_info_form_url,
   feishu_group_url = excluded.feishu_group_url,
@@ -313,7 +317,7 @@ insert into email_template_content (
   '{candidateName} 同学，你已预约 {flowName} 的面试，讲师为 {organizerName}。时间为 {startsAt} - {endsAt}。',
   '南京邮电大学大学生科学技术协会',
   now()
-) on conflict (template_key) do update set
+) on conflict ("template_key", coalesce("department", '')) do update set
   subject_template = excluded.subject_template,
   title_template = excluded.title_template,
   body_template = excluded.body_template,

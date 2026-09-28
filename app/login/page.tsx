@@ -1,13 +1,36 @@
 import { LinkLogin } from "@/components/linkLogin";
 import BlurIn from "@/components/magicui/blur-in";
 import FlickeringGrid from "@/components/magicui/flickering-grid";
-import { TestLogin } from "@/components/testLogin";
+import { TestLogin, type MockLoginAccount } from "@/components/testLogin";
+import { listMockLoginAccounts } from "@/lib/link/mock";
+import { linkRoleToPeopleRole } from "@/lib/link/role";
+import { departmentLabel } from "@/const/department";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 import "./login-font.css";
 
 const sloganFontFamily =
   '"Ma Shan Zheng", "STXingkai", "华文行楷", "FZYaoti", cursive';
+
+const roleLabels: Record<number, string> = {
+  0: "新同学",
+  1: "部员",
+  2: "讲师",
+  3: "部长",
+  4: "管理员",
+};
+
+const useMockLink =
+  process.env.NODE_ENV !== "production" && process.env.LINK_USE_MOCK === "true";
+
+const mockLoginAccounts: MockLoginAccount[] = useMockLink
+  ? listMockLoginAccounts().map((account) => ({
+      studentId: account.studentId,
+      name: account.name,
+      roleLabel: roleLabels[linkRoleToPeopleRole(account.role)] ?? account.role,
+      departmentLabel: account.department ? departmentLabel(account.department) : "",
+    }))
+  : [];
 
 const Login = async ({
   searchParams,
@@ -119,9 +142,7 @@ const Login = async ({
                 </div>
 
                 <LinkLogin isBinding={false} />
-                {process.env.NODE_ENV !== "production" && process.env.LINK_USE_MOCK === "true" && (
-                  <TestLogin />
-                )}
+                {useMockLink && <TestLogin accounts={mockLoginAccounts} />}
               </CardContent>
             </Card>
 

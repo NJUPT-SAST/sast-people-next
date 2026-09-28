@@ -16,6 +16,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateTimeInput } from '@/components/ui/datetime-input';
 import { editFlowSchema } from '@/components/flow/add';
+import { departmentLabel } from '@/const/department';
+import { DepartmentSelect, GroupDepartmentMapping, pickGroupDepartments } from '@/components/flow/departmentFields';
 import { saveFlowWorkspace } from '@/action/flow/save-workspace';
 import { displayFlow } from '@/types/flow';
 import { fullStepType } from '@/types/step';
@@ -46,8 +48,8 @@ export type FlowEditorHandle = {
   getDraft: () => { values: z.infer<typeof editFlowSchema>; steps: fullStepType[] };
 };
 
-export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embedded?: boolean; hideSaveButton?: boolean }>(function FlowEditor(
-  { data, embedded = false, hideSaveButton = false },
+export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embedded?: boolean; hideSaveButton?: boolean; canChooseDepartment?: boolean }>(function FlowEditor(
+  { data, embedded = false, hideSaveButton = false, canChooseDepartment = false },
   ref,
 ) {
   const form = useForm<z.infer<typeof editFlowSchema>>({
@@ -78,18 +80,30 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
   );
   const [editableSteps, setEditableSteps] = useState<fullStepType[]>(fixedStepList);
   const [groupOptionsText, setGroupOptionsText] = useState((data.groupOptions ?? []).join('\n'));
+  const [department, setDepartment] = useState<string | null>(data.department ?? null);
+  const [groupDepartments, setGroupDepartments] = useState<Record<string, string>>(
+    data.groupDepartments ?? {},
+  );
+  const parsedGroupOptions = useMemo(
+    () => groupOptionsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line, index, lines) => lines.indexOf(line) === index),
+    [groupOptionsText],
+  );
 
   useEffect(() => setEditableSteps(fixedStepList), [fixedStepList]);
 
   const save = async () => {
     const values = form.getValues();
-    const parsedGroups = groupOptionsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line, index, lines) => lines.indexOf(line) === index);
-    setGroupOptionsText(parsedGroups.join('\n'));
+    setGroupOptionsText(parsedGroupOptions.join('\n'));
     setIsSaving(true);
     try {
       await saveFlowWorkspace({
         flowId: data.id,
-        values: { ...values, groupOptions: parsedGroups },
+        values: {
+          ...values,
+          groupOptions: parsedGroupOptions,
+          department,
+          groupDepartments: pickGroupDepartments(parsedGroupOptions, groupDepartments),
+        },
         steps: editableSteps,
       });
     } finally {
@@ -100,7 +114,9 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
   const getDraft = () => ({
     values: {
       ...form.getValues(),
-      groupOptions: groupOptionsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line, index, lines) => lines.indexOf(line) === index),
+      groupOptions: parsedGroupOptions,
+      department,
+      groupDepartments: pickGroupDepartments(parsedGroupOptions, groupDepartments),
     },
     steps: editableSteps,
   });
@@ -143,6 +159,18 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
             <FormField control={form.control} name="startedAt" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>开始时间</FormLabel><FormControl><DateTimeInput {...field} native value={field.value ?? undefined} onChange={(date) => field.onChange(date ?? null)} /></FormControl><FormMessage /></FormItem>} />
             <FormField control={form.control} name="endedAt" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>结束时间</FormLabel><FormControl><DateTimeInput {...field} native value={field.value ?? undefined} onChange={(date) => field.onChange(date ?? null)} /></FormControl><FormMessage /></FormItem>} />
             {!isWrittenRecruitment && <FormField control={form.control} name="groupOptions" disabled={isSubmitting} render={() => <FormItem className="lg:col-span-2"><FormLabel>投递组别选项</FormLabel><FormControl><Textarea className="min-h-24 resize-y" value={groupOptionsText} onChange={(event) => setGroupOptionsText(event.target.value)} placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'} /></FormControl><p className="text-xs text-muted-foreground">每行一个组别，留空表示不启用投递组别。</p><FormMessage /></FormItem>} />}
+            <div className="grid gap-2 lg:col-span-2">
+              <span className="text-sm font-medium leading-none">归属部门</span>
+              {canChooseDepartment ? (
+                <DepartmentSelect allowGlobal disabled={isSubmitting} value={department} onChange={setDepartment} />
+              ) : (
+                <p className="text-sm text-muted-foreground">{departmentLabel(department)}</p>
+              )}
+              <p className="text-xs text-muted-foreground">部长只能维护本部门的流程；全局流程仅管理员可见可改。</p>
+            </div>
+            <div className="lg:col-span-2">
+              <GroupDepartmentMapping groupOptions={parsedGroupOptions} value={groupDepartments} onChange={setGroupDepartments} disabled={isSubmitting} />
+            </div>
           </div>
         </section>
 

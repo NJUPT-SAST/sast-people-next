@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 文档状态 | Implementing |
-| 适用范围 | SAST People v3.1 |
+| 适用范围 | SAST People v3 |
 | 最后更新 | 2026-06-06 |
 | 相关模块 | Link 登录、飞书 OAuth、面评、邮件发送 |
 

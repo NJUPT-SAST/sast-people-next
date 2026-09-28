@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublishedFlowResult } from "@/action/flow/result-publication";
+import { db } from "@/db/drizzle";
+import { flow } from "@/db/schema";
+import { verifyManager } from "@/lib/authz";
+import { assertFlowEditable } from "@/lib/flow-access";
+import type { FlowScopedSession } from "@/action/flow/department-utils";
+import { eq } from "drizzle-orm";
 
 function escapeCsv(value: unknown) {
   const raw = String(value ?? "");
@@ -10,6 +16,26 @@ function escapeCsv(value: unknown) {
 export async function GET(request: NextRequest) {
   const flowId = Number(request.nextUrl.searchParams.get("flowId"));
   if (!Number.isInteger(flowId) || flowId <= 0) return NextResponse.json({ message: "缺少有效流程 ID" }, { status: 400 });
+
+  let session: FlowScopedSession | null = null;
+  try {
+    session = await verifyManager();
+
+    /* 结果导出属于流程数据，只有流程归属部门或管理员可以下载 */
+    const [flowRow] = await db
+      .select({ department: flow.department })
+      .from(flow)
+      .where(eq(flow.id, flowId))
+      .limit(1);
+    if (!flowRow) return NextResponse.json({ message: "流程不存在" }, { status: 404 });
+    assertFlowEditable(session.scope, flowRow.department);
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "无权导出该流程的结果" },
+      { status: 403 },
+    );
+  }
+
   const publication = await getPublishedFlowResult(flowId);
   if (!publication) return NextResponse.json({ message: "该流程尚未发布结果" }, { status: 404 });
   const snapshot = publication.resultSnapshot as { flowTitle?: string; rows?: Array<Record<string, unknown>> };
