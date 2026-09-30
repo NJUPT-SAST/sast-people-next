@@ -5,6 +5,11 @@
 -- * 取消办公部门互斥，改为「最多两条进行中的办公类报名，且一志愿/二志愿各最多一条」；
 -- * 存量共享流程按 group_departments 拆分：第一志愿报名搬进对应部门流程，
 --   第二志愿补一条 choice=2 的报名记录（保留报名时间），共享流程归档保留历史外键。
+--
+-- 注意：`office_interview` 枚举值由 0062 添加；全新数据库里所有迁移会在同一个事务中执行，
+-- 此时新枚举值尚未提交，直接写 `"type" = 'office_interview'` 会报
+-- 「unsafe use of new value ... of enum type flow_type_enum」。
+-- 因此这里一律用 `"type"::text` 比较，插入新流程时直接复用来源行的 `"type"` 列值。
 
 ALTER TABLE "user_flow" ADD COLUMN IF NOT EXISTS "choice" smallint;
 ALTER TABLE "user_flow" ADD COLUMN IF NOT EXISTS "final_department" varchar(64);
@@ -23,14 +28,14 @@ BEGIN
   INSERT INTO office_dept_seed (dept_key, label)
   SELECT DISTINCT value, key
   FROM "flow" f, jsonb_each_text(COALESCE(f."group_departments", '{}'::jsonb))
-  WHERE f."type" = 'office_interview' AND f."department" IS NULL
+  WHERE f."type"::text = 'office_interview' AND f."department" IS NULL
   ON CONFLICT (dept_key) DO NOTHING;
 
   INSERT INTO office_dept_seed (dept_key, label)
   SELECT DISTINCT uf."department", uf."department"
   FROM "user_flow" uf
   JOIN "flow" f ON f."id" = uf."fk_flow_id"
-  WHERE f."type" = 'office_interview' AND f."department" IS NULL
+  WHERE f."type"::text = 'office_interview' AND f."department" IS NULL
     AND uf."department" IS NOT NULL
   ON CONFLICT (dept_key) DO NOTHING;
 
@@ -38,19 +43,19 @@ BEGIN
   SELECT DISTINCT uf."second_choice_department", uf."second_choice_department"
   FROM "user_flow" uf
   JOIN "flow" f ON f."id" = uf."fk_flow_id"
-  WHERE f."type" = 'office_interview' AND f."department" IS NULL
+  WHERE f."type"::text = 'office_interview' AND f."department" IS NULL
     AND uf."second_choice_department" IS NOT NULL
   ON CONFLICT (dept_key) DO NOTHING;
 
   /* 1) 每个办公部门一条流程：沿用共享流程的标题/描述/时间/面试时段与步骤 */
   FOR shared_flow IN
     SELECT * FROM "flow"
-    WHERE "type" = 'office_interview' AND "department" IS NULL AND "is_deleted" = false
+    WHERE "type"::text = 'office_interview' AND "department" IS NULL AND "is_deleted" = false
   LOOP
     FOR dept IN SELECT * FROM office_dept_seed
     LOOP
       SELECT "id" INTO target_flow_id FROM "flow"
-        WHERE "type" = 'office_interview' AND "department" = dept.dept_key AND "is_deleted" = false
+        WHERE "type"::text = 'office_interview' AND "department" = dept.dept_key AND "is_deleted" = false
         ORDER BY "id" LIMIT 1;
 
       IF target_flow_id IS NULL THEN
@@ -59,7 +64,7 @@ BEGIN
         VALUES (
           COALESCE(shared_flow."title", '办公类部门面试招新') || '（' || dept.label || '）',
           shared_flow."description",
-          'office_interview',
+          shared_flow."type",
           shared_flow."owner_id",
           shared_flow."started_at",
           shared_flow."ended_at",
@@ -80,7 +85,7 @@ BEGIN
       SELECT * FROM "user_flow" WHERE "fk_flow_id" = shared_flow."id"
     LOOP
       SELECT "id" INTO target_flow_id FROM "flow"
-        WHERE "type" = 'office_interview' AND "department" = reg."department" AND "is_deleted" = false
+        WHERE "type"::text = 'office_interview' AND "department" = reg."department" AND "is_deleted" = false
         ORDER BY "id" LIMIT 1;
 
       IF target_flow_id IS NOT NULL THEN
@@ -101,11 +106,11 @@ BEGIN
   FOR reg IN
     SELECT uf.* FROM "user_flow" uf
     JOIN "flow" f ON f."id" = uf."fk_flow_id"
-    WHERE f."type" = 'office_interview'
+    WHERE f."type"::text = 'office_interview'
       AND uf."second_choice_department" IS NOT NULL
   LOOP
     SELECT "id" INTO target_flow_id FROM "flow"
-      WHERE "type" = 'office_interview' AND "department" = reg."second_choice_department" AND "is_deleted" = false
+      WHERE "type"::text = 'office_interview' AND "department" = reg."second_choice_department" AND "is_deleted" = false
       ORDER BY "id" LIMIT 1;
 
     IF target_flow_id IS NOT NULL AND target_flow_id <> reg."fk_flow_id" THEN
@@ -125,7 +130,7 @@ BEGIN
 
   /* 4) 共享流程归档：保留历史邮件批次/发布记录的外键 */
   UPDATE "flow" SET "is_deleted" = true
-    WHERE "type" = 'office_interview' AND "department" IS NULL;
+    WHERE "type"::text = 'office_interview' AND "department" IS NULL;
 END $$;
 
 ALTER TABLE "user_flow" DROP COLUMN IF EXISTS "second_choice_department";
