@@ -153,11 +153,12 @@ test.describe("email center prelaunch", () => {
     await page.goto("/login");
     await expect(page.getByText("使用测试帐号登入")).toBeVisible();
 
-    const testForm = page
-      .locator("form")
-      .filter({ has: page.getByPlaceholder("请填写测试学号") });
-    await testForm.getByPlaceholder("请填写测试学号").fill("B00040001");
-    await testForm.getByRole("button", { name: "登录", exact: true }).click();
+    /* 新的 mock 登录：身份 → 账号（管理员为跨部门账号）→ 登录 */
+    await page.locator("#mock-login-role").click();
+    await page.getByRole("option", { name: "管理员", exact: true }).click();
+    await page.locator("#mock-login-account").click();
+    await page.getByRole("option", { name: /B00000000/ }).click();
+    await page.getByRole("button", { name: "登录", exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   });
 });
