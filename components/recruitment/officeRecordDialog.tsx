@@ -121,7 +121,9 @@ function RoundSection({ round }: { round: OfficeRecordRound }) {
       <div className="rounded-md border bg-muted/20 p-3 text-sm">
         <p className="font-medium text-muted-foreground">名单确认</p>
         {round.decision === null ? (
-          <p className="mt-1 text-muted-foreground">尚无名单确认记录</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            该轮还没有确认名单。部长结束这一轮后会在这里留档：结论、操作人，以及确认时刻的均分与份数。
+          </p>
         ) : (
           <>
             <p className="mt-1">

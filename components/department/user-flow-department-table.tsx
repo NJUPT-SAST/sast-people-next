@@ -85,15 +85,15 @@ export function UserFlowDepartmentTable({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>报名记录归属</CardTitle>
-        <CardDescription>
+    <Card className="gap-0 overflow-hidden rounded-lg py-0">
+      <CardHeader className="gap-1 border-b px-4 py-3">
+        <CardTitle className="text-sm">报名记录归属</CardTitle>
+        <CardDescription className="text-xs">
           报名记录的部门在报名时按「组别映射 → 流程归属」固化；此表用于纠正历史数据。
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <CardContent className="flex flex-col gap-0 p-0">
+        <div className="flex flex-col gap-2 border-b px-4 py-3 sm:flex-row sm:items-center">
           <Select
             value={flowId === null ? ALL_FLOWS_VALUE : String(flowId)}
             onValueChange={(next) => {
@@ -103,7 +103,7 @@ export function UserFlowDepartmentTable({
             }}
             disabled={loading}
           >
-            <SelectTrigger size="sm" className="sm:w-[16rem]">
+            <SelectTrigger className="h-9 sm:w-[16rem]">
               {/* Radix 的默认值为空时不会回填文案，这里显式渲染当前筛选 */}
               <SelectValue>
                 {flowId === null
@@ -134,63 +134,69 @@ export function UserFlowDepartmentTable({
           >
             只看未归属
           </Button>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-xs tabular-nums text-muted-foreground sm:ml-auto">
             共 {data.total} 条，显示最近 {data.items.length} 条
           </span>
         </div>
 
-        <div className="overflow-hidden rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>候选人</TableHead>
-                <TableHead>流程</TableHead>
-                <TableHead>投递组别</TableHead>
-                <TableHead className="hidden lg:table-cell">当前进度</TableHead>
-                <TableHead className="min-w-[12rem]">归属部门</TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-10 px-4 text-xs font-medium text-muted-foreground">候选人</TableHead>
+              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">流程</TableHead>
+              <TableHead className="h-10 px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
+              <TableHead className="hidden h-10 px-3 text-xs font-medium text-muted-foreground lg:table-cell">
+                当前进度
+              </TableHead>
+              <TableHead className="h-10 w-[13rem] px-4 text-xs font-medium text-muted-foreground">
+                归属部门
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.items.length === 0 ? (
+              <TableRow className="border-b-0">
+                <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  {loading ? '正在加载…' : '没有符合条件的报名记录'}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                    {loading ? '正在加载…' : '没有符合条件的报名记录'}
+            ) : (
+              data.items.map((item) => (
+                <TableRow key={item.id} className="border-b border-border/60 last:border-0">
+                  <TableCell className="px-4 py-2.5">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-sm font-medium">
+                        {item.userName ?? `用户 #${item.fkUserId}`}
+                      </span>
+                      <span className="truncate text-xs tabular-nums text-muted-foreground">
+                        {item.userStudentId ?? `UID ${item.fkUserId}`} ·{' '}
+                        {new Date(item.createdAt).toLocaleDateString('zh-CN')}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[16rem] truncate px-3 py-2.5 text-sm">
+                    {item.flowTitle}
+                  </TableCell>
+                  <TableCell className="px-3 py-2.5 text-sm text-muted-foreground">
+                    {item.applyGroup ?? '—'}
+                  </TableCell>
+                  <TableCell className="hidden px-3 py-2.5 text-sm text-muted-foreground lg:table-cell">
+                    {item.progressStatus
+                      ? progressLabels[item.progressStatus] ?? item.progressStatus
+                      : '—'}
+                  </TableCell>
+                  <TableCell className="px-4 py-2.5">
+                    <DepartmentAssigner
+                      value={item.department}
+                      departmentKeys={departmentKeys}
+                      onChange={(department) => assign(item.id, department)}
+                    />
                   </TableCell>
                 </TableRow>
-              ) : (
-                data.items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div className="flex min-w-0 flex-col gap-1">
-                        <span className="font-medium">
-                          {item.userName ?? `用户 #${item.fkUserId}`}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {item.userStudentId ?? `UID ${item.fkUserId}`} ·{' '}
-                          {new Date(item.createdAt).toLocaleDateString('zh-CN')}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-[16rem] truncate text-sm">{item.flowTitle}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {item.applyGroup ?? '—'}
-                    </TableCell>
-                    <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
-                      {item.progressStatus ? progressLabels[item.progressStatus] ?? item.progressStatus : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <DepartmentAssigner
-                        value={item.department}
-                        departmentKeys={departmentKeys}
-                        onChange={(department) => assign(item.id, department)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   );

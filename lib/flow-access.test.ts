@@ -5,18 +5,26 @@ jest.mock("react", () => ({
   cache: <T,>(fn: T) => fn,
 }));
 
+jest.mock("@/db/drizzle", () => ({
+  db: { select: jest.fn() },
+}));
+
 import {
   assertFlowEditable,
   assertUserFlowAccess,
   canEditFlow,
   canEditFlowRecord,
+  isFlowVisibleToScope,
   resolveUserFlowDepartment,
   visibleFlowPredicate,
 } from "./flow-access";
 import type { DepartmentScope } from "./authz";
+import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { SQL } from "drizzle-orm";
+
+const mockSelect = jest.mocked(db.select);
 
 const queryDb = drizzle({ client: {} as never });
 
@@ -55,6 +63,49 @@ describe("visibleFlowPredicate", () => {
     expect(office.sql).not.toContain('"flow"."type"');
     expect(office.sql).toBe(tech.sql);
     expect(office.params).toEqual(["publicity", "publicity"]);
+  });
+});
+
+describe("flow read-only viewing", () => {
+  const all: DepartmentScope = { kind: "all" };
+  const software: DepartmentScope = { kind: "department", department: "software" };
+  const none: DepartmentScope = { kind: "none" };
+
+  const withFlowRows = (rows: unknown[]) => {
+    const limit = jest.fn().mockResolvedValue(rows);
+    const where = jest.fn(() => ({ limit }));
+    mockSelect.mockReturnValue({ from: jest.fn(() => ({ where })) } as never);
+    return { where, limit };
+  };
+
+  beforeEach(() => {
+    mockSelect.mockReset();
+  });
+
+  it("lets admins open any flow read-only", async () => {
+    await expect(isFlowVisibleToScope(all, 7)).resolves.toBe(true);
+    /* 管理员不需要查库 */
+    expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  it("opens flows that are inside the department scope", async () => {
+    const { where } = withFlowRows([{ id: 7 }]);
+
+    await expect(isFlowVisibleToScope(software, 7)).resolves.toBe(true);
+    /* 可见性用的是与列表同一套谓词（含全局流程里有本部门报名的情况） */
+    const predicate = (where.mock.calls as unknown[][])[0]?.[0] as SQL<unknown>;
+    expect(renderSql(predicate).params).toContain("software");
+  });
+
+  it("keeps other departments' flows closed", async () => {
+    withFlowRows([]);
+
+    await expect(isFlowVisibleToScope(software, 7)).resolves.toBe(false);
+  });
+
+  it("closes everything for accounts without a department", async () => {
+    await expect(isFlowVisibleToScope(none, 7)).resolves.toBe(false);
+    expect(mockSelect).not.toHaveBeenCalled();
   });
 });
 

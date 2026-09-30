@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { AlertCircle } from 'lucide-react';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
@@ -14,19 +21,21 @@ import {
   type PendingSlotChangeRow,
 } from '@/action/user-flow/interview-slot-change';
 import {
+  OFFICE_INTERVIEW_FLOW_TYPE,
   SEMANTIC_FLOW_TYPE_OPTIONS,
+  flowStageLabel,
   flowTypeLabel,
   flowTypeOptionOf,
   flowTypeOptionValue,
   isOfficeInterviewFlow,
 } from '@/const/flow';
-import { departmentKey } from '@/const/department';
+import { departmentKey, departmentLabel } from '@/const/department';
 import { cn } from '@/lib/utils';
 import { Loading } from '@/components/loading';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { flowSelection } from '@/types/flow';
-import { BadgeCheck, ClipboardList, Users } from 'lucide-react';
+import { BadgeCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResultPublicationPanel } from '@/components/recruitment/ResultPublicationPanel';
 import {
@@ -45,13 +54,58 @@ type InterviewFlowGroup = {
   /* 组合值：`部门:阶段`（flowTypeOptionValue），页签与选中态都用它 */
   value: string;
   label: string;
+  /* 页签上真正显示的文字：同部门有多个阶段时只用阶段名，部门名提到页签栏的部门标题上 */
+  displayLabel: string;
+  /* 只含阶段的短名（免试 / WOC / 面试）；非标准组合为 null */
+  stageLabel: string | null;
+  /* 组合所属部门（Link 标识）；非标准组合为 null */
+  department: string | null;
   /* 该组合下的流程，沿用服务端顺序（createdAt 倒序），首条即最新的流程 */
   flows: flowSelection[];
 };
 
+/** 页签栏里同一部门的连续组合（顺序沿用语义顺序，同一部门天然相邻） */
+type InterviewFlowGroupBucket = {
+  department: string | null;
+  groups: InterviewFlowGroup[];
+};
+
+function buildInterviewFlowGroupBuckets(
+  groups: InterviewFlowGroup[],
+): InterviewFlowGroupBucket[] {
+  const buckets: InterviewFlowGroupBucket[] = [];
+  groups.forEach((group) => {
+    const last = buckets[buckets.length - 1];
+    if (last && last.department === group.department) {
+      last.groups.push(group);
+      return;
+    }
+    buckets.push({ department: group.department, groups: [group] });
+  });
+  return buckets;
+}
+
+/**
+ * 这一组页签是否把部门名从页签文字里摘出来、由分组标题统一写一次。
+ * 条件：同部门有多个阶段，且每个阶段都能给出只含阶段的名字
+ * （非标准组合没有语义阶段名，就只能继续用完整名，否则页签会变成光秃秃的一个字）。
+ */
+function bucketUsesStageOnlyLabel(bucket: InterviewFlowGroupBucket) {
+  return (
+    bucket.groups.length > 1 &&
+    Boolean(bucket.department) &&
+    bucket.groups.every(
+      (group) => group.stageLabel && group.stageLabel !== group.label,
+    )
+  );
+}
+
 /**
  * 页签只保留实际存在流程的组合，顺序按 SEMANTIC_FLOW_TYPE_OPTIONS：
  * 部门清单由 Link 维护，语义组合是产品口径，两个顺序混在一起会出现「免试排在WOC后面」这类噪音。
+ *
+ * 页签文字在「同部门有多个阶段」时只留阶段名（软件研发部 免试/WOC/SOC），
+ * 部门名作为分组标题写一次——否则 12 个组合每个都重复一遍部门名，页签栏必然要横滚。
  */
 function buildInterviewFlowGroups(
   flowTypes: flowSelection[],
@@ -67,21 +121,85 @@ function buildInterviewFlowGroups(
       existing.flows.push(flow);
       return;
     }
+    const label = option?.label ?? flowTypeLabel(flow.type, flow.department);
     groups.set(value, {
       value,
-      label: option?.label ?? flowTypeLabel(flow.type, flow.department),
+      label,
+      displayLabel: label,
+      /* 阶段短名直接按 (类型, 部门) 算：Link 新增部门（电子部）没有语义选项，
+         但它在页签上照样该显示「电子部 免试/WOC/SOC」而不是把部门名重复三遍 */
+      stageLabel: flowStageLabel(flow.type, flow.department),
+      department: option?.department ?? departmentKey(flow.department) ?? null,
       flows: [flow],
     });
   });
   const semanticOrder = new Map(
     SEMANTIC_FLOW_TYPE_OPTIONS.map((option, index) => [option.value, index]),
   );
-  /* 非标准组合（历史遗留）排在语义组合之后；sort 稳定，同序组合保持流程原顺序 */
-  return [...groups.values()].sort(
+  /* 非标准组合（历史遗留 / Link 新增部门）没有语义序号，退一步按阶段本身的先后排：
+     否则同一个部门下会按流程创建时间倒着排成 SOC / WOC / 免试。 */
+  const stageOrder = new Map(
+    [
+      'recruitment_exemption',
+      'recruitment',
+      'woc',
+      'soc',
+      OFFICE_INTERVIEW_FLOW_TYPE,
+    ].map((type, index) => [type, index]),
+  );
+  const stageIndexOf = (value: string) => {
+    const separator = value.indexOf(':');
+    return stageOrder.get(value.slice(separator + 1)) ?? Number.MAX_SAFE_INTEGER;
+  };
+  /* sort 稳定：同序组合保持流程原顺序 */
+  const ordered = [...groups.values()].sort(
     (a, b) =>
       (semanticOrder.get(a.value) ?? Number.MAX_SAFE_INTEGER) -
-      (semanticOrder.get(b.value) ?? Number.MAX_SAFE_INTEGER),
+        (semanticOrder.get(b.value) ?? Number.MAX_SAFE_INTEGER) ||
+      stageIndexOf(a.value) - stageIndexOf(b.value),
   );
+  buildInterviewFlowGroupBuckets(ordered).forEach((bucket) => {
+    if (!bucketUsesStageOnlyLabel(bucket)) return;
+    bucket.groups.forEach((group) => {
+      group.displayLabel = group.stageLabel ?? group.label;
+    });
+  });
+  return ordered;
+}
+
+/**
+ * 横向滚动容器的两端溢出状态。
+ * 页签栏里的原生滚动条又粗又抢眼，改成隐藏滚动条 + 两端渐隐提示还能继续滑。
+ * `revision` 变化（页签增减、切部门）时重新量一次：ResizeObserver 只看盒子大小。
+ */
+function useEdgeFade<T extends HTMLElement>(revision: string) {
+  const ref = useRef<T>(null);
+  const [edges, setEdges] = useState({ start: false, end: false });
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const update = () => {
+      const start = node.scrollLeft > 2;
+      const end = node.scrollWidth - node.clientWidth - node.scrollLeft > 2;
+      setEdges((previous) =>
+        previous.start === start && previous.end === end
+          ? previous
+          : { start, end },
+      );
+    };
+    update();
+    node.addEventListener('scroll', update, { passive: true });
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(node);
+    return () => {
+      node.removeEventListener('scroll', update);
+      observer?.disconnect();
+    };
+  }, [revision]);
+
+  return { ref, edges };
 }
 
 /**
@@ -320,6 +438,13 @@ export const RecruitmentContent = ({
     !loadError;
   const currentFlowTitle =
     safeFlowTypes.find((flow) => flow.id === Number(flowId))?.title ?? '';
+  /* 名单确认弹窗里的「打开邮件模板页核对」：直接落到本部门的模板板块 */
+  const currentFlowDepartment = departmentKey(
+    safeFlowTypes.find((flow) => flow.id === Number(flowId))?.department,
+  );
+  const templateHref = currentFlowDepartment
+    ? `/dashboard/emails?tab=templates&department=${encodeURIComponent(currentFlowDepartment)}`
+    : '/dashboard/emails?tab=templates';
   /* 名单来源：本流程「一面进行中」的候选人（列表接口已排除撤回者） */
   const roundOneRoster: OfficeRosterRow[] = safeEvalData
     .filter((candidate) => candidate.status === 'ongoing' && candidate.round === 1)
@@ -422,34 +547,74 @@ export const RecruitmentContent = ({
     </div>
   );
 
+  /* 页签栏按部门分组：同部门有多个阶段时部门名只写一次（软件研发部 免试/WOC/SOC），
+     页签文字只留阶段；只有一个阶段的部门保留完整名（办公室面试），不必回头找分组标题。 */
+  const flowGroupBuckets = buildInterviewFlowGroupBuckets(interviewFlowGroups);
+  /* revision = 页签组合的指纹：组合或它们的文字变了就重新量一次滚动溢出 */
+  const { ref: flowTabListRef, edges: flowTabEdges } =
+    useEdgeFade<HTMLDivElement>(
+      interviewFlowGroups
+        .map((group) => `${group.value}:${group.displayLabel}`)
+        .join('|'),
+    );
+
   return (
     <div className="min-w-0 space-y-4">
-      <section className="rounded-lg border bg-card">
-        {/* The select explains itself; the "选择流程 / 切换后会刷新" copy was two
-            lines of chrome above the list. */}
-        <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-          {isEvaluationWorkspace && interviewFlowGroups.length > 0 && (
+      <section className="overflow-hidden rounded-lg border bg-card">
+        {isEvaluationWorkspace && interviewFlowGroups.length > 0 && (
+          <div className="relative border-b">
+            {/* 语义化页签可能有很多（12 个部门×阶段），行内收缩并横滑；原生滚动条在页签栏里
+                很丑，用两端渐隐提示还能继续滑（min-w-0 才能让 flex 子项真的缩下去） */}
             <Tabs
-              /* 语义化页签可能有很多（12 个部门×阶段），必须允许在行内收缩并横滚，
-                 否则整页会被撑出横向滚动条（min-w-0 才能让 flex 子项真的缩下去） */
-              className="min-w-0 max-w-full"
+              className="min-w-0 max-w-full px-3 sm:px-4"
               value={activeGroupValue ?? undefined}
               onValueChange={handleFlowGroupChange}
             >
-              <TabsList className="h-9 w-full max-w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-fit">
-                {interviewFlowGroups.map((group) => (
-                  <TabsTrigger
-                    key={group.value}
-                    value={group.value}
-                  >
-                    {group.label}
-                  </TabsTrigger>
+              <TabsList
+                ref={flowTabListRef}
+                variant="line"
+                className="h-10 w-full max-w-full flex-nowrap justify-start gap-0.5 overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:px-2.5 [&_[data-slot=tabs-trigger]]:after:h-[2px] [&_[data-slot=tabs-trigger]]:after:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:font-semibold [&_[data-slot=tabs-trigger][data-state=active]]:text-foreground"
+              >
+                {flowGroupBuckets.map((bucket, index) => (
+                  <Fragment key={bucket.department ?? `fallback-${index}`}>
+                    {index > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="mx-1.5 h-3.5 w-px shrink-0 self-center bg-border"
+                      />
+                    )}
+                    {bucketUsesStageOnlyLabel(bucket) && (
+                      <span className="shrink-0 self-center pl-1 pr-1 text-[11px] font-normal tracking-wide text-muted-foreground/70">
+                        {departmentLabel(bucket.department)}
+                      </span>
+                    )}
+                    {bucket.groups.map((group) => (
+                      <TabsTrigger key={group.value} value={group.value}>
+                        {group.displayLabel}
+                      </TabsTrigger>
+                    ))}
+                  </Fragment>
                 ))}
               </TabsList>
             </Tabs>
-          )}
-          {/* 流程选择器与轮次切换同一行：办公类选完流程紧接着就要选一面/二面 */}
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            {flowTabEdges.start && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-card to-transparent"
+              />
+            )}
+            {flowTabEdges.end && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-card to-transparent"
+              />
+            )}
+          </div>
+        )}
+
+        {/* 流程选择器与轮次切换同一行：办公类选完流程紧接着就要选一面/二面 */}
+        <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
             <SelectFlow
               flowTypes={visibleFlowTypes}
               defaultFlowTypeId={flowId}
@@ -460,7 +625,7 @@ export const RecruitmentContent = ({
               <div
                 role="group"
                 aria-label="切换面试轮次"
-                className="inline-flex h-10 shrink-0 items-center rounded-lg border bg-muted/40 p-0.5 lg:h-8"
+                className="inline-flex h-10 shrink-0 items-center self-start rounded-lg border bg-muted/40 p-0.5 sm:h-9"
               >
                 {([1, 2] as const).map((round) => (
                   <button
@@ -485,63 +650,58 @@ export const RecruitmentContent = ({
             )}
           </div>
 
-          {canCloseRoundOne && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-10 shrink-0 lg:h-8"
-                onClick={openRoundOneDialog}
-                /* 名单空时仍可打开：邮件队列失败后要能再次确认以补发未发送的通知 */
-              >
-                结束一面并发送通知
-              </Button>
-              <OfficeRosterDialog
-                open={roundOneDialogOpen}
-                onOpenChange={(next) => {
-                  if (!closingRoundOne) setRoundOneDialogOpen(next);
-                }}
-                mode="round1"
-                flowTitle={currentFlowTitle}
-                rows={roundOneRoster}
-                decisions={roundOneDecisions}
-                onDecisionChange={handleRoundOneDecisionChange}
-                onSetAll={handleRoundOneSetAll}
-                templateConfirmed={roundOneTemplateConfirmed}
-                onTemplateConfirmedChange={setRoundOneTemplateConfirmed}
-                submitting={closingRoundOne}
-                onConfirm={() => void confirmRoundOne()}
-              />
-            </>
-          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
+            {/* Written mode: totals sit next to the selector instead of on their own row */}
+            {!isEvaluationWorkspace && flowId && !loading && !loadError && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Users className="size-4" />
+                  <span>总人数</span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {safeScoreData.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <BadgeCheck className="size-4" />
+                  <span>平均分</span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {averageScore.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
 
-          {/* Written mode only, and on the same line as the selector: with the
-              heading gone, a separate row left the card half empty. Interview
-              totals live in the 全部 chip instead of here. */}
-          {!isEvaluationWorkspace && flowId && !loading && !loadError && (
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Users className="size-4" />
-                <span>总人数</span>
-                <span className="font-semibold tabular-nums text-foreground">
-                  {safeScoreData.length}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <BadgeCheck className="size-4" />
-                <span>平均分</span>
-                <span className="font-semibold tabular-nums text-foreground">
-                  {averageScore.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <ClipboardList className="size-4" />
-                <span>流程类型</span>
-                <span className="font-medium text-foreground">笔试成绩</span>
-              </div>
-            </div>
-          )}
+            {canCloseRoundOne && (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-10 shrink-0 sm:h-9"
+                  onClick={openRoundOneDialog}
+                  /* 名单空时仍可打开：邮件队列失败后要能再次确认以补发未发送的通知 */
+                >
+                  结束一面并发送通知
+                </Button>
+                <OfficeRosterDialog
+                  open={roundOneDialogOpen}
+                  onOpenChange={(next) => {
+                    if (!closingRoundOne) setRoundOneDialogOpen(next);
+                  }}
+                  mode="round1"
+                  flowTitle={currentFlowTitle}
+                  rows={roundOneRoster}
+                  decisions={roundOneDecisions}
+                  onDecisionChange={handleRoundOneDecisionChange}
+                  onSetAll={handleRoundOneSetAll}
+                  templateConfirmed={roundOneTemplateConfirmed}
+                  onTemplateConfirmedChange={setRoundOneTemplateConfirmed}
+                  templateHref={templateHref}
+                  submitting={closingRoundOne}
+                  onConfirm={() => void confirmRoundOne()}
+                />
+              </>
+            )}
+          </div>
         </div>
       </section>
 

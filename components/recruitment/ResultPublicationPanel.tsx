@@ -222,10 +222,11 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
           ? { label: "有未完成结果", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
           : { label: "可以发布", className: "border-primary/30 bg-primary/10 text-primary" };
 
+  /* 徽章已经是状态本身（已发布/发布中/待确认名单），句子只说徽章说不出的那部分 */
   const statusSentence = published
-    ? "结果已发布，名单和结果已锁定。"
+    ? "名单与结果已锁定。"
     : publicationInProgress
-      ? "结果正在发布，请稍候。"
+      ? ""
       : summary.isOfficeFlow
         ? officeRosterRows.length > 0
           ? `还有 ${officeRosterRows.length} 人待确认最终结果，确认名单后即发布。`
@@ -245,9 +246,11 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
         <Badge variant="outline" className={publicationBadge.className}>
           {publicationBadge.label}
         </Badge>
-        <span className="text-xs leading-5 text-muted-foreground">
-          {statusSentence}
-        </span>
+        {statusSentence && (
+          <span className="text-xs leading-5 text-muted-foreground">
+            {statusSentence}
+          </span>
+        )}
       </div>
       <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap lg:ml-auto lg:flex-none">
         <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={() => setRosterOpen(true)} disabled={rows.length === 0}>
@@ -396,6 +399,11 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
           }
           templateConfirmed={officeTemplateConfirmed}
           onTemplateConfirmedChange={setOfficeTemplateConfirmed}
+          templateHref={
+            summary.flow.department
+              ? `/dashboard/emails?tab=templates&department=${encodeURIComponent(summary.flow.department)}`
+              : "/dashboard/emails?tab=templates"
+          }
           onFinalDestinationChange={(userFlowId, department) =>
             void changeFinalDestination(userFlowId, department ?? "auto")
           }

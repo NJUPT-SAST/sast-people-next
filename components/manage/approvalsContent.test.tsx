@@ -186,7 +186,7 @@ describe("ApprovalsContent", () => {
     expect(screen.queryByText("待终审")).not.toBeInTheDocument();
     expect(screen.getByText("讲师建议通过")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "已归档 (2)" }));
+    await user.click(screen.getByRole("tab", { name: /已归档/ }));
 
     expect(screen.getByText("张三")).toBeInTheDocument();
     expect(screen.getByText("李四")).toBeInTheDocument();
@@ -215,7 +215,7 @@ describe("ApprovalsContent", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "已归档 (1)" }));
+    await user.click(screen.getByRole("tab", { name: /已归档/ }));
 
     expect(screen.getByText("面评人：讲师")).toBeInTheDocument();
     expect(screen.getByText("审批人：管理员甲")).toBeInTheDocument();

@@ -24,6 +24,7 @@ import {
 } from "./emailDashboardConstants";
 import { EmailRecordActions } from "./EmailRecordActions";
 import { departmentLabel } from "@/const/department";
+import { emailTemplateLabel } from "@/const/flow";
 import type {
   EmailDeliveryPage,
   EmailDeliveryRecord,
@@ -34,8 +35,14 @@ import type {
 function templateLabel(
   key: string,
   definitions: EmailTemplateDefinition[],
+  department: string | null | undefined,
 ) {
-  return definitions.find((item) => item.key === key)?.name ?? key;
+  /* 记录里存了投递部门，展示名就按该部门的读法（多媒体部WOD / 办公室一面） */
+  return (
+    emailTemplateLabel(key, { department }) ??
+    definitions.find((item) => item.key === key)?.name ??
+    key
+  );
 }
 
 export function EmailRecordsSection({
@@ -157,10 +164,10 @@ export function EmailRecordsSection({
           </div>
 
           <div className="flex gap-2">
-            <Button type="submit" size="sm" className="h-10 sm:h-8">
+            <Button type="submit" size="sm" className="h-9">
               筛选
             </Button>
-            <Button asChild variant="ghost" size="sm" className="h-10 sm:h-8">
+            <Button asChild variant="ghost" size="sm" className="h-9">
               <Link href="/dashboard/emails?tab=records">重置</Link>
             </Button>
           </div>
@@ -189,7 +196,11 @@ export function EmailRecordsSection({
                   <span className="text-xs text-muted-foreground">
                     {emailCategoryText[delivery.category] ?? delivery.category}
                     {" · "}
-                    {templateLabel(delivery.templateKey, templateDefinitions)}
+                    {templateLabel(
+                      delivery.templateKey,
+                      templateDefinitions,
+                      delivery.flowDepartment,
+                    )}
                   </span>
                 </div>
                 <p

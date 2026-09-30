@@ -19,6 +19,10 @@ export const verifySession = cache(async () => {
       isAuth: true,
       uid,
       role: session.role as number,
+      /** 会话本身的真实角色：切换身份查看时仍是管理员本人 */
+      realRole: session.realRole as number,
+      /* 当前是否处于「切换身份查看」临时视角 */
+      viewAs: session.viewAs,
       name: session.name as string,
       /* 授权判定用：Link 部门标识，null 表示没有部门归属 */
       department: session.department ?? null,

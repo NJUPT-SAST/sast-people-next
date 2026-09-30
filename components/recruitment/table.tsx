@@ -6,7 +6,9 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
+  getSortedRowModel,
   RowSelectionState,
+  SortingState,
   useReactTable,
 } from '@tanstack/react-table';
 
@@ -66,6 +68,10 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  /* 总分默认从高到低（先看高分才有意义），其余列默认升序 */
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "totalScore", desc: true },
+  ]);
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
   const safeColumns = useMemo(() => (Array.isArray(columns) ? columns : []), [columns]);
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
@@ -119,6 +125,9 @@ export function DataTable<TData, TValue>({
     data: tableData,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
+    /* 表头点击排序：总分默认从高到低，其余列表默认升序 */
+    onSortingChange: setSorting,
+    getSortedRowModel: getSortedRowModel(),
     enableRowSelection: () => !resultsLocked,
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
@@ -137,6 +146,7 @@ export function DataTable<TData, TValue>({
       rowSelection,
       columnFilters,
       globalFilter,
+      sorting,
     },
     onGlobalFilterChange: setGlobalFilter,
   });

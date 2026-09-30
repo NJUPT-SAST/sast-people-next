@@ -1,6 +1,6 @@
 'use client';
 import type { ScoreRow } from '@/action/user-flow/user-point/calScore';
-import { ColumnDef } from '@tanstack/react-table';
+import { Column, ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
@@ -14,7 +14,8 @@ import {
 } from '../ui/dialog';
 import { ViewUserInfoSheet } from '@/components/manage/viewUserInfoSheet';
 import { departmentLabel } from '@/const/department';
-import { MessageSquareText } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, MessageSquareText } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const statusLabel: Record<string, string> = {
   pending: '未开始',
@@ -52,6 +53,43 @@ const statusClassName: Record<string, string> = {
   withdrawn: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   accepted: 'border-primary/30 bg-primary/10 text-primary',
   rejected: 'border-destructive/30 bg-destructive/10 text-destructive',
+};
+
+/** 表头排序按钮：与面试表同一套箭头与文字色，点击在升序 / 降序之间切换 */
+export const SortableHeader = ({
+  column,
+  label,
+  align = 'left',
+}: {
+  column: Column<ScoreRow, unknown>;
+  label: string;
+  align?: 'left' | 'right';
+}) => {
+  const sorted = column.getIsSorted();
+  return (
+    <button
+      type="button"
+      onClick={column.getToggleSortingHandler()}
+      aria-label={`按${label}排序`}
+      className={cn(
+        'group inline-flex w-full items-center gap-1 rounded text-xs font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        align === 'right' ? 'justify-end' : 'justify-start',
+        sorted ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+      )}
+    >
+      {label}
+      {sorted === 'asc' ? (
+        <ArrowUp className="size-3 shrink-0" aria-hidden="true" />
+      ) : sorted === 'desc' ? (
+        <ArrowDown className="size-3 shrink-0" aria-hidden="true" />
+      ) : (
+        <ArrowUpDown
+          className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60"
+          aria-hidden="true"
+        />
+      )}
+    </button>
+  );
 };
 
 export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
@@ -95,7 +133,9 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
   },
   {
     accessorKey: 'studentId',
-    header: '学号',
+    header: ({ column }) => <SortableHeader column={column} label="学号" />,
+    sortingFn: (a, b) =>
+      (a.original.studentId ?? '').localeCompare(b.original.studentId ?? ''),
     cell: ({ getValue }) => {
       const studentId = getValue() as string | null;
       if (!studentId) {
@@ -106,7 +146,9 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
   },
   {
     accessorKey: 'name',
-    header: '姓名',
+    header: ({ column }) => <SortableHeader column={column} label="姓名" />,
+    sortingFn: (a, b) =>
+      a.original.name.localeCompare(b.original.name, 'zh-Hans-CN'),
     cell: ({ row }) => {
       const original = row.original;
       return (
@@ -132,7 +174,7 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
   },
   {
     accessorKey: 'department',
-    header: '投递部门',
+    header: ({ column }) => <SortableHeader column={column} label="投递部门" />,
     cell: ({ getValue }) => {
       const label = departmentLabel(getValue() as string | null);
       return (
@@ -155,7 +197,7 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
   },
   {
     accessorKey: 'status',
-    header: '状态',
+    header: ({ column }) => <SortableHeader column={column} label="状态" />,
     filterFn: (row, _columnId, filterValue) => {
       const filter = String(filterValue ?? '').trim();
       if (!filter) return true;
@@ -237,7 +279,23 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
   },
   {
     accessorKey: 'totalScore',
-    header: () => <div className="text-right">总分</div>,
+    header: ({ column }) => (
+      <SortableHeader column={column} label="总分" align="right" />
+    ),
+    /* 总分存的是字符串：按数值比较，没批卷 / 空的记录固定沉底 */
+    sortingFn: (a, b) => {
+      const parse = (value: string | null | undefined) => {
+        const parsed = Number.parseInt(value ?? '', 10);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+      const left = parse(a.original.totalScore);
+      const right = parse(b.original.totalScore);
+      if (left === null || right === null) {
+        if (left === right) return 0;
+        return left === null ? 1 : -1;
+      }
+      return left - right;
+    },
     cell: ({ getValue }) => (
       <div className="flex justify-end">
         <span className="rounded-md bg-primary/10 px-2 py-1 text-sm font-semibold tabular-nums text-primary">

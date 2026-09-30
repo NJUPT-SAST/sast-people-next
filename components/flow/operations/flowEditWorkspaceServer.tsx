@@ -7,12 +7,36 @@ import { FlowEditWorkspace } from "@/components/flow/operations/flowEditWorkspac
 export async function FlowEditWorkspaceServer({
   data,
   canChooseDepartment = false,
+  readOnly = false,
+  showProblems = true,
 }: {
   data: displayFlow;
   canChooseDepartment?: boolean;
+  /* 无编辑权时只读打开：流程、步骤与题目照常展示，表单控件整体禁用 */
+  readOnly?: boolean;
+  /* 试卷题目只给归属部门（或管理员）看：跨部门只读查看时不查询、也不下发题目 */
+  showProblems?: boolean;
 }) {
   if (data.type !== "recruitment") {
-    return <FlowEditWorkspace data={data} canChooseDepartment={canChooseDepartment} />;
+    return (
+      <FlowEditWorkspace
+        data={data}
+        canChooseDepartment={canChooseDepartment}
+        readOnly={readOnly}
+      />
+    );
+  }
+
+  /* 看不到题目的角色连查询都不做：数据不出服务端 */
+  if (!showProblems) {
+    return (
+      <FlowEditWorkspace
+        data={data}
+        canChooseDepartment={canChooseDepartment}
+        readOnly={readOnly}
+        problemsHidden
+      />
+    );
   }
 
   const steps = await db
@@ -43,6 +67,7 @@ export async function FlowEditWorkspaceServer({
       problemsByStep={targetStep ? { [targetStep.id]: targetProblems } : {}}
       defaultStepId={targetStep?.id ?? 0}
       canChooseDepartment={canChooseDepartment}
+      readOnly={readOnly}
     />
   );
 }

@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { displayFlow } from "@/types/flow";
 import { EditSteps } from "./editSteps";
 import { Delete } from "./delete";
@@ -20,7 +23,17 @@ export const Operations = ({
   canChooseDepartment?: boolean;
 }) => {
   if (!canEdit) {
-    return <span className="text-xs text-muted-foreground">只读</span>;
+    /* 没有编辑权也能点进去看详情（只读打开），不再只给两个字 */
+    return (
+      <Button
+        asChild
+        size="sm"
+        variant="ghost"
+        className={cn(operationButtonClass, "text-primary hover:bg-primary/10 hover:text-primary")}
+      >
+        <Link href={`/dashboard/flow/edit?id=${data.id}`}>查看流程</Link>
+      </Button>
+    );
   }
 
   return (

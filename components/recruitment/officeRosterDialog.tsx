@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -71,6 +71,7 @@ export function OfficeRosterDialog({
   onSetAll,
   templateConfirmed,
   onTemplateConfirmedChange,
+  templateHref,
   onFinalDestinationChange,
   notifyUserFlowIds,
   onNotifyUserFlowIdsChange,
@@ -87,6 +88,8 @@ export function OfficeRosterDialog({
   onSetAll: (passed: boolean) => void;
   templateConfirmed: boolean;
   onTemplateConfirmedChange: (confirmed: boolean) => void;
+  /** 「打开邮件模板页核对」的跳转地址（缺省则不显示该按钮） */
+  templateHref?: string;
   onFinalDestinationChange?: (userFlowId: number, department: string | null) => void;
   /** 二面：本次发送结果邮件的人员（缺省 = 全部） */
   notifyUserFlowIds?: number[];
@@ -381,17 +384,33 @@ export function OfficeRosterDialog({
           </div>
         )}
 
-        <label className="flex items-start gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
-          <Checkbox
-            checked={templateConfirmed}
-            onCheckedChange={(checked) => onTemplateConfirmedChange(checked === true)}
-            aria-label="确认邮件模板"
-          />
-          <span>
-            我已在邮件中心核对本年度{isFinal ? "结果" : "一面结果"}通过和不通过邮件模板，确认内容无误。
-            {isFinal && "未勾选邮件的候选人只发布结果、不发送本次通知。"}
-          </span>
-        </label>
+        <div className="flex flex-col gap-2 rounded-lg border bg-muted/20 p-3">
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={templateConfirmed}
+              onCheckedChange={(checked) => onTemplateConfirmedChange(checked === true)}
+              aria-label="确认邮件模板"
+            />
+            <span>
+              我已在邮件中心核对本年度{isFinal ? "结果" : "一面结果"}通过和不通过邮件模板，确认内容无误。
+              {isFinal && "未勾选邮件的候选人只发布结果、不发送本次通知。"}
+            </span>
+          </label>
+          {templateHref && (
+            /* 新标签页打开：名单勾选状态留在当前页，核对完模板回来直接确认 */
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-9 w-full self-start sm:w-auto"
+            >
+              <a href={templateHref} target="_blank" rel="noopener noreferrer">
+                <ExternalLink data-icon="inline-start" />
+                打开邮件模板页核对
+              </a>
+            </Button>
+          )}
+        </div>
 
         <DialogFooter>
           <Button

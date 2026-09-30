@@ -7,6 +7,7 @@ import {
   OFFICE_DEPARTMENT_KEYS,
   departmentKey,
   departmentLabel,
+  type DepartmentCategory,
 } from "@/const/department";
 
 export const OFFICE_INTERVIEW_FLOW_TYPE = "office_interview";
@@ -80,6 +81,129 @@ export const flowTypeLabel = (
     STAGE_LABELS[type] ??
     base;
   return `${departmentName}${stage}`;
+};
+
+/**
+ * 只含阶段的短名（免试 / 笔试 / WOC(WOD) / SOC(SOD) / 面试）。
+ * 同一部门下有多个阶段时，页签与标签不必反复重复部门名。
+ */
+export const flowStageLabel = (
+  type: string,
+  department?: string | null,
+): string => {
+  if (isOfficeInterviewFlow(type)) return "面试";
+  const key = departmentKey(department);
+  const stage =
+    (key ? DEPARTMENT_STAGE_CODES[type]?.[key] : undefined) ??
+    STAGE_LABELS[type];
+  return stage ?? flowTypeLabel(type, department);
+};
+
+/* 结果通知模板键 → 招新阶段：与流程页签共用同一套「部门 × 阶段」口径 */
+const EMAIL_TEMPLATE_STAGES: Record<
+  string,
+  { flowType: string; /* 部门无关的通用阶段名；办公类按轮次拼接 */ generic: string; round?: string }
+> = {
+  "recruitment.result": { flowType: "recruitment", generic: "笔试招新" },
+  "recruitment_exemption.result": {
+    flowType: "recruitment_exemption",
+    generic: "免试招新",
+  },
+  "woc.result": { flowType: "woc", generic: "WOC/WOD" },
+  "soc.result": { flowType: "soc", generic: "SOC/SOD" },
+  "office_round1.result": {
+    flowType: OFFICE_INTERVIEW_FLOW_TYPE,
+    generic: "部门面试",
+    round: "一面",
+  },
+  "office_round2.result": {
+    flowType: OFFICE_INTERVIEW_FLOW_TYPE,
+    generic: "部门面试",
+    round: "二面",
+  },
+};
+
+/** 中英混排时补一个空格：「软件研发部WOC 通过结果通知」比连写更好读 */
+const joinCjkAndLatin = (head: string, tail: string) =>
+  /[A-Za-z0-9]$/.test(head) ? `${head} ${tail}` : `${head}${tail}`;
+
+const EMAIL_TEMPLATE_STAGE_ORDER = Object.keys(EMAIL_TEMPLATE_STAGES);
+
+/** 结果通知模板的阶段序号：模板板块按它排序（笔试 → 免试 → WOC/WOD → SOC/SOD → 一面 → 二面） */
+export const emailTemplateStageIndex = (templateKey: string): number => {
+  const separator = templateKey.lastIndexOf(".");
+  const index =
+    separator > 0
+      ? EMAIL_TEMPLATE_STAGE_ORDER.indexOf(templateKey.slice(0, separator))
+      : -1;
+  return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+};
+
+/** 面试通知模板里只服务技术部门的那几条：办公类是时段制，没有飞书日程可预约/改约/取消 */
+const TECH_ONLY_INTERVIEW_TEMPLATES = [
+  "interview.schedule.created",
+  "interview.schedule.rescheduled",
+  "interview.schedule.cancelled",
+  "interview.schedule.change.rejected",
+] as const;
+
+/**
+ * 模板属于哪一类部门：
+ * - 技术部门：笔试 / 免试 / WOC / SOC 结果通知 + 飞书日程类面试通知；
+ * - 办公部门：一面 / 二面结果通知（报名退回通知两边都用，返回 null 表示不过滤）。
+ * 认不出的模板返回 null（两边都显示）。
+ */
+export const emailTemplateStageCategory = (
+  templateKey: string,
+): DepartmentCategory | null => {
+  if ((TECH_ONLY_INTERVIEW_TEMPLATES as readonly string[]).includes(templateKey)) {
+    return "tech";
+  }
+  const separator = templateKey.lastIndexOf(".");
+  const stage =
+    separator > 0 ? EMAIL_TEMPLATE_STAGES[templateKey.slice(0, separator)] : undefined;
+  if (!stage) return null;
+  return isOfficeInterviewFlow(stage.flowType) ? "office" : "tech";
+};
+
+export type EmailTemplateLabelOptions = {
+  /** 模板归属部门标识；null / 未提供 = 全局默认 */
+  department?: string | null;
+  /** notification = 通知名（卡片标题、发送记录）；template = 「…模板」按钮与弹窗标题 */
+  variant?: "notification" | "template";
+};
+
+/**
+ * 结果通知模板的展示名。口径与 flowTypeLabel 一致：
+ * 归属到具体部门就写部门名（软件研发部WOC / 多媒体部WOD / 办公室一面），
+ * 全局默认才用通用阶段名（WOC/WOD / 部门面试一面）。
+ * 面试通知类模板与流程无关，返回 null 交给调用方回落到模板自带的名称。
+ */
+export const emailTemplateLabel = (
+  templateKey: string,
+  { department, variant = "notification" }: EmailTemplateLabelOptions = {},
+): string | null => {
+  const separator = templateKey.lastIndexOf(".");
+  if (separator <= 0) return null;
+  const stage = EMAIL_TEMPLATE_STAGES[templateKey.slice(0, separator)];
+  if (!stage) return null;
+  const accepted = templateKey.slice(separator + 1) === "accepted";
+  const outcome = accepted ? "通过" : "不通过";
+  const key = departmentKey(department);
+  const departmentName = key ? departmentLabel(key, "") : "";
+  /* 办公类模板按「部门 + 轮次」读：办公室一面 / 部门面试二面 */
+  const head = departmentName
+    ? isOfficeInterviewFlow(stage.flowType)
+      ? `${departmentName}${stage.round ?? ""}`
+      : flowTypeLabel(stage.flowType, key)
+    : `${stage.generic}${stage.round ?? ""}`;
+  const tail =
+    variant === "template"
+      ? `${outcome}模板`
+      : `${outcome}${
+          isOfficeInterviewFlow(stage.flowType) ? "通知" : "结果通知"
+        }`;
+  return joinCjkAndLatin(head, tail);
 };
 
 /**

@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search } from "lucide-react";
 import {
   getAllEvaluations,
   approveEvaluation,
@@ -285,90 +287,117 @@ export const ApprovalsContent = ({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
-        <p className="text-sm text-muted-foreground">
-          待审批 <span className="ml-1 text-lg font-semibold text-foreground tabular-nums">{pending.length}</span> 条
-        </p>
-        {canFilterDepartments && departmentKeys.length > 1 && (
-          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-            <SelectTrigger aria-label="按部门筛选" className="w-[9.5rem]">
-              <SelectValue placeholder="全部部门" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部部门</SelectItem>
-              {departmentKeys.map((department) => (
-                <SelectItem key={department} value={department}>
-                  {departmentLabel(department)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {(archived.length > 0 || showArchived) && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowArchived(!showArchived)}
+      {/* 工具条：视图切换固定在左、筛选跟着右移。原来把三个控件塞进一个卡片里 justify-between，
+          中间空出几百像素，光标还要横跨半个屏幕才能从计数走到操作。
+          窄屏下按「视图 → 部门 → 搜索 → 其余筛选」逐行铺满，控件不再被挤成一团。 */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-3 lg:gap-y-2">
+        <div className="flex items-center gap-2">
+          <Tabs
+            value={showArchived ? "archived" : "pending"}
+            onValueChange={(next) => setShowArchived(next === "archived")}
           >
-            {showArchived ? "返回待审批" : `已归档 (${archived.length})`}
-          </Button>
+            <TabsList>
+              <TabsTrigger value="pending">
+                待审批
+                <span className="tabular-nums text-muted-foreground">
+                  {pending.length}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="archived">
+                已归档
+                <span className="tabular-nums text-muted-foreground">
+                  {archived.length}
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {canFilterDepartments && departmentKeys.length > 1 && (
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger
+                aria-label="按部门筛选"
+                className="h-9 min-w-0 flex-1 lg:w-[9.5rem] lg:flex-none"
+              >
+                <SelectValue placeholder="全部部门" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部部门</SelectItem>
+                {departmentKeys.map((department) => (
+                  <SelectItem key={department} value={department}>
+                    {departmentLabel(department)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {showArchived && (
+          <>
+            <div className="relative w-full min-w-0 lg:w-auto lg:max-w-xs lg:flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={archiveQuery}
+                onChange={(event) => setArchiveQuery(event.target.value)}
+                placeholder="搜索姓名、学号、面评人或流程"
+                aria-label="搜索归档面评"
+                className="h-9 w-full pl-8"
+              />
+            </div>
+            {/* 窄屏两列网格：三个下拉各占半行，不再互相挤压 */}
+            <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center lg:gap-2">
+              <Select value={archiveFlowType} onValueChange={setArchiveFlowType}>
+                <SelectTrigger aria-label="筛选归档流程" className="h-9 w-full lg:w-32">
+                  <SelectValue placeholder="全部流程" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部流程</SelectItem>
+                  <SelectItem value="recruitment_exemption">免试招新</SelectItem>
+                  <SelectItem value="woc">WOC/WOD</SelectItem>
+                  <SelectItem value="soc">SOC/SOD</SelectItem>
+                  <SelectItem value="recruitment">笔试招新</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={archiveFlowTitle} onValueChange={setArchiveFlowTitle}>
+                <SelectTrigger
+                  aria-label="按流程名筛选归档面评"
+                  className="h-9 w-full lg:w-44"
+                >
+                  <SelectValue placeholder="全部流程名" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部流程名</SelectItem>
+                  {archiveFlowTitles.map((title) => (
+                    <SelectItem key={title} value={title}>{title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={archiveDecision}
+                onValueChange={setArchiveDecision}
+              >
+                <SelectTrigger
+                  aria-label="筛选最终结果"
+                  className="col-span-2 h-9 w-full lg:col-span-1 lg:w-28"
+                >
+                  <SelectValue placeholder="全部结果" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部结果</SelectItem>
+                  <SelectItem value="approved">通过</SelectItem>
+                  <SelectItem value="rejected">不通过</SelectItem>
+                  <SelectItem value="returned">退回重写</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
         )}
       </div>
 
       {showArchived && (
-        <div className="flex flex-col gap-3 border-y py-3">
-            <p className="text-xs text-muted-foreground">
-            已处理的面评会保留在这里；退回重写的记录会在讲师重新提交后回到待审批列表。
-          </p>
-          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,1fr)_10rem_10rem]">
-          <Input
-            value={archiveQuery}
-            onChange={(event) => setArchiveQuery(event.target.value)}
-            placeholder="搜索候选人、学号、面评人、审批人或流程"
-            aria-label="搜索归档面评"
-          />
-          <Select
-            value={archiveFlowType}
-            onValueChange={setArchiveFlowType}
-          >
-            <SelectTrigger aria-label="筛选归档流程">
-              <SelectValue placeholder="全部流程" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部流程</SelectItem>
-              <SelectItem value="recruitment_exemption">免试招新</SelectItem>
-              <SelectItem value="woc">WOC/WOD</SelectItem>
-              <SelectItem value="soc">SOC/SOD</SelectItem>
-              <SelectItem value="recruitment">笔试招新</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={archiveFlowTitle} onValueChange={setArchiveFlowTitle}>
-            <SelectTrigger aria-label="按流程名筛选归档面评">
-              <SelectValue placeholder="全部流程名" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部流程名</SelectItem>
-              {archiveFlowTitles.map((title) => (
-                <SelectItem key={title} value={title}>{title}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={archiveDecision}
-            onValueChange={setArchiveDecision}
-          >
-            <SelectTrigger aria-label="筛选最终结果">
-              <SelectValue placeholder="全部结果" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部结果</SelectItem>
-              <SelectItem value="approved">通过</SelectItem>
-              <SelectItem value="rejected">不通过</SelectItem>
-              <SelectItem value="returned">退回重写</SelectItem>
-            </SelectContent>
-          </Select>
-          </div>
-        </div>
+        <p className="text-xs leading-5 text-muted-foreground">
+          已处理的面评会保留在这里；退回重写的记录会在讲师重新提交后回到待审批列表。
+        </p>
       )}
 
       {displayed.length === 0 ? (

@@ -2,6 +2,7 @@ import { getEvaluationCandidates } from "@/action/user-flow/evaluation";
 import { calScore } from "@/action/user-flow/user-point/calScore";
 import { RecruitmentContent } from "@/components/recruitment/recruitmentContent";
 import { PageTitle } from "@/components/route";
+import { isDepartmentEnabled } from "@/const/department";
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
@@ -72,9 +73,14 @@ export async function RecruitmentWorkspacePage({
       ),
     )
     .orderBy(desc(flow.createdAt));
+  /* 暂不启用的部门（电子部）不出现在流程选择器与页签里；数据与流程本身保留 */
+  const selectableFlows = flowTypes.filter((item) =>
+    isDepartmentEnabled(item.department),
+  );
   const requestedFlowId = parsePositiveInteger(params.flowId);
   const defaultFlow =
-    flowTypes.find((item) => item.id === requestedFlowId) ?? flowTypes[0];
+    selectableFlows.find((item) => item.id === requestedFlowId) ??
+    selectableFlows[0];
   const defaultFlowId = defaultFlow?.id.toString();
   /* 办公类流程由部长操作：讲师账号不加载该流程的候选人（action 也会再次拒绝） */
   const canLoadDefaultCandidates =
@@ -103,7 +109,7 @@ export async function RecruitmentWorkspacePage({
       <div className="mt-5">
         <RecruitmentContent
           mode={mode}
-          flowTypes={flowTypes}
+          flowTypes={selectableFlows}
           initialData={initialData}
           initialEvalData={initialEvalData}
           defaultFlowId={defaultFlowId}

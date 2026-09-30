@@ -2,6 +2,7 @@ import { db } from "@/db/drizzle";
 import { displayFlow } from "@/types/flow";
 import { flow, flowStep } from "@/db/schema";
 import { getDepartmentScope } from "@/lib/authz";
+import { isDepartmentEnabled } from "@/const/department";
 import { visibleFlowPredicate } from "@/lib/flow-access";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { isLinkAuthorizationError } from "@/lib/link/client";
@@ -11,8 +12,13 @@ import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 /**
  * 全量流程列表：所有登录用户都能看到全部流程（流程管理列表、候选人报名入口使用），
  * 不做部门过滤；编辑权限由流程级断言（canEditFlow / assertFlowEditable）收敛到归属部门。
+ * 暂不启用的部门（DISABLED_DEPARTMENT_KEYS）除外：业务界面不再出现，
+ * 数据与归属仍可在部门管理里看到（见 action/department/manage.ts）。
  */
-export const useFlowList = async (): Promise<displayFlow[]> => loadFlowList(undefined);
+export const useFlowList = async (): Promise<displayFlow[]> =>
+  (await loadFlowList(undefined)).filter((item) =>
+    isDepartmentEnabled(item.department),
+  );
 
 /**
  * 与当前账号部门相关的流程列表：阅卷、笔试管理、面试管理等作业面使用，

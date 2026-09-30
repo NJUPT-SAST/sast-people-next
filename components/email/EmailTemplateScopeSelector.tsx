@@ -111,8 +111,8 @@ export function EmailTemplateScopeSelector({
       </Select>
       <span className="text-xs text-muted-foreground">
         {isAdmin
-          ? "全局默认对所有部门生效；选择部门后只写该部门的覆盖，未覆盖的部门继续回落全局默认。下拉来自 Link 部门目录与已有覆盖行，也可手填其他标识。"
-          : "下拉来自 Link 部门目录与已有覆盖行；本部门覆盖可编辑，其他部门只读浏览。"}
+          ? "全局默认对所有部门生效；下拉来自 Link 部门目录与已有覆盖行。"
+          : "本部门覆盖可编辑，其他部门只读浏览。"}
       </span>
       {isAdmin && customOpen && (
         <div className="flex min-w-0 items-center gap-2">

@@ -21,11 +21,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { departmentLabel } from "@/const/department";
+import { departmentCategory, departmentLabel } from "@/const/department";
+import {
+  emailTemplateLabel,
+  emailTemplateStageCategory,
+  emailTemplateStageIndex,
+} from "@/const/flow";
 import { cn } from "@/lib/utils";
 import { Save, Send, Settings2, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { EmailTemplateScopeSelector } from "./EmailTemplateScopeSelector";
@@ -51,7 +56,7 @@ import {
   type TemplateRowStatus,
 } from "./emailDashboardUtils";
 
-/** 生效内容来源的徽章：本部门覆盖 / 全局默认（只读）/ 其他部门覆盖 */
+/** 生效内容来源的徽章：本部门/其他部门的覆盖是要人注意的例外，全局默认只是常态说明 */
 function TemplateOverrideBadge({
   status,
   readOnly,
@@ -60,17 +65,19 @@ function TemplateOverrideBadge({
   readOnly: boolean;
 }) {
   const tone: Record<TemplateRowStatus, string> = {
-    "department-override": "border-primary/40 text-primary",
-    "global-fallback": "border-border text-muted-foreground",
-    "global-default": "border-border text-muted-foreground",
-    "other-department": "border-chart-3/50 text-muted-foreground",
+    "department-override": "border-primary/40 bg-primary/5 text-primary",
+    "global-fallback": "text-muted-foreground",
+    "global-default": "text-muted-foreground",
+    "other-department": "border-chart-3/50 bg-chart-3/5 text-muted-foreground",
     missing: "border-dashed text-muted-foreground",
   };
+  const pill = status === "department-override" || status === "other-department" || status === "missing";
 
   return (
     <span
       className={cn(
-        "shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] leading-4",
+        "shrink-0 rounded-full text-[11px] leading-4 whitespace-nowrap",
+        pill ? "border px-2 py-0.5" : "px-0.5",
         tone[status],
       )}
     >
@@ -79,27 +86,8 @@ function TemplateOverrideBadge({
   );
 }
 
-/** 卡片提示：写到哪里、是否已有覆盖、是否只是只读浏览 */
-function getTemplateScopeHint({
-  targetDepartment,
-  hasOverride,
-  writable,
-}: {
-  targetDepartment: string | null;
-  hasOverride: boolean;
-  writable: boolean;
-}) {
-  if (!targetDepartment) {
-    return "当前编辑全局默认，未配置覆盖的部门都会用它。";
-  }
-  if (!writable) {
-    return `只读浏览「${departmentLabel(targetDepartment)}」的覆盖，本部门的覆盖请切回本部门再编辑。`;
-  }
-  if (hasOverride) {
-    return `「${departmentLabel(targetDepartment)}」已有独立覆盖，改动不影响其他部门。`;
-  }
-  return `「${departmentLabel(targetDepartment)}」尚未覆盖，当前显示全局默认文案；保存会创建该部门的独立覆盖。`;
-}
+/* 归属说明只在板块头部写一次（scopeSummary）：卡片上逐张重复同一句话纯属噪音，
+   每张卡片真正需要区分的是「当前生效内容来自哪里」，那由 TemplateOverrideBadge 表达。 */
 
 function getTargetLabel(department: string | null) {
   return department ? `「${departmentLabel(department)}」` : "全局默认";
@@ -176,13 +164,15 @@ function TemplateDialog({
     isAcceptedTemplate &&
     (isRecruitmentTemplate || setting.templateKey.startsWith("soc."));
   const targetLabel = getTargetLabel(department);
+  /* 弹窗标题带部门口径；卡片标题已经写过一遍，入口按钮就不再重复整串模板名 */
+  const templateTitle = getSettingLabel(setting.templateKey, { department });
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full lg:w-auto">
+        <Button variant="outline" size="sm" className="min-w-0 flex-1">
           <Settings2 data-icon="inline-start" />
-          {getSettingLabel(setting.templateKey)}
+          编辑模板
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -192,15 +182,14 @@ function TemplateDialog({
         )}
       >
         <DialogHeader>
-          <DialogTitle>{getSettingLabel(setting.templateKey)}</DialogTitle>
+          <DialogTitle>{templateTitle}</DialogTitle>
           <DialogDescription>
-            编辑邮件标题、结果卡片、正文和后续行动。
             {writable
               ? `当前写入目标：${targetLabel}${
                   department && !hasOverride
                     ? "（尚未覆盖，保存会创建该部门的独立文案）"
                     : ""
-                }。保存后请先预览，再进行测试发送。`
+                }。`
               : `当前为只读浏览：${targetLabel} 属于其他部门，只能查看，不能保存。`}
           </DialogDescription>
         </DialogHeader>
@@ -372,7 +361,7 @@ function TemplateDialog({
             )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <PreviewDialog
-                title={`${getSettingLabel(setting.templateKey)}样张`}
+                title={`${templateTitle}样张`}
                 html={previewHtml}
                 triggerLabel="预览"
                 description="样张使用固定示例数据；保存后刷新页面可看到最新链接与文案。"
@@ -425,7 +414,7 @@ function InterviewTemplateDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full lg:w-auto">
+        <Button variant="outline" size="sm" className="min-w-0 flex-1">
           <Settings2 data-icon="inline-start" />
           编辑
         </Button>
@@ -579,11 +568,20 @@ function InterviewTemplateDialog({
   );
 }
 
+/**
+ * 卡片与弹窗标题：招新类模板按「部门 × 阶段」读（多媒体部WOD / 办公室一面），
+ * 面试通知类模板与流程无关，用模板自带的名称。
+ */
 function getTemplateDisplayName(
   definition: EmailTemplateDefinition | undefined,
   templateKey: string,
+  department: string | null,
 ) {
-  return definition?.name ?? getSettingLabel(templateKey);
+  return (
+    emailTemplateLabel(templateKey, { department }) ??
+    definition?.name ??
+    templateKey
+  );
 }
 
 function getTemplateVariablesSummary(definition: EmailTemplateDefinition) {
@@ -618,12 +616,15 @@ export function TestEmailButton({
   department,
   templateDefinitions,
   defaultTemplateKey = "recruitment.result.accepted",
+  compact = false,
 }: {
   flowName?: string;
   /** 测试发送跟随「模板归属」：null = 全局默认 */
   department: string | null;
   templateDefinitions: EmailTemplateDefinition[];
   defaultTemplateKey?: EmailTemplateDefinition["key"];
+  /** 卡片内使用：只留图标按钮，避免整页重复的次级按钮 */
+  compact?: boolean;
 }) {
   const [address, setAddress] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] =
@@ -640,10 +641,23 @@ export function TestEmailButton({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full lg:w-auto">
-          <Send data-icon="inline-start" />
-          测试发送
-        </Button>
+        {compact ? (
+          /* 卡片上只留图标：整串「测试发送」在 12 张卡片上就是 12 个同级按钮 */
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="测试发送"
+            title="测试发送"
+            className="shrink-0"
+          >
+            <Send />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="w-full lg:w-auto">
+            <Send data-icon="inline-start" />
+            测试发送
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
         <DialogHeader>
@@ -668,7 +682,8 @@ export function TestEmailButton({
                   .filter((definition) => definition.category === category)
                   .map((definition) => (
                     <option key={definition.key} value={definition.key}>
-                      {definition.name}
+                      {emailTemplateLabel(definition.key, { department }) ??
+                        definition.name}
                     </option>
                   ))}
               </optgroup>
@@ -727,6 +742,31 @@ export function TestEmailButton({
   );
 }
 
+/** 板块容器：标题 + 模板数 + 三列卡片网格 */
+function TemplateDeck({
+  title,
+  count,
+  className,
+  children,
+}: {
+  title: string;
+  count: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={cn("space-y-3", className)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {count} 个
+        </span>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{children}</div>
+    </section>
+  );
+}
+
 export function EmailTemplateManagementSection({
   templateSettings,
   resultEmailPreviews,
@@ -769,7 +809,7 @@ export function EmailTemplateManagementSection({
     (definition) => definition.category === "interview",
   );
   const templateCardClassName =
-    "group relative flex min-h-0 flex-col overflow-hidden border bg-card p-4 transition-colors hover:bg-muted";
+    "group relative flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border bg-card p-3.5 transition-colors hover:border-foreground/20 hover:bg-muted/40";
   /* 顶部色条区分语义：通过 = 主色（绿），不通过 = 失败色（红），避免整页绿条时看错 */
   const templateAccentClass = (templateKey: string) =>
     templateKey.endsWith(".rejected")
@@ -778,9 +818,21 @@ export function EmailTemplateManagementSection({
         ? "bg-primary/60"
         : "bg-muted-foreground/40";
 
+  /* 部门只跑自己那套阶段：技术部门看笔试/免试/WOC/SOC，办公部门只看一面/二面。
+     未知部门与全局默认不过滤，避免 Link 新增部门时模板在界面上消失。 */
+  const scopeCategory = departmentCategory(
+    normalizeTemplateDepartment(department),
+  );
+  const belongsToScope = (templateKey: string) =>
+    scopeCategory === "unknown" ||
+    (emailTemplateStageCategory(templateKey) ?? scopeCategory) === scopeCategory;
+
+  /* 没有配置行的模板定义同样按部门阶段过滤，否则办公部门会看到永远用不到的技术阶段模板 */
   const resultDefinitionsMissing = templateDefinitions.filter(
     (definition) =>
-      definition.category === "result" && !resultGroupKeys.has(definition.key),
+      definition.category === "result" &&
+      !resultGroupKeys.has(definition.key) &&
+      belongsToScope(definition.key),
   );
   const interviewCards = interviewDefinitions
     .map((definition) => {
@@ -789,7 +841,11 @@ export function EmailTemplateManagementSection({
       if (!group) return null;
       return { definition, group, templateKey };
     })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
+    /* 办公部门不显示飞书日程类通知模板（预约/改约/取消/暂不改期）：它们在这类部门用不到 */
+    .filter(
+      (item): item is NonNullable<typeof item> =>
+        item !== null && belongsToScope(item.definition.key),
+    );
   /* 只读浏览其他部门时隐藏测试发送：测试发送会按该部门写入投递记录，写权限只限本部门 */
   const scope = templateSettings.scope;
   const canSendTestEmail =
@@ -799,186 +855,202 @@ export function EmailTemplateManagementSection({
         normalizeTemplateDepartment(department) ===
           normalizeTemplateDepartment(scope.department)));
 
+  /* 卡片顺序按招新阶段排，通过的排在不通过前面：和流程页签的读法保持一致 */
+  const sortedResultGroups = [...resultGroups].sort(
+    (a, b) =>
+      emailTemplateStageIndex(a.templateKey) -
+        emailTemplateStageIndex(b.templateKey) ||
+      a.templateKey.localeCompare(b.templateKey),
+  );
+  /* 过滤后的结果通知卡片：卡片标题、数量、空状态都用它 */
+  const visibleResultGroups = sortedResultGroups.filter((group) =>
+    belongsToScope(group.templateKey),
+  );
+  /* 范围说明只写一次：原来每张卡片都重复同一句话，12 张卡片就是 12 次噪音。
+     与 EmailTemplateScopeSelector 的提示分工：选择器讲「谁能写」，这里讲「正在编辑什么」。 */
+  const scopeSummary = (() => {
+    const target = normalizeTemplateDepartment(department);
+    if (!target) {
+      return "当前编辑全局默认，未配置覆盖的部门都会用它。";
+    }
+    const name = departmentLabel(target);
+    if (scope.kind === "all") {
+      return `编辑「${name}」的覆盖：只影响该部门，未覆盖的模板继续回落全局默认。`;
+    }
+    if (canSendTestEmail) {
+      return `编辑「${name}」的覆盖：未覆盖的模板继续回落全局默认。`;
+    }
+    return `只读浏览「${name}」的覆盖，本部门的覆盖请切回本部门再编辑。`;
+  })();
+
   return (
-    <div className="flex flex-col gap-5">
-      <section className="overflow-hidden rounded-lg border bg-card">
-        <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-start lg:justify-between lg:p-5">
-          <div className="flex min-w-0 flex-col gap-2">
-            <h2 className="text-sm font-semibold">模板管理</h2>
-            <EmailTemplateScopeSelector
-              value={department}
-              departments={templateSettings.departments}
-              scope={templateSettings.scope}
-              onChange={onDepartmentChange}
-            />
-          </div>
-          {canSendTestEmail && (
-            <TestEmailButton
-              flowName={selectedFlowTitle}
-              department={department}
-              templateDefinitions={templateDefinitions}
-              defaultTemplateKey={defaultTestTemplateKeyForFlowType(
-                selectedFlowType,
+    <section className="overflow-hidden rounded-lg border bg-card">
+      <header className="flex flex-col gap-4 border-b p-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6 lg:p-5">
+        <div className="flex min-w-0 flex-col gap-2">
+          <h2 className="text-sm font-semibold">模板管理</h2>
+          <EmailTemplateScopeSelector
+            value={department}
+            departments={templateSettings.departments}
+            scope={templateSettings.scope}
+            onChange={onDepartmentChange}
+          />
+          <p className="max-w-3xl text-xs leading-5 text-muted-foreground">
+            {scopeSummary}
+          </p>
+        </div>
+        {canSendTestEmail && (
+          <TestEmailButton
+            flowName={selectedFlowTitle}
+            department={department}
+            templateDefinitions={templateDefinitions}
+            defaultTemplateKey={defaultTestTemplateKeyForFlowType(
+              selectedFlowType,
+            )}
+          />
+        )}
+      </header>
+
+      <div className="space-y-6 p-4 lg:p-5">
+        <TemplateDeck title="结果通知" count={visibleResultGroups.length}>
+          {visibleResultGroups.map((group) => (
+            <article key={group.templateKey} className={templateCardClassName}>
+              <span
+                aria-hidden="true"
+                className={`absolute inset-x-0 top-0 h-1 ${templateAccentClass(group.templateKey)}`}
+              />
+              <div className="flex items-start justify-between gap-2">
+                <h4 className="min-w-0 break-words text-sm font-semibold leading-5">
+                  {getTemplateDisplayName(
+                    definitionMap.get(group.templateKey),
+                    group.templateKey,
+                    department,
+                  )}
+                </h4>
+                <TemplateOverrideBadge
+                  status={group.status}
+                  readOnly={group.readOnly}
+                />
+              </div>
+              {group.otherDepartments.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  其他部门覆盖：
+                  {group.otherDepartments
+                    .map((key) => departmentLabel(key))
+                    .join("、")}
+                </p>
               )}
-            />
+              <div className="mt-auto flex items-center gap-2 pt-3">
+                {group.row && (
+                  <TemplateDialog
+                    setting={group.row}
+                    department={group.targetDepartment}
+                    hasOverride={group.hasOverride}
+                    writable={group.writable}
+                    previewHtml={resultEmailPreviews[group.templateKey] ?? null}
+                  />
+                )}
+                {group.writable && (
+                  <TestEmailButton
+                    compact
+                    flowName={selectedFlowTitle}
+                    department={department}
+                    templateDefinitions={templateDefinitions}
+                    defaultTemplateKey={
+                      group.templateKey as EmailTemplateDefinition["key"]
+                    }
+                  />
+                )}
+              </div>
+            </article>
+          ))}
+          {resultDefinitionsMissing.map((definition) => (
+            <article key={definition.key} className={templateCardClassName}>
+              <span
+                aria-hidden="true"
+                className={`absolute inset-x-0 top-0 h-1 ${templateAccentClass(definition.key)}`}
+              />
+              <h4 className="min-w-0 break-words text-sm font-semibold leading-5">
+                {getTemplateDisplayName(definition, definition.key, department)}
+              </h4>
+              <div className="mt-auto flex items-center gap-2 pt-3">
+                {canSendTestEmail && (
+                  <TestEmailButton
+                    compact
+                    flowName={selectedFlowTitle}
+                    department={department}
+                    templateDefinitions={templateDefinitions}
+                    defaultTemplateKey={definition.key}
+                  />
+                )}
+              </div>
+            </article>
+          ))}
+          {visibleResultGroups.length === 0 &&
+            resultDefinitionsMissing.length === 0 && (
+              <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
+                暂无结果通知模板。
+              </p>
+            )}
+        </TemplateDeck>
+
+        <TemplateDeck
+          title="面试通知"
+          count={interviewCards.length}
+          className="border-t pt-6"
+        >
+          {interviewCards.map(({ definition, group, templateKey }) => (
+            <article key={definition.key} className={templateCardClassName}>
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 h-1 bg-chart-3/70"
+              />
+              <div className="flex items-start justify-between gap-2">
+                <h4 className="min-w-0 break-words text-sm font-semibold leading-5">
+                  {definition.name}
+                </h4>
+                <TemplateOverrideBadge
+                  status={group.status}
+                  readOnly={group.readOnly}
+                />
+              </div>
+              {group.otherDepartments.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  其他部门覆盖：
+                  {group.otherDepartments
+                    .map((key) => departmentLabel(key))
+                    .join("、")}
+                </p>
+              )}
+              <div className="mt-auto flex items-center gap-2 pt-3">
+                {group.row && (
+                  <InterviewTemplateDialog
+                    definition={definition}
+                    setting={group.row}
+                    department={group.targetDepartment}
+                    hasOverride={group.hasOverride}
+                    writable={group.writable}
+                    previewHtml={interviewSchedulePreviews[templateKey] ?? null}
+                  />
+                )}
+                {group.writable && (
+                  <TestEmailButton
+                    compact
+                    flowName={selectedFlowTitle}
+                    department={department}
+                    templateDefinitions={templateDefinitions}
+                    defaultTemplateKey={definition.key}
+                  />
+                )}
+              </div>
+            </article>
+          ))}
+          {interviewCards.length === 0 && (
+            <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
+              暂无面试通知模板。
+            </p>
           )}
-        </div>
-
-        <div className="space-y-5 p-4">
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-semibold">结果通知</h3>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {resultGroups.map((group) => (
-                <div key={group.templateKey} className={templateCardClassName}>
-                  <div
-                    className={`absolute inset-x-0 top-0 h-1 ${templateAccentClass(group.templateKey)}`}
-                  />
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="break-words text-sm font-semibold leading-5">
-                        {getTemplateDisplayName(
-                          definitionMap.get(group.templateKey),
-                          group.templateKey,
-                        )}
-                      </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {getTemplateScopeHint(group)}
-                      </p>
-                      {group.otherDepartments.length > 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          其他部门覆盖：
-                          {group.otherDepartments
-                            .map((key) => departmentLabel(key))
-                            .join("、")}
-                        </p>
-                      )}
-                    </div>
-                    <TemplateOverrideBadge
-                      status={group.status}
-                      readOnly={group.readOnly}
-                    />
-                  </div>
-
-                  <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
-                    {group.row && (
-                      <TemplateDialog
-                        setting={group.row}
-                        department={group.targetDepartment}
-                        hasOverride={group.hasOverride}
-                        writable={group.writable}
-                        previewHtml={
-                          resultEmailPreviews[group.templateKey] ?? null
-                        }
-                      />
-                    )}
-                    {group.writable && (
-                      <TestEmailButton
-                        flowName={selectedFlowTitle}
-                        department={department}
-                        templateDefinitions={templateDefinitions}
-                        defaultTemplateKey={group.templateKey as EmailTemplateDefinition["key"]}
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
-              {resultDefinitionsMissing.map((definition) => (
-                <div key={definition.key} className={templateCardClassName}>
-                  <div
-                    className={`absolute inset-x-0 top-0 h-1 ${templateAccentClass(definition.key)}`}
-                  />
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="break-words text-sm font-semibold leading-5">
-                        {definition.name}
-                      </h3>
-                    </div>
-                  </div>
-                  <div className="mt-auto pt-4">
-                    {canSendTestEmail && (
-                      <TestEmailButton
-                        flowName={selectedFlowTitle}
-                        department={department}
-                        templateDefinitions={templateDefinitions}
-                        defaultTemplateKey={definition.key}
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
-              {resultGroups.length === 0 && resultDefinitionsMissing.length === 0 && (
-                <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
-                  暂无结果通知模板。
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-3 border-t pt-6">
-            <div>
-              <h3 className="text-sm font-semibold">面试通知</h3>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {interviewCards.map(({ definition, group, templateKey }) => (
-                <div key={definition.key} className={templateCardClassName}>
-                  <div className="absolute inset-x-0 top-0 h-1 bg-chart-3/70" />
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="break-words text-sm font-semibold leading-5">
-                        {definition.name}
-                      </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {getTemplateScopeHint(group)}
-                      </p>
-                      {group.otherDepartments.length > 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          其他部门覆盖：
-                          {group.otherDepartments
-                            .map((key) => departmentLabel(key))
-                            .join("、")}
-                        </p>
-                      )}
-                    </div>
-                    <TemplateOverrideBadge
-                      status={group.status}
-                      readOnly={group.readOnly}
-                    />
-                  </div>
-                  <div className="mt-auto grid grid-cols-1 gap-2 pt-4 min-[420px]:grid-cols-2">
-                    {group.row && (
-                      <InterviewTemplateDialog
-                        definition={definition}
-                        setting={group.row}
-                        department={group.targetDepartment}
-                        hasOverride={group.hasOverride}
-                        writable={group.writable}
-                        previewHtml={
-                          interviewSchedulePreviews[templateKey] ?? null
-                        }
-                      />
-                    )}
-                    {group.writable && (
-                      <TestEmailButton
-                        flowName={selectedFlowTitle}
-                        department={department}
-                        templateDefinitions={templateDefinitions}
-                        defaultTemplateKey={definition.key}
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
-              {interviewCards.length === 0 && (
-                <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
-                  暂无面试通知模板。
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
+        </TemplateDeck>
+      </div>
+    </section>
   );
 }

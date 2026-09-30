@@ -54,6 +54,22 @@ export const OFFICE_DEPARTMENT_KEYS = [
   "competition",
 ] as const;
 
+/**
+ * 暂不启用的部门：这些部门的流程不会出现在招新工作台（面试管理 / 笔试管理）的
+ * 流程选择器与页签里。数据保留——流程、报名记录、模板都不动，
+ * 以后要启用时把这个键从清单里去掉即可。
+ */
+export const DISABLED_DEPARTMENT_KEYS = ["electronics"] as const;
+
+/** 该部门是否在当前启用范围内（null / 未知部门一律视为启用） */
+export const isDepartmentEnabled = (
+  value: string | null | undefined,
+): boolean => {
+  const key = normalizeDepartmentKey(value);
+  if (!key) return true;
+  return !(DISABLED_DEPARTMENT_KEYS as readonly string[]).includes(key);
+};
+
 export const departmentCategory = (
   value: string | null | undefined,
 ): DepartmentCategory => {

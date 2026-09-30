@@ -24,15 +24,18 @@ export default async function RootLayout({
 }>) {
   const session = await verifySession();
   const userInfo = await getUserInfo();
-  /* 每次进入工作台回源 Link 资料，保证授权判定跟随 Link 的最新角色与部门 */
+  /* 每次进入工作台回源 Link 资料，保证授权判定跟随 Link 的最新角色与部门。
+     注意写入的是会话的真实角色：切换身份查看时 session.role 是临时视角，不能回写。 */
   await syncCurrentSessionIdentity({
-    role: userInfo.role ?? session.role,
+    role: userInfo.role ?? session.realRole,
     department: userInfo.departments[0] ?? null,
   });
   /* verifySession 的请求缓存早于上面的同步，展示与判定都读回同步后的会话 */
   const latestSession = await getSession();
   const role = latestSession?.role ?? session.role;
   const displayDepartment = latestSession?.department ?? null;
+  const realRole = latestSession?.realRole ?? session.realRole;
+  const viewAs = latestSession?.viewAs ?? null;
   const sessionWithTokens = role >= 2
     ? await getSession({ includeLinkTokens: true })
     : null;
@@ -47,8 +50,10 @@ export default async function RootLayout({
     <DashboardLayout
       role={role}
       department={displayDepartment}
+      realRole={realRole}
+      viewAs={viewAs}
       userCard={<UserCard />}
-      breadcrumb={<PageBreadcrumb role={session.role} />}
+      breadcrumb={<PageBreadcrumb role={role} />}
     >
       <Suspense fallback={<Loading />}>{children}</Suspense>
     </DashboardLayout>

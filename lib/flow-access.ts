@@ -1,8 +1,9 @@
 import "server-only";
 
+import { db } from "@/db/drizzle";
 import { flow, userFlow } from "@/db/schema";
 import { canAccessDepartment, DepartmentAccessError, type DepartmentScope } from "@/lib/authz";
-import { eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, or, sql, type SQL } from "drizzle-orm";
 
 type FlowRecordRef = {
   type: string | null | undefined;
@@ -43,6 +44,27 @@ export const canEditFlow = (
   scope: DepartmentScope,
   department: string | null | undefined,
 ) => canAccessDepartment(scope, department);
+
+/**
+ * 单条流程是否在当前账号可见范围内（与 visibleFlowPredicate 同一口径）。
+ * 用于只读查看详情：进不去编辑，但本部门相关（或全局且有本部门报名）的流程要能打开看。
+ */
+export const isFlowVisibleToScope = async (
+  scope: DepartmentScope,
+  flowId: number,
+): Promise<boolean> => {
+  if (scope.kind === "all") return true;
+  /* 没有部门归属 == 什么都看不到，不必再查库 */
+  if (scope.kind === "none") return false;
+  const predicate = visibleFlowPredicate(scope);
+  if (!predicate) return false;
+  const [row] = await db
+    .select({ id: flow.id })
+    .from(flow)
+    .where(and(eq(flow.id, flowId), predicate))
+    .limit(1);
+  return Boolean(row);
+};
 
 export const assertFlowEditable = (
   scope: DepartmentScope,

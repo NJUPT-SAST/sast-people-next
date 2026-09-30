@@ -26,7 +26,9 @@ import {
   updateLinkSessionTokens,
 } from "./session";
 import { db } from "@/db/drizzle";
-import { SESSION } from "@/const/cookie";
+import { decryptSecret } from "@/lib/secret";
+import { ADMIN_ROLE } from "@/lib/link/role";
+import { SESSION, VIEW_AS } from "@/const/cookie";
 
 const mockInsert = jest.mocked(db.insert);
 const mockValues = jest.fn();
@@ -156,5 +158,90 @@ describe("server sessions", () => {
     }>;
     expect(deleteCondition[1]).toMatchObject({ name: "expires_at" });
     expect(deleteCondition[2]).toMatchObject({ value: [" < "] });
+  });
+});
+
+describe("管理员切换身份查看", () => {
+  const sessionRecord = (role: number, department: string | null) => ({
+    id: "a".repeat(43),
+    uid: 42,
+    name: "Admin",
+    role,
+    department,
+    departmentSyncedAt: null,
+    expiresAt: new Date(Date.now() + 3600_000),
+    linkAccessToken: null,
+    linkRefreshToken: null,
+    linkAccessTokenExpiresAt: null,
+    linkAdminAccessToken: null,
+    linkAdminRefreshToken: null,
+    linkAdminAccessTokenExpiresAt: null,
+  });
+
+  const withSessionRecord = (record: unknown, viewAsCookie?: string) => {
+    mockSelect.mockReturnValue({
+      from: jest.fn(() => ({ where: mockSelectWhere })),
+    } as never);
+    mockSelectLimit.mockResolvedValue([record]);
+    mockCookieStore.get.mockImplementation((name: string) =>
+      name === VIEW_AS && viewAsCookie ? { value: viewAsCookie } : undefined,
+    );
+  };
+
+  beforeEach(() => {
+    mockCookieStore.get.mockReset();
+    mockSelect.mockReset();
+    mockSelectWhere.mockClear();
+    mockSelectLimit.mockReset();
+    jest.mocked(decryptSecret).mockReset();
+  });
+
+  it("以管理员身份读取时套用临时视角，同时保留真实角色", async () => {
+    withSessionRecord(sessionRecord(ADMIN_ROLE, null), "encoded");
+    jest
+      .mocked(decryptSecret)
+      .mockReturnValue(JSON.stringify({ role: 2, department: "software" }));
+
+    const session = await getSessionById("a".repeat(43));
+
+    expect(session).toMatchObject({
+      role: 2,
+      realRole: ADMIN_ROLE,
+      department: "software",
+      viewAs: { role: 2, department: "software" },
+    });
+  });
+
+  it("非管理员会话完全忽略该 cookie：伪造也提不了权", async () => {
+    withSessionRecord(sessionRecord(1, "media"), "encoded");
+    jest
+      .mocked(decryptSecret)
+      .mockReturnValue(JSON.stringify({ role: 4, department: null }));
+
+    const session = await getSessionById("a".repeat(43));
+
+    expect(session).toMatchObject({
+      role: 1,
+      realRole: 1,
+      department: "media",
+      viewAs: null,
+    });
+    /* 连解密都不该发生：非管理员会话直接跳过这段逻辑 */
+    expect(decryptSecret).not.toHaveBeenCalled();
+  });
+
+  it("密文损坏时按未切换处理，不影响正常浏览", async () => {
+    withSessionRecord(sessionRecord(ADMIN_ROLE, null), "broken");
+    jest.mocked(decryptSecret).mockImplementation(() => {
+      throw new Error("Unsupported encrypted secret format");
+    });
+
+    const session = await getSessionById("a".repeat(43));
+
+    expect(session).toMatchObject({
+      role: ADMIN_ROLE,
+      realRole: ADMIN_ROLE,
+      viewAs: null,
+    });
   });
 });

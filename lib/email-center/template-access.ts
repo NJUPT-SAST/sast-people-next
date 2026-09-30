@@ -1,6 +1,6 @@
 import "server-only";
 
-import { DEPARTMENT_LABELS } from "@/const/department";
+import { DEPARTMENT_LABELS, isDepartmentEnabled } from "@/const/department";
 import { departmentKeySchema, normalizeDepartmentKey } from "@/db/schema";
 import { DepartmentAccessError, type DepartmentScope } from "@/lib/authz";
 import { isNull, type AnyColumn, type SQL } from "drizzle-orm";
@@ -83,11 +83,15 @@ export const canReadTemplateDepartment = (
  * 模板归属下拉选项：Link 部门目录 ∪ 库中已出现覆盖的部门。
  * 只依赖库内已有行会让管理员/部长在别的部门还没建过覆盖时无从选择，
  * 因此目录里的部门始终列出（手填新标识仍保留给管理员）。
+ * 暂不启用的部门（DISABLED_DEPARTMENT_KEYS）不进选项，但已有覆盖行仍会被合进来，
+ * 免得历史数据变成看不见也改不掉的孤儿行。
  */
 export const mergeTemplateDepartmentOptions = (
   storedDepartments: Array<string | null | undefined>,
 ): string[] => {
-  const keys = new Set<string>(Object.keys(DEPARTMENT_LABELS));
+  const keys = new Set<string>(
+    Object.keys(DEPARTMENT_LABELS).filter(isDepartmentEnabled),
+  );
   for (const value of storedDepartments) {
     const key = normalizeDepartmentKey(value);
     if (key) keys.add(key);

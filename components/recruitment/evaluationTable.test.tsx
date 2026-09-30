@@ -1656,6 +1656,48 @@ describe("EvaluationTable", () => {
     expect(screen.queryByRole("button", { name: "退回" })).not.toBeInTheDocument();
   });
 
+  it("sorts office candidates by interview slot and keeps unassigned ones last", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "未选时段同学",
+          studentId: "B001",
+          interviewSlot: null,
+        }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "第二场同学",
+          studentId: "B002",
+          interviewSlot: "14:00-15:00",
+        }),
+        makeCandidate({
+          userFlowId: 3,
+          name: "第一场同学",
+          studentId: "B003",
+          interviewSlot: "13:00-14:00",
+        }),
+      ],
+      { scoringEnabled: true, slotOptions: ["13:00-14:00", "14:00-15:00"] },
+    );
+
+    /* 默认就按「面试时段」升序：按流程配置的时段顺序，没选时段的固定沉底 */
+    const names = () =>
+      Array.from(document.querySelectorAll("table tbody tr")).map(
+        (row) => row.textContent ?? "",
+      );
+    expect(names()[0]).toContain("第一场同学");
+    expect(names()[1]).toContain("第二场同学");
+    expect(names()[2]).toContain("未选时段同学");
+
+    await user.click(screen.getAllByRole("button", { name: "面试时段" })[0]);
+    /* 降序也保持「未选时段」在最后，不会因为反向而浮到最前 */
+    expect(names()[0]).toContain("第二场同学");
+    expect(names()[1]).toContain("第一场同学");
+    expect(names()[2]).toContain("未选时段同学");
+  });
+
   it("sorts office candidates by average score, highest first", async () => {
     const user = userEvent.setup();
     renderTable(

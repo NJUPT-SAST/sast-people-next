@@ -769,7 +769,7 @@ const ScheduleInfo = ({
  * follows the action so "this row is your job" stays visible in the column.
  */
 const ACTION_MENU_BUTTON =
-  "inline-flex h-9 w-full shrink-0 touch-manipulation items-center justify-center gap-1 rounded-full border px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 lg:h-8 lg:w-[5.75rem] lg:px-2";
+  "inline-flex h-9 w-full shrink-0 touch-manipulation items-center justify-center gap-1 rounded-full border px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 lg:h-8 lg:w-[7.5rem] lg:px-2";
 
 /** Brand tint marks the row's actual work; a hairline outline marks logistics. */
 const ACTION_TONE = {
@@ -1045,6 +1045,9 @@ export const EvaluationTable = ({
   });
   const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
   const groupOptionsKey = safeGroupOptions.join("\u0000");
+  const slotOptionsKey = (
+    Array.isArray(slotOptions) ? slotOptions : []
+  ).join("\u0000");
   /* 办公类部门没有讲师这一级：面评文案随流程切换 */
   const reviewerLabel = scoringEnabled ? "部长" : "讲师";
 
@@ -1546,6 +1549,15 @@ export const EvaluationTable = ({
     const byStudentId = (a: Candidate, b: Candidate) =>
       (a.studentId ?? "").localeCompare(b.studentId ?? "");
     const direction = sort.dir === "asc" ? 1 : -1;
+    /* 办公类没有飞书日程，排序依据是「面试时段」；按流程配置的时段顺序排，
+       历史遗留 / 手填的时段排在已配置之后，再按文案稳定排列 */
+    const slotOrder = slotOptionsKey ? slotOptionsKey.split("\u0000") : [];
+    const slotRank = (candidate: Candidate) => {
+      const slot = candidate.interviewSlot?.trim();
+      if (!slot) return null;
+      const index = slotOrder.indexOf(slot);
+      return index >= 0 ? index : slotOrder.length;
+    };
     const compare = (a: Candidate, b: Candidate) => {
       if (sort.key === "name") return a.name.localeCompare(b.name, "zh-Hans-CN");
       if (sort.key === "status") {
@@ -1557,6 +1569,14 @@ export const EvaluationTable = ({
       if (sort.key === "score") {
         return (a.averageScore ?? 0) - (b.averageScore ?? 0);
       }
+      if (scoringEnabled) {
+        const aRank = slotRank(a);
+        const bRank = slotRank(b);
+        if (aRank !== null && bRank !== null) {
+          if (aRank !== bRank) return aRank - bRank;
+          return (a.interviewSlot ?? "").localeCompare(b.interviewSlot ?? "");
+        }
+      }
       return (
         (getTime(a.scheduleStartsAt) ?? Infinity) -
         (getTime(b.scheduleStartsAt) ?? Infinity)
@@ -1566,13 +1586,24 @@ export const EvaluationTable = ({
     const sorted = [...rows];
     sorted.sort((a, b) => {
       if (sort.key === "schedule") {
+        if (scoringEnabled) {
+          // 没选时段的候选人固定沉底（两个方向都是），和「未预约」同一套规则
+          const aRank = slotRank(a);
+          const bRank = slotRank(b);
+          if (aRank === null || bRank === null) {
+            if (aRank === bRank) return byStudentId(a, b);
+            return aRank === null ? 1 : -1;
+          }
+        }
         // Candidates with no slot are their own bucket, so they stay at the
         // bottom in both directions instead of floating up when descending.
-        const aTime = getTime(a.scheduleStartsAt);
-        const bTime = getTime(b.scheduleStartsAt);
-        if (aTime === null || bTime === null) {
-          if (aTime === bTime) return byStudentId(a, b);
-          return aTime === null ? 1 : -1;
+        if (!scoringEnabled) {
+          const aTime = getTime(a.scheduleStartsAt);
+          const bTime = getTime(b.scheduleStartsAt);
+          if (aTime === null || bTime === null) {
+            if (aTime === bTime) return byStudentId(a, b);
+            return aTime === null ? 1 : -1;
+          }
         }
       }
       if (sort.key === "score") {
@@ -1587,7 +1618,7 @@ export const EvaluationTable = ({
       return compare(a, b) * direction || byStudentId(a, b);
     });
     return sorted;
-  }, [scopeFiltered, statusFilter, sort, isMine]);
+  }, [scopeFiltered, statusFilter, sort, isMine, scoringEnabled, slotOptionsKey]);
 
   const toggleSort = (key: SortKey) => {
     setSort((current) =>
@@ -1863,12 +1894,14 @@ export const EvaluationTable = ({
         <Table
           className={cn(
             "w-full",
-            scoringEnabled ? "min-w-[56rem]" : "min-w-[52rem]",
+            /* 44rem ≈ 704px：lg（1024）下侧栏展开时内容列只有 ~718px，
+               56rem 会把表格顶出横向滚动条，而卡片视图此时已经隐藏 */
+            scoringEnabled ? "min-w-[44rem]" : "min-w-[42rem]",
           )}
-          containerClassName="overflow-x-auto"
+          containerClassName="overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
         >
           <TableHeader>
-            <TableRow className="border-b border-border/60 hover:bg-transparent">
+            <TableRow className="border-b border-border/60 bg-muted/40 hover:bg-muted/40">
               {renderSortableHead(
                 "候选人",
                 "name",

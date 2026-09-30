@@ -3,9 +3,7 @@ import {
   listFlowDepartmentAssignments,
   listUserFlowDepartmentAssignments,
 } from "@/action/department/manage";
-import { DepartmentOverviewTable } from "@/components/department/department-overview-table";
-import { FlowDepartmentTable } from "@/components/department/flow-department-table";
-import { UserFlowDepartmentTable } from "@/components/department/user-flow-department-table";
+import { DepartmentConsole } from "@/components/department/department-console";
 import { PageHeader, PageTitle } from "@/components/route";
 
 export const dynamic = "force-dynamic";
@@ -27,15 +25,10 @@ const DepartmentsPage = async () => {
           </p>
         </div>
       </PageHeader>
-      <DepartmentOverviewTable overview={overview} />
-      <FlowDepartmentTable
-        initialFlows={flowAssignments}
-        departmentKeys={overview.departmentKeys}
-      />
-      <UserFlowDepartmentTable
-        initialData={userFlowAssignments}
-        flows={flowAssignments.map((flow) => ({ id: flow.id, title: flow.title }))}
-        departmentKeys={overview.departmentKeys}
+      <DepartmentConsole
+        overview={overview}
+        flowAssignments={flowAssignments}
+        userFlowAssignments={userFlowAssignments}
       />
     </>
   );

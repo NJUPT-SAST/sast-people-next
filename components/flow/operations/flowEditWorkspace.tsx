@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { saveFlowWorkspace } from "@/action/flow/save-workspace";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { EditProblems, type EditProblemsHandle } from "@/components/flow/operations/editProblems";
 import { FlowEditor, type FlowEditorHandle } from "@/components/flow/operations/flowEditor";
 import type { displayFlow } from "@/types/flow";
@@ -23,12 +24,18 @@ export function FlowEditWorkspace({
   problemsByStep,
   defaultStepId,
   canChooseDepartment = false,
+  readOnly = false,
+  problemsHidden = false,
 }: {
   data: displayFlow;
   steps?: ProblemStep[];
   problemsByStep?: Record<number, ProblemRow[]>;
   defaultStepId?: number;
   canChooseDepartment?: boolean;
+  /* 只读查看：整页表单用 fieldset 一次性禁用，隐藏保存入口 */
+  readOnly?: boolean;
+  /* 试卷题目只对归属部门展示：跨部门只读查看时给一行说明 */
+  problemsHidden?: boolean;
 }) {
   const flowEditorRef = useRef<FlowEditorHandle>(null);
   const problemsEditorRef = useRef<EditProblemsHandle>(null);
@@ -62,38 +69,66 @@ export function FlowEditWorkspace({
             <ArrowLeft className="size-4" />
             返回流程管理
           </Link>
-          <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">编辑流程</h1>
+          <h1 className="flex items-center gap-2 truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+            {readOnly ? "查看流程" : "编辑流程"}
+            {readOnly && (
+              <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs font-normal text-muted-foreground">
+                只读
+              </span>
+            )}
+          </h1>
           <p className="mt-1 truncate text-sm text-muted-foreground">{data.title}</p>
         </div>
-        <p className="text-xs text-muted-foreground">修改完成后点击右下角保存全部修改</p>
+        <p className="text-xs text-muted-foreground">
+          {readOnly
+            ? "该流程属于其他部门，只能查看内容和步骤。"
+            : "修改完成后点击右下角保存全部修改"}
+        </p>
       </header>
 
-      <FlowEditor ref={flowEditorRef} data={data} embedded hideSaveButton canChooseDepartment={canChooseDepartment} />
-      {data.type === "recruitment" && steps && problemsByStep && defaultStepId !== undefined && (
-        <EditProblems
-          ref={problemsEditorRef}
-          steps={steps}
-          problemsByStep={problemsByStep}
-          defaultStepId={defaultStepId}
-          flowTypeId={data.id}
-          hideSaveButton
-        />
-      )}
+      {/* fieldset[disabled] 会一次性禁用内部所有表单控件：只读模式不用逐个透传 disabled */}
+      <fieldset
+        disabled={readOnly}
+        className={cn("contents", readOnly && "[&_input]:cursor-default")}
+      >
+        <FlowEditor ref={flowEditorRef} data={data} embedded hideSaveButton canChooseDepartment={canChooseDepartment} />
+        {!problemsHidden &&
+          data.type === "recruitment" &&
+          steps &&
+          problemsByStep &&
+          defaultStepId !== undefined && (
+            <EditProblems
+              ref={problemsEditorRef}
+              steps={steps}
+              problemsByStep={problemsByStep}
+              defaultStepId={defaultStepId}
+              flowTypeId={data.id}
+              hideSaveButton
+            />
+          )}
+        {problemsHidden && (
+          <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+            试卷题目只有该流程归属部门可以查看，这里只展示流程配置与步骤。
+          </p>
+        )}
+      </fieldset>
 
-      <div className="fixed bottom-5 right-5 z-40 sm:bottom-7 sm:right-8">
-          <Button
-            className="min-w-40 rounded-full px-5 shadow-lg shadow-primary/20"
-            onClick={() => toast.promise(saveAll(), {
-              loading: "正在保存全部修改",
-              success: data.type === "recruitment" ? "流程、步骤和题目已保存" : "流程和步骤已保存",
-              error: "保存失败，请检查后重试",
-            })}
-            loading={isSaving}
-            disabled={isSaving}
-          >
-            保存全部修改
-          </Button>
-      </div>
+      {!readOnly && (
+        <div className="fixed bottom-5 right-5 z-40 sm:bottom-7 sm:right-8">
+            <Button
+              className="min-w-40 rounded-full px-5 shadow-lg shadow-primary/20"
+              onClick={() => toast.promise(saveAll(), {
+                loading: "正在保存全部修改",
+                success: data.type === "recruitment" ? "流程、步骤和题目已保存" : "流程和步骤已保存",
+                error: "保存失败，请检查后重试",
+              })}
+              loading={isSaving}
+              disabled={isSaving}
+            >
+              保存全部修改
+            </Button>
+        </div>
+      )}
     </div>
   );
 }

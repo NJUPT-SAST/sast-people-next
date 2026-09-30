@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Activity,
@@ -58,11 +57,13 @@ function EmailCenterTabNav({
   canManageTemplates: boolean;
 }) {
   return (
+    /* 下划线式页签：邮件中心各页是并列的整页视图，按钮盒子看起来像「工具」
+       而不是「导航」，切换后也没有位置感。 */
     <nav
       aria-label="邮件中心导航"
-      className={cn("overflow-x-auto", hiddenScrollbar)}
+      className={cn("overflow-x-auto border-b", hiddenScrollbar)}
     >
-      <div className="inline-flex min-w-max gap-1 rounded-lg border bg-card p-1">
+      <div className="inline-flex min-w-max items-stretch gap-5">
         {emailCenterTabs
           .filter((tab) => canManageTemplates || tab.value !== "templates")
           .map((tab) => {
@@ -70,23 +71,23 @@ function EmailCenterTabNav({
             const active = activeTab === tab.value;
 
             return (
-              <Button
+              <Link
                 key={tab.value}
-                asChild
-                variant={active ? "secondary" : "ghost"}
-                size="sm"
+                href={`/dashboard/emails?tab=${tab.value}`}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "h-9 px-3",
+                  "relative inline-flex items-center gap-1.5 pb-2.5 pt-1 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                   active
-                    ? "bg-muted text-foreground shadow-none hover:bg-muted"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Link href={`/dashboard/emails?tab=${tab.value}`}>
-                  <Icon data-icon="inline-start" />
-                  <span className="text-sm font-medium">{tab.label}</span>
-                </Link>
-              </Button>
+                <Icon className="size-4" aria-hidden="true" />
+                {tab.label}
+                {active && (
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-foreground" />
+                )}
+              </Link>
             );
           })}
       </div>

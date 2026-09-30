@@ -159,8 +159,8 @@ describe("ResultPublicationPanel publication status", () => {
 
     render(<ResultPublicationPanel flowId={7} />);
 
-    expect(await screen.findByText("结果正在发布，请稍候。")).toBeInTheDocument();
-    expect(screen.getAllByText("发布中")).toHaveLength(2);
+    /* 状态徽章与主按钮都说「发布中」：状态本身不再另写一句重复的说明 */
+    expect(await screen.findAllByText("发布中")).toHaveLength(2);
     expect(screen.getByRole("button", { name: /发布中/ })).toBeDisabled();
   });
 

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within } from "@testing-library/react";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 
 import type { ResultEmailTemplateSettingRow } from "@/action/email/template";
 import type { InterviewScheduleTemplateSettingsPayload } from "@/lib/email/interview-template-settings";
@@ -89,7 +89,7 @@ const templateDefinitions = [
   {
     key: "office_round1.result.accepted",
     category: "result",
-    name: "办公类一面通过模板",
+    name: "部门面试一面通过通知",
     variables: [],
   },
   {
@@ -126,6 +126,16 @@ function renderSection({
       onDepartmentChange={onDepartmentChange}
     />,
   );
+}
+
+/**
+ * 卡片标题按「部门 × 阶段」生成（多媒体部WOD / 部门面试一面），进入编辑的按钮统一是「编辑模板」，
+ * 所以先按标题定位卡片，再在卡片里点按钮。
+ */
+async function openTemplateDialog(user: UserEvent, cardTitle: string) {
+  const card = screen.getByText(cardTitle).closest(".group") as HTMLElement;
+  await user.click(within(card).getByRole("button", { name: "编辑模板" }));
+  return card;
 }
 
 describe("EmailTemplateManagementSection", () => {
@@ -173,7 +183,7 @@ describe("EmailTemplateManagementSection", () => {
     /* 只读浏览时连测试发送也隐藏：测试发送要按该部门写入投递记录 */
     expect(screen.queryByRole("button", { name: "测试发送" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "笔试招新通过模板" }));
+    await openTemplateDialog(user, "多媒体部笔试通过结果通知");
 
     expect(
       await screen.findByText(/只读浏览其他部门的覆盖，保存与恢复按钮已隐藏/),
@@ -211,7 +221,7 @@ describe("EmailTemplateManagementSection", () => {
       department: "software",
     });
 
-    await user.click(screen.getByRole("button", { name: "笔试招新通过模板" }));
+    await openTemplateDialog(user, "软件研发部笔试通过结果通知");
 
     expect(
       await screen.findByRole("button", { name: /保存到「软件研发部」/ }),
@@ -236,7 +246,7 @@ describe("EmailTemplateManagementSection", () => {
       department: "software",
     });
 
-    await user.click(screen.getByRole("button", { name: "笔试招新不通过模板" }));
+    await openTemplateDialog(user, "软件研发部笔试不通过结果通知");
     await user.click(
       await screen.findByRole("button", { name: /恢复为全局默认/ }),
     );
@@ -261,7 +271,7 @@ describe("EmailTemplateManagementSection", () => {
       department: null,
     });
 
-    await user.click(screen.getByRole("button", { name: "笔试招新通过模板" }));
+    await openTemplateDialog(user, "笔试招新通过结果通知");
     await user.click(
       await screen.findByRole("button", { name: /恢复内置默认文案/ }),
     );
@@ -283,7 +293,7 @@ describe("EmailTemplateManagementSection", () => {
       department: null,
     });
 
-    await user.click(screen.getByRole("button", { name: "笔试招新通过模板" }));
+    await openTemplateDialog(user, "笔试招新通过结果通知");
 
     expect(
       await screen.findByRole("button", { name: /保存到全局默认/ }),
@@ -293,7 +303,7 @@ describe("EmailTemplateManagementSection", () => {
     ).toBeNull();
   });
 
-  it("办公类模板可以查看并提交 QQ 群号", async () => {
+  it("部门面试模板可以查看并提交 QQ 群号", async () => {
     const user = userEvent.setup();
     const { updateEmailTemplateSetting } = jest.requireMock(
       "@/action/email/template",
@@ -312,7 +322,7 @@ describe("EmailTemplateManagementSection", () => {
       department: null,
     });
 
-    await user.click(screen.getByRole("button", { name: "办公类一面通过模板" }));
+    await openTemplateDialog(user, "部门面试一面通过通知");
 
     const groupNumberInput = await screen.findByLabelText("QQ 群号");
     expect(groupNumberInput).toHaveValue("123456789");
@@ -328,7 +338,7 @@ describe("EmailTemplateManagementSection", () => {
     );
   });
 
-  it("测试发送默认跟随当前流程类型：办公类默认办公类一面通过模板", async () => {
+  it("测试发送默认跟随当前流程类型：部门面试默认一面通过模板", async () => {
     const user = userEvent.setup();
     renderSection({
       templateSettings: {
@@ -373,11 +383,11 @@ describe("EmailTemplateManagementSection", () => {
     });
 
     /* 通过 = 主色条，不通过 = 失败色条（同页还有其它模板卡片，逐卡断言） */
-    const rejectedCard = screen.getByText("招新结果·未通过").closest(".group") as HTMLElement;
+    const rejectedCard = screen.getByText("笔试招新不通过结果通知").closest(".group") as HTMLElement;
     expect(rejectedCard.querySelector(".bg-destructive\\/70")).not.toBeNull();
     expect(rejectedCard.querySelector(".bg-primary\\/60")).toBeNull();
 
-    const acceptedCard = screen.getByText("招新结果·通过").closest(".group") as HTMLElement;
+    const acceptedCard = screen.getByText("笔试招新通过结果通知").closest(".group") as HTMLElement;
     expect(acceptedCard.querySelector(".bg-primary\\/60")).not.toBeNull();
     expect(acceptedCard.querySelector(".bg-destructive\\/70")).toBeNull();
   });

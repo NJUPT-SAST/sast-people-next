@@ -53,7 +53,7 @@ export const emailTemplateDefinitions = [
   {
     key: "woc.result.accepted",
     category: "result",
-    name: "WoC/WoD 通过结果通知",
+    name: "WOC/WOD 通过结果通知",
     description: "通知 WoC/WoD 阶段考核通过结果。",
     defaultSubject: "{flowName} 考核结果通知",
     variables: [
@@ -64,7 +64,7 @@ export const emailTemplateDefinitions = [
   {
     key: "woc.result.rejected",
     category: "result",
-    name: "WoC/WoD 不通过结果通知",
+    name: "WOC/WOD 不通过结果通知",
     description: "通知 WoC/WoD 阶段考核结果。",
     defaultSubject: "{flowName} 考核结果通知",
     variables: [
@@ -75,7 +75,7 @@ export const emailTemplateDefinitions = [
   {
     key: "soc.result.accepted",
     category: "result",
-    name: "SoC/SoD 通过结果通知",
+    name: "SOC/SOD 通过结果通知",
     description: "通知通过 SoC/SoD 暑期考核并留任讲师。",
     defaultSubject: "{flowName} 留任结果通知",
     variables: [
@@ -86,7 +86,7 @@ export const emailTemplateDefinitions = [
   {
     key: "soc.result.rejected",
     category: "result",
-    name: "SoC/SoD 不通过结果通知",
+    name: "SOC/SOD 不通过结果通知",
     description: "通知 SoC/SoD 暑期考核和留任结果。",
     defaultSubject: "{flowName} 留任结果通知",
     variables: [
@@ -97,7 +97,7 @@ export const emailTemplateDefinitions = [
   {
     key: "office_round1.result.accepted",
     category: "result",
-    name: "办公类一面通过通知",
+    name: "部门面试一面通过通知",
     description: "向通过办公类部门一轮面试的同学发送结果通知和二轮面试群信息。",
     defaultSubject: "{name}{department}一轮面试结果通知",
     variables: [
@@ -110,7 +110,7 @@ export const emailTemplateDefinitions = [
   {
     key: "office_round1.result.rejected",
     category: "result",
-    name: "办公类一面不通过通知",
+    name: "部门面试一面不通过通知",
     description: "向未通过办公类部门一轮面试的同学发送结果通知。",
     defaultSubject: "{name}{department}面试结果通知",
     variables: [
@@ -123,7 +123,7 @@ export const emailTemplateDefinitions = [
   {
     key: "office_round2.result.accepted",
     category: "result",
-    name: "办公类二面通过通知",
+    name: "部门面试二面通过通知",
     description: "向通过办公类部门二轮面试的同学发送结果通知和部门群信息。",
     defaultSubject: "{name}{department}二轮面试结果通知",
     variables: [
@@ -136,7 +136,7 @@ export const emailTemplateDefinitions = [
   {
     key: "office_round2.result.rejected",
     category: "result",
-    name: "办公类二面不通过通知",
+    name: "部门面试二面不通过通知",
     description: "向未通过办公类部门二轮面试的同学发送结果通知。",
     defaultSubject: "{name}{department}面试结果通知",
     variables: [
