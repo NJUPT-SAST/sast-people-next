@@ -26,7 +26,21 @@ export type displayUserFlow = UserFlowRow & {
   slotOptions?: InferSelectModel<typeof flow>["slotOptions"];
   /** 当前流程的归属部门（Link 部门标识） */
   flowDepartment?: string | null;
-  /** 待审批的面试时段变更申请（办公类面试） */
-  pendingSlotChange?: { id: number; requestedSlot: string } | null;
+  /** 待审批的面试时间/时段变更申请 */
+  pendingSlotChange?: {
+    id: number;
+    /** 办公类：申请改到的时段 */
+    requestedSlot: string | null;
+    /** 技术部门：申请改到的新时间 */
+    requestedStartsAt: Date | null;
+    requestedEndsAt: Date | null;
+  } | null;
+  /** 技术部门面试：当前生效的飞书面试日程 */
+  interviewSchedule?: {
+    id: number;
+    startsAt: Date;
+    endsAt: Date;
+    location: string | null;
+  } | null;
   steps: fullStepType[];
 };

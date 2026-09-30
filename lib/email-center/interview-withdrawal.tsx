@@ -23,7 +23,8 @@ export type InterviewWithdrawalEmailVariables = {
 
 const operatorRoleLabels: Record<number, string> = {
   2: "讲师",
-  3: "管理员",
+  3: "部长",
+  4: "管理员",
 };
 
 /** Falls back to 讲师, since returning a candidate is an interviewer action. */

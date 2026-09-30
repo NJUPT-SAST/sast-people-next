@@ -209,7 +209,7 @@ describe("listInterviewScheduleTemplateSettings", () => {
 
     expect(payload.departments).toEqual(["media", "software"]);
     expect(payload.scope).toEqual(scope);
-    expect(payload.rows).toHaveLength(4);
+    expect(payload.rows).toHaveLength(5);
 
     const created = payload.rows.find(
       (row) => row.templateKey === "interview.schedule.created",

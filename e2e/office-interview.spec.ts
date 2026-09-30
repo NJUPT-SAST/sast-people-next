@@ -3,7 +3,8 @@ import type { Page } from "@playwright/test";
 import { Client } from "pg";
 import { signInAs } from "./session";
 
-/* 使用没有历史报名记录的 mock 账号，避免与 demo 种子数据互相干扰 */
+/* 使用没有历史报名记录的 mock 账号（种子数据的办公类报名都在 uid 3-10），
+   避免与 demo 种子数据互相干扰「办公类最多两条报名」的名额 */
 const candidate = { uid: 11, role: 2, name: "讲师二" };
 
 const SLOT_OPTIONS = [
@@ -11,6 +12,9 @@ const SLOT_OPTIONS = [
   { label: "14:00-15:00" },
   { label: "时间冲突，约面时间QQ群中另行通知", isConflict: true },
 ];
+
+const MAX_TWO_MESSAGE =
+  "办公类部门面试最多同时报名两个部门，且必须是一个第一志愿和一个第二志愿。";
 
 async function connectDatabase() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -25,31 +29,29 @@ async function connectDatabase() {
 test.describe("office interview registration", () => {
   let database: Client;
   const createdFlowIds: number[] = [];
-  let primaryFlowId = 0;
-  let otherFlowId = 0;
-  let primaryTitle = "";
+  let firstFlowId = 0;
+  let secondFlowId = 0;
+  let thirdFlowId = 0;
+  let firstFlowTitle = "";
+  let secondFlowTitle = "";
+  let thirdFlowTitle = "";
 
-  const insertSharedOfficeFlow = async (title: string) => {
+  /* 每个办公部门一条独立流程：department 即报名归属，不再有 group_options/group_departments */
+  const insertOfficeFlow = async (title: string, department: string) => {
     const now = Date.now();
     const flowResult = await database.query<{ id: number }>(
       `insert into flow
          (title, description, type, owner_id, started_at, ended_at, department,
           group_options, group_departments, slot_options)
-       values ($1, $2, 'office_interview', $3, $4, $5, NULL, $6::jsonb, $7::jsonb, $8::jsonb)
+       values ($1, $2, 'office_interview', $3, $4, $5, $6, NULL, NULL, $7::jsonb)
        returning id`,
       [
         title,
-        "仅用于验证办公类共享流程报名主流程的临时数据。",
+        "仅用于验证办公类部门面试报名（志愿类型 + 面试时段）的临时数据。",
         1,
         new Date(now - 60 * 60 * 1000),
         new Date(now + 24 * 60 * 60 * 1000),
-        JSON.stringify(["办公室", "科宣部", "外联部", "赛事部"]),
-        JSON.stringify({
-          办公室: "office",
-          科宣部: "publicity",
-          外联部: "liaison",
-          赛事部: "competition",
-        }),
+        department,
         JSON.stringify(SLOT_OPTIONS),
       ],
     );
@@ -77,13 +79,14 @@ test.describe("office interview registration", () => {
         fk_flow_id: number;
         progress_status: string | null;
         interview_slot: string | null;
-        second_choice_department: string | null;
-        apply_group: string | null;
+        choice: number | null;
         round: number | null;
         department: string | null;
+        apply_group: string | null;
+        portfolio_link: string | null;
       }>(
-        `select fk_flow_id, progress_status, interview_slot, second_choice_department,
-                apply_group, round, department
+        `select fk_flow_id, progress_status, interview_slot, choice, round,
+                department, apply_group, portfolio_link
          from user_flow
          where fk_user_id = $1 and fk_flow_id = any($2::int[])
          order by id`,
@@ -94,9 +97,13 @@ test.describe("office interview registration", () => {
   test.beforeAll(async () => {
     database = await connectDatabase();
 
-    primaryTitle = `E2E 办公共享流程 ${Date.now()}`;
-    primaryFlowId = await insertSharedOfficeFlow(primaryTitle);
-    otherFlowId = await insertSharedOfficeFlow(`E2E 办公共享流程二 ${Date.now()}`);
+    const stamp = Date.now();
+    firstFlowTitle = `E2E 办公流程甲 ${stamp}`;
+    secondFlowTitle = `E2E 办公流程乙 ${stamp}`;
+    thirdFlowTitle = `E2E 办公流程丙 ${stamp}`;
+    firstFlowId = await insertOfficeFlow(firstFlowTitle, "office");
+    secondFlowId = await insertOfficeFlow(secondFlowTitle, "publicity");
+    thirdFlowId = await insertOfficeFlow(thirdFlowTitle, "liaison");
   });
 
   test.afterAll(async () => {
@@ -116,10 +123,7 @@ test.describe("office interview registration", () => {
     await database.end();
   });
 
-  const openRegisterDialog = async (
-    page: Page,
-    flowTitle: string,
-  ) => {
+  const openRegisterDialog = async (page: Page, flowTitle: string) => {
     await page.goto("/dashboard/user-flow");
     await page.getByRole("button", { name: "提交报名" }).click();
     await page.getByRole("combobox").first().click();
@@ -128,25 +132,26 @@ test.describe("office interview registration", () => {
 
   const fillOfficeRegistration = async (
     page: Page,
-    firstChoice: string,
-    secondChoice: string,
-    slot: string,
+    volunteer: "第一志愿" | "第二志愿",
+    slot?: string,
   ) => {
-    await page.locator("#first-choice-department").click();
-    await page.getByRole("option", { name: firstChoice, exact: true }).click();
-    await page.locator("#second-choice-department").click();
-    await page.getByRole("option", { name: secondChoice, exact: true }).click();
-    await page.locator("#interview-slot").click();
-    await page.getByRole("option", { name: slot, exact: true }).click();
-    await page.locator("#portfolio-link").fill("https://example.com/portfolio");
+    await page.locator("#volunteer-choice").click();
+    await page.getByRole("option", { name: volunteer, exact: true }).click();
+    if (slot) {
+      await page.locator("#interview-slot").click();
+      await page.getByRole("option", { name: slot, exact: true }).click();
+    }
+    /* 办公类部门面试没有投递组别，也不收集作品链接/作品简介 */
+    await expect(page.locator("#portfolio-link")).toHaveCount(0);
+    await expect(page.locator("#apply-group-0")).toHaveCount(0);
   };
 
-  test("registers the shared office flow with first/second choice and slot", async ({
+  test("registers the first volunteer type with the interview slot", async ({
     page,
   }) => {
     await signInAs(page.context(), candidate);
-    await openRegisterDialog(page, primaryTitle);
-    await fillOfficeRegistration(page, "办公室", "科宣部", "13:00-14:00");
+    await openRegisterDialog(page, firstFlowTitle);
+    await fillOfficeRegistration(page, "第一志愿", "13:00-14:00");
     await page.getByRole("button", { name: "确认报名" }).click();
 
     await expect
@@ -154,48 +159,95 @@ test.describe("office interview registration", () => {
       .toBe(1);
     const [registration] = await officeRegistrations();
     expect(registration).toMatchObject({
-      fk_flow_id: primaryFlowId,
+      fk_flow_id: firstFlowId,
       progress_status: "ongoing",
-      apply_group: "办公室",
-      department: "office",
-      second_choice_department: "publicity",
-      interview_slot: "13:00-14:00",
+      choice: 1,
       round: 1,
+      department: "office",
+      interview_slot: "13:00-14:00",
+      /* 办公类流程不落库投递组别与作品链接 */
+      apply_group: null,
+      portfolio_link: null,
     });
   });
 
-  test("blocks a second registration in the same shared flow", async ({
-    page,
-  }) => {
+  test("blocks a second first-choice office registration", async ({ page }) => {
     await signInAs(page.context(), candidate);
-    await openRegisterDialog(page, primaryTitle);
-    await fillOfficeRegistration(page, "科宣部", "外联部", "14:00-15:00");
+    await openRegisterDialog(page, secondFlowTitle);
+    await fillOfficeRegistration(page, "第一志愿", "14:00-15:00");
     await page.getByRole("button", { name: "确认报名" }).click();
 
     await expect(
       page.locator("[data-sonner-toast]", {
-        hasText: "您已报名该流程",
+        hasText: "您已有进行中的第一志愿办公类报名，请选择第二志愿。",
       }),
     ).toBeVisible();
     expect((await officeRegistrations()).length).toBe(1);
   });
 
-  test("blocks registering another office flow while one is ongoing", async ({
+  test("registers the second volunteer type in another office flow", async ({
     page,
   }) => {
     await signInAs(page.context(), candidate);
-    await openRegisterDialog(page, `E2E 办公共享流程二`);
-    await fillOfficeRegistration(page, "外联部", "办公室", "14:00-15:00");
+    await openRegisterDialog(page, secondFlowTitle);
+    await fillOfficeRegistration(page, "第二志愿", "14:00-15:00");
+    await page.getByRole("button", { name: "确认报名" }).click();
+
+    await expect
+      .poll(async () => (await officeRegistrations()).length)
+      .toBe(2);
+    const registrations = await officeRegistrations();
+    expect(registrations).toEqual([
+      expect.objectContaining({
+        fk_flow_id: firstFlowId,
+        choice: 1,
+        department: "office",
+        round: 1,
+      }),
+      {
+        fk_flow_id: secondFlowId,
+        progress_status: "ongoing",
+        choice: 2,
+        round: 1,
+        department: "publicity",
+        interview_slot: "14:00-15:00",
+        apply_group: null,
+        portfolio_link: null,
+      },
+    ]);
+  });
+
+  test("blocks a third office registration while two are ongoing", async ({
+    page,
+  }) => {
+    await signInAs(page.context(), candidate);
+
+    /* 已有一条第一志愿、一条第二志愿：第三个部门一律拒绝 */
+    await openRegisterDialog(page, thirdFlowTitle);
+    await fillOfficeRegistration(page, "第一志愿", "13:00-14:00");
     await page.getByRole("button", { name: "确认报名" }).click();
 
     await expect(
-      page.locator("[data-sonner-toast]", {
-        hasText: "办公类部门之间同时只能参加一个面试",
-      }),
+      page.locator("[data-sonner-toast]", { hasText: MAX_TWO_MESSAGE }),
+    ).toBeVisible();
+    expect((await officeRegistrations()).length).toBe(2);
+    expect(thirdFlowId).toBeGreaterThan(0);
+  });
+
+  test("blocks the third office registration for the second volunteer type too", async ({
+    page,
+  }) => {
+    await signInAs(page.context(), candidate);
+
+    await openRegisterDialog(page, thirdFlowTitle);
+    await fillOfficeRegistration(page, "第二志愿", "14:00-15:00");
+    await page.getByRole("button", { name: "确认报名" }).click();
+
+    await expect(
+      page.locator("[data-sonner-toast]", { hasText: MAX_TWO_MESSAGE }),
     ).toBeVisible();
     expect(
       (await officeRegistrations()).map((row) => row.fk_flow_id),
-    ).toEqual([primaryFlowId]);
-    expect(otherFlowId).toBeGreaterThan(0);
+    ).toEqual([firstFlowId, secondFlowId]);
   });
 });

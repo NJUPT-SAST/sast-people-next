@@ -7,7 +7,9 @@ jest.mock("react", () => ({
 
 import {
   assertFlowEditable,
+  assertUserFlowAccess,
   canEditFlow,
+  canEditFlowRecord,
   resolveUserFlowDepartment,
   visibleFlowPredicate,
 } from "./flow-access";
@@ -42,6 +44,18 @@ describe("visibleFlowPredicate", () => {
     expect(sql).toContain('"user_flow"."department" =');
     expect(params).toEqual(["software", "software"]);
   });
+
+  it("treats office departments like any other department", () => {
+    const office = renderSql(
+      visibleFlowPredicate({ kind: "department", department: "publicity" }),
+    );
+    const tech = renderSql(visibleFlowPredicate(software));
+
+    /* 办公类流程不再按 type 放行其他部门的流程 */
+    expect(office.sql).not.toContain('"flow"."type"');
+    expect(office.sql).toBe(tech.sql);
+    expect(office.params).toEqual(["publicity", "publicity"]);
+  });
 });
 
 describe("flow edit rights", () => {
@@ -62,6 +76,45 @@ describe("flow edit rights", () => {
       "无权修改其他部门的流程",
     );
     expect(() => assertFlowEditable(software, "software")).not.toThrow();
+  });
+
+  it("keeps office flows inside their own department", () => {
+    const publicity: DepartmentScope = { kind: "department", department: "publicity" };
+
+    expect(
+      canEditFlowRecord(publicity, { type: "office_interview", department: "publicity" }),
+    ).toBe(true);
+    expect(
+      canEditFlowRecord(publicity, { type: "office_interview", department: "office" }),
+    ).toBe(false);
+    /* 旧的共享办公流程（department 为空）不再放行给办公部门 */
+    expect(
+      canEditFlowRecord(publicity, { type: "office_interview", department: null }),
+    ).toBe(false);
+    expect(canEditFlowRecord(all, { type: "office_interview", department: "office" })).toBe(true);
+  });
+
+  it("rejects candidates of other departments even for office flows", () => {
+    const publicity: DepartmentScope = { kind: "department", department: "publicity" };
+
+    expect(
+      assertUserFlowAccess(publicity, {
+        type: "office_interview",
+        department: "publicity",
+      }),
+    ).toBeUndefined();
+    expect(() =>
+      assertUserFlowAccess(publicity, {
+        type: "office_interview",
+        department: "office",
+      }),
+    ).toThrow("无权操作其他部门的候选人");
+    expect(() =>
+      assertUserFlowAccess(publicity, {
+        type: "office_interview",
+        department: null,
+      }),
+    ).toThrow("无权操作其他部门的候选人");
   });
 });
 

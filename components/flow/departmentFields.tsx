@@ -66,7 +66,9 @@ export const DepartmentSelect = ({
   );
 };
 
-/** 组别 → 部门 映射：键固定为流程已配置的组别 */
+/**
+ * 组别 → 部门 映射：键固定为流程已配置的组别。
+ */
 export const GroupDepartmentMapping = ({
   groupOptions,
   value,

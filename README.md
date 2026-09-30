@@ -11,7 +11,7 @@ SAST People owns the recruitment and review process. User identity, profile data
 | Area | Owner | Notes |
 | --- | --- | --- |
 | User identity and profile | SAST Link | OAuth login, profile fields, role, account state, third-party identities |
-| Recruitment workflows | SAST People | Written recruitment, exemption recruitment, WOC/WOD, SOC/SOD |
+| Recruitment workflows | SAST People | Written recruitment, exemption recruitment, WOC/WOD, SOC/SOD (department-scoped names) |
 | Review and grading | SAST People | QR-code grading, score aggregation, interview evaluation, final approval |
 | Interview scheduling | SAST People + Feishu | Calendar events, video meetings, bot cards, reminders |
 | Result notifications | SAST People | Email center templates, batches, retries, rate limits, delivery audits |
@@ -21,7 +21,9 @@ SAST People owns the recruitment and review process. User identity, profile data
 
 ## Core Features
 
-- Fixed workflow models for written recruitment, exemption recruitment, WOC/WOD, and SOC/SOD.
+- Fixed workflow models for written recruitment, exemption recruitment, member assessment (WOC/WOD), and lecturer assessment (SOC/SOD), displayed with the owning department (软件研发部WOC / 多媒体部WOD …).
+- Candidate-initiated interview reschedule requests with mandatory reasons: office flows are approved by 部长, technical flows by the booking lecturer with Feishu calendar/VC sync and notification emails.
+- Office-department interviews run as one independent flow per department (manager-only, no lecturer level): candidates register per department with a first/second volunteer type, no cross-department exclusion, and no portfolio links.
 - Written exam grading with QR-code scanning, manual student ID lookup, and score aggregation.
 - Pass/fail confirmation for written recruitment with result-email locking.
 - Lecturer interview evaluation and administrator final approval.
@@ -34,15 +36,19 @@ SAST People owns the recruitment and review process. User identity, profile data
 
 ## Workflow Model
 
+流程类型在界面上按**归属部门**显示：`recruitment` = 软件研发部笔试 / 多媒体部笔试…，`recruitment_exemption` = 软件研发部免试…，`woc` = 软件研发部WOC / 多媒体部WOD，`soc` = 软件研发部SOC / 多媒体部SOD（`flowTypeLabel(type, department)`）。
+
 | Flow type | Steps | Final role effect |
 | --- | --- | --- |
 | `recruitment` | Registration, grading, admission confirmation | Accepted candidates become members |
 | `recruitment_exemption` | Registration, lecturer review, administrator review | Approved candidates become members |
 | `woc` | Registration, lecturer review, administrator review | New students become members |
 | `soc` | Registration, lecturer review, administrator review | Approved users become lecturers |
-| `office_interview` | Registration (first choice = the flow's department, optional second office-department choice, interview slot), interview scoring, result confirmation | Round-2 passers become members |
+| `office_interview` | **每个办公部门一条独立流程**：报名（选择志愿类型：第一志愿/第二志愿 + 面试时段）、一面、二面、结果确认 | Round-2 passers become members |
 
-结果发布后 People 会自动把成员身份同步回 SAST Link：角色（免试/笔试/WOC 任一通过 → 部员、SoC 通过 → 讲师、办公类两轮都通过 → 部员）与**部门归属**（通过某部门流程即归属该部门，先后通过多个部门时以最后一次通过为准；`manager` 及以上账号不改动）——招新不再需要在 Link 手动改部门。
+作品链接/作品简介只属于**技术部门面试流程**（免试/WOC/SOC）；笔试与办公类部门面试不收集作品。结果邮件模板按流程类型 + 部门维护：同一模板键可为每个部门存一份覆盖文案（`email_template_setting.department`），免试与笔试共用一套模板键，办公类各流程按本部门覆盖（含各自的 QQ 群号）。
+
+结果发布后 People 会自动把成员身份同步回 SAST Link：角色（免试/笔试/WOC 任一通过 → 部员、SoC 通过 → 讲师、办公类两轮都通过 → 部员）与**部门归属**（通过某部门流程即归属该部门；办公类同一候选人通过多个部门时按部长团评议的「最终去向」，缺省「第一志愿优先」；`manager` 及以上账号不改动）——招新不再需要在 Link 手动改部门。
 
 ### `user_flow.progress_status`
 
@@ -66,14 +72,14 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 
 ### 办公类部门面试招新 (`office_interview`)
 
-- **一条共享流程**：所有办公部门共用一条 `office_interview` 流程（归属部门为空），流程内配置四个办公部门（投递组别 + 部门映射）与面试时段；办公类部门的账号可共同管理该流程（编辑、评审、发布、发信）。
-- 候选人**一次报名**：第一志愿、第二志愿办公部门（第二志愿可空，不能与第一志愿相同）与面试时段；报名记录归属第一志愿部门，`user_flow.round` 记录当前阶段（1=一面，2=二面）。
-- **流程内两轮**：一面由面试部长一对一打分；一面通过后系统自动把候选人推进到二轮面试阶段（无需二次报名），二面无领导小组由多位部长分别打分；两轮都通过后 `passed` 并同步部员角色（技术部门为免试/笔试任一通过即部员）。
-- 结果邮件：一面结果通知（`office_round1.result.accepted|rejected`，面试管理页「发送一面结果通知」批量发送通过 + 未通过，按钮显示人数）与二面最终结果（`office_round2.result.*`，走结果发布 + 邮件中心）；最终结果只发给进入二面阶段的候选人，一面未通过者不会重复收到不通过邮件。
-- 办公类模板由**办公部门统一管理**：一份共享的全局模板（任何办公部门账号可编辑，不走部门覆盖），支持 `{department}`、`{groupNumber}` 变量；办公类邮件不在邮件中心通用发送通道中混排（面试管理页单独发送，发送记录与重试保留）。
-- 面试互斥：办公类部门之间同时只能参加一个（技术部门之间暂时不互斥，技术 + 办公可同时参加）。
-- 第二志愿可见：办公类部门可在面试管理页查看「第二志愿投递本部门」的候选人只读名单。
-- 报名后修改面试时段需候选人申请、部长及以上审批（`interview_slot_change_request`，面试管理页待审批列表）。
+- **每个办公部门一条独立流程**：`flow.department` = 该办公部门；流程配置、权限、面试时段、评审、结果发布与邮件模板都归本部门，部门之间互不可见、互不干扰。
+- 候选人**分别报名**：在每个部门流程各报一次，报名时选择**志愿类型**（第一志愿 / 第二志愿）与面试时段。进行中的办公类报名最多两条，且必须一个第一志愿 + 一个第二志愿（不能两个第一志愿）；**没有互斥**——两个志愿部门可以同时面试。
+- `user_flow.choice` 记录志愿类型（1=第一志愿、2=第二志愿）；办公类报名不收集作品链接/简介。
+- **流程内两轮**：一面由面试部长一对一打分；一面通过后系统自动把候选人推进到二轮面试（无需再次报名），二面无领导小组由多位部长分别打分；两轮都通过后 `passed` 并同步部员角色。
+- **办公部门没有讲师这一级**：面试管理、评分、面评与改期审批都由部长（`manager`）操作；面试表格按「志愿」口径展示第一志愿/第二志愿与另一志愿部门。
+- 结果邮件都在各自流程内发送，模板与 QQ 群号按本部门维护：一面结果通知（`office_round1.result.accepted|rejected`，面试管理页批量发送通过 + 未通过，按钮显示人数）与二面最终结果（`office_round2.result.*`，走结果发布 + 邮件中心）。
+- **最终去向**：同一候选人通过多个办公部门时按「第一志愿优先」自动归属；部长团评议可在办公类流程的「完整结果名单」里逐人设置最终去向（写入 `user_flow.final_department`，立即同步成员部门），避免发布顺序影响归属。
+- 改期申请（`interview_slot_change_request`）：候选人在「我的流程」卡片上对自己的面试发起改期，申请理由必填；办公类按本流程配置的时段申请、由部长审批（通过后写回报名时段）；技术部门（免试/WOC/SOC）按已预约的飞书日程申请新时间、由预约讲师审批——讲师会收到飞书卡片提醒，同意后飞书日程与留档会议同步改期并发改约邮件，不同意需填写驳回理由并邮件通知候选人。审批列表按所选流程显示，不会串到其他流程。
 
 ## Tech Stack
 

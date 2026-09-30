@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Dialog,
@@ -34,13 +34,9 @@ import {
 import { toast } from 'sonner';
 import { addFlow } from '@/action/flow/add';
 import { DateTimeInput } from '../ui/datetime-input';
-import {
-  DepartmentSelect,
-  GroupDepartmentMapping,
-  pickGroupDepartments,
-} from './departmentFields';
+import { DepartmentSelect } from './departmentFields';
 import { SlotOptionsField } from './officeInterviewFields';
-import { isOfficeInterviewFlow } from '@/const/flow';
+import { flowTypeLabel, isOfficeInterviewFlow } from '@/const/flow';
 import {
   addFlowSchema,
   editFlowSchema,
@@ -49,7 +45,23 @@ import {
 
 export { addFlowSchema, editFlowSchema, fullFlowSchema };
 
-export const AddFlow = ({ canChooseDepartment = false }: { canChooseDepartment?: boolean }) => {
+/* 可创建的流程类型；展示名由「当前部门」决定，见 flowTypeLabel */
+const FLOW_TYPE_OPTIONS = [
+  'recruitment',
+  'recruitment_exemption',
+  'woc',
+  'soc',
+  'office_interview',
+] as const;
+
+export const AddFlow = ({
+  canChooseDepartment = false,
+  department = null,
+}: {
+  canChooseDepartment?: boolean;
+  /* 非管理员当前会话所属部门；管理员则在对话框内选择归属部门 */
+  department?: string | null;
+}) => {
   const router = useRouter();
   const addFlowForm = useForm<z.infer<typeof addFlowSchema>>({
     resolver: zodResolver(addFlowSchema),
@@ -68,19 +80,16 @@ export const AddFlow = ({ canChooseDepartment = false }: { canChooseDepartment?:
   });
   const { isSubmitting } = addFlowForm.formState;
   const [open, setOpen] = useState(false);
-  const [groupOptionsText, setGroupOptionsText] = useState('');
   const flowType = useWatch({ control: addFlowForm.control, name: 'type' });
+  const selectedDepartment = useWatch({
+    control: addFlowForm.control,
+    name: 'department',
+  });
   const isOfficeInterview = isOfficeInterviewFlow(flowType ?? '');
-  /* 每行一个组别（办公类流程即办公部门），去空行、去重 */
-  const parsedGroupOptions = React.useMemo(
-    () =>
-      groupOptionsText
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line !== '')
-        .filter((line, index, lines) => lines.indexOf(line) === index),
-    [groupOptionsText],
-  );
+  /* 类型名跟随归属部门：管理员取对话框所选，其他账号取会话所属部门 */
+  const labelDepartment = canChooseDepartment
+    ? selectedDepartment ?? null
+    : department;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -144,21 +153,18 @@ export const AddFlow = ({ canChooseDepartment = false }: { canChooseDepartment?:
                         /* 切换为非办公类流程时清空仅办公类可用的配置，避免校验报错 */
                         if (!isOfficeInterviewFlow(value)) {
                           addFlowForm.setValue('slotOptions', []);
-                          return;
                         }
-                        /* 办公类流程是所有办公部门共用的共享流程，归属部门固定为空 */
-                        addFlowForm.setValue('department', null);
                       }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="选择流程类型" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="recruitment">笔试招新</SelectItem>
-                        <SelectItem value="recruitment_exemption">免试招新</SelectItem>
-                        <SelectItem value="woc">WOC/WOD</SelectItem>
-                        <SelectItem value="soc">SOC/SOD</SelectItem>
-                        <SelectItem value="office_interview">办公类部门面试招新</SelectItem>
+                        {FLOW_TYPE_OPTIONS.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {flowTypeLabel(value, labelDepartment)}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </FormControl>
@@ -167,83 +173,28 @@ export const AddFlow = ({ canChooseDepartment = false }: { canChooseDepartment?:
               )}
             />
             {isOfficeInterview && (
-              <>
-                <FormField
-                  control={addFlowForm.control}
-                  name="groupOptions"
-                  disabled={isSubmitting}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>可投递的办公部门</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          className="min-h-24 resize-y"
-                          value={groupOptionsText}
-                          onChange={(event) => {
-                            setGroupOptionsText(event.target.value);
-                            field.onChange(
-                              event.target.value
-                                .split(/\r?\n/)
-                                .map((line) => line.trim())
-                                .filter((line) => line !== '')
-                                .filter(
-                                  (line, index, lines) =>
-                                    lines.indexOf(line) === index,
-                                ),
-                            );
-                          }}
-                          placeholder={'每行一个办公部门，例如：\n办公室\n科宣部\n外联部\n赛事部'}
-                        />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground">
-                        候选人报名时从这里选择第一志愿与第二志愿；留空则无法报名。
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={addFlowForm.control}
-                  name="groupDepartments"
-                  disabled={isSubmitting}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <GroupDepartmentMapping
-                          groupOptions={parsedGroupOptions}
-                          value={field.value ?? {}}
-                          onChange={(next) =>
-                            field.onChange(
-                              pickGroupDepartments(parsedGroupOptions, next),
-                            )
-                          }
-                          disabled={isSubmitting}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={addFlowForm.control}
-                  name="slotOptions"
-                  disabled={isSubmitting}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel htmlFor="add-flow-slots">面试时段</FormLabel>
-                      <SlotOptionsField
-                        idPrefix="add-flow"
-                        disabled={isSubmitting}
-                        value={field.value}
-                        onChange={field.onChange}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+              <FormField
+                control={addFlowForm.control}
+                name="slotOptions"
+                disabled={isSubmitting}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel htmlFor="add-flow-slots">面试时段</FormLabel>
+                    <SlotOptionsField
+                      idPrefix="add-flow"
+                      disabled={isSubmitting}
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      候选人报名时从这里选择面谈时段；留空表示不提供集中面试时段。
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
-            {canChooseDepartment && !isOfficeInterview && (
+            {canChooseDepartment && (
               <FormField
                 control={addFlowForm.control}
                 name="department"
@@ -253,7 +204,7 @@ export const AddFlow = ({ canChooseDepartment = false }: { canChooseDepartment?:
                     <FormLabel>归属部门</FormLabel>
                     <FormControl>
                       <DepartmentSelect
-                        allowGlobal
+                        allowGlobal={!isOfficeInterview}
                         disabled={isSubmitting}
                         value={field.value ?? null}
                         onChange={field.onChange}
@@ -318,7 +269,6 @@ export const AddFlow = ({ canChooseDepartment = false }: { canChooseDepartment?:
                   await addFlow(values).then((flowId) => {
                     setOpen(false);
                     addFlowForm.reset();
-                    setGroupOptionsText('');
                     if (flowId !== null) router.push(editPathForFlow(flowId));
                   });
                 },

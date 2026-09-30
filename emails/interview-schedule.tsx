@@ -43,7 +43,7 @@ const Link = ({ children, ...props }: ElementProps<"a">) => (
 );
 
 export type InterviewScheduleEmailProps = {
-  kind?: "created" | "rescheduled" | "cancelled" | "withdrawn";
+  kind?: "created" | "rescheduled" | "cancelled" | "withdrawn" | "change_rejected";
   candidateName: string;
   flowName: string;
   titleText?: string;
@@ -57,6 +57,10 @@ export type InterviewScheduleEmailProps = {
   organizerLabel?: string;
   startsAtText?: string;
   endsAtText?: string;
+  /** 面试时段标签（办公类面试没有精确起止时间） */
+  timeLabel?: string;
+  /** 改期申请里候选人希望改到的时间/时段 */
+  requestedTimeText?: string;
   location?: string;
   note?: string;
   reason?: string;
@@ -75,6 +79,7 @@ const statusLabel = {
   rescheduled: "已改约",
   cancelled: "已取消",
   withdrawn: "已退回",
+  change_rejected: "未通过",
 } as const;
 
 type MetaItem = {
@@ -92,6 +97,8 @@ export const InterviewScheduleEmail = ({
   organizerLabel = "讲师",
   startsAtText,
   endsAtText,
+  timeLabel,
+  requestedTimeText,
   location,
   note,
   reason,
@@ -100,9 +107,13 @@ export const InterviewScheduleEmail = ({
   logoUrl = "https://storage.sast.fun/sast-logo.png",
 }: InterviewScheduleEmailProps) => {
   const label = statusLabel[kind];
+  const isRejected = kind === "change_rejected";
   const meta: MetaItem[] = [{ label: "流程", value: flowName }];
   if (organizerName) {
     meta.push({ label: organizerLabel, value: organizerName });
+  }
+  if (isRejected && requestedTimeText) {
+    meta.push({ label: "申请改到", value: requestedTimeText });
   }
   if (location) {
     meta.push({ label: "地点", value: location });
@@ -114,11 +125,19 @@ export const InterviewScheduleEmail = ({
   const defaultBody =
     kind === "withdrawn"
       ? `${candidateName} 同学，你好。你的 ${flowName} 面试报名已被退回，请根据退回理由补充或调整报名信息后重新报名。`
-      : kind === "cancelled"
-        ? `${candidateName} 同学，你好。你的 ${flowName} 面试预约已取消，后续安排请关注新的通知。`
-        : kind === "rescheduled"
-          ? `${candidateName} 同学，你好。你的 ${flowName} 面试时间已调整，请以本邮件中的新时间为准。`
-          : `${candidateName} 同学，你好。${flowName} 的线下面试安排已确认，请查看下方时间和地点并按时到达。`;
+      : kind === "change_rejected"
+        ? `${candidateName} 同学，你好。你申请的 ${flowName} 面试时间修改未通过，面试仍按原安排进行。`
+        : kind === "cancelled"
+          ? `${candidateName} 同学，你好。你的 ${flowName} 面试预约已取消，后续安排请关注新的通知。`
+          : kind === "rescheduled"
+            ? `${candidateName} 同学，你好。你的 ${flowName} 面试时间已调整，请以本邮件中的新时间为准。`
+            : `${candidateName} 同学，你好。${flowName} 的线下面试安排已确认，请查看下方时间和地点并按时到达。`;
+  const timeCardLabel = kind === "withdrawn"
+    ? "退回理由"
+    : isRejected
+      ? "驳回理由"
+      : (timeLabel ?? "面试时间");
+  const scheduleValue = kind === "withdrawn" || isRejected ? reason : startsAtText;
 
   return (
     <Html>
@@ -163,13 +182,9 @@ export const InterviewScheduleEmail = ({
                 <tbody>
                   <tr>
                     <td style={scheduleContent}>
-                      <Text style={scheduleLabel}>
-                        {kind === "withdrawn" ? "退回理由" : "面试时间"}
-                      </Text>
-                      <Text style={scheduleStart}>
-                        {kind === "withdrawn" ? reason : startsAtText}
-                      </Text>
-                      {kind !== "withdrawn" && (
+                      <Text style={scheduleLabel}>{timeCardLabel}</Text>
+                      <Text style={scheduleStart}>{scheduleValue}</Text>
+                      {kind !== "withdrawn" && !isRejected && endsAtText && (
                         <Text style={scheduleEnd}>至 {endsAtText}</Text>
                       )}
                     </td>

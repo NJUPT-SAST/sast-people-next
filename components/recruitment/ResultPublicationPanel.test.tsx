@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 const mockGetFlowResultPublicationSummary = jest.fn();
 const mockPublishFlowResults = jest.fn();
+const mockSetOfficeFinalDestination = jest.fn();
 
 jest.mock("@/action/flow/result-publication", () => ({
   getFlowResultPublicationSummary: (
@@ -9,6 +11,11 @@ jest.mock("@/action/flow/result-publication", () => ({
   ) => mockGetFlowResultPublicationSummary(...args),
   publishFlowResults: (...args: Parameters<typeof mockPublishFlowResults>) =>
     mockPublishFlowResults(...args),
+}));
+
+jest.mock("@/action/user-flow/office-final-destination", () => ({
+  setOfficeFinalDestination: (...args: unknown[]) =>
+    mockSetOfficeFinalDestination(...args),
 }));
 
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
@@ -99,5 +106,49 @@ describe("ResultPublicationPanel publication status", () => {
 
     expect(await screen.findByText("可以发布")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /确认并发布结果/ })).toBeEnabled();
+  });
+
+  it("lets a manager set the final destination for an office candidate with two volunteers", async () => {
+    const user = userEvent.setup();
+    mockSetOfficeFinalDestination.mockReset();
+    mockSetOfficeFinalDestination.mockResolvedValue({
+      success: true,
+      department: "publicity",
+    });
+    mockGetFlowResultPublicationSummary.mockResolvedValue({
+      ...buildSummary(),
+      isOfficeFlow: true,
+      rows: [
+        {
+          userFlowId: 21,
+          userId: 9,
+          name: "张三",
+          studentId: "B24040001",
+          applyGroup: null,
+          status: "passed",
+          choice: 1,
+          finalDepartment: null,
+          officeChoices: [
+            { userFlowId: 21, choice: 1, department: "office", flowTitle: "办公室" },
+            { userFlowId: 22, choice: 2, department: "publicity", flowTitle: "科宣部" },
+          ],
+        },
+      ],
+    });
+
+    render(<ResultPublicationPanel flowId={7} />);
+    await user.click(await screen.findByRole("button", { name: "查看完整名单" }));
+
+    expect(screen.getByText("第一志愿")).toBeInTheDocument();
+    expect(screen.getByText("另一志愿：科宣部")).toBeInTheDocument();
+    const trigger = screen.getByLabelText("设置 张三 的最终去向");
+    expect(trigger).toHaveTextContent("自动");
+
+    await user.click(trigger);
+    await user.click(
+      await screen.findByRole("option", { name: /科宣部（第二志愿）/ }),
+    );
+
+    expect(mockSetOfficeFinalDestination).toHaveBeenCalledWith(21, "publicity");
   });
 });

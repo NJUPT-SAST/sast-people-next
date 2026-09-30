@@ -51,6 +51,8 @@ export const syncUserIdentityFromAcceptedFlows = async (uids: number[], publishi
     .select({
       uid: userFlow.fkUserId,
       type: flow.type,
+      choice: userFlow.choice,
+      finalDepartment: userFlow.finalDepartment,
       flowDepartment: flow.department,
       rowDepartment: userFlow.department,
       publishedAt: flowResultPublication.publishedAt,

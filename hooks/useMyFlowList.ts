@@ -3,6 +3,7 @@ import {
   flow,
   flowResultPublication,
   flowStep,
+  interviewSchedule,
   interviewSlotChangeRequest,
   userFlow,
 } from "@/db/schema";
@@ -27,6 +28,13 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
       and(
         eq(interviewSlotChangeRequest.fkUserFlowId, userFlow.id),
         eq(interviewSlotChangeRequest.status, "pending"),
+      ),
+    )
+    .leftJoin(
+      interviewSchedule,
+      and(
+        eq(interviewSchedule.fkUserFlowId, userFlow.id),
+        eq(interviewSchedule.status, "created"),
       ),
     )
     .where(and(eq(userFlow.fkUserId, session.uid), eq(flow.isDeleted, false)))
@@ -71,6 +79,18 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
               id: item.interview_slot_change_request.id,
               requestedSlot:
                 item.interview_slot_change_request.requestedSlot,
+              requestedStartsAt:
+                item.interview_slot_change_request.requestedStartsAt,
+              requestedEndsAt:
+                item.interview_slot_change_request.requestedEndsAt,
+            }
+          : null,
+        interviewSchedule: item.interview_schedule
+          ? {
+              id: item.interview_schedule.id,
+              startsAt: item.interview_schedule.startsAt,
+              endsAt: item.interview_schedule.endsAt,
+              location: item.interview_schedule.location,
             }
           : null,
         steps: [] as fullStepType[],

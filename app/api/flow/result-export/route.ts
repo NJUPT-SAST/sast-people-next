@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     session = await verifyManager();
 
-    /* 结果导出属于流程数据，只有流程归属部门、管理员或办公类共享流程的办公部门可以下载 */
+    /* 结果导出属于流程数据，只有流程归属部门或管理员可以下载 */
     const [flowRow] = await db
       .select({ department: flow.department, type: flow.type })
       .from(flow)

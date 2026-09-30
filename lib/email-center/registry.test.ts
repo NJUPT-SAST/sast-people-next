@@ -25,14 +25,17 @@ describe("email template registry", () => {
         "interview.schedule.created",
         "interview.schedule.rescheduled",
         "interview.schedule.cancelled",
+        "interview.schedule.change.rejected",
         "interview.application.withdrawn",
       ]),
     );
   });
 
-  it("requires schedule details for schedule templates", () => {
+  it("requires schedule details for created/rescheduled/cancelled templates", () => {
     const scheduleDefinitions = emailTemplateDefinitions.filter((definition) =>
-      definition.key.startsWith("interview.schedule."),
+      ["interview.schedule.created", "interview.schedule.rescheduled", "interview.schedule.cancelled"].includes(
+        definition.key,
+      ),
     );
 
     expect(scheduleDefinitions).toHaveLength(3);
@@ -47,10 +50,21 @@ describe("email template registry", () => {
           "flowName",
           "organizerName",
           "startsAt",
-          "endsAt",
         ]),
       );
     }
+  });
+
+  it("requires a rejection reason for the reschedule rejection template", () => {
+    const definition = emailTemplateDefinitions.find(
+      (item) => item.key === "interview.schedule.change.rejected",
+    );
+
+    expect(
+      definition?.variables
+        .filter((variable) => variable.required)
+        .map((variable) => variable.key),
+    ).toEqual(["candidateName", "flowName", "reason"]);
   });
 
   it("requires name, flowName and department for office interview results", () => {

@@ -70,7 +70,7 @@ const keyRoutes: Array<{
   },
   {
     path: "/dashboard/flow",
-    marker: "管理招新、WOC/WOD、SOC/SOD 等流程",
+    marker: "管理招新、WOC、SOC 等流程",
     user: "admin",
   },
 ];

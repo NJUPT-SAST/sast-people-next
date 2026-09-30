@@ -43,7 +43,7 @@ export const batchSendEmail = async (
       .from(flow)
       .where(eq(flow.id, flowId))
       .limit(1);
-    /* 邮件批次归属流程：只有流程归属部门、管理员或办公类共享流程的办公部门可以创建 */
+    /* 邮件批次归属流程：只有流程归属部门或管理员可以创建 */
     if (!flowRecord) throw new Error("流程不存在");
     assertFlowEditableRecord(session.scope, flowRecord, "无权为其他部门的流程发送邮件");
     const result = await createResultEmailBatch({

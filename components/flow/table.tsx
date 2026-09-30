@@ -17,7 +17,7 @@ import {
 } from '../ui/table';
 import originalDayjs from '@/lib/dayjs';
 import { departmentLabel } from '@/const/department';
-import { FLOW_TYPE_LABELS } from '@/const/flow';
+import { flowTypeLabel } from '@/const/flow';
 import { Operations } from './operations';
 
 export const FlowTableColumns: ColumnDef<displayFlow>[] = [
@@ -44,7 +44,7 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
       const type = row.getValue('type') as string;
       return (
         <span className="inline-flex rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80">
-          {FLOW_TYPE_LABELS[type] ?? type}
+          {flowTypeLabel(type, row.original.department)}
         </span>
       );
     },
@@ -211,7 +211,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
                   <span className="font-semibold text-base">{row.original.title}</span>
                   <div>
                     <span className="text-sm text-muted-foreground">
-                      {FLOW_TYPE_LABELS[row.original.type] ?? row.original.type}
+                      {flowTypeLabel(row.original.type, row.original.department)}
                     </span>
                   </div>
                 </div>

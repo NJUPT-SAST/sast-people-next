@@ -16,13 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { departmentLabel } from '@/const/department';
-
-const FLOW_TYPE_LABELS: Record<string, string> = {
-  recruitment: '笔试招新',
-  recruitment_exemption: '免试招新',
-  woc: 'WOC/WOD',
-  soc: 'SOC/SOD',
-};
+import { flowTypeLabel } from '@/const/flow';
 
 const groupMappingText = (mapping: Record<string, string> | null) => {
   const entries = Object.entries(mapping ?? {});
@@ -84,7 +78,7 @@ export function FlowDepartmentTable({
                       <div className="flex min-w-0 flex-col gap-1">
                         <span className="font-medium">{flow.title}</span>
                         <span className="text-xs text-muted-foreground">
-                          {FLOW_TYPE_LABELS[flow.type] ?? flow.type} · 创建于{' '}
+                          {flowTypeLabel(flow.type, flow.department)} · 创建于{' '}
                           {new Date(flow.createdAt).toLocaleDateString('zh-CN')}
                         </span>
                       </div>

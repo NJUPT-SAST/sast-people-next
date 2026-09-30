@@ -26,6 +26,7 @@ import type { interviewEvaluation } from "@/db/schema";
 import originalDayjs from "@/lib/dayjs";
 import { externalHref } from "@/lib/link";
 import { departmentLabel } from "@/const/department";
+import { isOfficeInterviewFlow } from "@/const/flow";
 import { ViewUserInfoSheet } from "@/components/manage/viewUserInfoSheet";
 
 export type EvaluationRow = {
@@ -36,6 +37,8 @@ export type EvaluationRow = {
   portfolioLink: string | null;
   portfolioDescription: string | null;
   applyGroup: string | null;
+  /* 候选人的志愿类型：1=第一志愿，2=第二志愿（办公类流程的 user_flow.choice） */
+  choice?: number | null;
   /* 候选人归属部门（Link 部门标识），审批列表已按可见范围收敛 */
   department?: string | null;
   scheduleMeetingLink: string | null;
@@ -57,9 +60,24 @@ const statusLabel: Record<string, string> = {
   rejected: "不通过",
 };
 
-const recommendationLabel: Record<string, string> = {
-  passed: "讲师建议通过",
-  failed: "讲师建议不通过",
+/* 办公类部门没有讲师这一级：面评由部长提交，提示与状态文案随之切换 */
+const reviewerTitle = (flowType?: string | null) =>
+  isOfficeInterviewFlow(flowType ?? "") ? "部长" : "讲师";
+
+/* 办公类流程一条流程只招本部门，候选人的志愿由 user_flow.choice 表示 */
+const OFFICE_CHOICE_LABELS: Record<number, string> = {
+  1: "第一志愿",
+  2: "第二志愿",
+};
+
+const recommendationLabelFor = (
+  recommendation: string,
+  flowType?: string | null,
+) => {
+  const title = reviewerTitle(flowType);
+  if (recommendation === "passed") return `${title}建议通过`;
+  if (recommendation === "failed") return `${title}建议不通过`;
+  return recommendation;
 };
 
 const InlineLink = ({ label, value }: { label: string; value: string }) => (
@@ -148,6 +166,15 @@ export const ApprovalsContent = ({
     }
   }, [initialEvaluations]);
 
+  /* 退回/提醒的接收人称呼按记录所属流程切换：办公类流程没有讲师这一级 */
+  const reviewerTitleOfEvaluation = (evaluationId: number | null) =>
+    reviewerTitle(
+      evaluationId === null
+        ? undefined
+        : evaluations.find((row) => row.evaluation.id === evaluationId)
+            ?.flowType,
+    );
+
   const handleApprove = async (id: number) => {
     setActionLoading(id);
     try {
@@ -182,11 +209,13 @@ export const ApprovalsContent = ({
     }
     setActionLoading(returnTarget);
     try {
+      /* 办公类流程的退回对象是部长，提醒文案随之切换 */
+      const title = reviewerTitleOfEvaluation(returnTarget);
       const result = await returnEvaluation(returnTarget, returnReason);
       if (result.notificationSent) {
-        toast.success("面评已退回，已提醒讲师重写");
+        toast.success(`面评已退回，已提醒${title}重写`);
       } else if (result.notificationStatus === "unavailable") {
-        toast.warning("面评已退回，但讲师尚未绑定飞书，提醒未发送");
+        toast.warning(`面评已退回，但${title}尚未绑定飞书，提醒未发送`);
       } else {
         toast.warning("面评已退回，但飞书提醒发送失败，请确认授权后重试");
       }
@@ -265,6 +294,12 @@ export const ApprovalsContent = ({
     new Set(archived.map((row) => row.flowTitle).filter((title): title is string => Boolean(title))),
   ).sort((a, b) => a.localeCompare(b, "zh-CN"));
   const displayed = showArchived ? filteredArchived : pending;
+  /* 归档提示里的重写人：归档记录全是办公类流程时是部长，其他流程仍是讲师 */
+  const archiveReviewerTitle =
+    archived.length > 0 &&
+    archived.every((row) => isOfficeInterviewFlow(row.flowType ?? ""))
+      ? "部长"
+      : "讲师";
   const isFlowLocked = (row: EvaluationRow) =>
     row.publicationStatus === "published" || row.publicationStatus === "publishing";
 
@@ -307,7 +342,7 @@ export const ApprovalsContent = ({
       {showArchived && (
         <div className="flex flex-col gap-3 border-y py-3">
             <p className="text-xs text-muted-foreground">
-            已处理的面评会保留在这里；退回重写的记录会在讲师重新提交后回到待审批列表。
+            已处理的面评会保留在这里；退回重写的记录会在{archiveReviewerTitle}重新提交后回到待审批列表。
           </p>
           <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,1fr)_10rem_10rem]">
           <Input
@@ -369,7 +404,13 @@ export const ApprovalsContent = ({
         </div>
       ) : (
         <div className="grid gap-3 sm:gap-4">
-          {displayed.map((row) => (
+          {displayed.map((row) => {
+            /* 办公类流程没有投递组别：志愿取自 user_flow.choice，旧数据回退到 applyGroup */
+            const isOfficeFlow = isOfficeInterviewFlow(row.flowType ?? "");
+            const officeChoice = isOfficeFlow
+              ? (OFFICE_CHOICE_LABELS[row.choice ?? 0] ?? row.applyGroup ?? null)
+              : null;
+            return (
             <Card key={row.evaluation.id}>
               <CardHeader className="flex flex-col gap-3 pb-3">
                 <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -409,7 +450,10 @@ export const ApprovalsContent = ({
                             : "border-rose-600/60 text-rose-700 dark:border-rose-400/60 dark:text-rose-300"
                         }`}
                       >
-                        {recommendationLabel[row.evaluation.recommendation]}
+                        {recommendationLabelFor(
+                          row.evaluation.recommendation,
+                          row.flowType,
+                        )}
                       </Badge>
                     )}
                     {row.evaluation.score !== null && (
@@ -444,16 +488,29 @@ export const ApprovalsContent = ({
                       </span>
                     )}
                   </div>
-                  <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5 md:ml-auto">
-                    <span className="text-muted-foreground">投递组别</span>
-                    {row.applyGroup ? (
-                      <span className="min-w-0 break-words font-medium text-foreground">
-                        {row.applyGroup}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/70">未提供</span>
-                    )}
-                  </span>
+                  {isOfficeFlow ? (
+                    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5 md:ml-auto">
+                      <span className="text-muted-foreground">志愿</span>
+                      {officeChoice ? (
+                        <span className="min-w-0 break-words font-medium text-foreground">
+                          {officeChoice}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/70">未提供</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5 md:ml-auto">
+                      <span className="text-muted-foreground">投递组别</span>
+                      {row.applyGroup ? (
+                        <span className="min-w-0 break-words font-medium text-foreground">
+                          {row.applyGroup}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/70">未提供</span>
+                      )}
+                    </span>
+                  )}
                   <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
                     <span className="text-muted-foreground">投递部门</span>
                     <span className="min-w-0 break-words font-medium text-foreground">
@@ -554,14 +611,17 @@ export const ApprovalsContent = ({
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
       <Dialog open={returnTarget !== null} onOpenChange={(open) => !open && setReturnTarget(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>退回面评重写</DialogTitle>
-            <DialogDescription>请填写具体原因，讲师会收到飞书机器人提醒。</DialogDescription>
+            <DialogDescription>
+              {`请填写具体原因，${reviewerTitleOfEvaluation(returnTarget)}会收到飞书机器人提醒。`}
+            </DialogDescription>
           </DialogHeader>
           <Textarea
             value={returnReason}

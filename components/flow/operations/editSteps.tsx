@@ -126,7 +126,7 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
     if (autoOpen) setOpenEdit(true);
   }, [autoOpen]);
   const isWrittenRecruitment = !data.type || data.type === 'recruitment';
-  /* 办公类部门面试招新是所有办公部门共用的共享流程：部门为空，用投递组别配置办公部门 */
+  /* 办公类部门面试招新：每个办公部门一条流程，额外配置面试时段 */
   const isOfficeInterview = isOfficeInterviewFlow(data.type);
   const { data: savedSteps } = useFlowStepsInfoClient(data.id);
   const fixedStepList = useMemo(() => {
@@ -154,7 +154,7 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
   const [groupDepartments, setGroupDepartments] = useState<Record<string, string>>(
     data.groupDepartments ?? {},
   );
-  /* 与保存时一致的组别解析：去空行、去重 */
+  /* 与保存时一致的组别/办公部门解析：去空行、去重 */
   const parsedGroupOptions = useMemo(
     () =>
       groupOptionsText
@@ -290,7 +290,7 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
               />
             )}
 
-            {!isWrittenRecruitment && (
+            {!isWrittenRecruitment && !isOfficeInterview && (
               <FormField
                 control={editFlowForm.control}
                 name="groupOptions"
@@ -308,9 +308,7 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
-                      {isOfficeInterview
-                        ? '办公类流程的投递组别即办公部门，候选人报名时从中选择第一/第二志愿。'
-                        : '报名该面试流程的候选人将在报名时从这些组别中选择；留空表示不启用投递组别。'}
+                      报名该面试流程的候选人将在报名时从这些组别中选择；留空表示不启用投递组别。
                     </p>
                     <FormMessage />
                   </FormItem>
@@ -318,12 +316,11 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
               />
             )}
 
-            {!isOfficeInterview && (
-              <div className="grid gap-2">
-                <Label>归属部门</Label>
-                {canChooseDepartment ? (
+            <div className="grid gap-2">
+              <Label>归属部门</Label>
+              {canChooseDepartment ? (
                   <DepartmentSelect
-                    allowGlobal
+                    allowGlobal={!isOfficeInterview}
                     disabled={isSubmitting}
                     value={department}
                     onChange={setDepartment}
@@ -335,20 +332,15 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
                   部长只能维护本部门的流程；组别映射用于把共享流程的报名记录落到具体部门。
                 </p>
               </div>
-            )}
 
-            {isOfficeInterview && (
-              <p className="text-xs text-muted-foreground">
-                办公类部门面试招新是所有办公部门共用的共享流程，没有归属部门；报名记录的部门由投递组别映射决定。
-              </p>
+            {!isOfficeInterview && (
+              <GroupDepartmentMapping
+                groupOptions={parsedGroupOptions}
+                value={groupDepartments}
+                onChange={setGroupDepartments}
+                disabled={isSubmitting}
+              />
             )}
-
-            <GroupDepartmentMapping
-              groupOptions={parsedGroupOptions}
-              value={groupDepartments}
-              onChange={setGroupDepartments}
-              disabled={isSubmitting}
-            />
 
             {/* 保存流程元数据按钮 */}
             <div className="flex justify-end mt-4 gap-2">
@@ -368,8 +360,7 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
                         parsedGroupOptions,
                         groupDepartments,
                       ),
-                      /* 共享办公流程没有归属部门，落库固定为 null */
-                      department: isOfficeInterview ? null : department,
+                      department,
                     }),
                     {
                       loading: '正在保存流程信息',

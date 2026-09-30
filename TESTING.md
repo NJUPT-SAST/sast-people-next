@@ -62,8 +62,15 @@ Playwright specs live under `e2e/`:
 ```text
 e2e/
   recruitment-flow.spec.ts
+  office-interview.spec.ts
+  office-flow-create.spec.ts
+  office-final-destination.spec.ts
+  interview-reschedule.spec.ts
+  interview-row-menu.spec.ts
+  flow-result-department.spec.ts
   email-center.spec.ts
   email-prelaunch.spec.ts
+  mock-login.spec.ts
   visual-smoke.spec.ts
 ```
 

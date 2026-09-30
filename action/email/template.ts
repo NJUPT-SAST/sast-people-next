@@ -224,11 +224,7 @@ export async function listEmailTemplateSettings(
     return {
       ...mergeResultEmailTemplateSetting(fallback.templateKey, saved),
       id: saved?.id ?? null,
-      editable: canEditTemplateRow(
-        effectiveScope,
-        saved?.department ?? null,
-        fallback.templateKey,
-      ),
+      editable: canEditTemplateRow(effectiveScope, saved?.department ?? null),
       hasOverride: saved !== null && saved.department === target,
     } satisfies ResultEmailTemplateSettingRow;
   });
@@ -301,7 +297,7 @@ export async function updateEmailTemplateSetting(
 ) {
   const session = await verifyRole(3);
   const scope = await getDepartmentScope();
-  const target = resolveTemplateEditTarget(scope, department, templateKey);
+  const target = resolveTemplateEditTarget(scope, department);
   const targetDepartment = target.kind === "department" ? target.department : null;
 
   const normalized = normalizeResultEmailTemplateValues(values);
@@ -394,7 +390,7 @@ export async function resetEmailTemplateSetting(
 ) {
   const session = await verifyRole(3);
   const scope = await getDepartmentScope();
-  const target = resolveTemplateEditTarget(scope, department, templateKey);
+  const target = resolveTemplateEditTarget(scope, department);
   const targetDepartment = target.kind === "department" ? target.department : null;
 
   const [existing] = await db

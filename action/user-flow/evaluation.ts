@@ -19,11 +19,7 @@ import {
 } from "@/lib/evaluation-state";
 import { departmentScopeFilter, verifyManager, verifyScopedRole } from "@/lib/authz";
 import type { FlowScopedSession } from "@/action/flow/department-utils";
-import {
-  assertUserFlowAccess,
-  canManageSharedOfficeFlow,
-  isSharedOfficeFlow,
-} from "@/lib/flow-access";
+import { assertUserFlowAccess } from "@/lib/flow-access";
 import {
   loadFeishuApprovalNotificationRecord,
   sendFeishuApprovalCard,
@@ -31,12 +27,13 @@ import {
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getFeishuOAuthAccountStatus } from "@/lib/feishu/oauth-account";
 import { sendInterviewEvaluationReturnedCard } from "@/lib/feishu/interview-message";
 import { MIN_PASSED_EVALUATION_LENGTH } from "@/lib/evaluation-constants";
 import { isOfficeInterviewFlow, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
+import { MANAGER_ROLE } from "@/lib/link/role";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type EvaluationRecommendation = "passed" | "failed";
@@ -44,8 +41,10 @@ type EvaluationRecommendation = "passed" | "failed";
 /* 办公类面试必须打分，管理员终审驳回同样沿用这条文案 */
 const INVALID_SCORE_MESSAGE = "请填写 0-100 的面试分数";
 const RESULT_LOCKED_MESSAGE = "该候选人结果已确认，不能再修改";
+/* 办公类部门没有讲师这一级：候选人列表与面评提交都只对部长开放 */
+const OFFICE_MANAGER_ONLY_MESSAGE = "办公类部门面试由部长操作，讲师账号无法评分";
 
-/* 办公类共享流程的固定步骤 order：一面面试=2、二轮面试=3、结果确认=4
+/* 办公类流程的固定步骤 order：一面面试=2、二轮面试=3、结果确认=4
    （两个 checking 步骤无法按 type 区分，只能按 order 精确定位） */
 const OFFICE_SECOND_ROUND_STEP_ORDER = 3;
 const OFFICE_RESULT_STEP_ORDER = 4;
@@ -57,20 +56,14 @@ function isEvaluationRecommendation(
 }
 
 /**
- * 面评操作的访问判定依据：`canAccessUserFlow` 只接受一个 department 字段，
- * 共享办公流程（department 为空）以流程归属为准，交回办公类部门共同评审；
- * 其他流程仍按报名归属部门收敛（跨部门共享流程依赖组别映射到部门）。
+ * 面评操作的访问判定依据：报名归属部门（技术部门共享流程依赖组别映射到部门；
+ * 办公类流程每条流程归属一个办公部门，同样按报名归属部门收敛）。
  */
 function userFlowAccessTarget(ref: {
   department: string | null | undefined;
   flowType: string | null | undefined;
-  flowDepartment: string | null | undefined;
 }) {
-  const flowRef = { type: ref.flowType, department: ref.flowDepartment };
-  return {
-    type: ref.flowType,
-    department: isSharedOfficeFlow(flowRef) ? ref.flowDepartment : ref.department,
-  };
+  return { type: ref.flowType, department: ref.department };
 }
 
 /** Prefer step type; fall back to historical order for older customized flows. */
@@ -108,7 +101,7 @@ async function findEvaluationStepIdInTx(
   return byOrder?.id ?? null;
 }
 
-/** 按 order 精确定位流程步骤：办公类共享流程有两个 checking 步骤，只能按 order 区分 */
+/** 按 order 精确定位流程步骤：办公类流程有两个 checking 步骤，只能按 order 区分 */
 async function findFlowStepIdByOrderInTx(
   tx: Tx,
   flowId: number,
@@ -151,7 +144,7 @@ async function findActiveEvaluationInTx(tx: Tx, userFlowId: number) {
   return returned ?? null;
 }
 
-/** 步骤定位：按类型（其他流程）或按 order（办公类共享流程，两个 checking 步骤） */
+/** 步骤定位：按类型（其他流程）或按 order（办公类流程，两个 checking 步骤） */
 type EvaluationStepTarget =
   | { type: EvaluationFlowStepType }
   | { order: number };
@@ -239,6 +232,7 @@ async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
       candidateStudentId: candidate?.studentId ?? null,
       authorName: author?.name ?? "讲师",
       flowTitle: record.flowTitle,
+      flowType: record.flowType,
       recommendation: record.recommendation,
       content: record.content,
       portfolioDescription: record.portfolioDescription,
@@ -305,12 +299,11 @@ export const createEvaluation = async (
       return { success: false, error: { message: INVALID_SCORE_MESSAGE } };
     }
 
-    // 面评只能写给有权限的候选人：本部门报名（管理员放行），或办公类共享流程（办公类部门共同评审）
+    // 面评只能写给有权限的候选人：报名归属部门与当前 scope 一致（管理员放行）
     const [scopeTarget] = await db
       .select({
         department: userFlow.department,
         flowType: flow.type,
-        flowDepartment: flow.department,
       })
       .from(userFlow)
       .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
@@ -318,6 +311,14 @@ export const createEvaluation = async (
       .limit(1);
     if (scopeTarget) {
       assertUserFlowAccess(session.scope, userFlowAccessTarget(scopeTarget));
+    }
+    /* 办公类部门没有讲师这一级：面评只能由部长提交（技术部门仍由预约讲师填写） */
+    if (
+      scopeTarget &&
+      isOfficeInterviewFlow(scopeTarget.flowType) &&
+      session.role < MANAGER_ROLE
+    ) {
+      throw new Error(OFFICE_MANAGER_ONLY_MESSAGE);
     }
 
     const hasMeetingLinkArg = meetingLink !== undefined;
@@ -330,7 +331,6 @@ export const createEvaluation = async (
           progressStatus: userFlow.progressStatus,
           round: userFlow.round,
           flowType: flow.type,
-          flowDepartment: flow.department,
         })
         .from(userFlow)
         .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
@@ -666,20 +666,18 @@ export const approveEvaluation = async (evaluationId: number) => {
           progressStatus: userFlow.progressStatus,
           round: userFlow.round,
           flowType: flow.type,
-          flowDepartment: flow.department,
         })
         .from(userFlow)
         .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
         .where(eq(userFlow.id, evalRecord.fkUserFlowId))
         .limit(1);
 
-      // 只能审批本部门候选人的面评；办公类共享流程由办公类部门共同评审
+      // 只能审批本部门候选人的面评
       assertUserFlowAccess(
         session!.scope,
         userFlowAccessTarget({
           department: uf?.department,
           flowType: uf?.flowType,
-          flowDepartment: uf?.flowDepartment,
         }),
       );
       targetDepartment = uf?.department ?? null;
@@ -802,20 +800,18 @@ export const rejectEvaluation = async (evaluationId: number) => {
           department: userFlow.department,
           progressStatus: userFlow.progressStatus,
           flowType: flow.type,
-          flowDepartment: flow.department,
         })
         .from(userFlow)
         .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
         .where(eq(userFlow.id, evalRecord.fkUserFlowId))
         .limit(1);
 
-      // 只能判定本部门候选人的面评；办公类共享流程由办公类部门共同评审
+      // 只能判定本部门候选人的面评
       assertUserFlowAccess(
         session!.scope,
         userFlowAccessTarget({
           department: uf?.department,
           flowType: uf?.flowType,
-          flowDepartment: uf?.flowDepartment,
         }),
       );
       targetDepartment = uf?.department ?? null;
@@ -900,20 +896,18 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
         .select({
           department: userFlow.department,
           flowType: flow.type,
-          flowDepartment: flow.department,
         })
         .from(userFlow)
         .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
         .where(eq(userFlow.id, evaluation.userFlowId))
         .limit(1);
 
-      // 只能退回本部门候选人的面评；办公类共享流程由办公类部门共同评审
+      // 只能退回本部门候选人的面评
       assertUserFlowAccess(
         session!.scope,
         userFlowAccessTarget({
           department: uf?.department,
           flowType: uf?.flowType,
-          flowDepartment: uf?.flowDepartment,
         }),
       );
       targetDepartment = uf?.department ?? null;
@@ -962,13 +956,8 @@ export const getAllEvaluations = async () => {
   try {
     session = await verifyManager();
 
-    /* 审批列表按部门可见性收敛：不在范围内直接查不到；
-       办公类共享流程由办公类部门共同评审，额外放行给办公类部门 */
+    /* 审批列表按部门可见性收敛：不在范围内直接查不到 */
     const scopeFilter = departmentScopeFilter(userFlow.department, session.scope);
-    const sharedOfficeFilter =
-      scopeFilter && canManageSharedOfficeFlow(session.scope)
-        ? and(eq(flow.type, OFFICE_INTERVIEW_FLOW_TYPE), isNull(flow.department))
-        : undefined;
 
     const allRows = await db
       .select({
@@ -978,6 +967,8 @@ export const getAllEvaluations = async () => {
         portfolioDescription: userFlow.portfolioDescription,
         applyGroup: userFlow.applyGroup,
         department: userFlow.department,
+        /* 志愿顺序：1=第一志愿，2=第二志愿（办公类流程；其他流程为 NULL） */
+        choice: userFlow.choice,
         authorId: interviewEvaluation.fkUserId,
         candidateId: userFlow.fkUserId,
         flowTitle: flow.title,
@@ -988,11 +979,7 @@ export const getAllEvaluations = async () => {
       .leftJoin(userFlow, eq(interviewEvaluation.fkUserFlowId, userFlow.id))
       .leftJoin(flow, eq(userFlow.fkFlowId, flow.id))
       .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
-      .where(
-        scopeFilter && sharedOfficeFilter
-          ? or(scopeFilter, sharedOfficeFilter)
-          : scopeFilter,
-      )
+      .where(scopeFilter)
       .orderBy(desc(interviewEvaluation.createdAt));
 
     /* 办公类面试一位候选人会有多份待审面评（每位部长各一份），列表只保留
@@ -1108,17 +1095,15 @@ export const getEvaluationCandidates = async (flowId: number) => {
 
     /* 办公类面试无需面试日程，面评带分数且允许多人各写一份 */
     const [flowRecord] = await db
-      .select({ type: flow.type, department: flow.department })
+      .select({ type: flow.type })
       .from(flow)
       .where(eq(flow.id, flowId))
       .limit(1);
     const isOfficeFlow = isOfficeInterviewFlow(flowRecord?.type ?? "");
-    /* 办公类共享流程由办公类部门共同评审：不再按报名第一志愿部门收敛 */
-    const skipDepartmentScope =
-      isSharedOfficeFlow({
-        type: flowRecord?.type,
-        department: flowRecord?.department,
-      }) && canManageSharedOfficeFlow(session.scope);
+    /* 办公类部门没有讲师这一级：候选人列表同样只对部长开放 */
+    if (isOfficeFlow && session.role < MANAGER_ROLE) {
+      throw new Error(OFFICE_MANAGER_ONLY_MESSAGE);
+    }
 
     const candidates = await db
       .select({
@@ -1130,6 +1115,8 @@ export const getEvaluationCandidates = async (flowId: number) => {
         portfolioDescription: userFlow.portfolioDescription,
         applyGroup: userFlow.applyGroup,
         department: userFlow.department,
+        /* 志愿顺序：1=第一志愿，2=第二志愿（技术流程不收集，恒为 NULL） */
+        choice: userFlow.choice,
         /* 候选人当前所处轮次：1=一面，2=二面（其他流程为 NULL） */
         round: userFlow.round,
         /* 办公类面试不排日程，列表直接展示所选面谈时段 */
@@ -1152,10 +1139,8 @@ export const getEvaluationCandidates = async (flowId: number) => {
         and(
           eq(userFlow.fkFlowId, flowId),
           ne(userFlow.progressStatus, "withdrawn"),
-          // 候选人列表按部门可见性收敛（办公类共享流程由办公类部门共同查看）
-          skipDepartmentScope
-            ? undefined
-            : departmentScopeFilter(userFlow.department, session.scope),
+          // 候选人列表按报名归属部门收敛（办公类流程每条流程归属一个办公部门）
+          departmentScopeFilter(userFlow.department, session.scope),
         ),
       );
 
@@ -1163,6 +1148,40 @@ export const getEvaluationCandidates = async (flowId: number) => {
       candidates,
       isOfficeFlow,
     );
+
+    /* 办公类：同一用户可能同时投递两条办公类流程（第一志愿/第二志愿各一条），
+       列表展示该候选人的另一条办公类报名所在部门；技术流程不涉及，恒为空。 */
+    const candidateUids = [
+      ...new Set(dedupedCandidates.map((candidate) => candidate.uid)),
+    ];
+    const officeSiblingRows =
+      isOfficeFlow && candidateUids.length > 0
+        ? await db
+            .select({
+              uid: userFlow.fkUserId,
+              department: userFlow.department,
+            })
+            .from(userFlow)
+            .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+            .where(
+              and(
+                inArray(userFlow.fkUserId, candidateUids),
+                eq(flow.type, OFFICE_INTERVIEW_FLOW_TYPE),
+                eq(flow.isDeleted, false),
+                ne(userFlow.progressStatus, "withdrawn"),
+              ),
+            )
+        : [];
+    const siblingDepartmentsByUid = new Map<number, string[]>();
+    for (const row of officeSiblingRows) {
+      if (!row.department) continue;
+      const departments = siblingDepartmentsByUid.get(row.uid);
+      if (departments) {
+        if (!departments.includes(row.department)) departments.push(row.department);
+      } else {
+        siblingDepartmentsByUid.set(row.uid, [row.department]);
+      }
+    }
 
     const userFlowIds = dedupedCandidates.map(
       (candidate) => candidate.userFlowId,
@@ -1270,6 +1289,11 @@ export const getEvaluationCandidates = async (flowId: number) => {
 
         return {
           ...candidate,
+          /* 同一用户另一条办公类报名的部门；技术流程与只投递一条的候选人恒为 null */
+          siblingDepartment:
+            siblingDepartmentsByUid
+              .get(candidate.uid)
+              ?.find((department) => department !== candidate.department) ?? null,
           name: userMap.get(candidate.uid)?.name ?? "未知用户",
           studentId: userMap.get(candidate.uid)?.studentId ?? null,
           qq: userMap.get(candidate.uid)?.qq ?? null,

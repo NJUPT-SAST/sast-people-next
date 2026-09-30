@@ -41,28 +41,10 @@ describe("editFlowSchema office interview", () => {
   const officeFlow = {
     ...validFlow,
     type: "office_interview" as const,
-    groupOptions: ["办公室", "科宣部", "外联部", "赛事部"],
-    groupDepartments: {
-      办公室: "office",
-      科宣部: "publicity",
-      外联部: "liaison",
-      赛事部: "competition",
-    },
+    department: "office" as const,
   };
 
-  it("requires the office department list and its mapping", () => {
-    expect(() =>
-      editFlowSchema.parse({ ...validFlow, type: "office_interview" as const }),
-    ).toThrow("办公类部门面试招新请配置可投递的办公部门");
-    expect(() =>
-      editFlowSchema.parse({
-        ...officeFlow,
-        groupDepartments: { 办公室: "office" },
-      }),
-    ).toThrow("请为每个办公部门配置对应的部门标识");
-  });
-
-  it("accepts office departments and interview slots", () => {
+  it("accepts an office flow with only a department and interview slots", () => {
     const parsed = editFlowSchema.parse({
       ...officeFlow,
       slotOptions: [
@@ -75,6 +57,16 @@ describe("editFlowSchema office interview", () => {
       { label: "13:00-14:00" },
       { label: "时间冲突，约面时间QQ群中另行通知", isConflict: true },
     ]);
+  });
+
+  it("does not require a group list or mapping for office flows", () => {
+    expect(() =>
+      editFlowSchema.parse({
+        ...validFlow,
+        type: "office_interview" as const,
+        department: "office" as const,
+      }),
+    ).not.toThrow();
   });
 
   it("rejects duplicate slot labels", () => {

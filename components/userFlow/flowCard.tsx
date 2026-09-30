@@ -19,8 +19,12 @@ import { cn } from "@/lib/utils";
 import { CancelRegistration } from "./cancelRegistration";
 import { PortfolioLinkEditor } from "./portfolioLinkEditor";
 import { SlotChangeRequest } from "./slotChangeRequest";
-import { DEPARTMENT_LABELS } from "@/const/department";
-import { isOfficeInterviewFlow } from "@/const/flow";
+import {
+  flowNeedsPortfolio,
+  isOfficeInterviewFlow,
+  isTechInterviewFlow,
+} from "@/const/flow";
+import dayjs from "@/lib/dayjs";
 
 const statusIcons = {
   pending: CircleDashed,
@@ -56,23 +60,22 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
   const activeStepOrder = activeStep?.order ?? 0;
   const resultPublished = safeFlow.publicationStatus === "published";
   const isOfficeFlow = isOfficeInterviewFlow(safeFlow.flowType ?? "");
+  const isTechFlow = isTechInterviewFlow(safeFlow.flowType ?? "");
+  const needsPortfolio = flowNeedsPortfolio(safeFlow.flowType ?? "");
   /* user_flow.round 表示候选人当前所处的面试阶段：1=一面，2=二面 */
   const stageLabel =
     safeFlow.round === 1 ? "一面" : safeFlow.round === 2 ? "二面" : "";
   const slotOptions = Array.isArray(safeFlow.slotOptions) ? safeFlow.slotOptions : [];
   const pendingSlotChange = safeFlow.pendingSlotChange ?? null;
+  const interviewSchedule = safeFlow.interviewSchedule ?? null;
   const registrationEditable =
     safeFlow.status === "not_started" || safeFlow.status === "ongoing";
-  /* 只有办公类面试、且流程配置了时段，候选人才需要改时段入口 */
+  /* 办公类按流程配置的时段申请改时段；技术部门按已预约的飞书日程申请改时间 */
   const canRequestSlotChange =
-    isOfficeFlow &&
     typeof safeFlow.id === "number" &&
-    slotOptions.length > 0 &&
+    ((isOfficeFlow && slotOptions.length > 0) ||
+      (isTechFlow && !!interviewSchedule)) &&
     (registrationEditable || !!pendingSlotChange);
-  const secondChoiceDepartment = safeFlow.secondChoiceDepartment;
-  const secondChoiceLabel = secondChoiceDepartment
-    ? (DEPARTMENT_LABELS[secondChoiceDepartment] ?? secondChoiceDepartment)
-    : "";
   const visibleStatus = resultPublished
     ? safeFlow.status
     : safeFlow.status === "passed" || safeFlow.status === "failed"
@@ -114,19 +117,39 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
         </div>
       </CardHeader>
       <CardContent>
-        {isOfficeFlow && (
+        {(isOfficeFlow || isTechFlow) && (
           <div className="mt-1 space-y-1 text-sm text-muted-foreground">
-            {stageLabel && <p>当前阶段：{stageLabel}</p>}
-            {safeFlow.interviewSlot && <p>面试时段：{safeFlow.interviewSlot}</p>}
-            {secondChoiceLabel && <p>第二志愿部门：{secondChoiceLabel}</p>}
+            {isOfficeFlow && stageLabel && <p>当前阶段：{stageLabel}</p>}
+            {isOfficeFlow &&
+              (safeFlow.choice === 1 || safeFlow.choice === 2) && (
+                <p>
+                  志愿：{safeFlow.choice === 1 ? "第一志愿" : "第二志愿"}
+                </p>
+              )}
+            {isOfficeFlow && safeFlow.interviewSlot && (
+              <p>面试时段：{safeFlow.interviewSlot}</p>
+            )}
+            {isTechFlow && interviewSchedule && (
+              <p>
+                面试时间：
+                {dayjs(interviewSchedule.startsAt).format("YYYY-MM-DD HH:mm")} -{" "}
+                {dayjs(interviewSchedule.endsAt).format("HH:mm")}
+                {interviewSchedule.location
+                  ? ` · ${interviewSchedule.location}`
+                  : ""}
+              </p>
+            )}
           </div>
         )}
         {canRequestSlotChange && typeof safeFlow.id === "number" && (
           <SlotChangeRequest
             userFlowId={safeFlow.id}
+            flowType={safeFlow.flowType ?? ""}
             currentSlot={safeFlow.interviewSlot ?? null}
+            currentStartsAt={interviewSchedule?.startsAt ?? null}
+            currentEndsAt={interviewSchedule?.endsAt ?? null}
             slotOptions={slotOptions}
-            pendingRequestedSlot={pendingSlotChange?.requestedSlot ?? null}
+            pending={pendingSlotChange}
             editable={registrationEditable}
           />
         )}
@@ -233,23 +256,21 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
               </div>
             )}
         </div>
-        {typeof safeFlow.id === "number" &&
-          safeFlow.flowType &&
-          safeFlow.flowType !== "recruitment" && (
-            <div className="mt-4">
-              <PortfolioLinkEditor
-                userFlowId={safeFlow.id}
-                initialValue={safeFlow.portfolioLink}
-                initialDescription={safeFlow.portfolioDescription}
-                applyGroup={safeFlow.applyGroup}
-                applyGroupOptions={safeFlow.groupOptions}
-                editable={
-                  safeFlow.status === "not_started" ||
-                  safeFlow.status === "ongoing"
-                }
-              />
-            </div>
-          )}
+        {typeof safeFlow.id === "number" && needsPortfolio && (
+          <div className="mt-4">
+            <PortfolioLinkEditor
+              userFlowId={safeFlow.id}
+              initialValue={safeFlow.portfolioLink}
+              initialDescription={safeFlow.portfolioDescription}
+              applyGroup={safeFlow.applyGroup}
+              applyGroupOptions={safeFlow.groupOptions}
+              editable={
+                safeFlow.status === "not_started" ||
+                safeFlow.status === "ongoing"
+              }
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

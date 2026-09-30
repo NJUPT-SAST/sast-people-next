@@ -29,7 +29,7 @@ const resultFlowTypes = [
   OFFICE_INTERVIEW_FLOW_TYPE,
 ] as const;
 
-/* 邮件批次归属于流程：只有流程归属部门、管理员或办公类共享流程的办公部门可以创建 / 发送 */
+/* 邮件批次归属于流程：只有流程归属部门或管理员可以创建 / 发送 */
 async function assertFlowEmailEditable(scope: DepartmentScope, flowId: number) {
   const [sourceFlow] = await db
     .select({ type: flow.type, department: flow.department })
@@ -91,7 +91,7 @@ export async function listEmailFlowTargets() {
   }));
 
   return Promise.all(flows.map(async (item) => {
-    /* 办公类共享流程发布的是二轮（最终）结果，模板与变量按二轮解析 */
+    /* 办公类流程发布的是二轮（最终）结果，模板与变量按二轮解析 */
     const resultRound = isOfficeInterviewFlow(item.type) ? 2 : null;
     const acceptedTemplateKey = getResultEmailTemplateKey(item.type, true, resultRound);
     const rejectedTemplateKey = getResultEmailTemplateKey(item.type, false, resultRound);

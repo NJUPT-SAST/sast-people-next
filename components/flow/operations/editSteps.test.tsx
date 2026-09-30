@@ -184,7 +184,7 @@ describe("EditSteps", () => {
     });
   });
 
-  it("saves a shared office flow's groups as departments without a round or owning department", async () => {
+  it("saves an office flow's owning department and slots without group mapping", async () => {
     const user = userEvent.setup();
 
     render(
@@ -192,11 +192,9 @@ describe("EditSteps", () => {
         data={{
           id: 7,
           title: "办公类部门面试招新",
-          description: "所有办公部门共用",
+          description: "办公室面试",
           type: "office_interview",
-          department: null,
-          groupOptions: ["办公室", "科宣部"],
-          groupDepartments: { 办公室: "office", 科宣部: "publicity" },
+          department: "office",
           slotOptions: [{ label: "13:00-14:00" }],
           startedAt: new Date("2026-03-22T08:00:00.000Z"),
           endedAt: new Date("2026-03-22T18:00:00.000Z"),
@@ -204,10 +202,12 @@ describe("EditSteps", () => {
       />,
     );
 
-    expect(screen.queryByText("面试轮次")).not.toBeInTheDocument();
-    /* 办公部门配置即投递组别，组别映射与时段照常可编辑 */
-    expect(screen.getAllByText("科宣部").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("13:00-14:00").length).toBeGreaterThan(0);
+    /* 新模型：办公类流程按归属部门隔离，不再有可投递部门与映射配置 */
+    expect(screen.queryByText("投递组别选项")).not.toBeInTheDocument();
+    expect(screen.queryByText("组别 → 部门")).not.toBeInTheDocument();
+    expect(screen.getByText("归属部门")).toBeInTheDocument();
+    expect(screen.getByText("办公室")).toBeInTheDocument();
+    expect(screen.getByLabelText("面试时段")).toHaveValue("13:00-14:00");
 
     await user.click(screen.getByRole("button", { name: "保存流程信息" }));
 
@@ -215,9 +215,8 @@ describe("EditSteps", () => {
       expect(mockUpdateFlow).toHaveBeenCalledWith(
         7,
         expect.objectContaining({
-          groupOptions: ["办公室", "科宣部"],
-          groupDepartments: { 办公室: "office", 科宣部: "publicity" },
-          department: null,
+          department: "office",
+          slotOptions: [{ label: "13:00-14:00" }],
         }),
       );
     });

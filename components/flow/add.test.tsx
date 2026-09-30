@@ -133,7 +133,57 @@ describe("AddFlow", () => {
     });
   });
 
-  it("creates a shared office flow with department groups instead of a round", async () => {
+  it("labels flow types with the session department", async () => {
+    const user = userEvent.setup();
+
+    render(<AddFlow department="media" />);
+
+    await user.click(screen.getByRole("button", { name: "添加流程" }));
+
+    expect(
+      screen.getByRole("button", { name: "多媒体部笔试" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "多媒体部免试" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "多媒体部WOD" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "多媒体部SOD" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "WOC/WOD" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("follows the department picked by the admin", async () => {
+    const user = userEvent.setup();
+
+    render(<AddFlow canChooseDepartment />);
+
+    await user.click(screen.getByRole("button", { name: "添加流程" }));
+
+    /* 未选归属部门时回落到通用名称 */
+    expect(screen.getByRole("button", { name: "WOC" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "软件研发部WOC" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "软件研发部" }));
+
+    expect(
+      screen.getByRole("button", { name: "软件研发部笔试" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "软件研发部WOC" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "WOC" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("creates an office flow for a department with interview slots", async () => {
     const user = userEvent.setup();
 
     render(<AddFlow canChooseDepartment />);
@@ -145,27 +195,20 @@ describe("AddFlow", () => {
     );
     await user.type(
       screen.getByPlaceholderText("填写展示的流程描述"),
-      "所有办公部门共用一条流程",
+      "办公室面试招新",
     );
 
     await user.click(
       screen.getByRole("button", { name: "办公类部门面试招新" }),
     );
 
-    /* 空模型：不再有面试轮次，共享流程也没有归属部门 */
-    expect(screen.queryByText("面试轮次")).not.toBeInTheDocument();
-    expect(screen.queryByText("归属部门")).not.toBeInTheDocument();
+    /* 新模型：每个办公部门一条流程，不再有可投递的办公部门列表与映射 */
+    expect(screen.queryByText("可投递的办公部门")).not.toBeInTheDocument();
+    expect(screen.queryByText("办公部门 → 部门标识")).not.toBeInTheDocument();
 
-    await user.type(
-      screen.getByPlaceholderText(/每行一个办公部门/),
-      "办公室\n科宣部",
-    );
-    const departmentOptionButtons = screen.getAllByRole("button", {
-      name: "办公室",
-    });
-    /* 组别映射每个组别一个部门下拉，选项按钮按行依次出现 */
-    await user.click(departmentOptionButtons[0]);
-    await user.click(screen.getAllByRole("button", { name: "科宣部" })[1]);
+    /* 归属部门与其它流程一致：管理员选择部门（办公类不提供“全局流程”） */
+    expect(screen.queryByRole("button", { name: /全局流程/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "办公室" }));
     await user.type(screen.getByLabelText("面试时段"), "13:00-14:00");
 
     const inputs = screen.getAllByLabelText("datetime");
@@ -177,10 +220,8 @@ describe("AddFlow", () => {
       expect(mockAddFlow).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "office_interview",
-          groupOptions: ["办公室", "科宣部"],
-          groupDepartments: { 办公室: "office", 科宣部: "publicity" },
+          department: "office",
           slotOptions: [{ label: "13:00-14:00" }],
-          department: null,
         }),
       );
     });

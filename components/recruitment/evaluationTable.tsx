@@ -130,6 +130,10 @@ type Candidate = {
   applyGroup: string | null;
   /* 候选人归属部门（Link 部门标识），由服务端按可见范围过滤 */
   department?: string | null;
+  /* 候选人的志愿类型：1=第一志愿，2=第二志愿（办公类流程，服务端返回 user_flow.choice） */
+  choice?: number | null;
+  /* 同一位候选人另一条办公类报名所属部门（Link 部门标识）；技术流程不收集，恒为 NULL */
+  siblingDepartment?: string | null;
   evalId: number | null;
   evalContent: string | null;
   evalScore?: number | null;
@@ -403,6 +407,34 @@ const PortfolioLink = ({
   );
 };
 
+/* 办公类流程的志愿口径：本流程的候选人报的都是本部门，志愿由 user_flow.choice 决定 */
+const CHOICE_LABELS: Record<number, string> = {
+  1: "第一志愿",
+  2: "第二志愿",
+};
+
+const ChoiceText = ({ choice }: { choice?: number | null }) =>
+  choice && CHOICE_LABELS[choice] ? (
+    <span className="truncate text-sm text-foreground/85">
+      {CHOICE_LABELS[choice]}
+    </span>
+  ) : (
+    <span className="text-sm text-muted-foreground">未填写</span>
+  );
+
+/* 另一志愿部门：候选人的另一条办公类报名所属部门，空值明确标注未填写 */
+const SiblingDepartmentText = ({ value }: { value?: string | null }) =>
+  value ? (
+    <span
+      className="truncate text-sm text-foreground/85"
+      title={departmentLabel(value)}
+    >
+      {departmentLabel(value)}
+    </span>
+  ) : (
+    <span className="text-sm text-muted-foreground">未填写</span>
+  );
+
 const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
   const status = getInterviewStatus(candidate);
   const meta = interviewStatusMeta[status];
@@ -483,7 +515,7 @@ const ScoreCell = ({ candidate }: { candidate: Candidate }) => {
             >
               <div className="flex items-center justify-between gap-2 text-xs">
                 <span className="min-w-0 truncate font-medium text-foreground">
-                  {evaluation.authorName ?? "未知讲师"}
+                  {evaluation.authorName ?? "未知面试官"}
                   {evaluation.isMine && (
                     <span className="text-muted-foreground">（我）</span>
                   )}
@@ -833,6 +865,8 @@ export const EvaluationTable = ({
   const [groupSaving, setGroupSaving] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [applyGroupFilter, setApplyGroupFilter] = useState<string | null>(null);
+  /* 办公类按志愿筛选：1=第一志愿，2=第二志愿 */
+  const [choiceFilter, setChoiceFilter] = useState<1 | 2 | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<InterviewStatusKey | "mine" | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
@@ -841,6 +875,8 @@ export const EvaluationTable = ({
   });
   const safeGroupOptions = Array.isArray(groupOptions) ? groupOptions : [];
   const groupOptionsKey = safeGroupOptions.join("\u0000");
+  /* 办公类部门没有讲师这一级：面评文案随流程切换 */
+  const reviewerLabel = scoringEnabled ? "部长" : "讲师";
 
   useEffect(() => {
     // Drop the filter only when the selected group is gone, so a stale value
@@ -941,7 +977,9 @@ export const EvaluationTable = ({
     setReturnError(null);
   };
 
-  const canEditApplyGroup = role >= 2 && groupOptions.length > 0;
+  /* 办公类流程的部门由流程本身决定，没有可编辑的投递组别 */
+  const canEditApplyGroup =
+    !scoringEnabled && role >= 2 && groupOptions.length > 0;
 
   const startGroupEdit = (c: Candidate) => {
     setGroupEditingCandidate(c);
@@ -1221,19 +1259,23 @@ export const EvaluationTable = ({
     );
   }, [safeCandidates, search]);
 
-  const groupScoped = useMemo(
-    () =>
-      applyGroupFilter
-        ? searched.filter((candidate) => candidate.applyGroup === applyGroupFilter)
-        : searched,
-    [searched, applyGroupFilter],
-  );
+  /* 办公类按志愿收敛，技术流程按投递组别收敛 */
+  const scopeFiltered = useMemo(() => {
+    if (scoringEnabled) {
+      return choiceFilter
+        ? searched.filter((candidate) => candidate.choice === choiceFilter)
+        : searched;
+    }
+    return applyGroupFilter
+      ? searched.filter((candidate) => candidate.applyGroup === applyGroupFilter)
+      : searched;
+  }, [searched, scoringEnabled, choiceFilter, applyGroupFilter]);
 
   // Counts describe the search + group scope but ignore the status filter, so
   // selecting a status chip cannot make every other chip read zero.
   const statusCounts = useMemo(
-    () => countInterviewStatuses(groupScoped),
-    [groupScoped],
+    () => countInterviewStatuses(scopeFiltered),
+    [scopeFiltered],
   );
 
   // The action column only exists for role >= 2, so a lower role must not see
@@ -1244,8 +1286,8 @@ export const EvaluationTable = ({
   );
 
   const mineCount = useMemo(
-    () => groupScoped.filter(isMine).length,
-    [groupScoped, isMine],
+    () => scopeFiltered.filter(isMine).length,
+    [scopeFiltered, isMine],
   );
 
   const statusFilterOptions = useMemo(
@@ -1258,7 +1300,7 @@ export const EvaluationTable = ({
   );
 
   const visibleCandidates = useMemo(() => {
-    let rows = groupScoped;
+    let rows = scopeFiltered;
     if (statusFilter === "mine") {
       rows = rows.filter(isMine);
     } else if (statusFilter) {
@@ -1311,7 +1353,7 @@ export const EvaluationTable = ({
       return compare(a, b) * direction || byStudentId(a, b);
     });
     return sorted;
-  }, [groupScoped, statusFilter, sort, isMine]);
+  }, [scopeFiltered, statusFilter, sort, isMine]);
 
   const toggleSort = (key: SortKey) => {
     setSort((current) =>
@@ -1378,11 +1420,13 @@ export const EvaluationTable = ({
   const hasActiveFilter =
     Boolean(search.trim()) ||
     Boolean(applyGroupFilter) ||
+    Boolean(choiceFilter) ||
     Boolean(statusFilter);
 
   const clearFilters = () => {
     setSearch("");
     setApplyGroupFilter(null);
+    setChoiceFilter(null);
     setStatusFilter(null);
   };
 
@@ -1431,7 +1475,27 @@ export const EvaluationTable = ({
               }}
               className="h-9 min-w-0 flex-1 sm:w-[13rem] sm:flex-none"
             />
-            {safeGroupOptions.length > 0 && (
+            {scoringEnabled ? (
+              <Select
+                value={choiceFilter ? String(choiceFilter) : "all"}
+                onValueChange={(value) => {
+                  setChoiceFilter(value === "all" ? null : (Number(value) as 1 | 2));
+                }}
+              >
+                <SelectTrigger
+                  className="h-9 w-full min-w-0 truncate text-xs sm:w-[8.5rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                  aria-label="按志愿筛选候选人"
+                  title={choiceFilter ? CHOICE_LABELS[choiceFilter] : "全部志愿"}
+                >
+                  <SelectValue placeholder="全部志愿" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部志愿</SelectItem>
+                  <SelectItem value="1">第一志愿</SelectItem>
+                  <SelectItem value="2">第二志愿</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : safeGroupOptions.length > 0 ? (
               <Select
                 value={applyGroupFilter ?? "all"}
                 onValueChange={(value) => {
@@ -1454,7 +1518,7 @@ export const EvaluationTable = ({
                   ))}
                 </SelectContent>
               </Select>
-            )}
+            ) : null}
           </div>
 
           {/* Hidden while loading: the rows still belong to the previous flow,
@@ -1533,8 +1597,17 @@ export const EvaluationTable = ({
                   scoringEnabled ? "w-[18%]" : "w-[19%]",
                 ),
               )}
-              <TableHead className={cn("h-10 px-3 text-xs font-medium text-muted-foreground", scoringEnabled ? "w-[11%]" : "w-[12%]")}>投递组别</TableHead>
-              <TableHead className={cn("h-10 px-3 text-xs font-medium text-muted-foreground", scoringEnabled ? "w-[13%]" : "w-[15%]")}>作品</TableHead>
+              {scoringEnabled ? (
+                <>
+                  <TableHead className="h-10 w-[11%] px-3 text-xs font-medium text-muted-foreground">志愿</TableHead>
+                  <TableHead className="h-10 w-[13%] px-3 text-xs font-medium text-muted-foreground">另一志愿部门</TableHead>
+                </>
+              ) : (
+                <>
+                  <TableHead className="h-10 w-[12%] px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
+                  <TableHead className="h-10 w-[15%] px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
+                </>
+              )}
               {renderSortableHead(
                 scoringEnabled ? "面试时段" : "面试安排",
                 "schedule",
@@ -1624,26 +1697,39 @@ export const EvaluationTable = ({
                       role={role}
                     />
                   </TableCell>
-                  <TableCell className="px-3 py-2 align-middle">
-                    <div className="min-w-0">
-                      <ApplyGroupText
-                        value={c.applyGroup}
-                        editable={canEditApplyGroup}
-                        onEdit={() => startGroupEdit(c)}
-                        editLabel={`修改${c.name}的投递组别`}
-                      />
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground" title="投递部门">
-                        {departmentLabel(c.department)}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2 align-middle">
-                    <PortfolioLink
-                      value={c.portfolioLink}
-                      description={c.portfolioDescription}
-                      onOpen={() => setPortfolioCandidate(c)}
-                    />
-                  </TableCell>
+                  {scoringEnabled ? (
+                    <>
+                      <TableCell className="px-3 py-2 align-middle">
+                        <ChoiceText choice={c.choice} />
+                      </TableCell>
+                      <TableCell className="px-3 py-2 align-middle">
+                        <SiblingDepartmentText value={c.siblingDepartment} />
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell className="px-3 py-2 align-middle">
+                        <div className="min-w-0">
+                          <ApplyGroupText
+                            value={c.applyGroup}
+                            editable={canEditApplyGroup}
+                            onEdit={() => startGroupEdit(c)}
+                            editLabel={`修改${c.name}的投递组别`}
+                          />
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground" title="投递部门">
+                            {departmentLabel(c.department)}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-3 py-2 align-middle">
+                        <PortfolioLink
+                          value={c.portfolioLink}
+                          description={c.portfolioDescription}
+                          onOpen={() => setPortfolioCandidate(c)}
+                        />
+                      </TableCell>
+                    </>
+                  )}
                   <TableCell className="px-3 py-2 align-middle">
                     {/* A fixed content height keeps rows uniform: an unbooked
                         candidate is one line where a booked one is two, and the
@@ -1752,23 +1838,41 @@ export const EvaluationTable = ({
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <ApplyGroupText
-                    value={c.applyGroup}
-                    editable={canEditApplyGroup}
-                    onEdit={() => startGroupEdit(c)}
-                    editLabel={`修改${c.name}的投递组别`}
-                  />
-                  <span className="truncate text-xs text-muted-foreground" title="投递部门">
-                    {departmentLabel(c.department)}
-                  </span>
-                  <span className="text-muted-foreground/40" aria-hidden="true">
-                    ·
-                  </span>
-                  <PortfolioLink
-                    value={c.portfolioLink}
-                    description={c.portfolioDescription}
-                    onOpen={() => setPortfolioCandidate(c)}
-                  />
+                  {scoringEnabled ? (
+                    <>
+                      <span className="inline-flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 text-xs text-muted-foreground">志愿</span>
+                        <ChoiceText choice={c.choice} />
+                      </span>
+                      <span className="text-muted-foreground/40" aria-hidden="true">
+                        ·
+                      </span>
+                      <span className="inline-flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 text-xs text-muted-foreground">另一志愿部门</span>
+                        <SiblingDepartmentText value={c.siblingDepartment} />
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ApplyGroupText
+                        value={c.applyGroup}
+                        editable={canEditApplyGroup}
+                        onEdit={() => startGroupEdit(c)}
+                        editLabel={`修改${c.name}的投递组别`}
+                      />
+                      <span className="truncate text-xs text-muted-foreground" title="投递部门">
+                        {departmentLabel(c.department)}
+                      </span>
+                      <span className="text-muted-foreground/40" aria-hidden="true">
+                        ·
+                      </span>
+                      <PortfolioLink
+                        value={c.portfolioLink}
+                        description={c.portfolioDescription}
+                        onOpen={() => setPortfolioCandidate(c)}
+                      />
+                    </>
+                  )}
                 </div>
                 <ScheduleInfo
                   candidate={c}
@@ -1798,8 +1902,9 @@ export const EvaluationTable = ({
         )}
       </div>
 
+      {/* 办公类流程不收集作品：列表没有入口，也直接关掉弹窗 */}
       <Dialog
-        open={Boolean(portfolioCandidate)}
+        open={!scoringEnabled && Boolean(portfolioCandidate)}
         onOpenChange={(open) => {
           if (!open) setPortfolioCandidate(null);
         }}
@@ -1877,7 +1982,7 @@ export const EvaluationTable = ({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            {editingCandidate && (
+            {editingCandidate && !scoringEnabled && (
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="mb-1 text-xs text-muted-foreground">作品链接</p>
                 <PortfolioDetails
@@ -1950,13 +2055,13 @@ export const EvaluationTable = ({
                   </p>
                 )}
                 <p className="text-xs leading-5 text-muted-foreground">
-                  分数为该讲师的面试评分，最终结果取各讲师已提交分数的平均分。
+                  分数为该{reviewerLabel}的面试评分，最终结果取各{reviewerLabel}已提交分数的平均分。
                 </p>
               </div>
             )}
             <div className="space-y-2">
-              <label className="text-sm font-medium">讲师建议</label>
-              <div className="grid grid-cols-2 gap-2" role="group" aria-label="讲师建议">
+              <label className="text-sm font-medium">{reviewerLabel}建议</label>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label={`${reviewerLabel}建议`}>
                 <Button
                   type="button"
                   variant={recommendation === "passed" ? "default" : "outline"}
@@ -1975,7 +2080,7 @@ export const EvaluationTable = ({
                 </Button>
               </div>
               <p className="text-xs leading-5 text-muted-foreground">
-                此为讲师意见，最终结果由管理员结合面评审核决定。
+                此为{reviewerLabel}意见，最终结果由管理员结合面评审核决定。
               </p>
             </div>
             <div className="space-y-2">

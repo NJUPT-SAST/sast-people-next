@@ -89,4 +89,18 @@ describe("buildFeishuApprovalCard", () => {
       sendFeishuCardMessage.mock.calls[1][0].uuid,
     );
   });
+
+  it("calls the office flow reviewer 部长 in the card", () => {
+    const card = buildFeishuApprovalCard({
+      ...context,
+      flowType: "office_interview",
+    });
+    const rendered = JSON.stringify(card);
+
+    // 办公类部门没有讲师这一级：卡片字段与建议文案都改成部长。
+    expect(rendered).toContain("面评部长");
+    expect(rendered).toContain("部长建议：通过");
+    expect(rendered).not.toContain("面评讲师");
+    expect(rendered).not.toContain("讲师建议");
+  });
 });

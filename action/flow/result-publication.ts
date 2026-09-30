@@ -7,12 +7,12 @@ import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
 import { assertFlowEditableRecord, canEditFlowRecord } from "@/lib/flow-access";
-import { isOfficeInterviewFlow } from "@/const/flow";
+import { isOfficeInterviewFlow, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { syncUserIdentityFromAcceptedFlows } from "@/action/user-flow/roleTransition";
 import { getResultEmailTemplateKey } from "@/lib/email/result-email";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const terminalStatuses = new Set(["passed", "failed", "withdrawn"]);
@@ -25,9 +25,19 @@ type ResultSnapshotRow = {
   applyGroup: string | null;
   status: string;
   department: string | null;
+  /* 办公类部门面试：志愿类型与部长团评议的最终去向 */
+  choice: number | null;
+  finalDepartment: string | null;
+  /** 该候选人在办公类各流程的报名（用于最终去向选择） */
+  officeChoices: Array<{
+    userFlowId: number;
+    choice: number | null;
+    department: string | null;
+    flowTitle: string;
+  }>;
 };
 
-async function getFlowRows(flowId: number) {
+async function getFlowRows(flowId: number, flowType: string) {
   const rows = await db
     .select({
       userFlowId: userFlow.id,
@@ -35,10 +45,52 @@ async function getFlowRows(flowId: number) {
       applyGroup: userFlow.applyGroup,
       status: userFlow.progressStatus,
       department: userFlow.department,
+      choice: userFlow.choice,
+      finalDepartment: userFlow.finalDepartment,
     })
     .from(userFlow)
     .where(eq(userFlow.fkFlowId, flowId));
   const users = await listPeopleUsersByLinkIds(rows.map((row) => row.userId));
+
+  /* 办公类：补充该候选人两个志愿部门的报名信息，供发布前设置最终去向 */
+  const officeChoicesByUser = new Map<
+    number,
+    ResultSnapshotRow["officeChoices"]
+  >();
+  if (isOfficeInterviewFlow(flowType) && rows.length > 0) {
+    const officeRows = await db
+      .select({
+        userFlowId: userFlow.id,
+        userId: userFlow.fkUserId,
+        choice: userFlow.choice,
+        rowDepartment: userFlow.department,
+        flowDepartment: flow.department,
+        flowTitle: flow.title,
+      })
+      .from(userFlow)
+      .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+      .where(
+        and(
+          inArray(userFlow.fkUserId, rows.map((row) => row.userId)),
+          eq(flow.type, OFFICE_INTERVIEW_FLOW_TYPE),
+          eq(flow.isDeleted, false),
+        ),
+      );
+    for (const officeRow of officeRows) {
+      const list = officeChoicesByUser.get(officeRow.userId) ?? [];
+      list.push({
+        userFlowId: officeRow.userFlowId,
+        choice: officeRow.choice,
+        department: officeRow.flowDepartment ?? officeRow.rowDepartment,
+        flowTitle: officeRow.flowTitle,
+      });
+      officeChoicesByUser.set(officeRow.userId, list);
+    }
+    for (const list of officeChoicesByUser.values()) {
+      list.sort((a, b) => (a.choice ?? 9) - (b.choice ?? 9));
+    }
+  }
+
   return rows.map<ResultSnapshotRow>((row) => {
     const user = users.get(row.userId);
     return {
@@ -49,6 +101,9 @@ async function getFlowRows(flowId: number) {
       applyGroup: row.applyGroup ?? null,
       status: row.status ?? "not_started",
       department: row.department ?? null,
+      choice: row.choice ?? null,
+      finalDepartment: row.finalDepartment ?? null,
+      officeChoices: officeChoicesByUser.get(row.userId) ?? [],
     };
   });
 }
@@ -61,9 +116,9 @@ export async function getFlowResultPublicationSummary(flowId: number) {
   ]);
   if (!flowRow[0]) throw new Error("流程不存在");
   assertFlowEditableRecord(session.scope, flowRow[0]);
-  /* 办公类共享流程一次性发布的是二轮（最终）结果，模板按二轮解析；其他流程类型不区分轮次 */
+  /* 办公类流程一次性发布的是二轮（最终）结果，模板按二轮解析；其他流程类型不区分轮次 */
   const resultRound = isOfficeInterviewFlow(flowRow[0].type) ? 2 : null;
-  const rows = await getFlowRows(flowId);
+  const rows = await getFlowRows(flowId, flowRow[0].type);
   const accepted = rows.filter((row) => row.status === "passed").length;
   const rejected = rows.filter((row) => row.status === "failed").length;
   const withdrawn = rows.filter((row) => row.status === "withdrawn").length;
@@ -74,6 +129,7 @@ export async function getFlowResultPublicationSummary(flowId: number) {
   ]);
   return {
     flow: flowRow[0],
+    isOfficeFlow: isOfficeInterviewFlow(flowRow[0].type),
     rows,
     counts: { total: rows.length, accepted, rejected, withdrawn, unfinished },
     publication: publication[0] ?? null,
@@ -105,7 +161,7 @@ export async function publishFlowResults(
   if (summary.publication?.status === "published") throw new Error("该流程结果已经发布");
   if (summary.counts.unfinished > 0) throw new Error(`还有 ${summary.counts.unfinished} 名候选人没有最终结果，暂不能发布`);
 
-  const rows = await getFlowRows(flowId);
+  const rows = await getFlowRows(flowId, summary.flow.type);
   const selectableUserFlowIds = new Set(
     rows
       .filter((row) => row.status === "passed" || row.status === "failed")

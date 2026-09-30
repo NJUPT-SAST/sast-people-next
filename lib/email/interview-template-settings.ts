@@ -16,15 +16,34 @@ export const interviewScheduleTemplateKeys = {
   created: "interview.schedule.created",
   rescheduled: "interview.schedule.rescheduled",
   cancelled: "interview.schedule.cancelled",
+  changeRejected: "interview.schedule.change.rejected",
 } as const;
 
 export const INTERVIEW_WITHDRAWAL_TEMPLATE_KEY = "interview.application.withdrawn";
 
+/** 邮件模板对应的文案形态（kind），与模板 key 的字段名解耦 */
+export const interviewScheduleEmailKinds = {
+  created: "created",
+  rescheduled: "rescheduled",
+  cancelled: "cancelled",
+  changeRejected: "change_rejected",
+} as const;
+
 export type InterviewScheduleEmailKind =
-  keyof typeof interviewScheduleTemplateKeys;
+  (typeof interviewScheduleEmailKinds)[keyof typeof interviewScheduleEmailKinds];
 
 export type InterviewScheduleTemplateKey =
-  (typeof interviewScheduleTemplateKeys)[InterviewScheduleEmailKind];
+  (typeof interviewScheduleTemplateKeys)[keyof typeof interviewScheduleTemplateKeys];
+
+const templateKeyByEmailKind: Record<
+  InterviewScheduleEmailKind,
+  InterviewScheduleTemplateKey
+> = {
+  created: interviewScheduleTemplateKeys.created,
+  rescheduled: interviewScheduleTemplateKeys.rescheduled,
+  cancelled: interviewScheduleTemplateKeys.cancelled,
+  change_rejected: interviewScheduleTemplateKeys.changeRejected,
+};
 
 export type InterviewScheduleTemplateSetting = {
   templateKey: string;
@@ -108,6 +127,14 @@ export const defaultInterviewScheduleTemplateSettings: Record<
       "{candidateName} 同学，你的 {flowName} 面试预约已取消，后续安排请关注新的通知。",
     footerText: "南京邮电大学大学生科学技术协会",
   },
+  "interview.schedule.change.rejected": {
+    templateKey: "interview.schedule.change.rejected",
+    subjectTemplate: "{flowName} 面试改期未通过通知",
+    titleTemplate: "改期申请未通过",
+    bodyTemplate:
+      "{candidateName} 同学，你好。你申请的 {flowName} 面试时间修改未通过，面试仍按原安排进行。",
+    footerText: "南京邮电大学大学生科学技术协会",
+  },
 };
 
 export const defaultInterviewScheduleTemplateSetting =
@@ -120,6 +147,8 @@ export const interviewScheduleTemplateVariables = [
   "startsAt",
   "endsAt",
   "location",
+  "requestedTimeText",
+  "reason",
 ] as const;
 
 /** email_template_content 里可能出现的面试模板 key（含历史 legacy key） */
@@ -135,7 +164,7 @@ type TemplateContentRow = {
 };
 
 function getTemplateKeyByKind(kind: InterviewScheduleEmailKind) {
-  return interviewScheduleTemplateKeys[kind];
+  return templateKeyByEmailKind[kind];
 }
 
 /** legacy `interview.schedule` 只作为 created 模板的旧存储位置回退 */
@@ -169,6 +198,9 @@ export function getInterviewScheduleEmailKindByTemplateKey(
   }
   if (templateKey === interviewScheduleTemplateKeys.cancelled) {
     return "cancelled";
+  }
+  if (templateKey === interviewScheduleTemplateKeys.changeRejected) {
+    return "change_rejected";
   }
   return "created";
 }

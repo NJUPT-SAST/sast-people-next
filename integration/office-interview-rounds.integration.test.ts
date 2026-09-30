@@ -51,33 +51,68 @@ import {
 } from "@/action/user-flow/evaluation";
 import {
   listPendingSlotChangeRequests,
-  listSecondChoiceCandidates,
   reviewInterviewSlotChange,
-} from "@/action/user-flow/office-interview";
+} from "@/action/user-flow/interview-slot-change";
 
-/* 办公类共享流程：写面评/审批的账号属于办公类部门 publicity，候选人的第一志愿是办公部门 office。
-   集成测试直连本地 dev 数据库（docker compose -f docker-compose.dev.yml up -d）。 */
+/* 办公类部门面试招新：每个办公部门一条流程（flow.department = 办公部门）。
+   审批账号属于办公部门 publicity（role 3），只能操作本部门流程的候选人。 */
 const VIEWER_ID = 900991;
 const CANDIDATE_ID = 900992;
 
+/* VIEWER 本部门的流程（publicity） */
 let flowId = 0;
+/* 另一个办公部门的流程（office）：用于验证部门隔离 */
+let officeFlowId = 0;
 let userFlowId = 0;
 let secondUserFlowId = 0;
+let officeUserFlowId = 0;
 const stepIdByOrder = new Map<number, number>();
 
-const insertCandidate = async (userId: number, round: number) => {
+const createOfficeFlow = async (title: string, department: string) => {
+  const [created] = await db
+    .insert(flow)
+    .values({
+      title,
+      type: "office_interview",
+      department,
+      ownerId: VIEWER_ID,
+      slotOptions: [{ label: "13:00-14:00" }, { label: "15:00-16:00" }],
+    })
+    .returning({ id: flow.id });
+
+  const steps = await db
+    .insert(flowStep)
+    .values([
+      { title: "报名", type: "registering" as const, order: 1, fkFlowId: created.id },
+      { title: "一面面试", type: "checking" as const, order: 2, fkFlowId: created.id },
+      { title: "二轮面试", type: "checking" as const, order: 3, fkFlowId: created.id },
+      { title: "结果确认", type: "finished" as const, order: 4, fkFlowId: created.id },
+    ])
+    .returning({ id: flowStep.id, order: flowStep.order });
+
+  return { flowId: created.id, steps };
+};
+
+const insertCandidate = async (
+  userId: number,
+  round: number,
+  targetFlowId: number,
+  stepId: number | null,
+  choice: number,
+  department: string,
+) => {
   const [row] = await db
     .insert(userFlow)
     .values({
-      fkFlowId: flowId,
+      fkFlowId: targetFlowId,
       fkUserId: userId,
       progressStatus: "ongoing",
-      department: "office",
+      department,
       applyGroup: "办公室",
-      secondChoiceDepartment: "publicity",
+      choice,
       round,
       interviewSlot: "13:00-14:00",
-      fkCurrentStepId: stepIdByOrder.get(2) ?? null,
+      fkCurrentStepId: stepId,
     })
     .returning({ id: userFlow.id });
   return row.id;
@@ -118,33 +153,38 @@ const readCandidate = async (id: number) => {
 };
 
 beforeAll(async () => {
-  const [created] = await db
-    .insert(flow)
-    .values({
-      title: "SMOKE-办公类共享流程",
-      type: "office_interview",
-      department: null,
-      ownerId: VIEWER_ID,
-      groupOptions: ["办公室"],
-      groupDepartments: { 办公室: "office" },
-      slotOptions: [{ label: "13:00-14:00" }, { label: "15:00-16:00" }],
-    })
-    .returning({ id: flow.id });
-  flowId = created.id;
+  const publicity = await createOfficeFlow("SMOKE-办公类流程-科宣部", "publicity");
+  flowId = publicity.flowId;
+  for (const step of publicity.steps) stepIdByOrder.set(step.order, step.id);
 
-  const steps = await db
-    .insert(flowStep)
-    .values([
-      { title: "报名", type: "registering" as const, order: 1, fkFlowId: flowId },
-      { title: "一面面试", type: "checking" as const, order: 2, fkFlowId: flowId },
-      { title: "二轮面试", type: "checking" as const, order: 3, fkFlowId: flowId },
-      { title: "结果确认", type: "finished" as const, order: 4, fkFlowId: flowId },
-    ])
-    .returning({ id: flowStep.id, order: flowStep.order });
-  for (const step of steps) stepIdByOrder.set(step.order, step.id);
+  const office = await createOfficeFlow("SMOKE-办公类流程-办公室", "office");
+  officeFlowId = office.flowId;
 
-  userFlowId = await insertCandidate(CANDIDATE_ID, 1);
-  secondUserFlowId = await insertCandidate(CANDIDATE_ID + 1, 2);
+  userFlowId = await insertCandidate(
+    CANDIDATE_ID,
+    1,
+    flowId,
+    stepIdByOrder.get(2) ?? null,
+    1,
+    "publicity",
+  );
+  secondUserFlowId = await insertCandidate(
+    CANDIDATE_ID + 1,
+    1,
+    flowId,
+    stepIdByOrder.get(2) ?? null,
+    1,
+    "publicity",
+  );
+  /* 同一候选人的第二志愿：另一个办公部门流程里的报名记录 */
+  officeUserFlowId = await insertCandidate(
+    CANDIDATE_ID,
+    1,
+    officeFlowId,
+    null,
+    2,
+    "office",
+  );
 });
 
 afterAll(async () => {
@@ -172,11 +212,11 @@ afterAll(async () => {
   await db.delete(flow).where(inArray(flow.id, flowIds));
 });
 
-describe("办公类共享流程的轮次推进", () => {
+describe("办公类部门流程的轮次推进", () => {
   let roundOneEvaluationId = 0;
   let roundTwoEvaluationId = 0;
 
-  it("办公类部门可以为其他部门第一志愿的候选人写面评，并记录当前轮次", async () => {
+  it("部长可以为本部门流程的候选人写面评，并记录当前轮次", async () => {
     const result = await createEvaluation(
       userFlowId,
       "一面表现不错，技术基础扎实，沟通表达清晰，建议进入二轮面试继续考察。",
@@ -249,6 +289,42 @@ describe("办公类共享流程的轮次推进", () => {
     );
   });
 
+  it("列表带出志愿顺序与另一条办公类报名的部门", async () => {
+    const candidates = await getEvaluationCandidates(flowId);
+    const target = candidates.find((candidate) => candidate.userFlowId === userFlowId);
+    if (!target) throw new Error("candidate missing");
+
+    /* 本部门流程里的报名是第一志愿，另一条办公类报名属于办公部门 office */
+    expect(target.choice).toBe(1);
+    expect(target.department).toBe("publicity");
+    expect(target.siblingDepartment).toBe("office");
+
+    const single = candidates.find(
+      (candidate) => candidate.userFlowId === secondUserFlowId,
+    );
+    expect(single?.siblingDepartment).toBeNull();
+  });
+
+  it("另一个办公部门的流程对本部门部长不可见", async () => {
+    expect(await getEvaluationCandidates(officeFlowId)).toEqual([]);
+
+    await expect(
+      createEvaluation(
+        officeUserFlowId,
+        "越权面评内容至少要有二十个字符才可以通过校验",
+        "failed",
+        undefined,
+        10,
+      ),
+    ).rejects.toThrow("无权操作其他部门的候选人");
+
+    const approvalRows = await getAllEvaluations();
+    expect(approvalRows.some((row) => row.department === "office")).toBe(false);
+    expect(
+      approvalRows.some((row) => row.evaluation.fkUserFlowId === userFlowId),
+    ).toBe(true);
+  });
+
   it("退回面评保持原行为，驳回则结果为不通过并进入结果确认", async () => {
     const revertible = await insertEvaluation(secondUserFlowId, 2, VIEWER_ID + 3);
     const returned = await returnEvaluation(revertible, "请补充细节");
@@ -270,7 +346,7 @@ describe("办公类共享流程的轮次推进", () => {
     expect(candidate.stepId).toBe(stepIdByOrder.get(4));
   });
 
-  it("办公类部门看不到非共享流程的候选人", async () => {
+  it("看不到非办公类流程的候选人", async () => {
     const [otherFlow] = await db
       .insert(flow)
       .values({
@@ -325,7 +401,7 @@ describe("办公类共享流程的轮次推进", () => {
     ).toBe(true);
   });
 
-  it("办公类部门能看到并审批共享流程的改时段申请", async () => {
+  it("部长能看到并审批本部门流程的改时段申请", async () => {
     const [request] = await db
       .insert(interviewSlotChangeRequest)
       .values({
@@ -348,11 +424,5 @@ describe("办公类共享流程的轮次推进", () => {
       .where(eq(userFlow.id, userFlowId))
       .limit(1);
     expect(candidate.slot).toBe("15:00-16:00");
-  });
-
-  it("第二志愿候选人列表返回候选人当前轮次", async () => {
-    const rows = await listSecondChoiceCandidates();
-    const row = rows.find((item) => item.userFlowId === userFlowId);
-    expect(row?.round).toBe(2);
   });
 });

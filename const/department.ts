@@ -24,6 +24,11 @@ export const departmentLabel = (
   return DEPARTMENT_LABELS[key] ?? key;
 };
 
+/** Link 部门标识的规范化形式（null/空串 → null），用于按部门取常量表 */
+export const departmentKey = (
+  value: string | null | undefined,
+): string | null => normalizeDepartmentKey(value);
+
 /**
  * 部门大类：招新限制「技术部门内部互斥、办公部门内部互斥，
  * 但可以同时参加一个技术部门和一个办公部门」。

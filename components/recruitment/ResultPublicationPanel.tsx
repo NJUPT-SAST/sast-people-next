@@ -8,7 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { publishFlowResults, getFlowResultPublicationSummary } from "@/action/flow/result-publication";
+import { setOfficeFinalDestination } from "@/action/user-flow/office-final-destination";
 import { departmentLabel } from "@/const/department";
 import Link from "next/link";
 
@@ -22,6 +30,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
   const [rosterOpen, setRosterOpen] = useState(false);
   const [templateConfirmed, setTemplateConfirmed] = useState(false);
   const [recipientUserFlowIds, setRecipientUserFlowIds] = useState<number[]>([]);
+  const [savingFinalDestination, setSavingFinalDestination] = useState<number | null>(null);
   const activeFlowIdRef = useRef(flowId);
   const notificationCandidates = useMemo(
     () => (summary?.rows ?? []).filter(
@@ -86,6 +95,46 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
     setRecipientUserFlowIds(notificationCandidates.map((row) => row.userFlowId));
     setConfirmOpen(true);
   };
+  /* 部长团评议的最终去向：为空 = 自动（第一志愿优先）。只更新本地行，避免整面板刷新导致名单弹窗关闭 */
+  const changeFinalDestination = async (
+    userFlowId: number,
+    value: string,
+  ) => {
+    setSavingFinalDestination(userFlowId);
+    try {
+      const result = await setOfficeFinalDestination(
+        userFlowId,
+        value === "auto" ? null : value,
+      );
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      setSummary((previous) =>
+        previous
+          ? {
+              ...previous,
+              rows: previous.rows.map((row) =>
+                row.userFlowId === userFlowId
+                  ? { ...row, finalDepartment: result.department }
+                  : row,
+              ),
+            }
+          : previous,
+      );
+      toast.success(
+        result.department
+          ? `最终去向已设为 ${departmentLabel(result.department)}`
+          : "已恢复自动归属（第一志愿优先）",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "最终去向保存失败，请稍后重试",
+      );
+    } finally {
+      setSavingFinalDestination(null);
+    }
+  };
   const publicationBadge = published
     ? { label: "已发布", className: "border-primary/30 bg-primary/10 text-primary" }
     : publicationInProgress
@@ -146,8 +195,17 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
                 <TableRow>
                   <TableHead>姓名</TableHead>
                   <TableHead>学号</TableHead>
-                  <TableHead>投递部门</TableHead>
-                  <TableHead>组别</TableHead>
+                  {summary.isOfficeFlow ? (
+                    <>
+                      <TableHead>志愿</TableHead>
+                      <TableHead>最终去向</TableHead>
+                    </>
+                  ) : (
+                    <>
+                      <TableHead>投递部门</TableHead>
+                      <TableHead>组别</TableHead>
+                    </>
+                  )}
                   <TableHead>最终结果</TableHead>
                 </TableRow>
               </TableHeader>
@@ -165,12 +223,83 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
                       : row.status === "withdrawn"
                       ? { label: "未参与", className: "text-muted-foreground" }
                         : { label: "未完成", className: "text-amber-600" };
+                  const officeChoices = row.officeChoices ?? [];
+                  const otherChoice = officeChoices.find(
+                    (choice) => choice.choice !== row.choice,
+                  );
+                  /* 无评议结果时的自动归属：第一志愿优先 */
+                  const autoDepartment =
+                    officeChoices.find((choice) => choice.choice === 1)
+                      ?.department ??
+                    officeChoices[0]?.department ??
+                    department;
+                  const choiceLabel =
+                    row.choice === 1
+                      ? "第一志愿"
+                      : row.choice === 2
+                        ? "第二志愿"
+                        : "-";
                   return (
                     <TableRow key={row.userFlowId}>
                       <TableCell className="font-medium">{row.name}</TableCell>
                       <TableCell className="font-mono text-xs">{row.studentId ?? "-"}</TableCell>
-                      <TableCell className="text-muted-foreground">{departmentLabel(department)}</TableCell>
-                      <TableCell>{row.applyGroup ?? "-"}</TableCell>
+                      {summary.isOfficeFlow ? (
+                        <>
+                          <TableCell className="whitespace-nowrap">
+                            <span>{choiceLabel}</span>
+                            {otherChoice?.department && (
+                              <p className="text-xs text-muted-foreground">
+                                另一志愿：{departmentLabel(otherChoice.department)}
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {officeChoices.length > 1 ? (
+                              <Select
+                                value={row.finalDepartment ?? "auto"}
+                                onValueChange={(value) =>
+                                  void changeFinalDestination(row.userFlowId, value)
+                                }
+                                disabled={
+                                  published ||
+                                  savingFinalDestination === row.userFlowId
+                                }
+                              >
+                                <SelectTrigger
+                                  className="h-8 w-[11rem]"
+                                  aria-label={`设置 ${row.name} 的最终去向`}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="auto">
+                                    自动（{departmentLabel(autoDepartment)}）
+                                  </SelectItem>
+                                  {officeChoices.map((choice) => (
+                                    <SelectItem
+                                      key={choice.userFlowId}
+                                      value={choice.department ?? ""}
+                                      disabled={!choice.department}
+                                    >
+                                      {departmentLabel(choice.department)}（
+                                      {choice.choice === 1 ? "第一志愿" : "第二志愿"}）
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {departmentLabel(autoDepartment)}
+                              </span>
+                            )}
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell className="text-muted-foreground">{departmentLabel(department)}</TableCell>
+                          <TableCell>{row.applyGroup ?? "-"}</TableCell>
+                        </>
+                      )}
                       <TableCell className={status.className}>{status.label}</TableCell>
                     </TableRow>
                   );

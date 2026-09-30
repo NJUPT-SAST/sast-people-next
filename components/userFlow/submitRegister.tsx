@@ -25,16 +25,17 @@ import {
 import { register } from '@/action/user-flow/register';
 import { toast } from 'sonner';
 import { displayFlow } from '@/types/flow';
-import { displayUserFlow } from '@/types/userflow';
 import originalDayjs from '@/lib/dayjs';
 import { isValidExternalUrl } from '@/lib/link';
-import { isOfficeInterviewFlow, SLOT_CONFLICT_LABEL } from '@/const/flow';
+import {
+  flowNeedsPortfolio,
+  isOfficeInterviewFlow,
+  SLOT_CONFLICT_LABEL,
+} from '@/const/flow';
 
 const isFlowActive = (flow: displayFlow, now: Date) =>
   now >= flow.startedAt && (!flow.endedAt || now <= flow.endedAt);
 
-/* 第二志愿「暂不填写」的哨兵值：Radix Select 不接受空字符串作为选项值 */
-const SECOND_CHOICE_NONE = "__none__";
 /* 冲突时段的补充提示；选项标签已包含默认冲突文案时不再重复展示 */
 const SLOT_CONFLICT_HINT = "（约面时间QQ群中另行通知）";
 
@@ -44,8 +45,6 @@ const SubmitRegister = ({
 }: {
   flowList: displayFlow[];
   uid: number;
-  /** 已废弃：办公类共享流程不再需要前端「先通过一轮」门禁，保留参数仅为兼容调用方 */
-  myFlowList?: displayUserFlow[];
 }) => {
   const safeFlowList = Array.isArray(flowList) ? flowList : [];
   const hasFlows = safeFlowList.length > 0;
@@ -65,15 +64,16 @@ const SubmitRegister = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [slot, setSlot] = useState("");
   const [slotError, setSlotError] = useState<string | null>(null);
-  const [firstChoice, setFirstChoice] = useState("");
-  const [firstChoiceError, setFirstChoiceError] = useState<string | null>(null);
-  const [secondChoice, setSecondChoice] = useState("");
+  /* 志愿类型：1=第一志愿、2=第二志愿（办公类部门面试，每个办公部门一条流程） */
+  const [choice, setChoice] = useState<"" | "1" | "2">("");
+  const [choiceError, setChoiceError] = useState<string | null>(null);
   const currentFlow = safeFlowList.find((flow) => flow.id === selectedFlow);
-  const needsPortfolioLink = currentFlow?.type !== "recruitment" && !!currentFlow;
+  /* 作品链接/作品简介只属于技术部门面试流程（免试/WOC/SOC），办公类与笔试都不收集 */
+  const needsPortfolioLink =
+    !!currentFlow && flowNeedsPortfolio(currentFlow.type);
   const isOfficeFlow = !!currentFlow && isOfficeInterviewFlow(currentFlow.type);
   const flowGroupOptions = currentFlow?.groupOptions ?? [];
-  const needsApplyGroup =
-    !isOfficeFlow && needsPortfolioLink && flowGroupOptions.length > 0;
+  const needsApplyGroup = needsPortfolioLink && flowGroupOptions.length > 0;
   const rawSlotOptions = currentFlow?.slotOptions;
   const slotOptions =
     isOfficeFlow && Array.isArray(rawSlotOptions)
@@ -83,18 +83,6 @@ const SubmitRegister = ({
         })
       : [];
   const needsSlot = isOfficeFlow && slotOptions.length > 0;
-  /* 办公类共享流程的投递组别就是办公部门：第一志愿必选，第二志愿从同一份清单里选 */
-  const officeDepartmentOptions = isOfficeFlow
-    ? flowGroupOptions.filter(
-        (label) => typeof label === "string" && label.trim().length > 0,
-      )
-    : [];
-  const officeGroupDepartments = currentFlow?.groupDepartments ?? {};
-  const needsFirstChoice = officeDepartmentOptions.length > 0;
-  /* 第二志愿只能选已映射到具体部门的办公部门，且不能与第一志愿相同 */
-  const secondChoiceOptions = officeDepartmentOptions.filter(
-    (label) => label !== firstChoice && Boolean(officeGroupDepartments[label]),
-  );
 
   const resetForm = () => {
     setSelectedFlow(null);
@@ -106,9 +94,8 @@ const SubmitRegister = ({
     setApplyGroupError(null);
     setSlot("");
     setSlotError(null);
-    setFirstChoice("");
-    setFirstChoiceError(null);
-    setSecondChoice("");
+    setChoice("");
+    setChoiceError(null);
   };
 
   const handleRegister = async () => {
@@ -116,35 +103,23 @@ const SubmitRegister = ({
       let submissions: Array<{
         group?: string;
         slot?: string;
-        secondChoice?: string;
+        choice?: 1 | 2;
         portfolioLink?: string;
         portfolioDescription?: string;
       }> = [];
       if (isOfficeFlow) {
-        if (needsFirstChoice && !firstChoice) {
-          setFirstChoiceError("请选择第一志愿部门");
+        if (!choice) {
+          setChoiceError("请选择志愿类型");
           return;
         }
         if (needsSlot && !slot) {
           setSlotError("请选择面试时段");
           return;
         }
-        if (needsPortfolioLink && !isValidExternalUrl(portfolioLink)) {
-          setPortfolioLinkError("作品链接格式不正确，请填写有效的 URL");
-          return;
-        }
         submissions = [
           {
-            group: needsFirstChoice ? firstChoice : undefined,
+            choice: choice === "1" ? 1 : 2,
             slot: needsSlot ? slot : undefined,
-            /* 第二志愿落库为 Link 部门标识，由流程的组别映射解析 */
-            secondChoice: secondChoice
-              ? officeGroupDepartments[secondChoice]
-              : undefined,
-            portfolioLink: needsPortfolioLink ? portfolioLink : undefined,
-            portfolioDescription: needsPortfolioLink
-              ? portfolioDescription
-              : undefined,
           },
         ];
       } else if (needsApplyGroup) {
@@ -182,7 +157,7 @@ const SubmitRegister = ({
       setPortfolioLinkError(null);
       setApplyGroupError(null);
       setSlotError(null);
-      setFirstChoiceError(null);
+      setChoiceError(null);
       setIsSubmitting(true);
       toast.promise(
         (async () => {
@@ -266,9 +241,8 @@ const SubmitRegister = ({
             setApplyGroupError(null);
             setSlot("");
             setSlotError(null);
-            setFirstChoice("");
-            setFirstChoiceError(null);
-            setSecondChoice("");
+            setChoice("");
+            setChoiceError(null);
           }}
         >
           <SelectTrigger className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left">
@@ -304,80 +278,36 @@ const SubmitRegister = ({
             </SelectContent>
           )}
         </Select>
-        {needsPortfolioLink && (
+        {(isOfficeFlow || needsPortfolioLink) && (
           <div className="space-y-3">
             {isOfficeFlow && (
               <>
-                {needsFirstChoice && (
-                  <div className="space-y-2">
-                    <Label htmlFor="first-choice-department">
-                      第一志愿部门
-                    </Label>
-                    <Select
-                      value={firstChoice}
-                      onValueChange={(value) => {
-                        setFirstChoice(value);
-                        if (firstChoiceError) setFirstChoiceError(null);
-                        /* 第一志愿变更后，原第二志愿可能与它重复 */
-                        if (secondChoice === value) setSecondChoice("");
-                      }}
+                <div className="space-y-2">
+                  <Label htmlFor="volunteer-choice">志愿类型</Label>
+                  <Select
+                    value={choice}
+                    onValueChange={(value) => {
+                      setChoice(value === "1" ? "1" : "2");
+                      if (choiceError) setChoiceError(null);
+                    }}
+                  >
+                    <SelectTrigger
+                      id="volunteer-choice"
+                      className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
                     >
-                      <SelectTrigger
-                        id="first-choice-department"
-                        className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
-                      >
-                        <SelectValue placeholder="选择第一志愿部门" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {officeDepartmentOptions.map((label) => (
-                          <SelectItem key={label} value={label}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {firstChoiceError && (
-                      <p role="alert" className="text-sm text-destructive">
-                        {firstChoiceError}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {secondChoiceOptions.length > 0 && (
-                  <div className="space-y-2">
-                    <Label htmlFor="second-choice-department">
-                      第二志愿部门（选填）
-                    </Label>
-                    <Select
-                      value={secondChoice || SECOND_CHOICE_NONE}
-                      onValueChange={(value) =>
-                        setSecondChoice(
-                          value === SECOND_CHOICE_NONE ? "" : value,
-                        )
-                      }
-                    >
-                      <SelectTrigger
-                        id="second-choice-department"
-                        className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
-                      >
-                        <SelectValue placeholder="暂不填写" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={SECOND_CHOICE_NONE}>
-                          暂不填写
-                        </SelectItem>
-                        {secondChoiceOptions.map((label) => (
-                          <SelectItem key={label} value={label}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      第二志愿不能与第一志愿相同，可只填第一志愿。
+                      <SelectValue placeholder="选择志愿类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">第一志愿</SelectItem>
+                      <SelectItem value="2">第二志愿</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {choiceError && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {choiceError}
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
                 {needsSlot && (
                   <div className="space-y-2">
                     <Label htmlFor="interview-slot">面试时段</Label>
@@ -544,7 +474,7 @@ const SubmitRegister = ({
                   )}
                 </div>
               </div>
-            ) : (
+            ) : needsPortfolioLink ? (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="portfolio-link">作品链接</Label>
@@ -579,7 +509,7 @@ const SubmitRegister = ({
                   </p>
                 </div>
               </>
-            )}
+            ) : null}
           </div>
         )}
         <DialogFooter>

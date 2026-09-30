@@ -24,35 +24,58 @@ const software: DepartmentScope = { kind: "department", department: "software" }
 const office: DepartmentScope = { kind: "department", department: "office" };
 const none: DepartmentScope = { kind: "none" };
 
-describe("office interview templates are managed jointly by office departments", () => {
+describe("office interview templates follow the department override rules", () => {
   const officeKey = "office_round1.result.accepted";
 
-  it("maps every office department to the shared global template", () => {
-    expect(resolveTemplateEditTarget(office, null, officeKey)).toEqual({
-      kind: "global",
+  it("writes the office account's own department override row", () => {
+    expect(resolveTemplateEditTarget(office, null)).toEqual({
+      kind: "department",
+      department: "office",
     });
-    expect(
-      resolveTemplateEditTarget(office, "publicity", officeKey),
-    ).toEqual({ kind: "global" });
-    expect(resolveTemplateEditTarget(all, "media", officeKey)).toEqual({
-      kind: "global",
+    expect(resolveTemplateEditTarget(office, "office")).toEqual({
+      kind: "department",
+      department: "office",
     });
   });
 
-  it("rejects non-office departments", () => {
-    expect(() =>
-      resolveTemplateEditTarget(software, null, officeKey),
-    ).toThrow("办公类部门面试招新邮件模板由办公部门统一管理。");
-    expect(() => resolveTemplateEditTarget(none, null, officeKey)).toThrow(
-      "办公类部门面试招新邮件模板由办公部门统一管理。",
+  it("rejects cross-department and department-less writes", () => {
+    expect(() => resolveTemplateEditTarget(office, "publicity")).toThrow(
+      "无权管理其他部门的邮件模板",
+    );
+    expect(() => resolveTemplateEditTarget(none, null)).toThrow(
+      "当前账号未归属任何部门，无法管理邮件模板。",
     );
   });
 
-  it("lets office departments edit the shared row but not department overrides", () => {
-    expect(canEditTemplateRow(office, null, officeKey)).toBe(true);
-    expect(canEditTemplateRow(office, "office", officeKey)).toBe(false);
-    expect(canEditTemplateRow(all, null, officeKey)).toBe(true);
-    expect(canEditTemplateRow(software, null, officeKey)).toBe(false);
+  it("lets admins write the global default or any office department", () => {
+    expect(resolveTemplateEditTarget(all, null)).toEqual({ kind: "global" });
+    expect(resolveTemplateEditTarget(all, "office")).toEqual({
+      kind: "department",
+      department: "office",
+    });
+    expect(resolveTemplateEditTarget(all, "publicity")).toEqual({
+      kind: "department",
+      department: "publicity",
+    });
+  });
+
+  it("keeps the global default admin-only and the own override editable", () => {
+    expect(canEditTemplateRow(office, "office")).toBe(true);
+    expect(canEditTemplateRow(office, null)).toBe(false);
+    expect(canEditTemplateRow(office, "publicity")).toBe(false);
+    expect(canEditTemplateRow(all, null)).toBe(true);
+    expect(canEditTemplateRow(all, "office")).toBe(true);
+    expect(canEditTemplateRow(software, "office")).toBe(false);
+  });
+
+  it("resolves the office department override over the global default", () => {
+    const rows = [
+      { templateKey: officeKey, department: null, subjectTemplate: "全局" },
+      { templateKey: officeKey, department: "office", subjectTemplate: "办公室" },
+    ];
+
+    expect(pickTemplateSettingRow(rows, "office")?.subjectTemplate).toBe("办公室");
+    expect(pickTemplateSettingRow(rows, "publicity")?.subjectTemplate).toBe("全局");
   });
 });
 

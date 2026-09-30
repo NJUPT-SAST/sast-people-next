@@ -33,11 +33,14 @@ describe("useMyFlowList", () => {
           groupOptions: null,
         },
         flow_result_publication: { status: "published" },
+        interview_slot_change_request: null,
+        interview_schedule: null,
         flow_step: null,
       },
     ]);
     const where = jest.fn(() => ({ orderBy }));
-    const slotRequestJoin = jest.fn(() => ({ where }));
+    const scheduleJoin = jest.fn(() => ({ where }));
+    const slotRequestJoin = jest.fn(() => ({ leftJoin: scheduleJoin }));
     const stepJoin = jest.fn(() => ({ leftJoin: slotRequestJoin }));
     const publicationJoin = jest.fn(() => ({ leftJoin: stepJoin }));
     const flowJoin = jest.fn(() => ({ leftJoin: publicationJoin }));

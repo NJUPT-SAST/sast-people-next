@@ -127,7 +127,10 @@ describe("office round one email batch", () => {
   });
 
   it("returns null when nobody advanced to round two", async () => {
-    mockSelectResults.push([{ id: 11, title: "2026 办公类部门面试招新" }], []);
+    mockSelectResults.push(
+      [{ id: 11, title: "2026 办公类部门面试招新", department: "office" }],
+      [],
+    );
 
     await expect(
       createOfficeRoundOneEmailBatch({ flowId: 11, createdBy: 99, accept: true }),
@@ -135,12 +138,12 @@ describe("office round one email batch", () => {
     expect(mockDb.insert).not.toHaveBeenCalled();
   });
 
-  it("uses the shared office template for all recipients without touching candidate status", async () => {
+  it("resolves the flow department template for all recipients without touching candidate status", async () => {
     mockSelectResults.push(
-      [{ id: 11, title: "2026 办公类部门面试招新" }],
+      [{ id: 11, title: "2026 办公类部门面试招新", department: "office" }],
       [
-        { userFlowId: 207, userId: 307, department: "office" },
-        { userFlowId: 208, userId: 308, department: "liaison" },
+        { userFlowId: 207, userId: 307 },
+        { userFlowId: 208, userId: 308 },
       ],
       [],
       // sendEmailBatchById: batch row
@@ -172,30 +175,36 @@ describe("office round one email batch", () => {
     expect(deliveryInsert.idempotencyKey).toContain("office_round1:accepted:207");
     expect(deliveryInsert.templateKey).toBe("office_round1.result.accepted");
 
-    /* 办公部门统一维护共享模板：所有人使用同一份全局模板，{department} 仍按候选人部门展示 */
+    /* 模板按本流程归属部门解析：同一流程内的候选人都用「办公室」的部门覆盖 */
     expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
       "office_round1.result.accepted",
-      null,
+      "office",
     );
     expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
       expect.objectContaining({
         templateKey: "office_round1.result.accepted",
-        department: null,
+        department: "office",
         variables: expect.objectContaining({
           flowKind: "office_round1",
           round: 1,
           department: "办公室",
-          groupNumber: "222",
+          groupNumber: "111",
         }),
       }),
     );
-    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        templateKey: "office_round1.result.accepted",
-        department: null,
-        variables: expect.objectContaining({ department: "外联部", groupNumber: "222" }),
-      }),
-    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledTimes(2);
+    for (const [request] of mockRenderEmailTemplate.mock.calls) {
+      expect(request).toEqual(
+        expect.objectContaining({
+          templateKey: "office_round1.result.accepted",
+          department: "office",
+          variables: expect.objectContaining({
+            department: "办公室",
+            groupNumber: "111",
+          }),
+        }),
+      );
+    }
 
     expect(mockOffer).toHaveBeenCalledWith(41);
     expect(mockOffer).toHaveBeenCalledWith(42);
@@ -205,12 +214,56 @@ describe("office round one email batch", () => {
     );
   });
 
+  it("uses the rejecting flow's own department template for round-one rejections", async () => {
+    mockSelectResults.push(
+      [{ id: 12, title: "2026 科宣部面试招新", department: "publicity" }],
+      [{ userFlowId: 209, userId: 308 }],
+      [],
+      // sendEmailBatchById: batch row
+      [{ id: 1, category: "result", accept: false, status: "draft" }],
+      // sendEmailBatchById: stale sending deliveries
+      [],
+      // sendEmailBatchById: deliveries of the batch
+      [{ id: 43, userFlowId: 209, userId: 308, status: "pending" }],
+    );
+
+    await expect(
+      createOfficeRoundOneEmailBatch({ flowId: 12, createdBy: 99, accept: false }),
+    ).resolves.toEqual({ batchId: 1, recipientCount: 1 });
+
+    const batchInsert = mockInsertValues[0] as Record<string, unknown>;
+    expect(batchInsert.templateKey).toBe("office_round1.result.rejected");
+    expect(batchInsert.metadata).toEqual({
+      accept: false,
+      flowId: 12,
+      round: 1,
+      scope: "office_round1_rejected",
+    });
+
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "office_round1.result.rejected",
+      "publicity",
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: "office_round1.result.rejected",
+        department: "publicity",
+        variables: expect.objectContaining({
+          flowKind: "office_round1",
+          round: 1,
+          department: "科宣部",
+          groupNumber: "222",
+        }),
+      }),
+    );
+  });
+
   it("skips recipients already sent and resends pending deliveries only", async () => {
     mockSelectResults.push(
-      [{ id: 11, title: "2026 办公类部门面试招新" }],
+      [{ id: 11, title: "2026 办公类部门面试招新", department: "office" }],
       [
-        { userFlowId: 207, userId: 307, department: "office" },
-        { userFlowId: 208, userId: 308, department: "liaison" },
+        { userFlowId: 207, userId: 307 },
+        { userFlowId: 208, userId: 308 },
       ],
       [
         { batchId: 5, userFlowId: 207, status: "sent" },
@@ -236,8 +289,8 @@ describe("office round one email batch", () => {
 
   it("returns null when every recipient already received the notice", async () => {
     mockSelectResults.push(
-      [{ id: 11, title: "2026 办公类部门面试招新" }],
-      [{ userFlowId: 207, userId: 307, department: "office" }],
+      [{ id: 11, title: "2026 办公类部门面试招新", department: "office" }],
+      [{ userFlowId: 207, userId: 307 }],
       [{ batchId: 5, userFlowId: 207, status: "sent" }],
     );
 

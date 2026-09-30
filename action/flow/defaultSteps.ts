@@ -8,7 +8,7 @@ export const isOfficeInterviewFlowType = (type: string) =>
   type === "office_interview";
 
 /**
- * 办公类部门面试招新：一个共享流程内完成两轮面试，
+ * 办公类部门面试招新：每个办公部门一条流程，流程内完成两轮面试，
  * 一面通过后由系统推进到「二轮面试」，二轮通过后进入结果确认。
  */
 export const officeInterviewSteps = (

@@ -27,6 +27,11 @@ jest.mock("@/action/user-flow/evaluation", () => ({
   getEvaluationCandidates: jest.fn(),
 }));
 
+jest.mock("@/action/user-flow/interview-slot-change", () => ({
+  /* 工作台测试不关心待审批面板；挂起 Promise 避免渲染后异步 setState */
+  listPendingSlotChangeRequests: jest.fn(() => new Promise(() => {})),
+}));
+
 jest.mock("@/components/recruitment/selectFlow", () => ({
   SelectFlow: ({ onChange }: { onChange?: (value: string) => void }) => (
     <>

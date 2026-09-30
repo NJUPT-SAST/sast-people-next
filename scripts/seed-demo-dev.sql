@@ -29,19 +29,26 @@ on conflict (id) do update set
   group_options = excluded.group_options,
   department = excluded.department;
 
-/* 清理旧的「按部门 × 轮次拆分」办公类面试演示数据：流程 111–118 及其报名、面评、改时段申请 */
-delete from interview_slot_change_request where id = 9001;
-delete from interview_evaluation where id in (9001, 9002, 9003, 9004);
+/* 清理办公类部门面试演示数据：每个办公部门一条流程（office_interview，department 非空），
+   报名/面评/改期申请/邮件/发布记录全部重建，保证种子可重复执行 */
+delete from email_delivery where fk_flow_id in (select id from flow where type = 'office_interview');
+delete from email_batch where fk_flow_id in (select id from flow where type = 'office_interview');
+delete from flow_result_publication where fk_flow_id in (select id from flow where type = 'office_interview');
+delete from interview_slot_change_request
+where fk_user_flow_id in (
+  select id from user_flow where fk_flow_id in (select id from flow where type = 'office_interview')
+);
 delete from interview_evaluation
 where fk_user_flow_id in (
-  select id from user_flow where fk_flow_id in (111, 112, 113, 114, 115, 116, 117, 118)
+  select id from user_flow where fk_flow_id in (select id from flow where type = 'office_interview')
 );
-delete from user_flow where id in (301, 302, 303, 304, 305, 306, 307, 308, 309, 310);
-delete from flow_step where fk_flow_id in (111, 112, 113, 114, 115, 116, 117, 118);
-delete from flow where id in (111, 112, 113, 114, 115, 116, 117, 118);
+delete from user_flow where fk_flow_id in (select id from flow where type = 'office_interview');
+delete from flow_step where fk_flow_id in (select id from flow where type = 'office_interview');
+delete from flow where type = 'office_interview';
 
-/* 办公类部门面试招新：办公室 / 科宣部 / 外联部 / 赛事部共用一条流程（department 为空），
-   报名时按 group_options 选第一志愿部门（group_departments 映射到 Link 部门），流程内依次完成一面与二面 */
+/* 办公类部门面试招新：办公室 / 科宣部 / 外联部 / 赛事部各一条独立流程。
+   候选人在两个部门流程分别报名并选择志愿类型（choice：1=第一志愿、2=第二志愿），
+   流程内依次完成一面与二面；各部门流程的权限、邮件模板与结果发布互相独立。 */
 insert into flow (
   id,
   title,
@@ -58,7 +65,10 @@ insert into flow (
   updated_at,
   is_deleted
 ) values
-  (120, '2026 办公类部门面试招新 Demo', '办公类部门面试招新（办公室 / 科宣部 / 外联部 / 赛事部）共享同一条流程：报名时选择第一志愿、第二志愿部门与面试时段，随后在流程内依次进行一面、二面与结果确认。', 'office_interview', 1, null, '["办公室","科宣部","外联部","赛事部"]'::jsonb, '{"办公室":"office","科宣部":"publicity","外联部":"liaison","赛事部":"competition"}'::jsonb, '[{"label":"13:00-14:00"},{"label":"14:00-15:00"},{"label":"15:00-16:00"},{"label":"16:00-17:00"},{"label":"17:00-18:00"},{"label":"时间冲突，约面时间QQ群中另行通知","isConflict":true}]'::jsonb, now(), now() - interval '3 days', now() + interval '14 days', now(), false)
+  (121, '2026 办公类部门面试招新 Demo（办公室）', '办公室独立流程：候选人报名时选择志愿类型（第一志愿/第二志愿）与面试时段，随后在流程内依次进行一面、二面与结果确认。', 'office_interview', 1, 'office', null, null, '[{"label":"13:00-14:00"},{"label":"14:00-15:00"},{"label":"15:00-16:00"},{"label":"16:00-17:00"},{"label":"17:00-18:00"},{"label":"时间冲突，约面时间QQ群中另行通知","isConflict":true}]'::jsonb, now(), now() - interval '3 days', now() + interval '14 days', now(), false),
+  (122, '2026 办公类部门面试招新 Demo（科宣部）', '科宣部独立流程：候选人报名时选择志愿类型（第一志愿/第二志愿）与面试时段，随后在流程内依次进行一面、二面与结果确认。', 'office_interview', 1, 'publicity', null, null, '[{"label":"13:00-14:00"},{"label":"14:00-15:00"},{"label":"15:00-16:00"},{"label":"16:00-17:00"},{"label":"17:00-18:00"},{"label":"时间冲突，约面时间QQ群中另行通知","isConflict":true}]'::jsonb, now(), now() - interval '3 days', now() + interval '14 days', now(), false),
+  (123, '2026 办公类部门面试招新 Demo（外联部）', '外联部独立流程：候选人报名时选择志愿类型（第一志愿/第二志愿）与面试时段，随后在流程内依次进行一面、二面与结果确认。', 'office_interview', 1, 'liaison', null, null, '[{"label":"13:00-14:00"},{"label":"14:00-15:00"},{"label":"15:00-16:00"},{"label":"16:00-17:00"},{"label":"17:00-18:00"},{"label":"时间冲突，约面时间QQ群中另行通知","isConflict":true}]'::jsonb, now(), now() - interval '3 days', now() + interval '14 days', now(), false),
+  (124, '2026 办公类部门面试招新 Demo（赛事部）', '赛事部独立流程：候选人报名时选择志愿类型（第一志愿/第二志愿）与面试时段，随后在流程内依次进行一面、二面与结果确认。', 'office_interview', 1, 'competition', null, null, '[{"label":"13:00-14:00"},{"label":"14:00-15:00"},{"label":"15:00-16:00"},{"label":"16:00-17:00"},{"label":"17:00-18:00"},{"label":"时间冲突，约面时间QQ群中另行通知","isConflict":true}]'::jsonb, now(), now() - interval '3 days', now() + interval '14 days', now(), false)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -93,11 +103,23 @@ insert into flow_step (
   (1031, '报名', '新同学提交报名信息，报名后进入批卷环节。', 'registering', 1, 103, now(), now(), false),
   (1032, '批卷', '讲师为当前流程内报名同学批改试卷。', 'judging', 2, 103, now(), now(), false),
   (1033, '录取确认', '按分数线筛选并确认最终通过名单。', 'finished', 3, 103, now(), now(), false),
-  -- 办公类部门面试招新（共享流程）：报名 → 一面面试 → 二面面试 → 结果确认
-  (1201, '报名', '提交报名信息，选择第一志愿、第二志愿部门与面试时段。', 'registering', 1, 120, now(), now(), false),
-  (1202, '一面面试', '部长进行一面面试并提交面评与分数，通过后进入二面。', 'checking', 2, 120, now(), now(), false),
-  (1203, '二面面试', '无领导小组面试，由多位部长分别打分。', 'checking', 3, 120, now(), now(), false),
-  (1204, '结果确认', '部长/管理员确认最终结果并发布录取通知。', 'finished', 4, 120, now(), now(), false)
+  -- 办公类部门面试招新（每个部门一条流程）：报名 → 一面面试 → 二面面试 → 结果确认
+  (1211, '报名', '提交报名信息，选择志愿类型（第一志愿/第二志愿）与面试时段。', 'registering', 1, 121, now(), now(), false),
+  (1212, '一面面试', '部长进行一面面试并提交面评与分数，通过后进入二面。', 'checking', 2, 121, now(), now(), false),
+  (1213, '二面面试', '无领导小组面试，由多位部长分别打分。', 'checking', 3, 121, now(), now(), false),
+  (1214, '结果确认', '部长/管理员确认最终结果并发布录取通知。', 'finished', 4, 121, now(), now(), false),
+  (1221, '报名', '提交报名信息，选择志愿类型（第一志愿/第二志愿）与面试时段。', 'registering', 1, 122, now(), now(), false),
+  (1222, '一面面试', '部长进行一面面试并提交面评与分数，通过后进入二面。', 'checking', 2, 122, now(), now(), false),
+  (1223, '二面面试', '无领导小组面试，由多位部长分别打分。', 'checking', 3, 122, now(), now(), false),
+  (1224, '结果确认', '部长/管理员确认最终结果并发布录取通知。', 'finished', 4, 122, now(), now(), false),
+  (1231, '报名', '提交报名信息，选择志愿类型（第一志愿/第二志愿）与面试时段。', 'registering', 1, 123, now(), now(), false),
+  (1232, '一面面试', '部长进行一面面试并提交面评与分数，通过后进入二面。', 'checking', 2, 123, now(), now(), false),
+  (1233, '二面面试', '无领导小组面试，由多位部长分别打分。', 'checking', 3, 123, now(), now(), false),
+  (1234, '结果确认', '部长/管理员确认最终结果并发布录取通知。', 'finished', 4, 123, now(), now(), false),
+  (1241, '报名', '提交报名信息，选择志愿类型（第一志愿/第二志愿）与面试时段。', 'registering', 1, 124, now(), now(), false),
+  (1242, '一面面试', '部长进行一面面试并提交面评与分数，通过后进入二面。', 'checking', 2, 124, now(), now(), false),
+  (1243, '二面面试', '无领导小组面试，由多位部长分别打分。', 'checking', 3, 124, now(), now(), false),
+  (1244, '结果确认', '部长/管理员确认最终结果并发布录取通知。', 'finished', 4, 124, now(), now(), false)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -163,11 +185,12 @@ on conflict (id) do update set
   fk_user_id = excluded.fk_user_id,
   department = excluded.department;
 
-/* 办公类部门面试招新报名（共享流程 120）：apply_group 为第一志愿部门，round 为当前阶段（1=一面，2=二面）
-   - 401/402/408 一面进行中（402 有待审批的改时段申请）
+/* 办公类部门面试招新报名（每个部门一条流程）：choice 为志愿类型（1=第一志愿、2=第二志愿），
+   round 为当前阶段（1=一面，2=二面）
+   - 401/402/408 一面进行中（402 有待审批的改时段申请；408 是 uid 4 在科宣部的第二志愿）
    - 403/404 已通过一面、二面进行中（403 带多位部长的二面面评）
-   - 405 两轮均通过（带一面面评），406 一面未通过，407 一面通过但二面未通过
-   - 409 已退出：第二志愿面板应隐藏该候选人 */
+   - 405 两轮均通过（带一面面评）；410 是 uid 8 在赛事部的第二志愿，同样两轮通过（最终去向演示）
+   - 406 一面未通过，407 二面未通过，409 已退回 */
 insert into user_flow (
   id,
   progress_status,
@@ -175,30 +198,32 @@ insert into user_flow (
   apply_group,
   round,
   interview_slot,
-  second_choice_department,
+  choice,
   fk_flow_id,
   fk_user_id,
   department
 ) values
-  (401, 'ongoing', 1202, '办公室', 1, '13:00-14:00', 'publicity', 120, 4, 'office'),
-  (402, 'ongoing', 1202, '办公室', 1, '14:00-15:00', 'liaison', 120, 5, 'office'),
-  (403, 'ongoing', 1203, '办公室', 2, '15:00-16:00', 'publicity', 120, 6, 'office'),
-  (404, 'ongoing', 1203, '科宣部', 2, '16:00-17:00', 'office', 120, 7, 'publicity'),
-  (405, 'passed', 1204, '办公室', 2, '13:00-14:00', 'competition', 120, 8, 'office'),
-  (406, 'failed', 1204, '外联部', 1, '14:00-15:00', 'publicity', 120, 9, 'liaison'),
-  (407, 'failed', 1204, '赛事部', 2, '15:00-16:00', 'office', 120, 10, 'competition'),
-  (408, 'ongoing', 1202, '科宣部', 1, '17:00-18:00', 'office', 120, 4, 'publicity'),
-  (409, 'withdrawn', 1202, '赛事部', 1, '16:00-17:00', 'publicity', 120, 5, 'competition')
+  (401, 'ongoing', 1212, null, 1, '13:00-14:00', 1, 121, 4, 'office'),
+  (402, 'ongoing', 1212, null, 1, '14:00-15:00', 1, 121, 5, 'office'),
+  (403, 'ongoing', 1213, null, 2, '15:00-16:00', 1, 121, 6, 'office'),
+  (404, 'ongoing', 1223, null, 2, '16:00-17:00', 1, 122, 7, 'publicity'),
+  (405, 'passed', 1214, null, 2, '13:00-14:00', 1, 121, 8, 'office'),
+  (406, 'failed', 1234, null, 1, '14:00-15:00', 1, 123, 9, 'liaison'),
+  (407, 'failed', 1244, null, 2, '15:00-16:00', 1, 124, 10, 'competition'),
+  (408, 'ongoing', 1222, null, 1, '17:00-18:00', 2, 122, 4, 'publicity'),
+  (409, 'withdrawn', 1242, null, 1, '16:00-17:00', 2, 124, 5, 'competition'),
+  (410, 'passed', 1244, null, 2, '16:00-17:00', 2, 124, 8, 'competition')
 on conflict (id) do update set
   progress_status = excluded.progress_status,
   fk_current_step_id = excluded.fk_current_step_id,
   apply_group = excluded.apply_group,
   round = excluded.round,
   interview_slot = excluded.interview_slot,
-  second_choice_department = excluded.second_choice_department,
+  choice = excluded.choice,
   fk_flow_id = excluded.fk_flow_id,
   fk_user_id = excluded.fk_user_id,
-  department = excluded.department;
+  department = excluded.department,
+  final_department = null;
 
 insert into flow_result_publication (
   fk_flow_id,
@@ -316,7 +341,7 @@ on conflict (id) do update set
   fk_reviewed_by = excluded.fk_reviewed_by,
   updated_at = now();
 
-/* 办公类部门面试招新面评（共享流程 120）：round 记录面评所属轮次
+/* 办公类部门面试招新面评（各部门流程，flow 121）：round 记录面评所属轮次
    - 9001 为两轮均通过候选人（405）的一面面评
    - 9002–9004 为二面进行中候选人（403）的二面面评，三位部长分别打分，用于平均分与排序演示 */
 insert into interview_evaluation (

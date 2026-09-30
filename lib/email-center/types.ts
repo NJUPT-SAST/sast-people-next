@@ -19,7 +19,8 @@ export type ResultEmailTemplateKey =
 export type InterviewScheduleEmailTemplateKey =
   | "interview.schedule.created"
   | "interview.schedule.rescheduled"
-  | "interview.schedule.cancelled";
+  | "interview.schedule.cancelled"
+  | "interview.schedule.change.rejected";
 
 export type InterviewWithdrawalEmailTemplateKey = "interview.application.withdrawn";
 

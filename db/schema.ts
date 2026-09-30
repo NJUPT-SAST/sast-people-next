@@ -182,8 +182,10 @@ export const userFlow = pgTable("user_flow", {
   round: smallint("round"),
   /* 候选人选择的面试时段（flow.slot_options 中的 label，含「时间冲突」选项） */
   interviewSlot: varchar("interview_slot", { length: 100 }),
-  /* 第二志愿部门（Link 部门标识）：仅办公类部门面试招新使用，第一志愿为报名所在流程的归属部门 */
-  secondChoiceDepartment: varchar("second_choice_department", { length: 64 }),
+  /* 办公类部门面试：志愿类型 1=第一志愿、2=第二志愿（其他流程为 NULL）；每个办公部门一条流程，报名分别提交 */
+  choice: smallint("choice"),
+  /* 部长团评议的最终去向部门（Link 部门标识，办公类）；为空时按「第一志愿优先」自动归属 */
+  finalDepartment: varchar("final_department", { length: 64 }),
   /* 报名记录归属部门（Link 部门标识）：报名时按组别映射 → 流程归属解析后固化 */
   department: varchar("department", { length: 64 }),
   /* 讲师/管理员退回面试时填写的理由 */
@@ -223,10 +225,18 @@ export const interviewSlotChangeRequest = pgTable(
     fkUserFlowId: integer("fk_user_flow_id")
       .references(() => userFlow.id, { onDelete: "cascade" })
       .notNull(),
-    /* 候选人申请改到的面试时段（flow.slot_options 的 label） */
-    requestedSlot: varchar("requested_slot", { length: 100 }).notNull(),
-    /* 候选人填写的申请理由 */
-    reason: text("reason"),
+    /* 技术部门面试：绑定的飞书日程；办公类按 requested_slot 申请，此列为 NULL */
+    fkInterviewScheduleId: integer("fk_interview_schedule_id").references(
+      () => interviewSchedule.id,
+      { onDelete: "cascade" },
+    ),
+    /* 办公类：候选人申请改到的面试时段（flow.slot_options 的 label） */
+    requestedSlot: varchar("requested_slot", { length: 100 }),
+    /* 技术部门：候选人申请改到的新时间（时长沿用原日程） */
+    requestedStartsAt: timestamp("requested_starts_at", { withTimezone: true }),
+    requestedEndsAt: timestamp("requested_ends_at", { withTimezone: true }),
+    /* 候选人填写的申请理由（必填） */
+    reason: text("reason").notNull(),
     /* pending / approved / rejected */
     status: varchar("status", { length: 16 }).notNull().default("pending"),
     /* Link 用户 ID — 申请人（候选人本人） */
@@ -247,6 +257,9 @@ export const interviewSlotChangeRequest = pgTable(
       .on(table.fkUserFlowId)
       .where(sql`${table.status} = 'pending'`),
     statusIdx: index("interview_slot_change_status_idx").on(table.status),
+    scheduleIdx: index("interview_slot_change_schedule_idx").on(
+      table.fkInterviewScheduleId,
+    ),
   }),
 );
 

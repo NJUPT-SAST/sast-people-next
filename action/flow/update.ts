@@ -48,9 +48,12 @@ export const updateFlow = async (
     if (session.scope.kind === "all" && parsedValues.department !== undefined) {
       patch.department = normalizeDepartmentKey(parsedValues.department);
     }
-    /* 办公类部门面试招新是所有办公部门共用的一条流程，归属部门固定为空 */
-    if (flowRow.type === OFFICE_INTERVIEW_FLOW_TYPE) {
-      patch.department = null;
+    /* 办公类部门面试招新按部门隔离：每条流程必须归属一个办公部门 */
+    if (
+      flowRow.type === OFFICE_INTERVIEW_FLOW_TYPE &&
+      !(patch.department !== undefined ? patch.department : flowRow.department)
+    ) {
+      throw new Error("办公类部门面试招新必须归属一个办公部门");
     }
     if (parsedValues.groupDepartments !== undefined) {
       patch.groupDepartments = resolveGroupDepartments(

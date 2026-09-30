@@ -266,6 +266,71 @@ describe("ApprovalsContent", () => {
     expect(screen.getByRole("button", { name: "周七" })).toBeInTheDocument();
   });
 
+  it("labels an office evaluation as a manager's recommendation", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          {
+            ...row({
+              id: 8,
+              candidateName: "办公同学",
+              status: "submitted",
+              recommendation: "passed",
+            }),
+            flowTitle: "2026 办公类部门面试招新",
+            flowType: "office_interview",
+          },
+        ]}
+      />,
+    );
+
+    // 办公类部门没有讲师这一级：建议与提醒对象都是部长。
+    expect(screen.getByText("部长建议通过")).toBeInTheDocument();
+    expect(screen.queryByText("讲师建议通过")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "退回重写" }));
+
+    expect(
+      screen.getByText("请填写具体原因，部长会收到飞书机器人提醒。"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the candidate's office choice instead of an apply group", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          {
+            ...row({
+              id: 30,
+              candidateName: "第一志愿同学",
+              status: "submitted",
+              recommendation: "passed",
+            }),
+            flowType: "office_interview",
+            choice: 1,
+          },
+          {
+            ...row({
+              id: 31,
+              candidateName: "第二志愿同学",
+              status: "submitted",
+              recommendation: "passed",
+            }),
+            flowType: "office_interview",
+            choice: 2,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText("志愿")).toHaveLength(2);
+    expect(screen.getByText("第一志愿")).toBeInTheDocument();
+    expect(screen.getByText("第二志愿")).toBeInTheDocument();
+    expect(screen.queryByText("投递组别")).not.toBeInTheDocument();
+    expect(screen.queryByText("第一志愿部门")).not.toBeInTheDocument();
+  });
+
   it("shows the interview score only when the evaluation was scored", () => {
     render(
       <ApprovalsContent

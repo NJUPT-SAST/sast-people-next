@@ -11,6 +11,7 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { assertFlowResultsEditable } from "@/lib/flow-result-publication-guard";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { isOfficeInterviewFlow } from "@/const/flow";
 
 const editableStatuses = new Set(["not_started", "ongoing"]);
 
@@ -99,6 +100,15 @@ export const updateApplyGroup = async (
     if (context.uid !== session.uid) {
       return { success: false, error: { message: "只能修改自己的投递组别" } };
     }
+    /* 办公类部门面试按流程（=办公部门）报名，没有投递组别 */
+    if (isOfficeInterviewFlow(context.flowType ?? "")) {
+      return {
+        success: false,
+        error: {
+          message: "办公类部门面试没有投递组别",
+        },
+      };
+    }
     if (!context.progressStatus || !editableStatuses.has(context.progressStatus)) {
       return {
         success: false,
@@ -176,6 +186,15 @@ export const updateCandidateApplyGroup = async (
     }
     // 讲师/管理员只能改本部门的候选人
     assertUserFlowInScope(session.scope, context.department);
+    /* 办公类部门面试按流程（=办公部门）报名，没有投递组别 */
+    if (isOfficeInterviewFlow(context.flowType ?? "")) {
+      return {
+        success: false,
+        error: {
+          message: "办公类部门面试没有投递组别",
+        },
+      };
+    }
 
     const [flowRecord] = await db.select({ flowId: userFlow.fkFlowId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     if (flowRecord) await assertFlowResultsEditable(flowRecord.flowId);

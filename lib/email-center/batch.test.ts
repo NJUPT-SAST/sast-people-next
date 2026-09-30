@@ -308,8 +308,7 @@ describe("email batch service", () => {
         userFlowId: 207,
         userId: 307,
         flowName: "2026 办公类部门面试招新",
-        flowDepartment: null,
-        rowDepartment: "office",
+        flowDepartment: "office",
       },
     ], []);
     mockListPeopleUsersByLinkIds.mockResolvedValue(
@@ -332,14 +331,15 @@ describe("email batch service", () => {
       }),
     ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
 
-    /* 办公部门统一维护共享模板：解析的是全局模板（department = null） */
+    /* 办公类模板按流程归属部门解析：命中办公室的部门覆盖 */
     expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
       "office_round1.result.accepted",
-      null,
+      "office",
     );
     expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
       expect.objectContaining({
         templateKey: "office_round1.result.accepted",
+        department: "office",
         variables: expect.objectContaining({
           flowKind: "office_round1",
           round: 1,
@@ -356,8 +356,7 @@ describe("email batch service", () => {
         userFlowId: 208,
         userId: 308,
         flowName: "2026 办公类部门面试招新",
-        flowDepartment: null,
-        rowDepartment: "liaison",
+        flowDepartment: "liaison",
       },
     ], []);
     mockListPeopleUsersByLinkIds.mockResolvedValue(
@@ -381,10 +380,11 @@ describe("email batch service", () => {
 
     expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
       "office_round2.result.rejected",
-      null,
+      "liaison",
     );
     expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
       expect.objectContaining({
+        department: "liaison",
         variables: expect.objectContaining({
           flowKind: "office_round2",
           round: 2,

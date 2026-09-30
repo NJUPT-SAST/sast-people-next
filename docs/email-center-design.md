@@ -87,9 +87,10 @@
 | `interview` | `interview.schedule.created` | 面试预约创建 | 单封 |
 | `interview` | `interview.schedule.rescheduled` | 面试改约 | 单封 |
 | `interview` | `interview.schedule.cancelled` | 面试取消 | 单封 |
+| `interview` | `interview.schedule.change.rejected` | 面试改期未通过（含驳回理由） | 单封 |
 | `test` | 任意模板 + `.test` 标记 | 管理员测试发送 | 单封 |
 
-面试预约、改约与取消已分别使用 `interview.schedule.created`、`interview.schedule.rescheduled` 和 `interview.schedule.cancelled` 三个模板 key。三种状态可以共享 React Email 组件，但模板注册层保留独立条目，以便预览、测试和管理文案。
+面试预约、改约与取消已分别使用 `interview.schedule.created`、`interview.schedule.rescheduled` 和 `interview.schedule.cancelled` 三个模板 key；改期申请被驳回另用 `interview.schedule.change.rejected`（变量含驳回理由）。这些状态可以共享 React Email 组件，但模板注册层保留独立条目，以便预览、测试和管理文案。
 
 ## 5. UI 信息架构
 

@@ -24,6 +24,9 @@ import type {
 function getInterviewEmailKind(templateKey: InterviewEmailTemplateKey) {
   if (templateKey === "interview.schedule.rescheduled") return "rescheduled";
   if (templateKey === "interview.schedule.cancelled") return "cancelled";
+  if (templateKey === "interview.schedule.change.rejected") {
+    return "change_rejected";
+  }
   return "created";
 }
 
@@ -94,7 +97,8 @@ export async function renderEmailTemplate(
     }
     case "interview.schedule.created":
     case "interview.schedule.rescheduled":
-    case "interview.schedule.cancelled": {
+    case "interview.schedule.cancelled":
+    case "interview.schedule.change.rejected": {
       const kind = getInterviewEmailKind(request.templateKey);
       return {
         subject: await renderInterviewScheduleEmailSubject(

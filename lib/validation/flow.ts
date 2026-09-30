@@ -16,50 +16,26 @@ export const fullFlowSchema = createInsertSchema(flow, {
   endedAt: z.date({ error: "请选择结束时间" }),
 });
 
-/* 归属部门：null 表示全局流程，仅管理员可指定 */
+/* 归属部门：null 表示全局流程，仅管理员可指定；办公类流程的归属部门由服务端解析 */
 const flowDepartmentSchema = {
   department: departmentKeySchema.nullable().optional(),
   groupOptions: flowGroupOptionsSchema.optional(),
   groupDepartments: flowGroupDepartmentsSchema.optional(),
 };
 
-/* 办公类部门面试招新：一个共享流程内选择第一/第二志愿办公部门，可选时段 */
+/* 办公类部门面试招新：每个办公部门一条流程，仅额外支持面试时段 */
 const flowOfficeInterviewSchema = {
   slotOptions: flowSlotOptionsSchema.nullable().optional(),
 };
 
-type OfficeInterviewConfigInput = {
+type FlowConfigInput = {
   type?: string | null;
   slotOptions?: FlowSlotOption[] | null;
-  groupOptions?: string[] | null;
-  groupDepartments?: Record<string, string> | null;
 };
 
-const refineOfficeInterviewConfig = (
-  data: OfficeInterviewConfigInput,
-  ctx: z.RefinementCtx,
-) => {
+const refineFlowConfig = (data: FlowConfigInput, ctx: z.RefinementCtx) => {
   const flowType = data.type ?? "recruitment";
-  if (flowType === "office_interview") {
-    const groups = data.groupOptions ?? [];
-    if (groups.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "办公类部门面试招新请配置可投递的办公部门",
-        path: ["groupOptions"],
-      });
-    }
-    const mapping = data.groupDepartments ?? {};
-    const missing = groups.filter((group) => !mapping[group]);
-    if (groups.length > 0 && missing.length > 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "请为每个办公部门配置对应的部门标识",
-        path: ["groupDepartments"],
-      });
-    }
-    return;
-  }
+  if (flowType === "office_interview") return;
 
   if (data.slotOptions && data.slotOptions.length > 0) {
     ctx.addIssue({
@@ -100,7 +76,7 @@ export const addFlowSchema = fullFlowSchema
       });
     }
 
-    refineOfficeInterviewConfig(data, ctx);
+    refineFlowConfig(data, ctx);
   });
 
 export const editFlowSchema = fullFlowSchema
@@ -138,5 +114,5 @@ export const editFlowSchema = fullFlowSchema
       });
     }
 
-    refineOfficeInterviewConfig(data, ctx);
+    refineFlowConfig(data, ctx);
   });

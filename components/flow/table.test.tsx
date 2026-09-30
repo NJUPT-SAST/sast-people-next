@@ -37,6 +37,28 @@ describe("FlowTable", () => {
     expect(screen.getAllByText("ops-3")[0]).toBeInTheDocument();
   });
 
+  it("shows the department-aware flow type label", () => {
+    render(
+      <FlowTable
+        columns={FlowTableColumns}
+        data={[
+          {
+            id: 5,
+            title: "软件研发部面试流程",
+            description: "部门级流程",
+            type: "woc",
+            department: "software",
+            startedAt: new Date("2026-03-22T09:00:00.000Z"),
+            endedAt: new Date("2026-03-22T18:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    expect(screen.getAllByText("软件研发部WOC").length).toBeGreaterThan(0);
+    expect(screen.queryByText("WOC/WOD")).not.toBeInTheDocument();
+  });
+
   it("shows the office flow type label without a round suffix", () => {
     render(
       <FlowTable

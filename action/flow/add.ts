@@ -20,10 +20,11 @@ export async function addFlow(values: z.infer<typeof addFlowSchema>) {
 
     /* 部长固定写入自己的部门；管理员可指定归属部门，留空则为全局流程 */
     const flowType = parsedValues.type ?? 'recruitment';
-    /* 办公类部门面试招新是所有办公部门共用的一个流程（部门归属为空，按第一志愿映射） */
-    const department = isOfficeInterviewFlow(flowType)
-      ? null
-      : resolveFlowDepartment(session.scope, parsedValues.department);
+    /* 办公类部门面试招新同样是「每个办公部门一条流程」，归属部门与其它流程一起解析 */
+    const department = resolveFlowDepartment(session.scope, parsedValues.department);
+    if (isOfficeInterviewFlow(flowType) && !department) {
+      throw new Error('办公类部门面试招新必须归属一个办公部门');
+    }
     const groupOptions =
       parsedValues.groupOptions && parsedValues.groupOptions.length > 0
         ? parsedValues.groupOptions

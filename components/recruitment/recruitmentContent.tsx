@@ -1,13 +1,19 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
 import { EvaluationTable } from '@/components/recruitment/evaluationTable';
+import { PendingSlotChangePanel } from '@/components/recruitment/pendingSlotChangePanel';
 import { makeColumns } from '@/components/recruitment/columns';
 import { calScore } from '@/action/user-flow/user-point/calScore';
 import { getEvaluationCandidates } from '@/action/user-flow/evaluation';
+import {
+  listPendingSlotChangeRequests,
+  type PendingSlotChangeRow,
+} from '@/action/user-flow/interview-slot-change';
+import { flowTypeLabel, isOfficeInterviewFlow } from '@/const/flow';
 import { Loading } from '@/components/loading';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -29,14 +35,15 @@ type ExamResult = Awaited<ReturnType<typeof calScore>>;
 type CandidatesResult = Awaited<ReturnType<typeof getEvaluationCandidates>>;
 type RecruitmentWorkspaceMode = 'written' | 'interview';
 
-const interviewTypeTabs = [
-  { value: 'recruitment_exemption', label: '免试招新' },
-  { value: 'woc', label: 'WOC/WOD' },
-  { value: 'soc', label: 'SOC/SOD' },
-  { value: 'office_interview', label: '办公类面试' },
+/* 面试工作台的流程类型页签（名称按流程归属部门生成：软件研发部WOC / 多媒体部WOD …） */
+const interviewTypeValues = [
+  'recruitment_exemption',
+  'woc',
+  'soc',
+  'office_interview',
 ] as const;
 
-type InterviewFlowType = (typeof interviewTypeTabs)[number]['value'];
+type InterviewFlowType = (typeof interviewTypeValues)[number];
 
 /**
  * A failed load must never look like an empty flow, so the panel states the
@@ -46,8 +53,8 @@ const LOAD_ERROR_MESSAGE = '无法加载该流程的候选人，请检查网络�
 
 function getInterviewFlowType(flowTypes: flowSelection[], flowId?: string) {
   const type = flowTypes.find((flow) => flow.id === Number(flowId))?.type;
-  const matchingTab = interviewTypeTabs.find((tab) => tab.value === type);
-  return matchingTab?.value ?? interviewTypeTabs[0].value;
+  const matched = interviewTypeValues.find((value) => value === type);
+  return matched ?? interviewTypeValues[0];
 }
 
 export const RecruitmentContent = ({
@@ -72,6 +79,9 @@ export const RecruitmentContent = ({
   const [flowId, setFlowId] = useState(defaultFlowId);
   const [scoreData, setScoreData] = useState(initialData);
   const [evalData, setEvalData] = useState<CandidatesResult>(initialEvalData);
+  const [pendingSlotRows, setPendingSlotRows] = useState<
+    PendingSlotChangeRow[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [publicationRefreshKey, setPublicationRefreshKey] = useState(0);
@@ -86,9 +96,9 @@ export const RecruitmentContent = ({
   const currentFlowGroupOptions =
     safeFlowTypes.find((flow) => flow.id === Number(flowId))?.groupOptions ?? [];
   /* 办公类面试在面评里打分，其他流程保持原来的面评表单 */
-  const scoringEnabled =
-    safeFlowTypes.find((flow) => flow.id === Number(flowId))?.type ===
-    'office_interview';
+  const scoringEnabled = isOfficeInterviewFlow(
+    safeFlowTypes.find((flow) => flow.id === Number(flowId))?.type ?? '',
+  );
 
   const isEvaluationWorkspace = mode === 'interview';
   const [interviewFlowType, setInterviewFlowType] = useState<InterviewFlowType>(
@@ -97,6 +107,34 @@ export const RecruitmentContent = ({
   const visibleFlowTypes = isEvaluationWorkspace
     ? safeFlowTypes.filter((flow) => flow.type === interviewFlowType)
     : safeFlowTypes;
+
+  /* 改期申请按所选流程加载：审批列表只显示当前流程的申请，不串到别的流程 */
+  useEffect(() => {
+    if (!isEvaluationWorkspace || !flowId) {
+      setPendingSlotRows([]);
+      return;
+    }
+    let cancelled = false;
+    listPendingSlotChangeRequests(Number(flowId))
+      .then((rows) => {
+        if (!cancelled) setPendingSlotRows(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (!cancelled) setPendingSlotRows([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [flowId, isEvaluationWorkspace]);
+
+  /* 页签名称按流程归属部门生成（软件研发部WOC / 多媒体部WOD …） */
+  const interviewTabs = interviewTypeValues.map((value) => ({
+    value,
+    label: flowTypeLabel(
+      value,
+      safeFlowTypes.find((flow) => flow.type === value)?.department ?? null,
+    ),
+  }));
 
   const handleFlowChange = async (value: string) => {
     const requestId = ++flowRequestId.current;
@@ -252,7 +290,7 @@ export const RecruitmentContent = ({
               onValueChange={handleInterviewFlowTypeChange}
             >
               <TabsList className="h-9 max-w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-fit">
-                {interviewTypeTabs.map((tab) => (
+                {interviewTabs.map((tab) => (
                   <TabsTrigger
                     key={tab.value}
                     value={tab.value}
@@ -373,6 +411,7 @@ export const RecruitmentContent = ({
               onRefresh={refreshEvalDataAndPublication}
             />
           )}
+          <PendingSlotChangePanel rows={pendingSlotRows} />
         </div>
       ) : loading ? (
         <Loading />

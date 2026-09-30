@@ -36,7 +36,7 @@ export type CreateResultEmailBatchInput = {
   accept: boolean;
   createdBy: number;
   flowType?: string;
-  /** 办公类部门面试轮次：1 = 一轮，2 = 二轮；缺省时办公类共享流程按二轮（最终结果）处理 */
+  /** 办公类部门面试轮次：1 = 一轮，2 = 二轮；缺省时办公类流程按二轮（最终结果）处理 */
   flowRound?: number | null;
   /** 模板归属部门；缺省时按流程归属部门解析 */
   department?: string | null;
@@ -83,7 +83,6 @@ export async function createResultEmailBatch({
       userId: userFlow.fkUserId,
       flowName: flow.title,
       flowDepartment: flow.department,
-      rowDepartment: userFlow.department,
     })
     .from(userFlow)
     .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
@@ -93,7 +92,7 @@ export async function createResultEmailBatch({
         inArray(userFlow.fkUserId, userIds),
         userFlowIds ? inArray(userFlow.id, userFlowIds) : undefined,
         eq(userFlow.progressStatus, sourceStatus),
-        /* 办公类共享流程的最终（二面）结果只发给进入二面阶段的候选人：
+        /* 办公类流程的最终（二面）结果只发给进入二面阶段的候选人：
            一面未通过者已在「一面结果通知」中单独通知，避免重复收到不通过邮件 */
         isOfficeInterviewFlow(flowType) ? eq(userFlow.round, 2) : undefined,
       ),
@@ -259,19 +258,15 @@ export async function createResultEmailBatch({
   const flowRound = requestedFlowRound ?? (isOfficeInterviewFlow(flowType) ? 2 : null);
   const flowKind = getResultEmailFlowKind(flowType, flowRound);
   const templateKey = getResultEmailTemplateKey(flowType, accept, flowRound);
-  /* 模板归属：显式入参优先，否则回落流程归属部门；未归属部门的流程用全局默认模板 */
+  /* 模板归属：显式入参优先，否则回落流程归属部门；未归属部门的流程用全局默认模板。
+     办公类流程同样是 flow.department = 该办公部门，因此与其它部门走同一条解析路径。 */
   const department =
     requestedDepartment !== undefined
       ? normalizeDepartmentKey(requestedDepartment)
       : normalizeDepartmentKey(targets[0].flowDepartment);
-  /* 办公类共享流程：办公部门统一维护一份共享模板（全局行），不使用部门覆盖 */
-  const isSharedOfficeResult = isOfficeInterviewFlow(flowType);
   const templateSetting =
     confirmedTemplateSetting ??
-    await getEmailTemplateSetting(
-      templateKey,
-      isSharedOfficeResult ? null : department,
-    );
+    (await getEmailTemplateSetting(templateKey, department));
   /* {department} 用流程归属部门的展示名渲染：候选人邮件里出现的是「办公室」而不是 Link 标识 */
   const departmentDisplay = departmentLabel(targets[0].flowDepartment);
   const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
@@ -284,9 +279,6 @@ export async function createResultEmailBatch({
     missingTargets.map(async (item) => {
       const targetUser = userMap.get(item.userId);
       const toAddress = getEducationEmail(targetUser?.studentId);
-      const recipientDepartment = isSharedOfficeResult
-        ? normalizeDepartmentKey(item.rowDepartment)
-        : department;
       const rendered = await renderEmailTemplate({
         templateKey,
         variables: {
@@ -294,13 +286,11 @@ export async function createResultEmailBatch({
           flowName: item.flowName,
           flowKind,
           round: flowRound,
-          department: isSharedOfficeResult
-            ? departmentLabel(item.rowDepartment)
-            : departmentDisplay,
+          department: departmentDisplay,
           groupNumber: templateSetting.groupNumber,
           setting: templateSetting,
         },
-        department: isSharedOfficeResult ? null : recipientDepartment,
+        department,
       });
 
       return {
@@ -382,6 +372,7 @@ export async function createResultEmailBatch({
  * 办公类部门面试招新的一面结果通知：
  * - accept=true：发给「一面已通过、正在二面阶段」的候选人；
  * - accept=false：发给「一面未通过、停在第一阶段」的候选人。
+ * 模板与 `{groupNumber}` 按本流程归属部门解析（部门覆盖 → 全局默认 → 内置默认）。
  * 与最终结果发布解耦（一面结果不改变报名状态），单独成批、单独入队，
  * 并通过独立的去重作用域避免与最终结果批次互相覆盖。返回 null 表示当前没有可发送的候选人。
  */
@@ -396,11 +387,14 @@ export async function createOfficeRoundOneEmailBatch({
 }): Promise<{ batchId: number; recipientCount: number } | null> {
   assertEmailConfigured();
   const [flowRow] = await db
-    .select({ id: flow.id, title: flow.title })
+    .select({ id: flow.id, title: flow.title, department: flow.department })
     .from(flow)
     .where(eq(flow.id, flowId))
     .limit(1);
   if (!flowRow) throw new Error("流程不存在");
+  /* 每个办公部门一条独立流程：模板归属 = 流程归属部门 */
+  const flowDepartment = normalizeDepartmentKey(flowRow.department);
+  const departmentDisplay = departmentLabel(flowRow.department);
 
   const round = 1;
   /* 通过 / 未通过各自独立的去重作用域，避免互相覆盖 */
@@ -415,7 +409,6 @@ export async function createOfficeRoundOneEmailBatch({
     .select({
       userFlowId: userFlow.id,
       userId: userFlow.fkUserId,
-      department: userFlow.department,
     })
     .from(userFlow)
     .where(
@@ -504,8 +497,8 @@ export async function createOfficeRoundOneEmailBatch({
       );
     }
 
-    /* 办公部门统一维护共享模板：所有候选人使用同一份全局模板，{department} 仍按候选人第一志愿部门展示 */
-    const setting = await getEmailTemplateSetting(templateKey, null);
+    /* 模板按本流程归属部门解析：部门覆盖 → 全局默认 → 内置默认 */
+    const setting = await getEmailTemplateSetting(templateKey, flowDepartment);
 
     const deliveryDrafts = await Promise.all(
       newRecipients.map(async (item) => {
@@ -517,12 +510,12 @@ export async function createOfficeRoundOneEmailBatch({
             flowName: flowRow.title,
             flowKind: getResultEmailFlowKind(OFFICE_INTERVIEW_FLOW_TYPE, round),
             round,
-            department: departmentLabel(item.department),
+            department: departmentDisplay,
             groupNumber: setting.groupNumber,
             setting,
             genericGreeting: true,
           },
-          department: null,
+          department: flowDepartment,
         });
         return {
           item,
@@ -537,7 +530,7 @@ export async function createOfficeRoundOneEmailBatch({
       {
         name: userMap.get(firstDraft.item.userId)?.name ?? "同学",
         flowName: flowRow.title,
-        department: departmentLabel(firstDraft.item.department),
+        department: departmentDisplay,
         groupNumber: setting.groupNumber,
       },
       setting,

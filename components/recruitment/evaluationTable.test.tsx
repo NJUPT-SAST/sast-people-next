@@ -1346,4 +1346,126 @@ describe("EvaluationTable", () => {
     expect(rows[0].textContent).toContain("高分同学");
     expect(rows[1].textContent).toContain("低分同学");
   });
+
+  it("shows the candidate's choice and sibling department instead of the portfolio column in office flows", () => {
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "办公同学",
+          choice: 1,
+          siblingDepartment: "software",
+        }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "第二志愿同学",
+          studentId: "B002",
+          choice: 2,
+          siblingDepartment: null,
+        }),
+      ],
+      { scoringEnabled: true },
+    );
+
+    // 办公类流程一条流程只招本部门：列口径是「志愿 + 另一志愿部门」，且不展示作品。
+    expect(screen.getAllByText("志愿").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("另一志愿部门").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("第一志愿").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("第二志愿").length).toBeGreaterThan(0);
+    expect(screen.queryByText("投递组别")).not.toBeInTheDocument();
+    expect(screen.queryByText("第一志愿部门")).not.toBeInTheDocument();
+    expect(screen.queryByText("第二志愿部门")).not.toBeInTheDocument();
+    expect(screen.queryByText("作品")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "查看作品" }),
+    ).not.toBeInTheDocument();
+    // 另一志愿部门按展示名渲染（software → 软件研发部），空值标注未填写。
+    expect(screen.getAllByText("软件研发部").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("未填写").length).toBeGreaterThan(0);
+  });
+
+  it("has no editable apply group in office flows", () => {
+    renderTable([makeCandidate({ userFlowId: 1, name: "办公同学", choice: 1 })], {
+      scoringEnabled: true,
+      groupOptions: ["办公室"],
+    });
+
+    expect(screen.queryByText("投递组别")).not.toBeInTheDocument();
+    expect(
+      screen.queryAllByRole("button", { name: /投递组别/ }),
+    ).toHaveLength(0);
+    expect(mockUpdateCandidateApplyGroup).not.toHaveBeenCalled();
+  });
+
+  it("filters office candidates by choice", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      [
+        makeCandidate({ userFlowId: 1, name: "第一志愿同学", choice: 1 }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "第二志愿同学",
+          studentId: "B002",
+          choice: 2,
+        }),
+      ],
+      { scoringEnabled: true },
+    );
+
+    expect(screen.getAllByText("全部志愿").length).toBeGreaterThan(0);
+    expect(screen.queryByText("全部组别")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "第二志愿" }));
+
+    expect(
+      screen.queryAllByRole("button", { name: "第一志愿同学" }),
+    ).toHaveLength(0);
+    expect(
+      screen.getAllByRole("button", { name: "第二志愿同学" }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("keeps the portfolio column in the technical interview flows", () => {
+    renderTable([
+      makeCandidate({
+        userFlowId: 1,
+        portfolioLink: "https://example.com/portfolio",
+      }),
+    ]);
+
+    expect(screen.getAllByText("投递组别").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("作品").length).toBeGreaterThan(0);
+    expect(screen.queryByText("志愿")).not.toBeInTheDocument();
+    expect(screen.queryByText("另一志愿部门")).not.toBeInTheDocument();
+  });
+
+  it("calls the office reviewer 部长 in the evaluation dialog", async () => {
+    const user = userEvent.setup();
+    renderTable([makeCandidate({ userFlowId: 1, name: "办公同学" })], {
+      scoringEnabled: true,
+    });
+
+    const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    await user.click(rowMenu.getByRole("button", { name: "填写面评" }));
+
+    expect(screen.getByRole("group", { name: "部长建议" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/分数为该部长的面试评分/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/此为部长意见/)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "讲师建议" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the lecturer wording in the technical interview flows", async () => {
+    const user = userEvent.setup();
+    renderTable([
+      makeEndedCandidate({ userFlowId: 1, name: "技术同学" }),
+    ]);
+
+    const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    await user.click(rowMenu.getByRole("button", { name: "填写面评" }));
+
+    expect(screen.getByRole("group", { name: "讲师建议" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "部长建议" })).not.toBeInTheDocument();
+  });
 });
