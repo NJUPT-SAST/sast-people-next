@@ -63,7 +63,10 @@ test.describe("office interview flow creation", () => {
     await dialog.getByRole("button", { name: "确认添加" }).click();
 
     await expect
-      .poll(() => page.url())
+      .poll(() => page.url(), {
+        /* 冷启动要现编译 /dashboard/flow/edit，10s 不够 */
+        timeout: 30_000,
+      })
       .toMatch(/\/dashboard\/flow\/edit\?id=\d+/);
     createdFlowId = Number(new URL(page.url()).searchParams.get("id"));
 

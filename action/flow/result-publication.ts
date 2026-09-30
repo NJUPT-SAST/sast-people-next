@@ -34,6 +34,15 @@ type ResultSnapshotRow = {
   interviewSlot: string | null;
   /** 候选人当前轮（办公类=二面）已记录的面试分数，用于名单确认时核对面试记录 */
   scores: number[];
+  /**
+   * 分轮面评均分与份数：一面=单人终评、二面=多位部长分别打分。
+   * 均分保留 1 位小数（无记录为 null），只统计已提交/已通过的面评，与面试管理工作台口径一致。
+   * 旧版本快照没有这几个字段，读取方需按缺失回退。
+   */
+  round1Average: number | null;
+  round1Count: number;
+  round2Average: number | null;
+  round2Count: number;
   /** 该候选人在办公类各流程的报名（用于最终去向选择） */
   officeChoices: Array<{
     userFlowId: number;
@@ -42,6 +51,16 @@ type ResultSnapshotRow = {
     flowTitle: string;
   }>;
 };
+
+/**
+ * 分轮面评统计：均分保留 1 位小数（整数自然不带小数），无记录时均分为 null。
+ * 一面由一位部长给最终分、二面由 2-3 位部长分别打分，因此两轮要分开统计。
+ */
+function roundScoreStatistics(scores: number[]) {
+  if (scores.length === 0) return { average: null as number | null, count: 0 };
+  const total = scores.reduce((sum, score) => sum + score, 0);
+  return { average: Math.round((total / scores.length) * 10) / 10, count: scores.length };
+}
 
 async function getFlowRows(flowId: number, flowType: string) {
   const rows = await db
@@ -61,12 +80,16 @@ async function getFlowRows(flowId: number, flowType: string) {
     .where(eq(userFlow.fkFlowId, flowId));
   const users = await listPeopleUsersByLinkIds(rows.map((row) => row.userId));
 
-  /* 办公类：最终名单确认要核对二面面试记录，因此带出每个候选人二面已记录的分数 */
+  /* 办公类：名单确认要核对当前轮（二面）记录，结果快照还要留档两轮的均分与份数 */
   const scoresByUserFlow = new Map<number, number[]>();
+  const roundOneScoresByUserFlow = new Map<number, number[]>();
+  const roundTwoScoresByUserFlow = new Map<number, number[]>();
   if (isOfficeInterviewFlow(flowType) && rows.length > 0) {
     const scoreRows = await db
       .select({
         userFlowId: interviewEvaluation.fkUserFlowId,
+        round: interviewEvaluation.round,
+        status: interviewEvaluation.status,
         score: interviewEvaluation.score,
       })
       .from(interviewEvaluation)
@@ -76,16 +99,26 @@ async function getFlowRows(flowId: number, flowType: string) {
             interviewEvaluation.fkUserFlowId,
             rows.map((row) => row.userFlowId),
           ),
-          eq(interviewEvaluation.round, 2),
+          inArray(interviewEvaluation.round, [1, 2]),
           isNotNull(interviewEvaluation.score),
         ),
       )
       .orderBy(interviewEvaluation.id);
     for (const scoreRow of scoreRows) {
       if (scoreRow.score === null) continue;
-      const list = scoresByUserFlow.get(scoreRow.userFlowId) ?? [];
+      /* 当前轮（二面）分数沿用原语义：只要打了分就带出，退回/历史记录也照样给名单确认核对 */
+      if (scoreRow.round === 2) {
+        const list = scoresByUserFlow.get(scoreRow.userFlowId) ?? [];
+        list.push(scoreRow.score);
+        scoresByUserFlow.set(scoreRow.userFlowId, list);
+      }
+      /* 分轮均分只统计已提交/已通过的面评，退回重写与历史不通过不计入 */
+      if (scoreRow.status !== "submitted" && scoreRow.status !== "approved") continue;
+      const roundScores =
+        scoreRow.round === 1 ? roundOneScoresByUserFlow : roundTwoScoresByUserFlow;
+      const list = roundScores.get(scoreRow.userFlowId) ?? [];
       list.push(scoreRow.score);
-      scoresByUserFlow.set(scoreRow.userFlowId, list);
+      roundScores.set(scoreRow.userFlowId, list);
     }
   }
 
@@ -130,6 +163,12 @@ async function getFlowRows(flowId: number, flowType: string) {
 
   return rows.map<ResultSnapshotRow>((row) => {
     const user = users.get(row.userId);
+    const roundOne = roundScoreStatistics(
+      roundOneScoresByUserFlow.get(row.userFlowId) ?? [],
+    );
+    const roundTwo = roundScoreStatistics(
+      roundTwoScoresByUserFlow.get(row.userFlowId) ?? [],
+    );
     return {
       userFlowId: row.userFlowId,
       userId: row.userId,
@@ -143,6 +182,10 @@ async function getFlowRows(flowId: number, flowType: string) {
       finalDepartment: row.finalDepartment ?? null,
       interviewSlot: row.interviewSlot ?? null,
       scores: scoresByUserFlow.get(row.userFlowId) ?? [],
+      round1Average: roundOne.average,
+      round1Count: roundOne.count,
+      round2Average: roundTwo.average,
+      round2Count: roundTwo.count,
       officeChoices: officeChoicesByUser.get(row.userId) ?? [],
     };
   });

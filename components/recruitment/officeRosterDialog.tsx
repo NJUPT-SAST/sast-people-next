@@ -32,6 +32,12 @@ export type OfficeRosterRow = {
   siblingDepartment: string | null;
   /** 当前轮已记录的面试分数 */
   scores: number[];
+  /**
+   * 一面（单人终评）均分与份数：由结果快照提供。
+   * 旧快照 / 旧调用方可能没有这两个字段，缺失时回退到 scores。
+   */
+  round1Average?: number | null;
+  round1Count?: number | null;
   /** 同一候选人的办公类报名（用于冲突时选择最终去向） */
   officeChoices: Array<{
     userFlowId: number;
@@ -156,9 +162,19 @@ export function OfficeRosterDialog({
     );
   };
 
+  /**
+   * 每行成绩：一面=单人终评、二面=2-3 位部长均分，两轮分开展示。
+   * 一面分优先取结果快照的分轮字段，旧数据缺失时回退到当前轮 scores（一面模式下就是一面分）。
+   */
   const recordCell = (row: OfficeRosterRow) => {
-    const average = averageScore(row.scores);
-    if (average === null) {
+    const roundTwoAverage = isFinal ? averageScore(row.scores) : null;
+    const roundOneAverage = isFinal
+      ? row.round1Average ?? null
+      : row.round1Average ?? averageScore(row.scores);
+    const roundOneCount = isFinal
+      ? row.round1Count ?? null
+      : row.round1Count ?? row.scores.length;
+    if (roundOneAverage === null && roundTwoAverage === null) {
       return (
         <span className="inline-flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400">
           <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
@@ -167,11 +183,32 @@ export function OfficeRosterDialog({
       );
     }
     return (
-      <span className="text-sm">
-        <span className="font-medium tabular-nums">{average}</span>
-        <span className="ml-1 text-xs text-muted-foreground">
-          （{row.scores.length} 份）
-        </span>
+      <span className="inline-flex flex-wrap items-baseline gap-x-1 text-sm">
+        {roundOneAverage !== null && (
+          <span className="whitespace-nowrap">
+            <span className="text-xs text-muted-foreground">一面均分</span>
+            <span className="ml-1 font-medium tabular-nums">{roundOneAverage}</span>
+            {roundOneCount !== null && roundOneCount > 1 && (
+              <span className="ml-1 text-xs text-muted-foreground">
+                （{roundOneCount} 份）
+              </span>
+            )}
+          </span>
+        )}
+        {roundOneAverage !== null && roundTwoAverage !== null && (
+          <span className="text-muted-foreground" aria-hidden="true">
+            ·
+          </span>
+        )}
+        {roundTwoAverage !== null && (
+          <span className="whitespace-nowrap">
+            <span className="text-xs text-muted-foreground">二面均分</span>
+            <span className="ml-1 font-medium tabular-nums">{roundTwoAverage}</span>
+            <span className="ml-1 text-xs text-muted-foreground">
+              （{row.scores.length} 份）
+            </span>
+          </span>
+        )}
       </span>
     );
   };
@@ -221,10 +258,10 @@ export function OfficeRosterDialog({
             {/* 桌面：固定列宽，不横向滚动 */}
             <table className="hidden w-full table-fixed text-sm md:table">
               <colgroup>
-                <col className="w-[26%]" />
-                <col className="w-[16%]" />
-                <col className="w-[16%]" />
-                {isFinal && <col className="w-[18%]" />}
+                <col className={isFinal ? "w-[22%]" : "w-[26%]"} />
+                <col className={isFinal ? "w-[14%]" : "w-[16%]"} />
+                <col className={isFinal ? "w-[24%]" : "w-[16%]"} />
+                {isFinal && <col className="w-[16%]" />}
                 <col className={isFinal ? "w-[14%]" : "w-[22%]"} />
                 {isFinal && <col className="w-[10%]" />}
               </colgroup>
@@ -233,7 +270,7 @@ export function OfficeRosterDialog({
                   <th className="px-3 py-2 text-left font-medium">候选人</th>
                   <th className="px-3 py-2 text-left font-medium">志愿</th>
                   <th className="px-3 py-2 text-left font-medium">
-                    {isFinal ? "二面均分" : "一面记录"}
+                    {isFinal ? "面评均分（一面 / 二面）" : "一面记录"}
                   </th>
                   {isFinal && <th className="px-3 py-2 text-left font-medium">最终去向</th>}
                   <th className="px-3 py-2 text-left font-medium">结果</th>

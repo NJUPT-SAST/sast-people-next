@@ -261,6 +261,23 @@ test.describe("office interview registration", () => {
     await signInAs(page.context(), officeManager);
     await page.goto(`/dashboard/interviews?flowId=${firstFlowId}`);
 
+    /* 页签已语义化为「部门 × 阶段」：办公室的面试流程就叫「办公室面试」 */
+    await expect(page.getByRole("tab", { name: "办公室面试" })).toBeVisible();
+
+    /* 轮次视图：一面看时段；二面看多位部长的平均分，且不再展示时段列 */
+    const roundSwitch = page.getByRole("group", { name: "切换面试轮次" });
+    await expect(roundSwitch).toBeVisible();
+    await expect(
+      roundSwitch.getByRole("button", { name: /^一面 \d+$/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await roundSwitch.getByRole("button", { name: /^二面 \d+$/ }).click();
+    await expect(page.getByText("暂无进入二面的候选人").first()).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "面试时段" })).toHaveCount(0);
+
+    /* 回到一面继续改时段：二面只在名单确认之后才有内容 */
+    await roundSwitch.getByRole("button", { name: /^一面 \d+$/ }).click();
+
     const slotSelect = page.getByLabel(`修改${candidate.name}的面试时段`).first();
     await expect(slotSelect).toContainText("13:00-14:00");
 

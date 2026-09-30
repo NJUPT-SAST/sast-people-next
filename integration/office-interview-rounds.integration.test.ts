@@ -6,9 +6,13 @@ jest.mock("next/cache", () => ({
   unstable_cache: (fn: unknown) => fn,
 }));
 
-jest.mock("@/lib/operation-audit", () => ({
-  writeOperationAudit: jest.fn(async () => undefined),
-}));
+jest.mock("@/lib/operation-audit", () => {
+  const actual = jest.requireActual<typeof OperationAuditModule>(
+    "@/lib/operation-audit",
+  );
+  /* 「全部面试记录」要读名单确认留档，所以这里走真实写入（其他用例不校验审计调用） */
+  return { ...actual, writeOperationAudit: jest.fn(actual.writeOperationAudit) };
+});
 
 jest.mock("@/lib/server-error-log", () => ({
   logServerError: jest.fn(),
@@ -42,9 +46,10 @@ import {
   flowStep,
   interviewEvaluation,
   interviewSlotChangeRequest,
+  operationAudit,
   userFlow,
 } from "@/db/schema";
-import { eq, inArray, like } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import {
   approveEvaluation,
   createEvaluation,
@@ -58,6 +63,9 @@ import {
   reviewInterviewSlotChange,
 } from "@/action/user-flow/interview-slot-change";
 import { closeOfficeRoundOne, closeOfficeRoundTwo } from "@/action/user-flow/office-rounds";
+import { getOfficeInterviewRecord } from "@/action/user-flow/office-record";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
+import type * as OperationAuditModule from "@/lib/operation-audit";
 
 /* 办公类部门面试招新：每个办公部门一条流程（flow.department = 办公部门）。
    审批账号属于办公部门 publicity（role 3），只能操作本部门流程的候选人。
@@ -496,5 +504,191 @@ describe("办公类部门流程的轮次推进", () => {
       .where(eq(userFlow.id, userFlowId))
       .limit(1);
     expect(unchanged.slot).not.toBe("15:00-16:00");
+  });
+});
+
+describe("办公类全部面试记录", () => {
+  const RECORD_CANDIDATE_ID = CANDIDATE_ID + 50;
+  /* 记录用例自己的流程，避免与上面 describe 的轮次状态互相干扰 */
+  let recordFlowId = 0;
+  let recordSiblingFlowId = 0;
+  let recordUserFlowId = 0;
+  let recordSiblingUserFlowId = 0;
+  let recordStepId = 0;
+
+  beforeAll(async () => {
+    const owned = await createOfficeFlow("SMOKE-办公类流程-记录-科宣部", "publicity");
+    recordFlowId = owned.flowId;
+    recordStepId = owned.steps.find((step) => step.order === 2)?.id ?? 0;
+
+    const sibling = await createOfficeFlow("SMOKE-办公类流程-记录-办公室", "office");
+    recordSiblingFlowId = sibling.flowId;
+
+    /* 同一候选人的两条办公类报名：第一志愿在科宣部，第二志愿在办公室 */
+    recordUserFlowId = await insertCandidate(
+      RECORD_CANDIDATE_ID,
+      1,
+      recordFlowId,
+      recordStepId,
+      1,
+      "publicity",
+    );
+    recordSiblingUserFlowId = await insertCandidate(
+      RECORD_CANDIDATE_ID,
+      1,
+      recordSiblingFlowId,
+      null,
+      2,
+      "office",
+    );
+
+    /* 姓名/学号 QQ 由 Link 查询补齐：这里给出稳定映射，断言操作人与面试官姓名 */
+    (listPeopleUsersByLinkIds as jest.Mock).mockImplementation(async () =>
+      new Map([
+        [
+          RECORD_CANDIDATE_ID,
+          {
+            id: RECORD_CANDIDATE_ID,
+            name: "记录候选人",
+            studentId: "B24040999",
+            qq: "10086",
+          },
+        ],
+        [VIEWER_ID, { id: VIEWER_ID, name: "部长甲", studentId: "S900991", qq: null }],
+        [VIEWER_ID + 7, { id: VIEWER_ID + 7, name: "部长乙", studentId: "S900998", qq: null }],
+      ]),
+    );
+  });
+
+  it("一面面评与名单确认后，记录带出确认时刻的分数快照与操作人", async () => {
+    await insertEvaluation(recordUserFlowId, 1, VIEWER_ID + 7, "submitted", 88);
+    await insertEvaluation(recordUserFlowId, 1, VIEWER_ID + 7, "submitted", 90);
+
+    const confirmed = await closeOfficeRoundOne(
+      recordFlowId,
+      [{ userFlowId: recordUserFlowId, passed: true }],
+      true,
+    );
+    expect(confirmed.success).toBe(true);
+
+    const record = await getOfficeInterviewRecord(recordUserFlowId);
+
+    expect(record.candidate).toMatchObject({
+      userFlowId: recordUserFlowId,
+      name: "记录候选人",
+      studentId: "B24040999",
+      qq: "10086",
+      choice: 1,
+      /* 另一条办公类报名（第二志愿）的部门 */
+      siblingDepartment: "office",
+      interviewSlot: "13:00-14:00",
+      status: "ongoing",
+      round: 2,
+      finalDepartment: null,
+    });
+
+    expect(record.rounds.map((round) => round.round)).toEqual([1, 2]);
+    expect(record.rounds[0].averageScore).toBe(89);
+    expect(record.rounds[0].evaluations).toHaveLength(2);
+    expect(record.rounds[0].evaluations[0]).toMatchObject({
+      score: 88,
+      authorName: "部长乙",
+      isMine: false,
+    });
+    expect(record.rounds[0].decision).toMatchObject({
+      passed: true,
+      decidedBy: "部长甲",
+      evaluationCount: 2,
+      averageScore: 89,
+    });
+    expect(record.rounds[0].decision?.decidedAt).toEqual(expect.any(String));
+
+    /* 二面尚未开始：空轮次、无名单确认 */
+    expect(record.rounds[1].evaluations).toEqual([]);
+    expect(record.rounds[1].averageScore).toBeNull();
+    expect(record.rounds[1].decision).toBeNull();
+  });
+
+  it("二面多位部长打分取平均，名单确认后写入快照", async () => {
+    await insertEvaluation(recordUserFlowId, 2, VIEWER_ID + 7, "submitted", 80);
+    await insertEvaluation(recordUserFlowId, 2, VIEWER_ID, "submitted", 90);
+
+    const beforeDecision = await getOfficeInterviewRecord(recordUserFlowId);
+    expect(beforeDecision.rounds[1].averageScore).toBe(85);
+    expect(beforeDecision.rounds[1].decision).toBeNull();
+
+    const closed = await closeOfficeRoundTwo(
+      recordFlowId,
+      [{ userFlowId: recordUserFlowId, passed: true }],
+      [recordUserFlowId],
+      true,
+    );
+    /* 集成环境无邮件服务：名单已确认但发布失败，审计留档仍应写入 */
+    expect(closed.success).toBe(false);
+
+    const record = await getOfficeInterviewRecord(recordUserFlowId);
+    /* 参评面试官：本人（session.uid）与他人区分 */
+    expect(record.rounds[1].evaluations.map((evaluation) => evaluation.isMine)).toEqual([
+      false,
+      true,
+    ]);
+    expect(record.rounds[1].decision).toMatchObject({
+      passed: true,
+      decidedBy: "部长甲",
+      evaluationCount: 2,
+      averageScore: 85,
+    });
+  });
+
+  it("非办公类流程没有全部面试记录", async () => {
+    const [otherFlow] = await db
+      .insert(flow)
+      .values({
+        title: "SMOKE-非办公类流程-记录",
+        type: "recruitment_exemption",
+        department: "publicity",
+        ownerId: VIEWER_ID,
+      })
+      .returning({ id: flow.id });
+    const [otherCandidate] = await db
+      .insert(userFlow)
+      .values({
+        fkFlowId: otherFlow.id,
+        fkUserId: RECORD_CANDIDATE_ID + 1,
+        progressStatus: "ongoing",
+        department: "publicity",
+      })
+      .returning({ id: userFlow.id });
+
+    await expect(getOfficeInterviewRecord(otherCandidate.id)).rejects.toThrow(
+      "只有办公类部门面试有全部面试记录",
+    );
+  });
+
+  it("其他部门的候选人无法查看全部面试记录", async () => {
+    await expect(getOfficeInterviewRecord(officeUserFlowId)).rejects.toThrow(
+      "无权操作其他部门的候选人",
+    );
+    await expect(getOfficeInterviewRecord(recordSiblingUserFlowId)).rejects.toThrow(
+      "无权操作其他部门的候选人",
+    );
+  });
+
+  afterAll(async () => {
+    /* 名单确认留档写在 operation_audit（无 flow 外键，不会被级联删除），这里自行收尾 */
+    const smokeFlows = await db
+      .select({ id: flow.id })
+      .from(flow)
+      .where(like(flow.title, "SMOKE-%"));
+    const flowIds = smokeFlows.map((row) => row.id);
+    if (flowIds.length === 0) return;
+    await db
+      .delete(operationAudit)
+      .where(
+        and(
+          eq(operationAudit.resourceType, "flow"),
+          inArray(operationAudit.resourceId, flowIds),
+        ),
+      );
   });
 });

@@ -25,7 +25,7 @@ import { departmentLabel } from "@/const/department";
 import { cn } from "@/lib/utils";
 import { Save, Send, Settings2, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { EmailTemplateScopeSelector } from "./EmailTemplateScopeSelector";
@@ -592,6 +592,27 @@ function getTemplateVariablesSummary(definition: EmailTemplateDefinition) {
   return required.map((item) => `{${item.key}}`).join("、");
 }
 
+/**
+ * 「测试发送」默认模板：跟着当前流程类型走，办公类不会再默认发技术招新的通过模板。
+ * 与 lib/email/result-email.tsx 的流程种类口径保持一致（办公类测试一面通过模板）。
+ */
+const defaultTestTemplateKeyForFlowType = (
+  flowType?: string | null,
+): EmailTemplateDefinition["key"] => {
+  switch (flowType) {
+    case "office_interview":
+      return "office_round1.result.accepted";
+    case "recruitment_exemption":
+      return "recruitment_exemption.result.accepted";
+    case "woc":
+      return "woc.result.accepted";
+    case "soc":
+      return "soc.result.accepted";
+    default:
+      return "recruitment.result.accepted";
+  }
+};
+
 export function TestEmailButton({
   flowName,
   department,
@@ -610,6 +631,11 @@ export function TestEmailButton({
   const selectedTemplate = templateDefinitions.find(
     (definition) => definition.key === selectedTemplateKey,
   );
+
+  /* 切换流程/部门后默认模板要跟着走，否则会把上一次选中的模板接着发出去 */
+  useEffect(() => {
+    setSelectedTemplateKey(defaultTemplateKey);
+  }, [defaultTemplateKey]);
 
   return (
     <Dialog>
@@ -636,12 +662,21 @@ export function TestEmailButton({
             }
             className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >
-            {templateDefinitions.map((definition) => (
-              <option key={definition.key} value={definition.key}>
-                {definition.name}
-              </option>
+            {(["result", "interview"] as const).map((category) => (
+              <optgroup key={category} label={emailCategoryText[category]}>
+                {templateDefinitions
+                  .filter((definition) => definition.category === category)
+                  .map((definition) => (
+                    <option key={definition.key} value={definition.key}>
+                      {definition.name}
+                    </option>
+                  ))}
+              </optgroup>
             ))}
           </select>
+          {flowName && (
+            <p className="text-xs text-muted-foreground">当前流程：{flowName}</p>
+          )}
           <p className="text-xs text-muted-foreground">
             {department
               ? `按${getTargetLabel(department)}的模板发送，该部门未覆盖时回落全局默认。`
@@ -698,6 +733,7 @@ export function EmailTemplateManagementSection({
   interviewScheduleTemplates,
   interviewSchedulePreviews,
   selectedFlowTitle,
+  selectedFlowType,
   templateDefinitions,
   department,
   onDepartmentChange,
@@ -707,6 +743,8 @@ export function EmailTemplateManagementSection({
   interviewScheduleTemplates: InterviewTemplateSettingsResult;
   interviewSchedulePreviews: InterviewSchedulePreviews;
   selectedFlowTitle?: string;
+  /** 当前选中流程的类型：测试发送据此挑默认模板（办公类 ≠ 技术招新） */
+  selectedFlowType?: string | null;
   templateDefinitions: EmailTemplateDefinition[];
   /** 当前模板归属：null = 全局默认 */
   department: string | null;
@@ -772,6 +810,9 @@ export function EmailTemplateManagementSection({
               flowName={selectedFlowTitle}
               department={department}
               templateDefinitions={templateDefinitions}
+              defaultTemplateKey={defaultTestTemplateKeyForFlowType(
+                selectedFlowType,
+              )}
             />
           )}
         </div>

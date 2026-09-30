@@ -49,16 +49,19 @@ export async function GET(request: NextRequest) {
   if (!publication) return NextResponse.json({ message: "该流程尚未发布结果" }, { status: 404 });
   const snapshot = publication.resultSnapshot as { flowTitle?: string; rows?: Array<Record<string, unknown>> };
   const rows = snapshot.rows ?? [];
-  /* 办公类留档：志愿、投递部门、面试时段与最终去向都进导出表；其他流程保持原列 */
+  /* 办公类留档：志愿、投递部门、面试时段、两轮均分与最终去向都进导出表；其他流程保持原列 */
   const table = isOffice
     ? [
-        ["姓名", "学号", "志愿", "投递部门", "面试时段", "最终去向", "结果", "结果来源记录 ID"],
+        ["姓名", "学号", "志愿", "投递部门", "面试时段", "一面均分", "二面均分", "最终去向", "结果", "结果来源记录 ID"],
         ...rows.map((row) => [
           row.name,
           row.studentId,
           choiceLabel(row.choice),
           departmentLabel((row.department as string | null) ?? null, ""),
           row.interviewSlot,
+          /* 旧快照没有分轮均分字段：缺失时导出空单元格（escapeCsv 已把 null/undefined 转为空串） */
+          row.round1Average,
+          row.round2Average,
           departmentLabel((row.finalDepartment as string | null) ?? null, ""),
           row.status,
           row.userFlowId,

@@ -92,6 +92,9 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
       row.officeChoices.find((choice) => choice.userFlowId !== row.userFlowId)
         ?.department ?? null,
     scores: row.scores,
+    /* 快照行缺失分轮字段（旧数据）时为 undefined，名单弹窗会回退到 scores 展示 */
+    round1Average: row.round1Average ?? null,
+    round1Count: row.round1Count ?? null,
     officeChoices: row.officeChoices.map((choice) => ({
       userFlowId: choice.userFlowId,
       choice: choice.choice,

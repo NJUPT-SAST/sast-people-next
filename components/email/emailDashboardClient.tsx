@@ -340,6 +340,9 @@ export function EmailDashboardClient({
         selectedFlowTitle={
           selectedFlow?.title ?? safeFlowOptions[0]?.title
         }
+        selectedFlowType={
+          selectedFlow?.type ?? safeFlowOptions[0]?.type ?? null
+        }
         templateDefinitions={templateDefinitions}
         department={department}
         onDepartmentChange={handleDepartmentChange}

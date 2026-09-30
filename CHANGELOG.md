@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 面试管理工作台页签按**「部门 × 阶段」语义化拆分**（软件研发部免试 / 多媒体部WOD / 办公室面试 …），只展示实际有流程的组合；选中页签即定位该组合的最新流程。
+- 办公类两轮在 UI 上区分：**一面视图**（单人「最终分」+ 面试时段，收口按钮「结束一面并发送通知」）与**二面视图**（2-3 位部长的「平均分」，不显示时段，评分不足时提示「待 2-3 位部长评分」），顶部「一面 n / 二面 n」切换带人数；结果发布只出现在二面视图。
+- 候选人行菜单新增**「查看全部记录」**（办公类）：弹窗展示两轮面评（面试官 / 分数 / 意见 / 内容 / 时间）、每轮均分与名单确认结论（通过与否、确认时间、操作人、确认时刻均分与份数），即办公类的归档查看入口。
+- 结果快照按轮留档：`flow_result_publication.result_snapshot` 行新增 `round1Average/round1Count/round2Average/round2Count`；办公类导出 CSV 增加「一面均分 / 二面均分」列；名单确认弹窗同时展示一面与二面均分。
 - 流程类型改为**语义化「部门 × 阶段」选择**：软件研发部/多媒体部 = 免试 / 笔试 / WOC(WOD) / SOC(SOD)，办公类部门 = 面试（共 12 项，`SEMANTIC_FLOW_TYPE_OPTIONS` / `flowTypeLabel`），创建与编辑直接选组合；**流程列表不再单列「归属部门」**（类型名已含部门）。管理员可修改已有流程的类型（`action/flow/type-change.ts`：只有管理员可改，且流程已有报名记录时拒绝——报名数据按类型解释），列表外类型与全局流程仍可用「其他（自定义）」入口。
 - 办公类面试管理支持**按面试时段筛选**候选人；列表内「面试时段」单元格可直接点击修改（部长 ≥ 3 级，`updateCandidateInterviewSlot`，记录操作审计）。办公类改时段不再走申请审批：候选人卡片提示「如需调整面试时段，请联系本部门部长」。
 - 办公类面评支持可选的**「面试意见（参考）」**（建议通过/建议不通过）：只作留档、不参与结果判定，名单确认仍以面评分数与部长团确认为准。
@@ -41,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 邮件中心「测试发送」默认模板：此前无论选中哪个流程，默认都会用**技术招新通过模板**（`recruitment.result.accepted`）发测试邮件，办公部门看起来像技术部门招新邮件；现在默认跟随当前流程类型（办公类 → 办公类一面通过模板、免试 → 免试模板、WOC/SOC 各自模板），模板下拉按「结果通知 / 面试通知」分组，弹窗同时显示当前流程名。
 - `pnpm dev:local` 现在会在启动前收掉上次留下的开发环境实例：运行态文件（`tmp/dev-all.pid`：父进程 + 已启动子进程）与端口占用双重检测，只关闭本仓库的进程（Windows `taskkill /T`，POSIX `SIGTERM`），并容忍本项目 `inngest-dev` 容器占用 8288/8289
 - `pnpm dev:local` 不再依赖 PATH 上的 `pnpm`：容器用 `docker compose` 直接管理，Next.js 与邮件预览用仓库内二进制（`node_modules/next/dist/bin/next`、`node_modules/react-email/dist/cli/index.mjs`）启动
 - 邮件预览服务现在能真正启动：`@react-email/ui` 与 `react-email` 固定为同一版本（6.11.0），此前版本不一致会让 `email dev` 交互式提问后静默退出

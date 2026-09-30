@@ -430,7 +430,9 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
                   <p className="text-sm text-muted-foreground">{departmentLabel(department)}</p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  部长只能维护本部门的流程；组别映射用于把共享流程的报名记录落到具体部门。
+                  {canChooseDepartment
+                    ? "管理员可维护任意部门的流程；组别映射用于把共享流程的报名记录落到具体部门。"
+                    : "部长只能维护本部门的流程。"}
                 </p>
               </div>
 

@@ -237,7 +237,11 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
               ) : (
                 <p className="text-sm text-muted-foreground">{departmentLabel(department)}</p>
               )}
-              <p className="text-xs text-muted-foreground">部长只能维护本部门的流程；全局流程仅管理员可见可改。</p>
+              <p className="text-xs text-muted-foreground">
+                {canChooseDepartment
+                  ? "管理员可维护任意部门的流程；全局流程对所有部门生效。"
+                  : "部长只能维护本部门的流程。"}
+              </p>
             </div>
             {!isOfficeInterview && (
               <div className="lg:col-span-2">

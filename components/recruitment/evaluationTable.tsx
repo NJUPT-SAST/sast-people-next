@@ -144,6 +144,8 @@ type Candidate = {
   evalStatus: string | null;
   evalReturnReason?: string | null;
   evalAuthorId: number | null;
+  /* 候选人当前所处轮次：1=一面，2=二面（办公类流程，服务端返回 user_flow.round） */
+  round?: number | null;
   /* 办公类面试：候选人选择的面谈时段 */
   interviewSlot?: string | null;
   /* 办公类面试：全部面评、均分与参与打分的人数 */
@@ -473,82 +475,126 @@ const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
 };
 
 /**
- * 办公类面试的平均分单元格：只统计候选人当前阶段的面评，多位部长打分时用 (n) 说明参评人数，
- * 点开 popover 可查看每位部长在当前阶段的分数与面评内容。
+ * 办公类面试的分数单元格：按当前轮次展示——一面是单人最终分，二面是 2-3 位部长的平均分；
+ * 点开 popover 只看该轮的面评（每位部长的分数与内容），历史轮次不混进来。
  */
-const ScoreCell = ({ candidate }: { candidate: Candidate }) => {
-  const evaluations = candidate.evaluations ?? [];
+const ScoreCell = ({
+  candidate,
+  round = null,
+}: {
+  candidate: Candidate;
+  round?: 1 | 2 | null;
+}) => {
+  const evaluations = (candidate.evaluations ?? []).filter((evaluation) =>
+    round === null ? true : evaluation.round === round,
+  );
   const averageScore = candidate.averageScore ?? null;
   const evaluationCount = candidate.evaluationCount ?? 0;
+  /* 二面需要 2-3 位部长：只对「还在进行中」的候选人提示还差人，已出结果的人不再催 */
+  const waitingForReviewers =
+    round === 2 &&
+    evaluationCount < 2 &&
+    candidate.status === "ongoing";
+  const scoreText =
+    averageScore === null
+      ? '—'
+      : Number.isInteger(averageScore)
+        ? String(averageScore)
+        : averageScore.toFixed(1);
+  const roundLabel = round === 1 ? '一面' : '二面';
 
   if (evaluations.length === 0) {
-    return <span className="text-sm text-muted-foreground">—</span>;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="text-sm text-muted-foreground">—</span>
+        {waitingForReviewers && (
+          <span className="text-xs text-muted-foreground">待 2-3 位部长评分</span>
+        )}
+      </span>
+    );
   }
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={`查看${candidate.name}当前阶段的全部面评`}
-          className="inline-flex items-center gap-1 rounded px-1 text-sm text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          <span className="font-medium tabular-nums">
-            {averageScore === null
-              ? "—"
-              : Number.isInteger(averageScore)
-                ? String(averageScore)
-                : averageScore.toFixed(1)}
-          </span>
-          {evaluationCount > 1 && (
-            <span className="text-xs text-muted-foreground">({evaluationCount})</span>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 space-y-3">
-        <p className="text-xs font-medium text-muted-foreground">
-          当前阶段面评 · {evaluationCount} 份打分
-        </p>
-        <div className="max-h-72 space-y-3 overflow-y-auto">
-          {evaluations.map((evaluation) => (
-            <div
-              key={evaluation.id}
-              className="space-y-1 border-b pb-3 last:border-0 last:pb-0"
-            >
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="min-w-0 truncate font-medium text-foreground">
-                  {evaluation.authorName ?? "未知面试官"}
-                  {evaluation.isMine && (
-                    <span className="text-muted-foreground">（我）</span>
-                  )}
-                </span>
-                <span className="shrink-0 tabular-nums text-foreground">
-                  {evaluation.score ?? "未打分"}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {/* 面评按阶段区分：一面/二面 */}
-                {evaluation.round === 1
-                  ? "一面"
-                  : evaluation.round === 2
-                    ? "二面"
-                    : "阶段未标记"}
-              </p>
-              {/* 办公类的面试意见可选：填了才展示，只作参考 */}
-              {evaluation.recommendation && (
-                <p className="text-xs text-muted-foreground">
-                  意见：
-                  {evaluation.recommendation === "passed" ? "建议通过" : "建议不通过"}
+    <span className="inline-flex items-center gap-1.5">
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={
+              round === null
+                ? `查看${candidate.name}当前阶段的全部面评`
+                : `查看${candidate.name}${roundLabel}的全部面评`
+            }
+            className="inline-flex items-center gap-1 rounded px-1 text-sm text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            <span className="font-medium tabular-nums">{scoreText}</span>
+            {/* 一面只有一位部长，多份记录才需要标份数；二面的份数用「位部长」说清楚是谁在打 */}
+            {round !== 2 && evaluationCount > 1 && (
+              <span className="text-xs text-muted-foreground">
+                ({evaluationCount})
+              </span>
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-80 space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            {round === 1
+              ? `一面面评 · ${evaluationCount} 份`
+              : round === 2
+                ? `二面面评 · ${evaluationCount} 位部长`
+                : `当前阶段面评 · ${evaluationCount} 份打分`}
+          </p>
+          <div className="max-h-72 space-y-3 overflow-y-auto">
+            {evaluations.map((evaluation) => (
+              <div
+                key={evaluation.id}
+                className="space-y-1 border-b pb-3 last:border-0 last:pb-0"
+              >
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="min-w-0 truncate font-medium text-foreground">
+                    {evaluation.authorName ?? '未知面试官'}
+                    {evaluation.isMine && (
+                      <span className="text-muted-foreground">（我）</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-foreground">
+                    {evaluation.score ?? '未打分'}
+                  </span>
+                </div>
+                {/* 弹窗已经锁定到某一轮，里面的阶段标注就是重复信息 */}
+                {round === null && (
+                  <p className="text-xs text-muted-foreground">
+                    {/* 面评按阶段区分：一面/二面 */}
+                    {evaluation.round === 1
+                      ? '一面'
+                      : evaluation.round === 2
+                        ? '二面'
+                        : '阶段未标记'}
+                  </p>
+                )}
+                {/* 办公类的面试意见可选：填了才展示，只作参考 */}
+                {evaluation.recommendation && (
+                  <p className="text-xs text-muted-foreground">
+                    意见：
+                    {evaluation.recommendation === 'passed' ? '建议通过' : '建议不通过'}
+                  </p>
+                )}
+                <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
+                  {evaluation.content}
                 </p>
-              )}
-              <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
-                {evaluation.content}
-              </p>
-            </div>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+              </div>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+      {round === 2 && (evaluationCount > 0 || waitingForReviewers) && (
+        <span className="text-xs text-muted-foreground">
+          {waitingForReviewers
+            ? '待 2-3 位部长评分'
+            : `${evaluationCount} 位部长`}
+        </span>
+      )}
+    </span>
   );
 };
 
@@ -755,12 +801,15 @@ function ActionCell({
   busy,
   align = "end",
   onAction,
+  onOpenRecord,
 }: {
   plan: ReturnType<typeof deriveInterviewActions>;
   candidate: Candidate;
   busy: boolean;
   align?: "start" | "end";
   onAction: (action: InterviewAction, candidate: Candidate) => void;
+  /** 办公类候选人：打开「全部面试记录」弹窗；未传则不渲染该入口 */
+  onOpenRecord?: (userFlowId: number) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   // Radix opens a menu from the trigger's `pointerdown`, and on touch that is the
@@ -779,8 +828,10 @@ function ActionCell({
     ...(plan.primary ? [plan.primary] : []),
     ...plan.overflow,
   ];
+  /* 办公类行始终能查全部记录：动作都做完之后，历史面评仍然要看得见 */
+  const showRecordEntry = Boolean(onOpenRecord) && Boolean(candidate.scoringEnabled);
 
-  if (actions.length === 0) {
+  if (actions.length === 0 && !showRecordEntry) {
     // A finished row shows nothing at all — an em dash here read as debris, and
     // the status badge already says the row is done. The one exception is a row
     // the current user is locked out of, where naming the owner is the point.
@@ -857,6 +908,18 @@ function ActionCell({
             </Fragment>
           );
         })}
+        {showRecordEntry && (
+          <>
+            {/* 留档入口排在动作之后：先做该做的，再回头查历史 */}
+            {actions.length > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              onSelect={() => onOpenRecord?.(candidate.userFlowId)}
+            >
+              <Eye aria-hidden="true" />
+              查看全部记录
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -870,8 +933,10 @@ export const EvaluationTable = ({
   targetScheduleId,
   loading = false,
   scoringEnabled = false,
+  roundView = null,
   slotOptions = [],
   onRefresh,
+  onOpenRecord,
 }: {
   candidates: Candidate[];
   groupOptions: string[];
@@ -881,10 +946,22 @@ export const EvaluationTable = ({
   loading?: boolean;
   /** 办公类面试：面评需填写 0-100 分数，且一位候选人可有多份面评 */
   scoringEnabled?: boolean;
+  /**
+   * 办公类面试的轮次视图：1=一面（单人最终分 + 面试时段），2=二面（多位部长均分，不显示时段）；
+   * null = 只看流程/历史数据（技术流程，或调用方还没接轮次）。
+   */
+  roundView?: 1 | 2 | null;
   /** 办公类面试流程配置的时段选项（label）：用于行内改时段与时段筛选 */
   slotOptions?: string[];
   onRefresh: () => void;
+  /** 办公类候选人：打开「全部面试记录」弹窗；未传时行菜单不出现该入口 */
+  onOpenRecord?: (userFlowId: number) => void;
 }) => {
+  /* 只有办公流程 + 明确轮次才走轮次视图，其余情况保持原有列与文案 */
+  const officeRound: 1 | 2 | null =
+    scoringEnabled && (roundView === 1 || roundView === 2) ? roundView : null;
+  /* 二面不再展示面试时段：那一轮是部长评分，时段在一面就定完了 */
+  const showScheduleColumn = officeRound !== 2;
   /* 行内改时段的乐观覆盖：提交成功后立刻反映到行数据；服务端刷新或切换流程后丢弃 */
   const [slotDrafts, setSlotDrafts] = useState<Record<number, string | null>>({});
   const candidatesRef = useRef(candidates);
@@ -899,15 +976,20 @@ export const EvaluationTable = ({
   /* 办公类面试无需预约日程：把标记写回行数据，让状态、筛选口径与操作保持一致 */
   const safeCandidates = useMemo(
     () =>
-      (Array.isArray(candidates) ? candidates : []).map((candidate) => ({
-        ...candidate,
-        scoringEnabled,
-        interviewSlot:
-          candidate.userFlowId in slotDrafts
-            ? (slotDrafts[candidate.userFlowId] ?? null)
-            : candidate.interviewSlot,
-      })),
-    [candidates, scoringEnabled, slotDrafts],
+      (Array.isArray(candidates) ? candidates : [])
+        /* 轮次视图只留当前轮的候选人：状态、计数、筛选都在这份数据上算 */
+        .filter((candidate) =>
+          officeRound === null ? true : candidate.round === officeRound,
+        )
+        .map((candidate) => ({
+          ...candidate,
+          scoringEnabled,
+          interviewSlot:
+            candidate.userFlowId in slotDrafts
+              ? (slotDrafts[candidate.userFlowId] ?? null)
+              : candidate.interviewSlot,
+        })),
+    [candidates, scoringEnabled, slotDrafts, officeRound],
   );
   /* 办公类时段只能由部长（role>=3）在工作台内直接调整 */
   const canEditInterviewSlot =
@@ -977,6 +1059,11 @@ export const EvaluationTable = ({
     );
   }, [groupOptionsKey]);
 
+  /* 二面不展示时段：留着一个看不见的时段筛选会把列表悄悄筛空 */
+  useEffect(() => {
+    if (!showScheduleColumn) setSlotFilter(null);
+  }, [showScheduleColumn]);
+
   useEffect(() => {
     setNow(Date.now());
     // The "confirm the interview has ended" action unlocks with the clock, so a
@@ -985,6 +1072,17 @@ export const EvaluationTable = ({
     return () => window.clearInterval(timer);
   }, []);
 
+  /* 本行「我的面评」：轮次视图下只看当前轮，一面的记录不能当成二面已写 */
+  const myEvaluationFor = useCallback(
+    (candidate: Candidate) =>
+      candidate.evaluations?.find(
+        (evaluation) =>
+          evaluation.isMine &&
+          (officeRound === null || evaluation.round === officeRound),
+      ),
+    [officeRound],
+  );
+
   const planFor = useCallback(
     (candidate: Candidate) =>
       deriveInterviewActions(
@@ -992,20 +1090,18 @@ export const EvaluationTable = ({
           ? {
               ...candidate,
               // 办公类面试多人各写一份，行上的"我的面评"决定能否修改/是否待填写
-              evalStatus:
-                candidate.evaluations?.find((evaluation) => evaluation.isMine)
-                  ?.status ?? null,
+              evalStatus: myEvaluationFor(candidate)?.status ?? null,
               canEditEvaluation: true,
             }
           : candidate,
         role,
         now,
       ),
-    [role, now],
+    [role, now, myEvaluationFor],
   );
 
   const startEdit = (c: Candidate) => {
-    const ownEvaluation = c.evaluations?.find((evaluation) => evaluation.isMine);
+    const ownEvaluation = myEvaluationFor(c);
     setEvaluatingId(c.userFlowId);
     setContent(ownEvaluation?.content ?? c.evalContent ?? "");
     setScore(
@@ -1575,14 +1671,24 @@ export const EvaluationTable = ({
   };
 
   // "Nothing matched the filters" and "this flow has nobody" need different copy,
-  // and that distinction has to come from the unfiltered rows.
+  // and that distinction has to come from the rows the view is scoped to.
+  /* 轮次视图下的空状态要指名是哪一轮：整份名单都空着和「这一轮没人」是两回事 */
+  const roundEmptyMessage =
+    officeRound === 1
+      ? "暂无待面试的候选人"
+      : officeRound === 2
+        ? "暂无进入二面的候选人"
+        : null;
   const emptyMessage =
-    safeCandidates.length > 0
-      ? "没有符合条件的候选人。"
-      : "该流程暂时没有可处理的报名人员。";
+    safeCandidates.length === 0 && roundEmptyMessage
+      ? roundEmptyMessage
+      : safeCandidates.length > 0
+        ? "没有符合条件的候选人。"
+        : "该流程暂时没有可处理的报名人员。";
 
-  /* 办公类面试多一列「分数」；列数同时驱动骨架屏和空状态跨列 */
-  const columnCount = (role >= 2 ? 6 : 5) + (scoringEnabled ? 1 : 0);
+  /* 办公类面试多一列「分数」；二面去掉「面试时段」列；列数同时驱动骨架屏和空状态跨列 */
+  const columnCount =
+    (role >= 2 ? 6 : 5) + (scoringEnabled ? 1 : 0) - (showScheduleColumn ? 0 : 1);
 
   const renderRowActions = (
     candidate: Candidate,
@@ -1594,6 +1700,7 @@ export const EvaluationTable = ({
       busy={loadingId === candidate.userFlowId}
       align={align}
       onAction={runAction}
+      onOpenRecord={onOpenRecord}
     />
   );
 
@@ -1636,35 +1743,37 @@ export const EvaluationTable = ({
                     <SelectItem value="2">第二志愿</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select
-                  value={slotFilter ?? "all"}
-                  onValueChange={(value) => {
-                    setSlotFilter(value === "all" ? null : value);
-                  }}
-                >
-                  <SelectTrigger
-                    className="h-9 w-full min-w-0 truncate text-xs sm:w-[10rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
-                    aria-label="按面试时段筛选候选人"
-                    title={
-                      slotFilter === null
-                        ? "全部时段"
-                        : slotFilter === OFFICE_SLOT_NONE
-                          ? "未选择"
-                          : slotFilter
-                    }
+                {showScheduleColumn && (
+                  <Select
+                    value={slotFilter ?? "all"}
+                    onValueChange={(value) => {
+                      setSlotFilter(value === "all" ? null : value);
+                    }}
                   >
-                    <SelectValue placeholder="全部时段" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部时段</SelectItem>
-                    <SelectItem value={OFFICE_SLOT_NONE}>未选择</SelectItem>
-                    {safeSlotOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <SelectTrigger
+                      className="h-9 w-full min-w-0 truncate text-xs sm:w-[10rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                      aria-label="按面试时段筛选候选人"
+                      title={
+                        slotFilter === null
+                          ? "全部时段"
+                          : slotFilter === OFFICE_SLOT_NONE
+                            ? "未选择"
+                            : slotFilter
+                      }
+                    >
+                      <SelectValue placeholder="全部时段" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部时段</SelectItem>
+                      <SelectItem value={OFFICE_SLOT_NONE}>未选择</SelectItem>
+                      {safeSlotOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </>
             ) : safeGroupOptions.length > 0 ? (
               <Select
@@ -1779,17 +1888,19 @@ export const EvaluationTable = ({
                   <TableHead className="h-10 w-[15%] px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
                 </>
               )}
-              {renderSortableHead(
-                scoringEnabled ? "面试时段" : "面试安排",
-                "schedule",
-                cn(
-                  "h-10 px-3 text-xs font-medium text-muted-foreground",
-                  scoringEnabled ? "w-[20%]" : "w-[23%]",
-                ),
-              )}
+              {showScheduleColumn &&
+                renderSortableHead(
+                  scoringEnabled ? "面试时段" : "面试安排",
+                  "schedule",
+                  cn(
+                    "h-10 px-3 text-xs font-medium text-muted-foreground",
+                    scoringEnabled ? "w-[20%]" : "w-[23%]",
+                  ),
+                )}
               {scoringEnabled &&
                 renderSortableHead(
-                  "分数",
+                  /* 一面只有一位部长，那个数字就是最终分；二面是多位部长的平均分 */
+                  officeRound === 1 ? "最终分" : officeRound === 2 ? "平均分" : "分数",
                   "score",
                   "h-10 w-[10%] px-3 text-right text-xs font-medium text-muted-foreground",
                 )}
@@ -1901,25 +2012,27 @@ export const EvaluationTable = ({
                       </TableCell>
                     </>
                   )}
-                  <TableCell className="px-3 py-2 align-middle">
-                    {/* A fixed content height keeps rows uniform: an unbooked
-                        candidate is one line where a booked one is two, and the
-                        resulting 4px wobble reads as uneven row spacing. */}
-                    <div className="flex min-h-[2.75rem] min-w-0 flex-col justify-center">
-                      <ScheduleInfo
-                        candidate={c}
-                        now={now}
-                        scoringEnabled={scoringEnabled}
-                        slotOptions={safeSlotOptions}
-                        slotEditable={canEditInterviewSlot}
-                        slotSaving={slotSavingId === c.userFlowId}
-                        onSlotChange={(slot) => void handleSlotChange(c, slot)}
-                      />
-                    </div>
-                  </TableCell>
+                  {showScheduleColumn && (
+                    <TableCell className="px-3 py-2 align-middle">
+                      {/* A fixed content height keeps rows uniform: an unbooked
+                          candidate is one line where a booked one is two, and the
+                          resulting 4px wobble reads as uneven row spacing. */}
+                      <div className="flex min-h-[2.75rem] min-w-0 flex-col justify-center">
+                        <ScheduleInfo
+                          candidate={c}
+                          now={now}
+                          scoringEnabled={scoringEnabled}
+                          slotOptions={safeSlotOptions}
+                          slotEditable={canEditInterviewSlot}
+                          slotSaving={slotSavingId === c.userFlowId}
+                          onSlotChange={(slot) => void handleSlotChange(c, slot)}
+                        />
+                      </div>
+                    </TableCell>
+                  )}
                   {scoringEnabled && (
                     <TableCell className="px-3 py-2 align-middle text-right">
-                      <ScoreCell candidate={c} />
+                      <ScoreCell candidate={c} round={officeRound} />
                     </TableCell>
                   )}
                   <TableCell className="px-3 py-2 align-middle text-right">
@@ -1983,7 +2096,9 @@ export const EvaluationTable = ({
             const hasActionArea =
               Boolean(plan.primary) ||
               plan.overflow.length > 0 ||
-              Boolean(plan.lockedReason);
+              Boolean(plan.lockedReason) ||
+              /* 办公类的「查看全部记录」是唯一剩下的入口时，动作区也要留着 */
+              (Boolean(onOpenRecord) && Boolean(c.scoringEnabled));
             return (
               <div
                 key={c.userFlowId}
@@ -2049,19 +2164,23 @@ export const EvaluationTable = ({
                     </>
                   )}
                 </div>
-                <ScheduleInfo
-                  candidate={c}
-                  now={now}
-                  scoringEnabled={scoringEnabled}
-                  slotOptions={safeSlotOptions}
-                  slotEditable={canEditInterviewSlot}
-                  slotSaving={slotSavingId === c.userFlowId}
-                  onSlotChange={(slot) => void handleSlotChange(c, slot)}
-                />
+                {showScheduleColumn && (
+                  <ScheduleInfo
+                    candidate={c}
+                    now={now}
+                    scoringEnabled={scoringEnabled}
+                    slotOptions={safeSlotOptions}
+                    slotEditable={canEditInterviewSlot}
+                    slotSaving={slotSavingId === c.userFlowId}
+                    onSlotChange={(slot) => void handleSlotChange(c, slot)}
+                  />
+                )}
                 {scoringEnabled && (
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="text-xs text-muted-foreground">平均分</span>
-                    <ScoreCell candidate={c} />
+                    <span className="text-xs text-muted-foreground">
+                      {officeRound === 1 ? "最终分" : "平均分"}
+                    </span>
+                    <ScoreCell candidate={c} round={officeRound} />
                   </div>
                 )}
                 {role >= 2 && hasActionArea && (
@@ -2072,6 +2191,7 @@ export const EvaluationTable = ({
                       busy={loadingId === c.userFlowId}
                       align="start"
                       onAction={runAction}
+                      onOpenRecord={onOpenRecord}
                     />
                   </div>
                 )}

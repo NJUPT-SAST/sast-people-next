@@ -77,7 +77,13 @@ const buildSummary = ({
 const buildOfficeSummary = ({
   pending = true,
   publication = null,
-}: { pending?: boolean; publication?: string | null } = {}) => ({
+  includeRoundStats = true,
+}: {
+  pending?: boolean;
+  publication?: string | null;
+  /** false = 模拟旧快照 / 旧数据：没有分轮均分字段 */
+  includeRoundStats?: boolean;
+} = {}) => ({
   flow: {
     id: 7,
     title: "2026 秋招办公类",
@@ -97,6 +103,9 @@ const buildOfficeSummary = ({
       choice: 1,
       finalDepartment: null,
       scores: [88, 92],
+      ...(includeRoundStats
+        ? { round1Average: 84.3, round1Count: 1, round2Average: 90, round2Count: 2 }
+        : {}),
       officeChoices: [
         { userFlowId: 21, choice: 1, department: "office", flowTitle: "办公室" },
         { userFlowId: 22, choice: 2, department: "publicity", flowTitle: "科宣部" },
@@ -113,6 +122,9 @@ const buildOfficeSummary = ({
       choice: 2,
       finalDepartment: null,
       scores: [],
+      ...(includeRoundStats
+        ? { round1Average: null, round1Count: 0, round2Average: null, round2Count: 0 }
+        : {}),
       officeChoices: [
         { userFlowId: 22, choice: 2, department: "publicity", flowTitle: "科宣部" },
       ],
@@ -208,6 +220,11 @@ describe("ResultPublicationPanel office roster", () => {
     expect(await screen.findByText("确认最终名单并发布")).toBeInTheDocument();
     /* 弹窗带出二面面试记录的均分与志愿（桌面表格与移动卡片各渲染一份） */
     expect(screen.getAllByText("90")[0]).toBeInTheDocument();
+    /* 一面（单人终评）与二面（多位部长均分）分开展示，避免把两轮成绩混为一谈 */
+    expect(screen.getAllByText("一面均分").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("84.3").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("二面均分").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("（2 份）").length).toBeGreaterThan(0);
     expect(screen.getAllByText("第一志愿")[0]).toBeInTheDocument();
     expect(screen.getByText("另一志愿：科宣部")).toBeInTheDocument();
     expect(screen.getByText(/1 人没有面试记录/)).toBeInTheDocument();
@@ -231,6 +248,22 @@ describe("ResultPublicationPanel office roster", () => {
       ),
     );
     expect(toast.success).toHaveBeenCalledWith("最终结果已发布");
+  });
+
+  it("回退旧数据：缺少分轮字段时只按当前轮分数展示", async () => {
+    const user = userEvent.setup();
+    mockGetFlowResultPublicationSummary.mockResolvedValue(
+      buildOfficeSummary({ pending: true, includeRoundStats: false }),
+    );
+
+    render(<ResultPublicationPanel flowId={7} />);
+    await user.click(await screen.findByRole("button", { name: /确认名单并发布/ }));
+
+    expect(await screen.findByText("确认最终名单并发布")).toBeInTheDocument();
+    /* 旧快照没有一面均分字段：整段省略，不影响二面均分展示 */
+    expect(screen.queryByText("一面均分")).not.toBeInTheDocument();
+    expect(screen.getAllByText("90")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("（2 份）").length).toBeGreaterThan(0);
   });
 
   it("publishes directly when no candidate is left to confirm", async () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
@@ -13,7 +13,15 @@ import {
   listPendingSlotChangeRequests,
   type PendingSlotChangeRow,
 } from '@/action/user-flow/interview-slot-change';
-import { flowTypeLabel, isOfficeInterviewFlow } from '@/const/flow';
+import {
+  SEMANTIC_FLOW_TYPE_OPTIONS,
+  flowTypeLabel,
+  flowTypeOptionOf,
+  flowTypeOptionValue,
+  isOfficeInterviewFlow,
+} from '@/const/flow';
+import { departmentKey } from '@/const/department';
+import { cn } from '@/lib/utils';
 import { Loading } from '@/components/loading';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -25,21 +33,56 @@ import {
   OfficeRosterDialog,
   type OfficeRosterRow,
 } from '@/components/recruitment/officeRosterDialog';
+import { OfficeRecordDialog } from '@/components/recruitment/officeRecordDialog';
 import { closeOfficeRoundOne } from '@/action/user-flow/office-rounds';
 
 type ExamResult = Awaited<ReturnType<typeof calScore>>;
 type CandidatesResult = Awaited<ReturnType<typeof getEvaluationCandidates>>;
 type RecruitmentWorkspaceMode = 'written' | 'interview';
 
-/* 面试工作台的流程类型页签（名称按流程归属部门生成：软件研发部WOC / 多媒体部WOD …） */
-const interviewTypeValues = [
-  'recruitment_exemption',
-  'woc',
-  'soc',
-  'office_interview',
-] as const;
+/* 面试工作台的页签 = 部门 × 阶段的语义组合（软件研发部免试 / 多媒体部WOD / 办公室面试 …） */
+type InterviewFlowGroup = {
+  /* 组合值：`部门:阶段`（flowTypeOptionValue），页签与选中态都用它 */
+  value: string;
+  label: string;
+  /* 该组合下的流程，沿用服务端顺序（createdAt 倒序），首条即最新的流程 */
+  flows: flowSelection[];
+};
 
-type InterviewFlowType = (typeof interviewTypeValues)[number];
+/**
+ * 页签只保留实际存在流程的组合，顺序按 SEMANTIC_FLOW_TYPE_OPTIONS：
+ * 部门清单由 Link 维护，语义组合是产品口径，两个顺序混在一起会出现「免试排在WOC后面」这类噪音。
+ */
+function buildInterviewFlowGroups(
+  flowTypes: flowSelection[],
+): InterviewFlowGroup[] {
+  const groups = new Map<string, InterviewFlowGroup>();
+  flowTypes.forEach((flow) => {
+    const option = flowTypeOptionOf(flow.type, flow.department);
+    const value =
+      option?.value ??
+      flowTypeOptionValue(flow.type, departmentKey(flow.department) ?? '');
+    const existing = groups.get(value);
+    if (existing) {
+      existing.flows.push(flow);
+      return;
+    }
+    groups.set(value, {
+      value,
+      label: option?.label ?? flowTypeLabel(flow.type, flow.department),
+      flows: [flow],
+    });
+  });
+  const semanticOrder = new Map(
+    SEMANTIC_FLOW_TYPE_OPTIONS.map((option, index) => [option.value, index]),
+  );
+  /* 非标准组合（历史遗留）排在语义组合之后；sort 稳定，同序组合保持流程原顺序 */
+  return [...groups.values()].sort(
+    (a, b) =>
+      (semanticOrder.get(a.value) ?? Number.MAX_SAFE_INTEGER) -
+      (semanticOrder.get(b.value) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
 
 /**
  * A failed load must never look like an empty flow, so the panel states the
@@ -47,10 +90,14 @@ type InterviewFlowType = (typeof interviewTypeValues)[number];
  */
 const LOAD_ERROR_MESSAGE = '无法加载该流程的候选人，请检查网络后重试。';
 
-function getInterviewFlowType(flowTypes: flowSelection[], flowId?: string) {
-  const type = flowTypes.find((flow) => flow.id === Number(flowId))?.type;
-  const matched = interviewTypeValues.find((value) => value === type);
-  return matched ?? interviewTypeValues[0];
+/**
+ * 轮次视图默认值：一面的人确认完后列表只剩二面候选人，默认就该落在二面；
+ * 空流程（两面都没有人）保持一面，沿用「暂无待面试的候选人」这条空状态。
+ */
+function defaultOfficeRoundView(candidates: CandidatesResult): 1 | 2 {
+  const hasRoundOne = candidates.some((candidate) => candidate.round === 1);
+  if (hasRoundOne) return 1;
+  return candidates.some((candidate) => candidate.round === 2) ? 2 : 1;
 }
 
 export const RecruitmentContent = ({
@@ -90,10 +137,28 @@ export const RecruitmentContent = ({
   >({});
   const [roundOneTemplateConfirmed, setRoundOneTemplateConfirmed] =
     useState(false);
+  /* 办公类轮次视图：一面看单人最终分+时段，二面看多位部长均分（无时段） */
+  const [officeRoundView, setOfficeRoundView] = useState<1 | 2>(() =>
+    defaultOfficeRoundView(initialEvalData),
+  );
+  /* 页签选中的语义组合；null = 跟随当前流程所在组合 */
+  const [flowGroupValue, setFlowGroupValue] = useState<string | null>(null);
+  /* 打开的「全部面试记录」弹窗对应的候选人 */
+  const [recordUserFlowId, setRecordUserFlowId] = useState<number | null>(null);
   const flowRequestId = useRef(0);
-  const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
-  const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
-  const safeEvalData = Array.isArray(evalData) ? evalData : [];
+  /* 数组回退包进 useMemo：否则 useMemo 依赖每次渲染都会变，等于没缓存 */
+  const safeFlowTypes = useMemo(
+    () => (Array.isArray(flowTypes) ? flowTypes : []),
+    [flowTypes],
+  );
+  const safeScoreData = useMemo(
+    () => (Array.isArray(scoreData) ? scoreData : []),
+    [scoreData],
+  );
+  const safeEvalData = useMemo(
+    () => (Array.isArray(evalData) ? evalData : []),
+    [evalData],
+  );
   const currentFlowGroupOptions =
     safeFlowTypes.find((flow) => flow.id === Number(flowId))?.groupOptions ?? [];
   /* 办公类面试在面评里打分，其他流程保持原来的面评表单 */
@@ -106,12 +171,43 @@ export const RecruitmentContent = ({
   ).map((option) => option.label);
 
   const isEvaluationWorkspace = mode === 'interview';
-  const [interviewFlowType, setInterviewFlowType] = useState<InterviewFlowType>(
-    () => getInterviewFlowType(safeFlowTypes, defaultFlowId),
+  /* 页签组合：只保留有流程的「部门 × 阶段」，无流程时不渲染页签 */
+  const interviewFlowGroups = useMemo(
+    () =>
+      isEvaluationWorkspace ? buildInterviewFlowGroups(safeFlowTypes) : [],
+    [isEvaluationWorkspace, safeFlowTypes],
   );
+  /* 默认页签 = 当前流程所在组合，否则第一个组合（切流程时页签跟着走） */
+  const fallbackGroupValue = useMemo(() => {
+    const currentFlow = safeFlowTypes.find((flow) => flow.id === Number(flowId));
+    const ownGroup = currentFlow
+      ? interviewFlowGroups.find((group) =>
+          group.flows.some((flow) => flow.id === currentFlow.id),
+        )
+      : undefined;
+    return ownGroup?.value ?? interviewFlowGroups[0]?.value ?? null;
+  }, [flowId, interviewFlowGroups, safeFlowTypes]);
+  const activeGroupValue =
+    flowGroupValue &&
+    interviewFlowGroups.some((group) => group.value === flowGroupValue)
+      ? flowGroupValue
+      : fallbackGroupValue;
+  const activeGroup =
+    interviewFlowGroups.find((group) => group.value === activeGroupValue) ??
+    null;
   const visibleFlowTypes = isEvaluationWorkspace
-    ? safeFlowTypes.filter((flow) => flow.type === interviewFlowType)
+    ? (activeGroup?.flows ?? [])
     : safeFlowTypes;
+  /* 办公类轮次人数：分段控件上的计数，数据来自当前流程的候选人 */
+  const officeRoundCounts = useMemo(() => {
+    let one = 0;
+    let two = 0;
+    safeEvalData.forEach((candidate) => {
+      if (candidate.round === 1) one += 1;
+      else if (candidate.round === 2) two += 1;
+    });
+    return { one, two };
+  }, [safeEvalData]);
 
   /* 改期审批已从办公类下线：待审批列表只给技术流程加载，避免无意义请求 */
   useEffect(() => {
@@ -132,12 +228,6 @@ export const RecruitmentContent = ({
     };
   }, [flowId, isEvaluationWorkspace, scoringEnabled]);
 
-  /* 页签按阶段分组（免试/WOC/SOC/办公类面试），具体流程的部门在流程选择器里体现 */
-  const interviewTabs = interviewTypeValues.map((value) => ({
-    value,
-    label: flowTypeLabel(value, null),
-  }));
-
   const handleFlowChange = async (value: string) => {
     const requestId = ++flowRequestId.current;
     setFlowId(value);
@@ -149,6 +239,8 @@ export const RecruitmentContent = ({
         const candidates = await getEvaluationCandidates(parseInt(value));
         if (requestId === flowRequestId.current) {
           setEvalData(candidates);
+          /* 换流程后轮次视图重新定：新流程可能只有一面或只有二面的人 */
+          setOfficeRoundView(defaultOfficeRoundView(candidates));
         }
       } else {
         const scores = await calScore(parseInt(value));
@@ -168,6 +260,24 @@ export const RecruitmentContent = ({
         setLoading(false);
       }
     }
+  };
+
+  /* 页签切组合：选中该组合下最新的一条流程（列表按 createdAt 倒序）并加载 */
+  const handleFlowGroupChange = async (value: string) => {
+    setFlowGroupValue(value);
+    const nextFlow = interviewFlowGroups.find(
+      (group) => group.value === value,
+    )?.flows[0];
+    if (!nextFlow) {
+      /* 组合下没有流程（理论上不会发生）：清空当前列表，别留着上一条流程的数据 */
+      ++flowRequestId.current;
+      setFlowId(undefined);
+      setLoading(false);
+      setEvalData([]);
+      setLoadError(null);
+      return;
+    }
+    await handleFlowChange(nextFlow.id.toString());
   };
 
   const handlePublicationStatusChange = useCallback((status: string | null) => {
@@ -202,7 +312,12 @@ export const RecruitmentContent = ({
 
   /* 结束一面：部长在名单弹窗里逐人确认结果，确认即归档并发一面结果通知；只对办公类流程开放 */
   const canCloseRoundOne =
-    isEvaluationWorkspace && scoringEnabled && role >= 3 && Boolean(flowId) && !loadError;
+    isEvaluationWorkspace &&
+    scoringEnabled &&
+    role >= 3 &&
+    officeRoundView === 1 &&
+    Boolean(flowId) &&
+    !loadError;
   const currentFlowTitle =
     safeFlowTypes.find((flow) => flow.id === Number(flowId))?.title ?? '';
   /* 名单来源：本流程「一面进行中」的候选人（列表接口已排除撤回者） */
@@ -265,6 +380,8 @@ export const RecruitmentContent = ({
         `一面名单已确认：通过 ${result.passCount} 人 · 未通过 ${result.rejectCount} 人`,
       );
       if (result.emailWarning) toast.warning(result.emailWarning);
+      /* 有人通过就说明名单已推进到二面：直接把视图切过去，省一次手动切换 */
+      if (result.passCount > 0) setOfficeRoundView(2);
       await refreshEvalData();
     } catch (error) {
       toast.error(
@@ -273,21 +390,6 @@ export const RecruitmentContent = ({
     } finally {
       setClosingRoundOne(false);
     }
-  };
-
-  const handleInterviewFlowTypeChange = async (value: string) => {
-    const nextType = value as InterviewFlowType;
-    const nextFlow = safeFlowTypes.find((flow) => flow.type === nextType);
-    setInterviewFlowType(nextType);
-    setFlowId(nextFlow?.id.toString());
-    if (!nextFlow) {
-      ++flowRequestId.current;
-      setLoading(false);
-      setEvalData([]);
-      setLoadError(null);
-      return;
-    }
-    await handleFlowChange(nextFlow.id.toString());
   };
 
   const averageScore =
@@ -326,28 +428,59 @@ export const RecruitmentContent = ({
         {/* The select explains itself; the "选择流程 / 切换后会刷新" copy was two
             lines of chrome above the list. */}
         <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-          {isEvaluationWorkspace && (
+          {isEvaluationWorkspace && interviewFlowGroups.length > 0 && (
             <Tabs
-              value={interviewFlowType}
-              onValueChange={handleInterviewFlowTypeChange}
+              value={activeGroupValue ?? undefined}
+              onValueChange={handleFlowGroupChange}
             >
               <TabsList className="h-9 max-w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-fit">
-                {interviewTabs.map((tab) => (
+                {interviewFlowGroups.map((group) => (
                   <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
+                    key={group.value}
+                    value={group.value}
                   >
-                    {tab.label}
+                    {group.label}
                   </TabsTrigger>
                 ))}
               </TabsList>
             </Tabs>
           )}
-          <SelectFlow
-            flowTypes={visibleFlowTypes}
-            defaultFlowTypeId={flowId}
-            onChange={handleFlowChange}
-          />
+          {/* 流程选择器与轮次切换同一行：办公类选完流程紧接着就要选一面/二面 */}
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <SelectFlow
+              flowTypes={visibleFlowTypes}
+              defaultFlowTypeId={flowId}
+              onChange={handleFlowChange}
+            />
+            {/* 轮次视图只对办公类开放：技术流程没有轮次，两轮由名单确认收口 */}
+            {isEvaluationWorkspace && scoringEnabled && flowId && !loadError && (
+              <div
+                role="group"
+                aria-label="切换面试轮次"
+                className="inline-flex h-10 shrink-0 items-center rounded-lg border bg-muted/40 p-0.5 lg:h-8"
+              >
+                {([1, 2] as const).map((round) => (
+                  <button
+                    key={round}
+                    type="button"
+                    aria-pressed={officeRoundView === round}
+                    onClick={() => setOfficeRoundView(round)}
+                    className={cn(
+                      'inline-flex h-full touch-manipulation items-center gap-1 rounded-md px-3 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                      officeRoundView === round
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {round === 1 ? '一面' : '二面'}{' '}
+                    <span className="tabular-nums opacity-70">
+                      {round === 1 ? officeRoundCounts.one : officeRoundCounts.two}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {canCloseRoundOne && (
             <>
@@ -357,6 +490,7 @@ export const RecruitmentContent = ({
                 size="sm"
                 className="h-10 shrink-0 lg:h-8"
                 onClick={openRoundOneDialog}
+                /* 名单空时仍可打开：邮件队列失败后要能再次确认以补发未发送的通知 */
               >
                 结束一面并发送通知
               </Button>
@@ -414,13 +548,16 @@ export const RecruitmentContent = ({
         </div>
       ) : isEvaluationWorkspace ? (
         <div className="space-y-4">
-          {role >= 3 && !loadError && (
-            <ResultPublicationPanel
-              key={`${flowId}-${publicationRefreshKey}`}
-              flowId={Number(flowId)}
-              onStatusChange={handlePublicationStatusChange}
-            />
-          )}
+          {/* 办公类的结果发布只属于二面：一面还在收人，发布按钮放出来只会被误点 */}
+          {role >= 3 &&
+            !loadError &&
+            (!scoringEnabled || officeRoundView === 2) && (
+              <ResultPublicationPanel
+                key={`${flowId}-${publicationRefreshKey}`}
+                flowId={Number(flowId)}
+                onStatusChange={handlePublicationStatusChange}
+              />
+            )}
           {loadError ? (
             errorPanel
           ) : (
@@ -432,12 +569,24 @@ export const RecruitmentContent = ({
               targetScheduleId={targetScheduleId}
               loading={loading}
               scoringEnabled={scoringEnabled}
+              roundView={scoringEnabled ? officeRoundView : null}
               slotOptions={currentFlowSlotOptions}
               onRefresh={refreshEvalDataAndPublication}
+              onOpenRecord={setRecordUserFlowId}
             />
           )}
           {/* 办公类改时段已改为部长在工作台内直接调整：不再展示改期审批面板 */}
           {!scoringEnabled && <PendingSlotChangePanel rows={pendingSlotRows} />}
+          {/* 办公类候选人的全部面试记录（一面 + 二面）：行菜单里的入口打开 */}
+          {scoringEnabled && (
+            <OfficeRecordDialog
+              open={recordUserFlowId !== null}
+              userFlowId={recordUserFlowId}
+              onOpenChange={(open) => {
+                if (!open) setRecordUserFlowId(null);
+              }}
+            />
+          )}
         </div>
       ) : loading ? (
         <Loading />

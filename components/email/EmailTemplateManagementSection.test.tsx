@@ -86,15 +86,31 @@ const templateDefinitions = [
     name: "招新结果·未通过",
     variables: [],
   },
+  {
+    key: "office_round1.result.accepted",
+    category: "result",
+    name: "办公类一面通过模板",
+    variables: [],
+  },
+  {
+    key: "interview.schedule.created",
+    category: "interview",
+    name: "面试通知·创建",
+    variables: [],
+  },
 ] as unknown as EmailTemplateDefinition[];
 
 function renderSection({
   templateSettings,
   department,
+  selectedFlowTitle,
+  selectedFlowType,
   onDepartmentChange = jest.fn(),
 }: {
   templateSettings: TemplateSettingsResult;
   department: string | null;
+  selectedFlowTitle?: string;
+  selectedFlowType?: string | null;
   onDepartmentChange?: (department: string | null) => void;
 }) {
   return render(
@@ -104,6 +120,8 @@ function renderSection({
       interviewScheduleTemplates={emptyInterviewSettings}
       interviewSchedulePreviews={{} as InterviewSchedulePreviews}
       templateDefinitions={templateDefinitions}
+      selectedFlowTitle={selectedFlowTitle}
+      selectedFlowType={selectedFlowType}
       department={department}
       onDepartmentChange={onDepartmentChange}
     />,
@@ -308,5 +326,36 @@ describe("EmailTemplateManagementSection", () => {
       expect.objectContaining({ groupNumber: "987654321" }),
       null,
     );
+  });
+
+  it("测试发送默认跟随当前流程类型：办公类默认办公类一面通过模板", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [
+          createResultRow("office_round1.result.accepted", null, true, false),
+        ],
+        departments: [],
+        scope: { kind: "all" },
+      },
+      department: null,
+      selectedFlowTitle: "2026 办公室面试 Demo",
+      selectedFlowType: "office_interview",
+    });
+
+    /* 头部按钮（第一个）的默认模板跟随当前流程类型；卡片上的按钮仍默认各自的模板 */
+    const [headerButton] = screen.getAllByRole("button", { name: "测试发送" });
+    await user.click(headerButton);
+
+    /* 之前默认永远是技术招新通过模板，办公部门测试出来的邮件样式不对 */
+    expect(await screen.findByLabelText("模板")).toHaveValue(
+      "office_round1.result.accepted",
+    );
+    expect(
+      screen.getByText("当前流程：2026 办公室面试 Demo"),
+    ).toBeInTheDocument();
+    /* 选项按「结果通知 / 面试通知」分组，15 个模板里找起来不用翻列表 */
+    expect(screen.getByRole("group", { name: "结果通知" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "面试通知" })).toBeInTheDocument();
   });
 });

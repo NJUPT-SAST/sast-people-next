@@ -155,6 +155,9 @@ export async function listEmailFlowOptions() {
     .select({
       id: flow.id,
       title: flow.title,
+      /* 模板管理里「测试发送」按当前流程的类型挑默认模板（办公类 ≠ 技术招新） */
+      type: flow.type,
+      department: flow.department,
     })
     .from(flow)
     .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes), visibleFlowPredicate(scope)))

@@ -1318,6 +1318,264 @@ describe("EvaluationTable", () => {
     expect(screen.queryByText("面试时段")).not.toBeInTheDocument();
   });
 
+  const roundOneEvaluation = {
+    id: 21,
+    score: 88,
+    content: "一面的面评内容",
+    recommendation: null,
+    status: "submitted",
+    authorId: 2,
+    authorName: "甲部长",
+    round: 1,
+    isMine: true,
+  };
+
+  const roundTwoEvaluations = [
+    {
+      id: 31,
+      score: 80,
+      content: "乙部长的二面评价",
+      recommendation: null,
+      status: "submitted",
+      authorId: 3,
+      authorName: "乙部长",
+      round: 2,
+      isMine: false,
+    },
+    {
+      id: 32,
+      score: 90,
+      content: "丙部长的二面评价",
+      recommendation: null,
+      status: "submitted",
+      authorId: 4,
+      authorName: "丙部长",
+      round: 2,
+      isMine: false,
+    },
+  ];
+
+  it("shows one final score and the slot in the first-round office view", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "一面同学",
+          round: 1,
+          interviewSlot: "10:00-11:00",
+          averageScore: 88,
+          evaluationCount: 1,
+          evaluations: [roundOneEvaluation],
+        }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "二面同学",
+          studentId: "B002",
+          round: 2,
+          averageScore: 85,
+          evaluationCount: 2,
+          evaluations: roundTwoEvaluations,
+        }),
+      ],
+      { scoringEnabled: true, roundView: 1 },
+    );
+
+    /* 一面的分数就是那位部长的最终分，时段仍然可改 */
+    expect(
+      screen.getByRole("columnheader", { name: "最终分" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("面试时段")).toBeInTheDocument();
+    expect(screen.getAllByText("10:00-11:00").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("88").length).toBeGreaterThan(0);
+    /* 一位部长只有一个数字，(1) 这种份数标注是噪音 */
+    expect(screen.queryByText("(1)")).not.toBeInTheDocument();
+
+    /* 轮次过滤：一面视图不出现二面候选人 */
+    expect(screen.queryByText("二面同学")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^全部 \d+$/ })).toHaveTextContent(
+      "1",
+    );
+
+    await user.click(
+      screen.getAllByRole("button", { name: "查看一面同学一面的全部面评" })[0],
+    );
+
+    expect(await screen.findByText("一面面评 · 1 份")).toBeInTheDocument();
+    expect(screen.getByText("一面的面评内容")).toBeInTheDocument();
+  });
+
+  it("shows only the second-round average without a slot column in the second-round view", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "一面同学",
+          round: 1,
+          interviewSlot: "10:00-11:00",
+          averageScore: 88,
+          evaluationCount: 1,
+          evaluations: [roundOneEvaluation],
+        }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "二面同学",
+          studentId: "B002",
+          round: 2,
+          interviewSlot: "10:00-11:00",
+          averageScore: 85,
+          evaluationCount: 2,
+          evaluations: roundTwoEvaluations,
+        }),
+      ],
+      { scoringEnabled: true, roundView: 2 },
+    );
+
+    expect(
+      screen.getByRole("columnheader", { name: "平均分" }),
+    ).toBeInTheDocument();
+    /* 二面不再展示时段：那一轮是部长评分，时段在一面就定完了 */
+    expect(screen.queryByText("面试时段")).not.toBeInTheDocument();
+    expect(screen.queryByText("10:00-11:00")).not.toBeInTheDocument();
+    expect(screen.getAllByText("85").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2 位部长").length).toBeGreaterThan(0);
+    /* 轮次过滤：二面视图不出现一面候选人 */
+    expect(screen.queryByText("一面同学")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^全部 \d+$/ })).toHaveTextContent(
+      "1",
+    );
+
+    await user.click(
+      screen.getAllByRole("button", { name: "查看二面同学二面的全部面评" })[0],
+    );
+
+    expect(await screen.findByText("二面面评 · 2 位部长")).toBeInTheDocument();
+    /* 每位部长的分数与内容都在，但一面那份记录不混进二面弹窗 */
+    expect(screen.getByText("乙部长的二面评价")).toBeInTheDocument();
+    expect(screen.getByText("丙部长的二面评价")).toBeInTheDocument();
+    expect(screen.queryByText("一面的面评内容")).not.toBeInTheDocument();
+  });
+
+  it("asks for the remaining reviewers while the second round is under-scored", () => {
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "一位部长评分",
+          round: 2,
+          averageScore: 80,
+          evaluationCount: 1,
+          evaluations: [roundTwoEvaluations[0]],
+        }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "还没有人评分",
+          studentId: "B002",
+          round: 2,
+          averageScore: null,
+          evaluationCount: 0,
+          evaluations: [],
+        }),
+      ],
+      { scoringEnabled: true, roundView: 2 },
+    );
+
+    /* 桌面行与移动端卡片都要提示还差人：半份均分不是最终结果 */
+    expect(
+      screen.getAllByText("待 2-3 位部长评分").length,
+    ).toBeGreaterThanOrEqual(4);
+    expect(screen.getAllByText("80").length).toBeGreaterThan(0);
+  });
+
+  it("names the round in the empty state and keeps the first-round column set", () => {
+    const { unmount } = renderTable(
+      [
+        makeCandidate({
+          userFlowId: 2,
+          name: "二面同学",
+          round: 2,
+          averageScore: 85,
+          evaluationCount: 2,
+          evaluations: roundTwoEvaluations,
+        }),
+      ],
+      { scoringEnabled: true, roundView: 1 },
+    );
+
+    expect(screen.getAllByText("暂无待面试的候选人").length).toBeGreaterThan(0);
+    unmount();
+
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "一面同学",
+          round: 1,
+          interviewSlot: "10:00-11:00",
+          averageScore: 88,
+          evaluationCount: 1,
+          evaluations: [roundOneEvaluation],
+        }),
+      ],
+      { scoringEnabled: true, roundView: 2 },
+    );
+
+    expect(screen.getAllByText("暂无进入二面的候选人").length).toBeGreaterThan(0);
+    expect(screen.queryByText("面试时段")).not.toBeInTheDocument();
+  });
+
+  it("opens the whole record from an office row menu only when the caller wires it", async () => {
+    const user = userEvent.setup();
+    const onOpenRecord = jest.fn();
+    const { unmount } = renderTable(
+      [
+        makeCandidate({
+          userFlowId: 9,
+          name: "办公同学",
+          round: 1,
+          interviewSlot: "10:00-11:00",
+          evaluationCount: 0,
+          evaluations: [],
+        }),
+      ],
+      { scoringEnabled: true, roundView: 1, onOpenRecord },
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "查看全部记录" })[0]);
+
+    expect(onOpenRecord).toHaveBeenCalledWith(9);
+    unmount();
+
+    /* 调用方没接弹窗时不渲染这个入口（技术流程同理） */
+    const withoutDialog = renderTable(
+      [
+        makeCandidate({
+          userFlowId: 9,
+          name: "办公同学",
+          round: 1,
+          interviewSlot: "10:00-11:00",
+          evaluationCount: 0,
+          evaluations: [],
+        }),
+      ],
+      { scoringEnabled: true, roundView: 1 },
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "查看全部记录" }),
+    ).not.toBeInTheDocument();
+    withoutDialog.unmount();
+
+    renderTable([makeScheduledCandidate({ userFlowId: 8, name: "技术同学" })], {
+      onOpenRecord,
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "查看全部记录" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("reads office rows as 待记录 / 已记录 instead of any approval state", () => {
     renderTable(
       [

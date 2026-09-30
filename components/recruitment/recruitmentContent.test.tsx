@@ -35,11 +35,23 @@ jest.mock("@/action/user-flow/interview-slot-change", () => ({
 }));
 
 jest.mock("@/components/recruitment/selectFlow", () => ({
-  SelectFlow: ({ onChange }: { onChange?: (value: string) => void }) => (
-    <>
+  SelectFlow: ({
+    onChange,
+    flowTypes,
+    defaultFlowTypeId,
+  }: {
+    onChange?: (value: string) => void;
+    flowTypes?: Array<{ id: number }>;
+    defaultFlowTypeId?: string;
+  }) => (
+    <div
+      data-testid="select-flow"
+      data-flows={(flowTypes ?? []).map((flow) => flow.id).join(",")}
+      data-value={defaultFlowTypeId ?? ""}
+    >
       <button onClick={() => onChange?.("1")}>Flow 1</button>
       <button onClick={() => onChange?.("2")}>Flow 2</button>
-    </>
+    </div>
   ),
 }));
 
@@ -53,15 +65,24 @@ jest.mock("@/components/recruitment/evaluationTable", () => ({
   EvaluationTable: ({
     loading,
     slotOptions,
+    roundView,
+    onOpenRecord,
   }: {
     loading?: boolean;
     slotOptions?: string[];
+    roundView?: 1 | 2 | null;
+    onOpenRecord?: (userFlowId: number) => void;
   }) => (
     <div
       data-testid="evaluation-table"
       data-loading={String(Boolean(loading))}
       data-slot-options={(slotOptions ?? []).join(",")}
-    />
+      data-round-view={roundView === null || roundView === undefined ? "null" : String(roundView)}
+    >
+      {onOpenRecord && (
+        <button onClick={() => onOpenRecord(7)}>打开全部记录</button>
+      )}
+    </div>
   ),
 }));
 
@@ -72,7 +93,24 @@ jest.mock("@/components/recruitment/pendingSlotChangePanel", () => ({
 }));
 
 jest.mock("@/components/recruitment/ResultPublicationPanel", () => ({
-  ResultPublicationPanel: () => null,
+  ResultPublicationPanel: () => <div data-testid="publication-panel" />,
+}));
+
+jest.mock("@/components/recruitment/officeRecordDialog", () => ({
+  OfficeRecordDialog: ({
+    open,
+    userFlowId,
+    onOpenChange,
+  }: {
+    open: boolean;
+    userFlowId: number | null;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div data-testid="record-dialog" data-user-flow-id={String(userFlowId)}>
+        <button onClick={() => onOpenChange(false)}>关闭记录</button>
+      </div>
+    ) : null,
 }));
 
 jest.mock("@/components/recruitment/columns", () => ({
@@ -213,6 +251,14 @@ describe("RecruitmentContent", () => {
     },
   ] as never;
 
+  /* 混合流程：页签要按「部门 × 阶段」的语义口径分组，且只列出实际有流程的组合 */
+  const combinedFlowTypes = [
+    { id: 1, title: "办公室面试 2026", type: "office_interview", department: "office", groupOptions: [], slotOptions: [] },
+    { id: 2, title: "办公室面试 2025", type: "office_interview", department: "office", groupOptions: [], slotOptions: [] },
+    { id: 10, title: "软件研发部免试 2026", type: "recruitment_exemption", department: "software", groupOptions: [], slotOptions: null },
+    { id: 11, title: "多媒体部WOD 2026", type: "woc", department: "media", groupOptions: [], slotOptions: null },
+  ] as never;
+
   /* 一面名单只取「一面进行中」的候选人；其余轮次/状态的候选人不进名单 */
   const roundOneCandidates = [
     {
@@ -317,17 +363,8 @@ describe("RecruitmentContent", () => {
     expect(getEvaluationCandidates).toHaveBeenCalledWith(1);
   });
 
-  it("confirms an empty roster so unsent notifications can be re-sent", async () => {
+  it("keeps 结束一面 in the first-round view only and keeps it openable without a roster", async () => {
     const user = userEvent.setup();
-    jest.mocked(getEvaluationCandidates).mockResolvedValue([] as never);
-    jest.mocked(closeOfficeRoundOne).mockResolvedValue({
-      success: true,
-      passCount: 0,
-      rejectCount: 0,
-      sent: 1,
-      emailWarning: "没有需要发送的一面结果通知（可能已全部发送过）",
-    });
-
     render(
       <RecruitmentContent
         flowTypes={officeFlowTypes}
@@ -343,21 +380,273 @@ describe("RecruitmentContent", () => {
       />,
     );
 
+    /* 只剩二面候选人时默认落在二面：一面那一轮的收口按钮不该出现 */
+    expect(screen.getByRole("button", { name: "二面 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.queryByRole("button", { name: "结束一面并发送通知" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "一面 0" }));
+
+    /* 面/二面切换只影响视图：不重新拉取候选人 */
+    expect(getEvaluationCandidates).not.toHaveBeenCalled();
+    expect(screen.getByTestId("evaluation-table")).toHaveAttribute(
+      "data-round-view",
+      "1",
+    );
+    const closeButton = screen.getByRole("button", { name: "结束一面并发送通知" });
+    /* 名单空时仍可打开：邮件队列失败后要能再次确认以补发未发送的通知 */
+    expect(closeButton).toBeEnabled();
+  });
+
+  it("stays on the first-round view when nobody has reached the second round", () => {
+    jest.mocked(getEvaluationCandidates).mockResolvedValue([] as never);
+    jest.mocked(closeOfficeRoundOne).mockResolvedValue({
+      success: true,
+      passCount: 0,
+      rejectCount: 0,
+      sent: 1,
+      emailWarning: "没有需要发送的一面结果通知（可能已全部发送过）",
+    });
+
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={
+          [
+            /* 一面已出结果的人（不通过）不在待确认名单里，但视图仍是一面 */
+            { userFlowId: 4, status: "failed", round: 1, evaluations: [] },
+          ] as never
+        }
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "一面 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    /* 一面已全部出结果（名单为空）时仍可打开弹窗补发通知 */
+    expect(
+      screen.getByRole("button", { name: "结束一面并发送通知" }),
+    ).toBeEnabled();
+  });
+
+  it("re-derives the round view when another flow is loaded", async () => {
+    const user = userEvent.setup();
+    const officeFlows = [
+      { id: 1, title: "办公室面试 2026", type: "office_interview", department: "office", groupOptions: [], slotOptions: [] },
+      { id: 2, title: "办公室面试 2025", type: "office_interview", department: "office", groupOptions: [], slotOptions: [] },
+    ] as never;
+    /* 另一条流程只剩二面候选人：视图要跟着数据落到二面 */
+    jest.mocked(getEvaluationCandidates).mockResolvedValue([
+      { userFlowId: 3, status: "ongoing", round: 2, evaluations: [] },
+    ] as never);
+
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlows}
+        initialData={[]}
+        initialEvalData={
+          [
+            { userFlowId: 1, status: "ongoing", round: 1, evaluations: [] },
+          ] as never
+        }
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "一面 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Flow 2" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "二面 1" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+    expect(screen.getByRole("tab", { name: "办公室面试" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+  });
+
+  it("renders a tab per department-and-stage combination in semantic order", () => {
+    render(
+      <RecruitmentContent
+        flowTypes={combinedFlowTypes}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="11"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    /* 页签只列实际存在流程的组合，顺序按「部门 × 阶段」的语义口径 */
+    expect(
+      screen.getAllByRole("tab").map((tab) => tab.textContent),
+    ).toEqual(["软件研发部免试", "多媒体部WOD", "办公室面试"]);
+    /* 默认页签 = 当前流程所在组合，流程选择器只给该组合下的流程 */
+    expect(screen.getByRole("tab", { name: "多媒体部WOD" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(screen.getByTestId("select-flow")).toHaveAttribute("data-flows", "11");
+    expect(screen.getByTestId("select-flow")).toHaveAttribute("data-value", "11");
+  });
+
+  it("loads the newest flow of the tab's combination when a tab is clicked", async () => {
+    const user = userEvent.setup();
+    jest.mocked(getEvaluationCandidates).mockResolvedValue([] as never);
+
+    render(
+      <RecruitmentContent
+        flowTypes={combinedFlowTypes}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="11"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "办公室面试" }));
+
+    /* 组合下的流程按服务端顺序（createdAt 倒序），首条即最新 */
+    await waitFor(() =>
+      expect(getEvaluationCandidates).toHaveBeenCalledWith(1),
+    );
+    expect(screen.getByTestId("select-flow")).toHaveAttribute("data-flows", "1,2");
+    expect(screen.getByTestId("select-flow")).toHaveAttribute("data-value", "1");
+  });
+
+  it("keeps the tabs out of the flow-less workspace", () => {
+    render(
+      <RecruitmentContent
+        flowTypes={[]}
+        initialData={[]}
+        initialEvalData={[]}
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    /* 一条流程都没有：不渲染页签，保持「暂无流程」空状态 */
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    expect(screen.getByText("暂无流程")).toBeInTheDocument();
+  });
+
+  it("renders the result publication panel in the second round only", async () => {
+    const user = userEvent.setup();
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={
+          [
+            { userFlowId: 1, status: "ongoing", round: 1, evaluations: [] },
+          ] as never
+        }
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    /* 一面还在收人：结果发布按钮放出来只会被误点 */
+    expect(screen.queryByTestId("publication-panel")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "二面 0" }));
+
+    expect(screen.getByTestId("publication-panel")).toBeInTheDocument();
+  });
+
+  it("opens the archive dialog for the candidate the table reports", async () => {
+    const user = userEvent.setup();
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    expect(screen.queryByTestId("record-dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "打开全部记录" }));
+
+    expect(screen.getByTestId("record-dialog")).toHaveAttribute(
+      "data-user-flow-id",
+      "7",
+    );
+
+    await user.click(screen.getByRole("button", { name: "关闭记录" }));
+
+    expect(screen.queryByTestId("record-dialog")).not.toBeInTheDocument();
+  });
+
+  it("confirms the roster with the candidate list in the first-round view", async () => {
+    const user = userEvent.setup();
+    /* 确认后重新拉取：通过的人已经在二面名单里 */
+    jest.mocked(getEvaluationCandidates).mockResolvedValue([
+      { userFlowId: 1, name: "张三", status: "ongoing", round: 2, evaluations: [] },
+    ] as never);
+    jest.mocked(closeOfficeRoundOne).mockResolvedValue({
+      success: true,
+      passCount: 2,
+      rejectCount: 0,
+      sent: 1,
+    });
+
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={roundOneCandidates}
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
     await user.click(screen.getByRole("button", { name: "结束一面并发送通知" }));
-
-    expect(screen.getByText("没有需要确认的候选人。")).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: "确认邮件模板" }));
-    const confirmButton = screen.getByRole("button", { name: /确认名单并发送/ });
-    expect(confirmButton).toBeEnabled();
-    await user.click(confirmButton);
+    await user.click(screen.getByRole("button", { name: /确认名单并发送/ }));
 
-    await waitFor(() => expect(closeOfficeRoundOne).toHaveBeenCalledWith(1, [], true));
-    expect(mockToastSuccess).toHaveBeenCalledWith(
-      "一面名单已确认：通过 0 人 · 未通过 0 人",
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "一面名单已确认：通过 2 人 · 未通过 0 人",
+      ),
     );
-    expect(mockToastWarning).toHaveBeenCalledWith(
-      "没有需要发送的一面结果通知（可能已全部发送过）",
+
+    /* 有人通过说明名单已经推进：视图自动切到二面，一面收口按钮随之消失 */
+    expect(screen.getByRole("button", { name: "二面 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
+    expect(screen.getByTestId("evaluation-table")).toHaveAttribute(
+      "data-round-view",
+      "2",
+    );
+    expect(
+      screen.queryByRole("button", { name: "结束一面并发送通知" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the roster open when the confirmation is rejected", async () => {
