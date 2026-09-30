@@ -14,6 +14,8 @@ describe("email template registry", () => {
       expect.arrayContaining([
         "recruitment.result.accepted",
         "recruitment.result.rejected",
+        "recruitment_exemption.result.accepted",
+        "recruitment_exemption.result.rejected",
         "woc.result.accepted",
         "woc.result.rejected",
         "soc.result.accepted",

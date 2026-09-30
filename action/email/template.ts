@@ -3,14 +3,25 @@
 import { db } from "@/db/drizzle";
 import { emailTemplateSetting, normalizeDepartmentKey } from "@/db/schema";
 import { departmentLabel } from "@/const/department";
-import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
+import {
+  DepartmentAccessError,
+  getDepartmentScope,
+  type DepartmentScope,
+} from "@/lib/authz";
 import { verifyRole } from "@/lib/dal";
 import {
   canEditTemplateRow,
+  canReadTemplateDepartment,
+  mergeTemplateDepartmentOptions,
   pickTemplateSettingRow,
   resolveTemplateEditTarget,
   templateReadFilter,
 } from "@/lib/email-center/template-access";
+import {
+  mergeResultEmailTemplateSetting,
+  readResultEmailTemplateSetting,
+  type ResultEmailTemplateResolvedSetting,
+} from "@/lib/email-center/template-resolution";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import {
@@ -24,12 +35,8 @@ import { revalidatePath } from "next/cache";
 
 type ResultEmailTemplateValues = Omit<ResultEmailTemplateSetting, "templateKey" | "updatedAt">;
 
-type EmailTemplateSettingRecord = typeof emailTemplateSetting.$inferSelect;
-
-/** 解析后的结果模板：`department` 为命中覆盖行的归属部门，NULL = 落到全局默认 / 内置默认 */
-export type ResultEmailTemplateResolvedSetting = ResultEmailTemplateSetting & {
-  department: string | null;
-};
+/* 对内类型定义在 lib 层，这里只做转出，避免 server action 模块持有领域逻辑 */
+export type { ResultEmailTemplateResolvedSetting };
 
 /** 列表行：额外给出当前账号能否编辑该行、展示值是否来自真实存在的覆盖行 */
 export type ResultEmailTemplateSettingRow = ResultEmailTemplateResolvedSetting & {
@@ -40,9 +47,9 @@ export type ResultEmailTemplateSettingRow = ResultEmailTemplateResolvedSetting &
 
 export type ResultEmailTemplateSettingsPayload = {
   rows: ResultEmailTemplateSettingRow[];
-  /** 可选模板归属部门：管理员 = 数据库中已出现的部门（可再手填），部门账号 = 仅本部门 */
+  /** 可选模板归属部门：Link 部门目录 ∪ 库中已有覆盖行；无部门账号为空 */
   departments: string[];
-  /** 当前账号的写入范围，UI 据此锁定「模板归属」选择器 */
+  /** 当前账号的写入范围：UI 据此判断哪些行可写、是否提供手填新标识 */
   scope: DepartmentScope;
 };
 
@@ -106,7 +113,9 @@ function validateResultEmailTemplateValues(
   values: ResultEmailTemplateValues,
   templateKey: string,
 ) {
-  const isRecruitment = templateKey.startsWith("recruitment.");
+  /* 招新一族（笔试 recruitment + 免试 recruitment_exemption）共用成员注册版式：
+     都填写成员信息表与飞书群，因此按前缀而不是 "recruitment." 精确匹配 */
+  const isRecruitment = templateKey.startsWith("recruitment");
   const isSocAccepted = templateKey === "soc.result.accepted";
   /* QQ 群号只服务办公类模板，且允许留空，因此不参与必填校验 */
   const requiredKeys = isRecruitment
@@ -153,52 +162,16 @@ function validateResultEmailTemplateValues(
 }
 
 /**
- * 合并解析结果模板：内置默认 → 全局默认行 → 命中的部门覆盖行。
- * 文案字段为空时继续回落到内置默认，避免历史空行渲染出空白邮件。
+ * 归属下拉选项：Link 部门目录 ∪ 库中已出现覆盖的部门。
+ * 管理员据此选择（还能手填新标识），部门账号据此只读浏览其他部门。
  */
-function mergeResultEmailTemplateSetting(
-  templateKey: string,
-  saved: EmailTemplateSettingRecord | null,
-): ResultEmailTemplateResolvedSetting {
-  const fallback = defaultResultEmailTemplateSettings.find(
-    (item) => item.templateKey === templateKey,
-  )!;
-  if (!saved) return { ...fallback, department: null };
-
-  return {
-    templateKey,
-    updatedAt: saved.updatedAt,
-    subjectTemplate: saved.subjectTemplate,
-    titleTemplate: saved.titleTemplate?.trim() || fallback.titleTemplate,
-    subtitleTemplate: saved.subtitleTemplate?.trim() || fallback.subtitleTemplate,
-    resultBadgeTemplate: saved.resultBadgeTemplate?.trim() || fallback.resultBadgeTemplate,
-    resultTitleTemplate: saved.resultTitleTemplate?.trim() || fallback.resultTitleTemplate,
-    resultSummaryTemplate: saved.resultSummaryTemplate?.trim() || fallback.resultSummaryTemplate,
-    bodyTemplate: saved.bodyTemplate?.trim() || fallback.bodyTemplate,
-    memberInfoFormUrl: saved.memberInfoFormUrl,
-    feishuGroupUrl: saved.feishuGroupUrl,
-    calendarUrl: saved.calendarUrl,
-    feishuRegisterHelpUrl: saved.feishuRegisterHelpUrl,
-    contactEmail: saved.contactEmail,
-    memberFormLabel: saved.memberFormLabel,
-    feishuGroupName: saved.feishuGroupName,
-    groupNumber: saved.groupNumber ?? fallback.groupNumber,
-    department: saved.department ?? null,
-  };
-}
-
-/** 可归属部门：管理员取库中已出现的部门（可再手填），部门账号仅本部门 */
 async function listResultTemplateDepartments(scope: DepartmentScope) {
-  if (scope.kind === "department") return [scope.department];
   if (scope.kind === "none") return [];
 
   const rows = await db
     .selectDistinct({ department: emailTemplateSetting.department })
     .from(emailTemplateSetting);
-  return rows
-    .map((row) => row.department)
-    .filter((value): value is string => Boolean(value))
-    .sort((a, b) => a.localeCompare(b, "zh-CN"));
+  return mergeTemplateDepartmentOptions(rows.map((row) => row.department));
 }
 
 export async function listEmailTemplateSettings(
@@ -238,25 +211,27 @@ export async function listEmailTemplateSettings(
 
 /**
  * 预览当前账号可见范围内的模板：管理员按入参选部门（缺省全局默认），
- * 部门账号可在全局默认与本部门之间选择、跨部门入参回落本部门，无部门账号只看全局默认。
+ * 部门账号缺省本部门、也可跨部门只读预览，无部门账号只看全局默认。
  */
 export async function getResultEmailPreviews(department?: string | null) {
   await verifyRole(3);
   const scope = await getDepartmentScope();
   const requested = normalizeDepartmentKey(department);
-  /* 部门账号只能在全局默认（null）与本部门之间取模板，跨部门入参一律回落到本部门 */
+  /* 部门账号缺省本部门；传入其他部门时不回落，按只读浏览渲染对应部门的模板 */
   const target =
     scope.kind === "none"
       ? null
-      : scope.kind === "department" &&
-          requested !== null &&
-          requested !== scope.department
-        ? scope.department
+      : scope.kind === "department"
+        ? (requested ?? scope.department)
         : requested;
 
   const entries = await Promise.all(
     defaultResultEmailTemplateSettings.map(async (fallback) => {
-      const setting = await getEmailTemplateSetting(fallback.templateKey, target);
+      /* 预览是内部链路，直接走无域读取，避免绕过 action 包装再触发一次角色校验 */
+      const setting = await readResultEmailTemplateSetting(
+        fallback.templateKey,
+        target,
+      );
       const rendered = await renderEmailTemplate({
         templateKey: fallback.templateKey as ResultEmailTemplateKey,
         variables: {
@@ -276,18 +251,23 @@ export async function getResultEmailPreviews(department?: string | null) {
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
-/** 渲染取模板：部门覆盖 → 全局默认 → 内置默认（无任何行时返回内置默认文案） */
+/**
+ * 对外读取入口（server action）：先做角色与读取范围校验，再走无域读取。
+ * 渲染 / 发布 / 批量发送等内部链路请直接用
+ * `readResultEmailTemplateSetting`，不要经过这里。
+ */
 export async function getEmailTemplateSetting(
   templateKey: string,
   department?: string | null,
 ): Promise<ResultEmailTemplateResolvedSetting> {
-  const rows = await db
-    .select()
-    .from(emailTemplateSetting)
-    .where(eq(emailTemplateSetting.templateKey, templateKey));
-  const saved = pickTemplateSettingRow(rows, department);
+  await verifyRole(3);
+  const scope = await getDepartmentScope();
+  const target = normalizeDepartmentKey(department);
+  if (!canReadTemplateDepartment(scope, target)) {
+    throw new DepartmentAccessError("无权查看其他部门的邮件模板");
+  }
 
-  return mergeResultEmailTemplateSetting(templateKey, saved);
+  return readResultEmailTemplateSetting(templateKey, target);
 }
 
 export async function updateEmailTemplateSetting(

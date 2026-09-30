@@ -56,6 +56,8 @@ describe("FlowTable", () => {
     );
 
     expect(screen.getAllByText("软件研发部WOC").length).toBeGreaterThan(0);
+    /* 类型 pill 已带部门口径，「归属部门」列/行不再单独展示 */
+    expect(screen.queryByText("归属部门")).not.toBeInTheDocument();
     expect(screen.queryByText("WOC/WOD")).not.toBeInTheDocument();
   });
 

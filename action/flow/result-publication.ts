@@ -2,7 +2,7 @@
 
 import { createResultEmailBatch } from "@/lib/email-center/batch";
 import { sendEmailBatch } from "@/action/email/send";
-import { getEmailTemplateSetting } from "@/action/email/template";
+import { readResultEmailTemplateSetting } from "@/lib/email-center/template-resolution";
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, interviewEvaluation, userFlow } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
@@ -30,6 +30,8 @@ type ResultSnapshotRow = {
   /** 候选人当前所处轮次：1=一面、2=二面（其他流程为空） */
   round: number | null;
   finalDepartment: string | null;
+  /** 办公类部门面试：部长安排的面试时段（留档用，导出结果表时可见） */
+  interviewSlot: string | null;
   /** 候选人当前轮（办公类=二面）已记录的面试分数，用于名单确认时核对面试记录 */
   scores: number[];
   /** 该候选人在办公类各流程的报名（用于最终去向选择） */
@@ -52,6 +54,8 @@ async function getFlowRows(flowId: number, flowType: string) {
       choice: userFlow.choice,
       round: userFlow.round,
       finalDepartment: userFlow.finalDepartment,
+      /* 留档：办公类候选人的面试时段 */
+      interviewSlot: userFlow.interviewSlot,
     })
     .from(userFlow)
     .where(eq(userFlow.fkFlowId, flowId));
@@ -137,6 +141,7 @@ async function getFlowRows(flowId: number, flowType: string) {
       choice: row.choice ?? null,
       round: row.round ?? null,
       finalDepartment: row.finalDepartment ?? null,
+      interviewSlot: row.interviewSlot ?? null,
       scores: scoresByUserFlow.get(row.userFlowId) ?? [],
       officeChoices: officeChoicesByUser.get(row.userId) ?? [],
     };
@@ -159,8 +164,8 @@ export async function getFlowResultPublicationSummary(flowId: number) {
   const withdrawn = rows.filter((row) => row.status === "withdrawn").length;
   const unfinished = rows.filter((row) => !terminalStatuses.has(row.status)).length;
   const [acceptedTemplate, rejectedTemplate] = await Promise.all([
-    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, true, resultRound), flowRow[0].department),
-    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, false, resultRound), flowRow[0].department),
+    readResultEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, true, resultRound), flowRow[0].department),
+    readResultEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, false, resultRound), flowRow[0].department),
   ]);
   return {
     flow: flowRow[0],
@@ -205,8 +210,8 @@ export async function publishFlowResults(
   const selectedUserFlowIds = recipientUserFlowIds === undefined
     ? selectableUserFlowIds
     : new Set(recipientUserFlowIds.filter((id) => selectableUserFlowIds.has(id)));
-  const acceptedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, true, resultRound), summary.flow.department);
-  const rejectedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, false, resultRound), summary.flow.department);
+  const acceptedTemplate = await readResultEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, true, resultRound), summary.flow.department);
+  const rejectedTemplate = await readResultEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, false, resultRound), summary.flow.department);
   const resultSnapshot = {
     flowId,
     flowTitle: summary.flow.title,

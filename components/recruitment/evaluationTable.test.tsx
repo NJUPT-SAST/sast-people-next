@@ -9,10 +9,16 @@ import {
 } from "@/action/user-flow/interviewSchedule";
 
 const mockUpdateCandidateApplyGroup = jest.fn();
+const mockUpdateCandidateInterviewSlot = jest.fn();
 
 jest.mock("@/action/user-flow/apply-group", () => ({
   updateCandidateApplyGroup: (...args: unknown[]) =>
     mockUpdateCandidateApplyGroup(...args),
+}));
+
+jest.mock("@/action/user-flow/interview-slot", () => ({
+  updateCandidateInterviewSlot: (...args: unknown[]) =>
+    mockUpdateCandidateInterviewSlot(...args),
 }));
 
 jest.mock("@/action/user-flow/evaluation", () => ({
@@ -61,9 +67,10 @@ jest.mock("@/components/ui/select", () => {
         <div>{children}</div>
       </SelectContext.Provider>
     ),
-    SelectTrigger: ({ children }: { children: React.ReactNode }) => (
-      <div>{children}</div>
-    ),
+    SelectTrigger: ({
+      children,
+      ...props
+    }: React.ComponentProps<"div">) => <div {...props}>{children}</div>,
     SelectValue: ({ placeholder }: { placeholder?: string }) => (
       <span>{placeholder}</span>
     ),
@@ -529,7 +536,7 @@ describe("EvaluationTable", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("请填写面评内容后再提交。");
   });
 
-  it("requires a score and sends no recommendation when saving an office record", async () => {
+  it("requires a score and defaults the office opinion to 不填", async () => {
     const user = userEvent.setup();
     // jest.requireMock types the module as unknown; the mock factory above pins this shape.
     const evaluationActionMock = jest.requireMock(
@@ -572,10 +579,10 @@ describe("EvaluationTable", () => {
     // 编辑的是本人那一份：分数与记录内容回填
     expect(screen.getByLabelText(/面试分数/)).toHaveValue(80);
     expect(screen.getByLabelText(/面试记录内容/)).toHaveValue("原面试记录");
-    // 办公类弹窗只剩记录内容与分数：没有讲师建议，也没有妙记链接
-    expect(screen.queryByRole("group", { name: /建议/ })).not.toBeInTheDocument();
+    // 办公类弹窗没有讲师建议组，也没有妙记/作品区块；只有可选的面试意见
+    expect(screen.queryByRole("group", { name: /讲师建议/ })).not.toBeInTheDocument();
     expect(screen.queryByText("妙记链接")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "建议通过" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("面试意见（参考）")).toBeInTheDocument();
 
     await user.clear(screen.getByLabelText(/面试分数/));
     const contentBox = screen.getByLabelText(/面试记录内容/);
@@ -589,8 +596,8 @@ describe("EvaluationTable", () => {
     await user.type(screen.getByLabelText(/面试分数/), "88");
     await user.click(screen.getByRole("button", { name: "保存记录" }));
 
-    // 办公类只提交记录内容与分数：不传讲师建议，也不传妙记/会议链接
-    expect(mockCreateEvaluation).toHaveBeenCalledWith(1, "表达清晰。", undefined, undefined, 88);
+    // 本人那份意见为 null：办公类默认不填，第 3 个参数传 null，且不带妙记/会议链接
+    expect(mockCreateEvaluation).toHaveBeenCalledWith(1, "表达清晰。", null, undefined, 88);
     expect(mockToastSuccess).toHaveBeenCalledWith("面试记录已保存");
   });
 
@@ -1498,6 +1505,254 @@ describe("EvaluationTable", () => {
     ).toBeGreaterThan(0);
   });
 
+  const OFFICE_SLOT_OPTIONS = ["13:00-14:00", "14:00-15:00"];
+
+  const openSlotFilter = () =>
+    within(screen.getByLabelText("按面试时段筛选候选人").parentElement as HTMLElement);
+
+  it("lets a manager change the interview slot inline", async () => {
+    const user = userEvent.setup();
+    mockUpdateCandidateInterviewSlot
+      .mockReset()
+      .mockResolvedValue({ success: true, slot: "14:00-15:00" });
+    const onRefresh = jest.fn();
+
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 7,
+          name: "办公同学",
+          interviewSlot: "13:00-14:00",
+        }),
+      ],
+      { scoringEnabled: true, slotOptions: OFFICE_SLOT_OPTIONS, onRefresh },
+    );
+
+    const trigger = screen.getAllByLabelText("修改办公同学的面试时段")[0];
+    expect(trigger).toHaveAttribute("title", "点击可修改面试时段");
+
+    await user.click(
+      within(trigger.parentElement as HTMLElement).getByRole("button", {
+        name: "14:00-15:00",
+      }),
+    );
+
+    expect(mockUpdateCandidateInterviewSlot).toHaveBeenCalledWith(7, "14:00-15:00");
+    expect(jest.requireMock("sonner").toast.success).toHaveBeenCalledWith(
+      "面试时段已改为 14:00-15:00",
+    );
+    expect(onRefresh).toHaveBeenCalled();
+    // 成功后本地行数据立刻更新：下拉按新时段展示，不用等服务端刷新
+    expect(screen.getAllByLabelText("修改办公同学的面试时段")[0]).toHaveTextContent(
+      "14:00-15:00",
+    );
+  });
+
+  it("can clear the office interview slot", async () => {
+    const user = userEvent.setup();
+    mockUpdateCandidateInterviewSlot
+      .mockReset()
+      .mockResolvedValue({ success: true, slot: null });
+
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 7,
+          name: "办公同学",
+          interviewSlot: "13:00-14:00",
+        }),
+      ],
+      { scoringEnabled: true, slotOptions: OFFICE_SLOT_OPTIONS },
+    );
+
+    const trigger = screen.getAllByLabelText("修改办公同学的面试时段")[0];
+    await user.click(
+      within(trigger.parentElement as HTMLElement).getByRole("button", {
+        name: "未选择",
+      }),
+    );
+
+    expect(mockUpdateCandidateInterviewSlot).toHaveBeenCalledWith(7, null);
+    expect(jest.requireMock("sonner").toast.success).toHaveBeenCalledWith(
+      "已清除该候选人的面试时段",
+    );
+    expect(screen.getAllByLabelText("修改办公同学的面试时段")[0]).toHaveTextContent(
+      "未选择面谈时段",
+    );
+  });
+
+  it("rolls the inline slot back when the update fails", async () => {
+    const user = userEvent.setup();
+    mockUpdateCandidateInterviewSlot.mockReset().mockResolvedValue({
+      success: false,
+      error: { message: "该时段不在当前流程的时段选项内，请刷新后重试" },
+    });
+    const mockToastError = jest.requireMock("sonner").toast.error as jest.Mock;
+    mockToastError.mockReset();
+
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 7,
+          name: "办公同学",
+          interviewSlot: "13:00-14:00",
+        }),
+      ],
+      { scoringEnabled: true, slotOptions: OFFICE_SLOT_OPTIONS },
+    );
+
+    const trigger = screen.getAllByLabelText("修改办公同学的面试时段")[0];
+    await user.click(
+      within(trigger.parentElement as HTMLElement).getByRole("button", {
+        name: "14:00-15:00",
+      }),
+    );
+
+    expect(mockToastError).toHaveBeenCalledWith(
+      "该时段不在当前流程的时段选项内，请刷新后重试",
+    );
+    // 失败回滚到改前的时段
+    expect(screen.getAllByLabelText("修改办公同学的面试时段")[0]).toHaveTextContent(
+      "13:00-14:00",
+    );
+  });
+
+  it("keeps the office slot read-only without options or below manager role", () => {
+    const { unmount } = renderTable(
+      [
+        makeCandidate({
+          userFlowId: 7,
+          name: "办公同学",
+          interviewSlot: "13:00-14:00",
+        }),
+      ],
+      { scoringEnabled: true, role: 2, slotOptions: OFFICE_SLOT_OPTIONS },
+    );
+
+    expect(screen.queryByLabelText("修改办公同学的面试时段")).not.toBeInTheDocument();
+    expect(screen.getAllByText("13:00-14:00").length).toBeGreaterThan(0);
+    unmount();
+
+    // 流程没配置时段选项时同样是只读展示
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 8,
+          name: "无选项同学",
+          interviewSlot: "13:00-14:00",
+        }),
+      ],
+      { scoringEnabled: true, slotOptions: [] },
+    );
+    expect(screen.queryByLabelText("修改无选项同学的面试时段")).not.toBeInTheDocument();
+  });
+
+  it("filters office candidates by interview slot", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "早场同学",
+          interviewSlot: "13:00-14:00",
+        }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "晚场同学",
+          studentId: "B002",
+          interviewSlot: "14:00-15:00",
+        }),
+        makeCandidate({ userFlowId: 3, name: "未选同学", studentId: "B003" }),
+      ],
+      { scoringEnabled: true, slotOptions: OFFICE_SLOT_OPTIONS },
+    );
+
+    expect(screen.getAllByText("全部时段").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /^全部 \d/ })).toHaveTextContent("3");
+
+    await user.click(openSlotFilter().getByRole("button", { name: "14:00-15:00" }));
+    expect(screen.queryAllByText("早场同学")).toHaveLength(0);
+    expect(screen.getAllByText("晚场同学").length).toBeGreaterThan(0);
+    // 计数跟着时段筛选收敛
+    expect(screen.getByRole("button", { name: /^全部 \d/ })).toHaveTextContent("1");
+
+    await user.click(openSlotFilter().getByRole("button", { name: "未选择" }));
+    expect(screen.getAllByText("未选同学").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("晚场同学")).toHaveLength(0);
+
+    // 时段筛选参与「清除筛选」：空结果时能一键回到全部
+    await user.type(screen.getByLabelText("搜索面试候选人"), "不存在的人");
+    await user.click(screen.getAllByRole("button", { name: "清除筛选" })[0]);
+    expect(screen.getAllByText("早场同学").length).toBeGreaterThan(0);
+  });
+
+  it("submits the chosen office opinion alongside the score", async () => {
+    const user = userEvent.setup();
+    const evaluationActionMock = jest.requireMock(
+      "@/action/user-flow/evaluation",
+    ) as { createEvaluation: jest.Mock };
+    const mockCreateEvaluation = evaluationActionMock.createEvaluation;
+    mockCreateEvaluation
+      .mockReset()
+      .mockResolvedValue({ success: true, data: { id: 12 } });
+
+    renderTable([makeCandidate({ userFlowId: 1, name: "办公同学" })], {
+      scoringEnabled: true,
+    });
+
+    const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    await user.click(rowMenu.getByRole("button", { name: "填写面试记录" }));
+
+    await user.type(screen.getByLabelText(/面试记录内容/), "整体表现不错。");
+    await user.type(screen.getByLabelText(/面试分数/), "85");
+    await user.click(screen.getByRole("button", { name: "建议通过" }));
+    await user.click(screen.getByRole("button", { name: "保存记录" }));
+
+    await waitFor(() =>
+      expect(mockCreateEvaluation).toHaveBeenCalledWith(
+        1,
+        "整体表现不错。",
+        "passed",
+        undefined,
+        85,
+      ),
+    );
+  }, 15000);
+
+  it("shows a saved office opinion in the score popover", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "甲同学",
+          averageScore: 60,
+          evaluationCount: 1,
+          evaluations: [
+            {
+              id: 11,
+              score: 60,
+              content: "还需要再观察。",
+              recommendation: "failed",
+              status: "submitted",
+              authorId: 2,
+              authorName: "甲部长",
+              round: 1,
+              isMine: true,
+            },
+          ],
+        }),
+      ],
+      { scoringEnabled: true },
+    );
+
+    await user.click(
+      screen.getAllByRole("button", { name: "查看甲同学当前阶段的全部面评" })[0],
+    );
+
+    expect(await screen.findByText("意见：建议不通过")).toBeInTheDocument();
+  });
+
   it("keeps the portfolio column in the technical interview flows", () => {
     renderTable([
       makeCandidate({
@@ -1512,7 +1767,7 @@ describe("EvaluationTable", () => {
     expect(screen.queryByText("另一志愿部门")).not.toBeInTheDocument();
   });
 
-  it("keeps the office record dialog to content and score only", async () => {
+  it("keeps the office record dialog to content, score and an optional opinion", async () => {
     const user = userEvent.setup();
     renderTable([makeCandidate({ userFlowId: 1, name: "办公同学" })], {
       scoringEnabled: true,
@@ -1524,14 +1779,16 @@ describe("EvaluationTable", () => {
     // 办公类弹窗标题与提交按钮
     expect(screen.getByRole("dialog")).toHaveTextContent("填写面试记录");
     expect(screen.getByRole("button", { name: "保存记录" })).toBeInTheDocument();
-    // 字段只剩「面试记录内容 + 面试分数」
+    // 字段：记录内容 + 分数 + 可选的面试意见
     expect(screen.getByLabelText(/面试记录内容/)).toBeInTheDocument();
     expect(screen.getByLabelText(/面试分数/)).toBeInTheDocument();
     expect(screen.getByText(/分数为该部长的面试评分/)).toBeInTheDocument();
-    // 没有讲师建议、没有妙记链接，也没有作品区块
-    expect(screen.queryByRole("group", { name: /建议/ })).not.toBeInTheDocument();
-    expect(screen.queryByText("建议通过")).not.toBeInTheDocument();
-    expect(screen.queryByText("建议不通过")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("面试意见（参考）")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "不填" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "建议通过" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "建议不通过" })).toBeInTheDocument();
+    // 意见是下拉参考项，不是技术流程那组必填的讲师建议
+    expect(screen.queryByRole("group", { name: /讲师建议/ })).not.toBeInTheDocument();
     expect(screen.queryByText("妙记链接")).not.toBeInTheDocument();
     expect(screen.queryByText("作品链接")).not.toBeInTheDocument();
   });

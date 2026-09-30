@@ -75,8 +75,8 @@ jest.mock("@/db/drizzle", () => ({
   db: { ...mockDb, transaction: mockTransaction },
 }));
 
-jest.mock("@/action/email/template", () => ({
-  getEmailTemplateSetting: mockGetEmailTemplateSetting,
+jest.mock("@/lib/email-center/template-resolution", () => ({
+  readResultEmailTemplateSetting: mockGetEmailTemplateSetting,
 }));
 
 jest.mock("@/event", () => ({ __esModule: true, default: { offer: mockOffer } }));

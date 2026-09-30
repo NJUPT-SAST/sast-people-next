@@ -1,10 +1,15 @@
 jest.mock("server-only", () => ({}));
 
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
 import {
   getResultEmailFlowKind,
   getResultEmailTemplateKey,
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
+import OfferEmail from "@/emails/offer";
+import { resultEmailLinks } from "@/lib/email/result-email-config";
 import { defaultResultEmailTemplateSettings } from "@/lib/email/template-settings";
 
 const settingFor = (templateKey: string) =>
@@ -23,7 +28,11 @@ describe("result email flow kind and template key", () => {
 
   it("keeps other flow types on their existing kinds", () => {
     expect(getResultEmailFlowKind("recruitment", 2)).toBe("recruitment");
-    expect(getResultEmailFlowKind("recruitment_exemption")).toBe("recruitment");
+    /* 免试不再折叠成 recruitment，按语义类型出独立模板 */
+    expect(getResultEmailFlowKind("recruitment_exemption")).toBe("recruitment_exemption");
+    expect(getResultEmailFlowKind("recruitment_exemption", 2)).toBe(
+      "recruitment_exemption",
+    );
     expect(getResultEmailFlowKind("woc")).toBe("woc");
     expect(getResultEmailFlowKind("soc")).toBe("soc");
   });
@@ -37,6 +46,12 @@ describe("result email flow kind and template key", () => {
     );
     expect(getResultEmailTemplateKey("recruitment", true)).toBe(
       "recruitment.result.accepted",
+    );
+    expect(getResultEmailTemplateKey("recruitment_exemption", true)).toBe(
+      "recruitment_exemption.result.accepted",
+    );
+    expect(getResultEmailTemplateKey("recruitment_exemption", false)).toBe(
+      "recruitment_exemption.result.rejected",
     );
     expect(getResultEmailTemplateKey("soc", false)).toBe("soc.result.rejected");
   });
@@ -70,5 +85,44 @@ describe("renderResultEmailSubject", () => {
     expect(renderResultEmailSubject({ name: "李四", flowName: "2026 春季招新" })).toBe(
       "2026 春季招新 结果通知",
     );
+  });
+
+  it("uses the exemption template's own default subject", () => {
+    expect(
+      renderResultEmailSubject(
+        { name: "李四", flowName: "2026 免试招新" },
+        settingFor("recruitment_exemption.result.accepted"),
+      ),
+    ).toBe("2026 免试招新 结果通知");
+    expect(settingFor("recruitment_exemption.result.accepted").titleTemplate).not.toBe(
+      settingFor("recruitment.result.accepted").titleTemplate,
+    );
+  });
+});
+
+describe("OfferEmail", () => {
+  /* 免试与笔试共用成员注册版式，这条断言守着 offer.tsx 的 flowKind 分支 */
+  it("keeps the member onboarding blocks for exemption flows", () => {
+    const accepted = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 免试招新",
+        accept: true,
+        flowKind: "recruitment_exemption",
+      }),
+    );
+    const rejected = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 免试招新",
+        accept: false,
+        flowKind: "recruitment_exemption",
+      }),
+    );
+
+    expect(accepted).toContain(resultEmailLinks.memberInfoForm);
+    expect(accepted).toContain(resultEmailLinks.feishuGroup);
+    /* 未通过者保留授课日历入口 */
+    expect(rejected).toContain(resultEmailLinks.calendar);
   });
 });

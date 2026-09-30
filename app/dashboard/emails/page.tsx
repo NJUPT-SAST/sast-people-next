@@ -47,12 +47,13 @@ export default async function EmailDashboardPage({
   const requestedDepartment = normalizeDepartmentKey(
     getSearchParam(awaitedSearchParams, "department"),
   );
-  /* 模板归属：管理员按 URL 切换（缺省全局默认），部门账号固定在本部门覆盖 */
+  /* 模板归属：管理员按 URL 切换（缺省全局默认）；部门账号缺省本部门覆盖，
+     也可以通过 URL 只读浏览其他部门（写权限仍只限本部门） */
   const selectedDepartment =
     departmentScope.kind === "all"
       ? requestedDepartment
       : departmentScope.kind === "department"
-        ? departmentScope.department
+        ? (requestedDepartment ?? departmentScope.department)
         : null;
   const activeTab: EmailCenterTab =
     requestedTab === "templates" && !canManageTemplates

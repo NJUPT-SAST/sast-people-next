@@ -27,8 +27,9 @@ const optionLabel = (key: string) => {
 };
 
 /**
- * 模板归属选择器：管理员可切换「全局默认 / 任意部门（含手填新标识）」，
- * 部长固定在本部门覆盖。
+ * 模板归属选择器：
+ * - 管理员可切换「全局默认 / 任意部门（Link 部门目录 + 库中已有覆盖 + 手填新标识）」；
+ * - 部长默认本部门，也可以切到其他部门只读浏览（保存按钮由只读逻辑隐藏）。
  */
 export function EmailTemplateScopeSelector({
   value,
@@ -38,7 +39,7 @@ export function EmailTemplateScopeSelector({
 }: {
   /** 当前模板归属；null = 全局默认 */
   value: string | null;
-  /** 服务端返回的可归属部门选项 */
+  /** 服务端返回的可归属部门选项（Link 部门目录 ∪ 库中已有覆盖） */
   departments: string[];
   /** 当前账号可写范围 */
   scope: TemplateScopeSummary;
@@ -47,10 +48,15 @@ export function EmailTemplateScopeSelector({
   const [customOpen, setCustomOpen] = useState(false);
   const [customValue, setCustomValue] = useState("");
   const ownDepartment = normalizeTemplateDepartment(scope.department);
-  const canChooseDepartment = scope.kind === "all";
-  /* 当前值可能已不在选项里，仍要出现避免被误改 */
-  const options =
+  const isAdmin = scope.kind === "all";
+  const canChooseDepartment = scope.kind !== "none";
+  /* 当前值与本部门可能不在服务端选项里，补齐避免下拉缺项被误改成第一项 */
+  const baseOptions =
     value && !departments.includes(value) ? [value, ...departments] : departments;
+  const options =
+    ownDepartment && !baseOptions.includes(ownDepartment)
+      ? [ownDepartment, ...baseOptions]
+      : baseOptions;
 
   if (!canChooseDepartment) {
     return (
@@ -58,13 +64,7 @@ export function EmailTemplateScopeSelector({
         <span className="text-xs font-medium text-muted-foreground">
           模板归属
         </span>
-        <span className="text-sm font-medium">
-          本部门覆盖：
-          {ownDepartment ? optionLabel(ownDepartment) : "未归属部门"}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          未配置时回落全局默认；保存只影响本部门文案，全局默认保持只读。
-        </span>
+        <span className="text-sm font-medium">未归属部门，只读全局默认</span>
       </div>
     );
   }
@@ -75,8 +75,12 @@ export function EmailTemplateScopeSelector({
         模板归属
       </span>
       <Select
-        value={value ?? GLOBAL_VALUE}
+        value={value ?? (isAdmin ? GLOBAL_VALUE : (ownDepartment ?? ""))}
         onValueChange={(next) => {
+          if (!isAdmin) {
+            onChange(next);
+            return;
+          }
           if (next === GLOBAL_VALUE) {
             setCustomOpen(false);
             onChange(null);
@@ -94,22 +98,23 @@ export function EmailTemplateScopeSelector({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={GLOBAL_VALUE}>全局默认（所有部门）</SelectItem>
+          {isAdmin && (
+            <SelectItem value={GLOBAL_VALUE}>全局默认（所有部门）</SelectItem>
+          )}
           {options.map((key) => (
             <SelectItem key={key} value={key}>
               {optionLabel(key)}
             </SelectItem>
           ))}
-          <SelectItem value={CUSTOM_VALUE}>手填新部门标识…</SelectItem>
+          {isAdmin && <SelectItem value={CUSTOM_VALUE}>手填新部门标识…</SelectItem>}
         </SelectContent>
       </Select>
       <span className="text-xs text-muted-foreground">
-        全局默认对所有部门生效；选择部门后只写该部门的覆盖，未覆盖的部门继续回落全局默认。
-        {departments.length > 0
-          ? `已配置过覆盖的部门：${departments.map((key) => optionLabel(key)).join("、")}。`
-          : ""}
+        {isAdmin
+          ? "全局默认对所有部门生效；选择部门后只写该部门的覆盖，未覆盖的部门继续回落全局默认。下拉来自 Link 部门目录与已有覆盖行，也可手填其他标识。"
+          : "下拉来自 Link 部门目录与已有覆盖行；本部门覆盖可编辑，其他部门只读浏览。"}
       </span>
-      {customOpen && (
+      {isAdmin && customOpen && (
         <div className="flex min-w-0 items-center gap-2">
           <Input
             aria-label="手填部门标识"

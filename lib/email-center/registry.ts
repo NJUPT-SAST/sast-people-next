@@ -29,6 +29,28 @@ export const emailTemplateDefinitions = [
     ],
   },
   {
+    key: "recruitment_exemption.result.accepted",
+    category: "result",
+    name: "免试招新通过结果通知",
+    description: "向已通过免试（面试）招新流程的同学发送后续登记、群组和日历信息。",
+    defaultSubject: "{flowName} 结果通知",
+    variables: [
+      { key: "name", label: "候选人姓名", required: true, example: "张三" },
+      { key: "flowName", label: "流程名称", required: true, example: "2026 免试招新" },
+    ],
+  },
+  {
+    key: "recruitment_exemption.result.rejected",
+    category: "result",
+    name: "免试招新不通过结果通知",
+    description: "向免试（面试）招新流程中未通过的同学发送结果通知和后续关注信息。",
+    defaultSubject: "{flowName} 结果通知",
+    variables: [
+      { key: "name", label: "候选人姓名", required: true, example: "张三" },
+      { key: "flowName", label: "流程名称", required: true, example: "2026 免试招新" },
+    ],
+  },
+  {
     key: "woc.result.accepted",
     category: "result",
     name: "WoC/WoD 通过结果通知",

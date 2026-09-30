@@ -9,7 +9,7 @@ export const isOfficeInterviewFlowType = (type: string) =>
 
 /**
  * 办公类部门面试招新：每个办公部门一条流程，流程内完成两轮面试，
- * 一面通过后由系统推进到「二轮面试」，二轮通过后进入结果确认。
+ * 一面通过后由系统推进到「二面」，二面通过后进入结果确认。
  */
 export const officeInterviewSteps = (
   flowId: number,
@@ -25,7 +25,7 @@ export const officeInterviewSteps = (
     isDeleted: false,
   },
   {
-    title: "一面面试",
+    title: "一面",
     description: "部门部长进行一对一面试并打分",
     type: "checking",
     order: 2,
@@ -35,7 +35,7 @@ export const officeInterviewSteps = (
     isDeleted: false,
   },
   {
-    title: "二轮面试",
+    title: "二面",
     description: "无领导小组面试，多位部长共同打分（一面通过后进入）",
     type: "checking",
     order: 3,

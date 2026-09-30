@@ -79,6 +79,29 @@ describe("renderEmailTemplate", () => {
     );
   });
 
+  it("routes the exemption result templates through the result renderer", async () => {
+    const rendered = await renderEmailTemplate({
+      templateKey: "recruitment_exemption.result.rejected",
+      variables: {
+        name: "李四",
+        flowName: "2026 免试招新",
+      },
+    });
+
+    expect(rendered).toEqual({
+      subject: "2026 免试招新 结果通知",
+      html: "<html>result</html>",
+    });
+    expect(renderResultEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "李四",
+        flowName: "2026 免试招新",
+        accept: false,
+        flowKind: "recruitment_exemption",
+      }),
+    );
+  });
+
   it("maps interview template keys to their concrete kind", async () => {
     const startsAt = new Date("2026-06-06T08:00:00.000Z");
     const endsAt = new Date("2026-06-06T08:30:00.000Z");

@@ -3,21 +3,13 @@ import { Client } from "pg";
 import { signInAs } from "./session";
 
 /**
- * 面试改期申请：候选人对已预约的飞书日程申请新时间（技术部门，讲师审批）
- * 与办公类时段变更（部长审批）。
- * 覆盖：申请理由必填、审批列表按流程绑定、驳回理由必填 + 邮件记录、办公类通过写回时段。
+ * 面试改期申请：候选人对已预约的飞书日程申请新时间（技术部门，讲师审批）。
+ * 覆盖：申请理由必填、审批列表按流程绑定、驳回理由必填 + 邮件记录。
+ * 办公类时段调整已下线（部长在面试管理页直接改），不在本用例覆盖范围内。
  */
 
 const candidate = { uid: 11, role: 2, name: "讲师二", department: "software" };
-/* 办公类改用独立账号：避免占用 uid 11 的「同一时间只能有一个办公类面试」名额 */
-const officeCandidate = { uid: 204, role: 1, name: "何书宁", department: "software" };
 const softwareLecturer = { uid: 202, role: 2, name: "周礼", department: "software" };
-const officeManager = { uid: 213, role: 3, name: "邵晨", department: "office" };
-
-const SLOT_OPTIONS = [
-  { label: "13:00-14:00" },
-  { label: "15:00-16:00" },
-];
 
 const beijingInputFormatter = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "Asia/Shanghai",
@@ -53,9 +45,6 @@ test.describe("interview reschedule requests", () => {
   let otherTechFlowTitle = "";
   let techUserFlowId = 0;
   let scheduleId = 0;
-  let officeFlowId = 0;
-  let officeFlowTitle = "";
-  let officeUserFlowId = 0;
   const requestedStartsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
   const insertTechFlow = async (title: string) => {
@@ -87,38 +76,6 @@ test.describe("interview reschedule requests", () => {
     );
     createdFlowIds.push(flowId);
     return { flowId, checkingStepId: steps.rows[1]?.id ?? 0 };
-  };
-
-  const insertOfficeFlow = async (title: string) => {
-    const now = Date.now();
-    const flowResult = await database.query<{ id: number }>(
-      `insert into flow
-         (title, description, type, owner_id, started_at, ended_at, department, slot_options)
-       values ($1, $2, 'office_interview', $3, $4, $5, 'office', $6::jsonb)
-       returning id`,
-      [
-        title,
-        "仅用于验证办公类改时段审批的临时数据。",
-        1,
-        new Date(now - 60 * 60 * 1000),
-        new Date(now + 7 * 24 * 60 * 60 * 1000),
-        JSON.stringify(SLOT_OPTIONS),
-      ],
-    );
-    const flowId = flowResult.rows[0]?.id ?? 0;
-    if (!flowId) throw new Error("Failed to create the temporary office flow");
-
-    await database.query(
-      `insert into flow_step (title, description, type, "order", fk_flow_id)
-       values
-         ('报名', '', 'registering', 1, $1),
-         ('一面面试', '', 'checking', 2, $1),
-         ('二轮面试', '', 'checking', 3, $1),
-         ('结果确认', '', 'finished', 4, $1)`,
-      [flowId],
-    );
-    createdFlowIds.push(flowId);
-    return flowId;
   };
 
   test.beforeAll(async () => {
@@ -162,27 +119,6 @@ test.describe("interview reschedule requests", () => {
     ).rows;
     scheduleId = schedule?.id ?? 0;
     createdUserFlowIds.push(techUserFlowId);
-
-    officeFlowTitle = `E2E 办公改期流程 ${Date.now()}`;
-    officeFlowId = await insertOfficeFlow(officeFlowTitle);
-    const [officeUserFlow] = (
-      await database.query<{ id: number }>(
-        `insert into user_flow
-           (progress_status, round, interview_slot, choice, fk_flow_id, fk_user_id, department)
-         values ('ongoing', 1, '13:00-14:00', 1, $1, $2, 'office')
-         returning id`,
-        [officeFlowId, officeCandidate.uid],
-      )
-    ).rows;
-    officeUserFlowId = officeUserFlow?.id ?? 0;
-    createdUserFlowIds.push(officeUserFlowId);
-
-    await database.query(
-      `insert into interview_slot_change_request
-         (fk_user_flow_id, requested_slot, reason, status, fk_requested_by)
-       values ($1, '15:00-16:00', '考试冲突，希望改到下一个时段。', 'pending', $2)`,
-      [officeUserFlowId, officeCandidate.uid],
-    );
   });
 
   test.afterAll(async () => {
@@ -321,66 +257,5 @@ test.describe("interview reschedule requests", () => {
       [techUserFlowId],
     );
     expect(deliveries.rows.length).toBeGreaterThan(0);
-  });
-
-  test("office manager approves a slot change and the registration is updated", async ({
-    page,
-  }) => {
-    await signInAs(page.context(), officeManager);
-    await page.goto(`/dashboard/interviews?flowId=${officeFlowId}`);
-
-    const panel = page.locator("section", {
-      has: page.getByRole("heading", { name: "面试时间变更待审批" }),
-    });
-    await expect(panel).toBeVisible();
-    await expect(panel.getByText(officeFlowTitle).first()).toBeVisible();
-
-    await panel.getByRole("button", { name: "通过" }).click();
-    await expect(
-      page.getByText(/通过后将按申请时段更新报名记录/),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "确认通过" }).click();
-
-    await expect(
-      page.locator("[data-sonner-toast]", {
-        hasText: "已通过，面试时段更新为 15:00-16:00",
-      }),
-    ).toBeVisible();
-
-    const [registration] = (
-      await database.query<{ interview_slot: string | null }>(
-        `select interview_slot from user_flow where id = $1`,
-        [officeUserFlowId],
-      )
-    ).rows;
-    expect(registration?.interview_slot).toBe("15:00-16:00");
-
-    const [request] = (
-      await database.query<{ status: string }>(
-        `select status from interview_slot_change_request where fk_user_flow_id = $1`,
-        [officeUserFlowId],
-      )
-    ).rows;
-    expect(request?.status).toBe("approved");
-
-    const deliveries = await database.query<{ template_key: string }>(
-      `select template_key
-       from email_delivery
-       where fk_user_flow_id = $1 and template_key = 'interview.schedule.rescheduled'`,
-      [officeUserFlowId],
-    );
-    expect(deliveries.rows.length).toBeGreaterThan(0);
-  });
-
-  test("lecturers from other departments cannot see the office flow approvals", async ({
-    page,
-  }) => {
-    await signInAs(page.context(), softwareLecturer);
-    await page.goto(`/dashboard/interviews?flowId=${officeFlowId}`);
-    /* 办公类流程按部门隔离：技术部门讲师打不开，也看不到待审批面板 */
-    await expect(page.getByText(officeFlowTitle)).toHaveCount(0);
-    await expect(
-      page.getByRole("heading", { name: "面试时间变更待审批" }),
-    ).toHaveCount(0);
   });
 });

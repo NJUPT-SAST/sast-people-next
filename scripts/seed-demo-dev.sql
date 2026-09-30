@@ -374,21 +374,26 @@ on conflict (id) do update set
   fk_reviewed_by = excluded.fk_reviewed_by,
   updated_at = now();
 
-/* 待审批的改时段申请：办公室一面候选人（402 / uid 5）申请从 14:00-15:00 改到 16:00-17:00 */
+/* 待审批的改期申请：免试一面候选人（user_flow 207 / 日程 701）申请改到第二天同一时段
+   （办公类时段调整已改为部长直接修改，不再产生待审批申请） */
 insert into interview_slot_change_request (
   id,
   fk_user_flow_id,
-  requested_slot,
+  fk_interview_schedule_id,
+  requested_starts_at,
+  requested_ends_at,
   reason,
   status,
   fk_requested_by,
   created_at,
   updated_at
 ) values
-  (9001, 402, '16:00-17:00', '下午第二节有专业课，和 14:00-15:00 的面试冲突，希望能改到 16:00-17:00，谢谢！', 'pending', 5, now() - interval '2 hours', now() - interval '2 hours')
+  (9001, 207, 701, now() + interval '26 hours', now() + interval '27 hours 30 minutes', '明天上午有课，希望能改到同一时段的第二天，谢谢！', 'pending', 5, now() - interval '2 hours', now() - interval '2 hours')
 on conflict (id) do update set
   fk_user_flow_id = excluded.fk_user_flow_id,
-  requested_slot = excluded.requested_slot,
+  fk_interview_schedule_id = excluded.fk_interview_schedule_id,
+  requested_starts_at = excluded.requested_starts_at,
+  requested_ends_at = excluded.requested_ends_at,
   reason = excluded.reason,
   status = excluded.status,
   fk_requested_by = excluded.fk_requested_by,

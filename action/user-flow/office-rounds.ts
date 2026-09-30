@@ -2,14 +2,14 @@
 
 import { publishFlowResults } from "@/action/flow/result-publication";
 import { db } from "@/db/drizzle";
-import { flow, flowStep, userFlow } from "@/db/schema";
+import { flow, flowStep, interviewEvaluation, userFlow } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
 import { createOfficeRoundOneEmailBatch } from "@/lib/email-center/batch";
 import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { isOfficeInterviewFlow } from "@/const/flow";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -78,7 +78,7 @@ const loadEditableOfficeFlow = async (
 };
 
 const getStepIdByOrder = async (flowId: number, order: number) => {
-  const [row] = await db
+  const rows = await db
     .select({ id: flowStep.id })
     .from(flowStep)
     .where(
@@ -89,7 +89,45 @@ const getStepIdByOrder = async (flowId: number, order: number) => {
       ),
     )
     .limit(1);
-  return row?.id ?? null;
+  return rows[0]?.id ?? null;
+};
+
+/**
+ * 留档：名单确认时把每位候选人的结果与当时的平均分/份数写进审计。
+ * 分数之后仍可能补录，所以确认时刻的快照是「部长团根据面评分数敲定名单」的凭据。
+ */
+const buildDecisionSnapshot = async (
+  round: number,
+  decided: Map<number, boolean>,
+) => {
+  const ids = [...decided.keys()];
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({ userFlowId: interviewEvaluation.fkUserFlowId, score: interviewEvaluation.score })
+    .from(interviewEvaluation)
+    .where(
+      and(
+        inArray(interviewEvaluation.fkUserFlowId, ids),
+        eq(interviewEvaluation.round, round),
+        inArray(interviewEvaluation.status, ["submitted", "approved"]),
+        isNotNull(interviewEvaluation.score),
+      ),
+    );
+  const stats = new Map<number, { sum: number; count: number }>();
+  for (const row of rows) {
+    if (row.score === null) continue;
+    const prev = stats.get(row.userFlowId) ?? { sum: 0, count: 0 };
+    stats.set(row.userFlowId, { sum: prev.sum + row.score, count: prev.count + 1 });
+  }
+  return ids.map((userFlowId) => {
+    const stat = stats.get(userFlowId);
+    return {
+      userFlowId,
+      passed: decided.get(userFlowId) ?? false,
+      evaluationCount: stat?.count ?? 0,
+      averageScore: stat ? Math.round((stat.sum / stat.count) * 10) / 10 : null,
+    };
+  });
 };
 
 const validateRoundDecisions = async ({
@@ -197,7 +235,12 @@ export const closeOfficeRoundOne = async (
         resourceType: "flow",
         resourceId: flowId,
         department: loaded.flowRow.department,
-        metadata: { passCount, rejectCount },
+        metadata: {
+          passCount,
+          rejectCount,
+          /* 留档：确认时刻的名单与当时分数快照 */
+          decisions: await buildDecisionSnapshot(1, validated.decided),
+        },
       });
     }
 
@@ -305,6 +348,8 @@ export const closeOfficeRoundTwo = async (
         metadata: {
           passCount: [...validated.decided.values()].filter(Boolean).length,
           rejectCount: [...validated.decided.values()].filter((passed) => !passed).length,
+          /* 留档：最终名单与确认时刻的分数快照 */
+          decisions: await buildDecisionSnapshot(2, validated.decided),
         },
       });
     }

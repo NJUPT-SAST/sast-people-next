@@ -273,7 +273,7 @@ async function safeNotifyFeishuApprovalGroup(
 export const createEvaluation = async (
   userFlowId: number,
   content: string,
-  /* 办公类面试只留档，不再有讲师建议；参数保留只为兼容既有调用方 */
+  /* 讲师建议（技术流程必填）；办公类面试可选填「面试意见」，仅供参考，不参与结果判定 */
   recommendation?: EvaluationRecommendation | null,
   meetingLink?: string,
   score?: number,
@@ -312,9 +312,9 @@ export const createEvaluation = async (
       };
     }
 
-    /* 办公类只留档：没有讲师建议，内容也不设 20 字下限 */
+    /* 办公类面试：内容 + 分数是结果判定依据，建议通过/建议不通过只作留档意见（可选） */
     const normalizedRecommendation: EvaluationRecommendation | null =
-      !isOfficeFlow && recommendation && isEvaluationRecommendation(recommendation)
+      recommendation && isEvaluationRecommendation(recommendation)
         ? recommendation
         : null;
     if (!isOfficeFlow) {
@@ -425,8 +425,8 @@ export const createEvaluation = async (
             .update(interviewEvaluation)
             .set({
               content: content.trim(),
-              /* 办公类只留档分数与记录内容：不含讲师建议，也不含会议/妙记链接 */
-              recommendation: null,
+              /* 办公类留档：分数 + 记录内容 + 可选意见（不含会议/妙记链接） */
+              recommendation: normalizedRecommendation,
               meetingLink: null,
               score: score ?? null,
               /* 办公类面试按候选人当前阶段记录轮次 */
@@ -453,7 +453,7 @@ export const createEvaluation = async (
             fkUserId: session!.uid,
             content: content.trim(),
             meetingLink: null,
-            recommendation: null,
+            recommendation: normalizedRecommendation,
             score: score ?? null,
             /* 办公类面试按候选人当前阶段记录轮次 */
             round: currentFlow.round ?? 1,

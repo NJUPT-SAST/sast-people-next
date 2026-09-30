@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getEmailTemplateSetting } from "@/action/email/template";
+import { readResultEmailTemplateSetting } from "@/lib/email-center/template-resolution";
 import { db } from "@/db/drizzle";
 import { emailBatch, emailDelivery, flow, normalizeDepartmentKey, userFlow } from "@/db/schema";
 import { departmentLabel } from "@/const/department";
@@ -266,7 +266,7 @@ export async function createResultEmailBatch({
       : normalizeDepartmentKey(targets[0].flowDepartment);
   const templateSetting =
     confirmedTemplateSetting ??
-    (await getEmailTemplateSetting(templateKey, department));
+    (await readResultEmailTemplateSetting(templateKey, department));
   /* {department} 用流程归属部门的展示名渲染：候选人邮件里出现的是「办公室」而不是 Link 标识 */
   const departmentDisplay = departmentLabel(targets[0].flowDepartment);
   const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
@@ -498,7 +498,7 @@ export async function createOfficeRoundOneEmailBatch({
     }
 
     /* 模板按本流程归属部门解析：部门覆盖 → 全局默认 → 内置默认 */
-    const setting = await getEmailTemplateSetting(templateKey, flowDepartment);
+    const setting = await readResultEmailTemplateSetting(templateKey, flowDepartment);
 
     const deliveryDrafts = await Promise.all(
       newRecipients.map(async (item) => {

@@ -18,7 +18,7 @@ import { fullStepType } from '@/types/step';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod/v4';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
@@ -28,9 +28,16 @@ import { displayFlow } from '@/types/flow';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateTimeInput } from '@/components/ui/datetime-input';
 import { departmentLabel } from '@/const/department';
-import { isOfficeInterviewFlow } from '@/const/flow';
+import {
+  flowTypeLabel,
+  flowTypeOptionOf,
+  flowTypeOptionsForDepartment,
+  isOfficeInterviewFlow,
+  parseFlowTypeOptionValue,
+} from '@/const/flow';
 import { DepartmentSelect, GroupDepartmentMapping, pickGroupDepartments } from '../departmentFields';
 import { SlotOptionsField } from '../officeInterviewFields';
+import { CURRENT_FLOW_TYPE_VALUE, FlowTypeReadonly, FlowTypeSelect } from '../flowTypeField';
 import { useFlowStepsInfoClient } from '@/hooks/useFlowStepsInfoClient';
 
 const writtenRecruitmentSteps = (flowId: number): fullStepType[] => [
@@ -62,6 +69,54 @@ const writtenRecruitmentSteps = (flowId: number): fullStepType[] => [
     order: 3,
     description: '按分数线筛选并确认最终通过名单',
     id: -3,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+];
+
+/* 办公类部门面试招新的客户端默认步骤，必须与服务端 action/flow/defaultSteps.ts 的 officeInterviewSteps 一致 */
+const officeInterviewSteps = (flowId: number): fullStepType[] => [
+  {
+    title: '报名',
+    type: 'registering',
+    order: 1,
+    description: '填写个人信息，选择第一志愿与第二志愿办公部门及面试时段',
+    id: -1,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+  {
+    title: '一面',
+    type: 'checking',
+    order: 2,
+    description: '部门部长进行一对一面试并打分',
+    id: -2,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+  {
+    title: '二面',
+    type: 'checking',
+    order: 3,
+    description: '无领导小组面试，多位部长共同打分（一面通过后进入）',
+    id: -3,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+    fkFlowId: flowId,
+  },
+  {
+    title: '结果确认',
+    type: 'finished',
+    order: 4,
+    description: '确认最终通过名单并发送结果通知',
+    id: -4,
     createdAt: new Date(),
     updatedAt: new Date(),
     isDeleted: false,
@@ -125,14 +180,19 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
   useEffect(() => {
     if (autoOpen) setOpenEdit(true);
   }, [autoOpen]);
-  const isWrittenRecruitment = !data.type || data.type === 'recruitment';
+  /* 类型可被管理员改：派生字段（步骤模板、可配置项）都跟随当前选中的类型 */
+  const currentType =
+    useWatch({ control: editFlowForm.control, name: 'type' }) ?? data.type;
+  const isWrittenRecruitment = !currentType || currentType === 'recruitment';
   /* 办公类部门面试招新：每个办公部门一条流程，额外配置面试时段 */
-  const isOfficeInterview = isOfficeInterviewFlow(data.type);
+  const isOfficeInterview = isOfficeInterviewFlow(currentType);
   const { data: savedSteps } = useFlowStepsInfoClient(data.id);
   const fixedStepList = useMemo(() => {
     const defaults = isWrittenRecruitment
       ? writtenRecruitmentSteps(data.id)
-      : evaluationSteps(data.id);
+      : isOfficeInterview
+        ? officeInterviewSteps(data.id)
+        : evaluationSteps(data.id);
 
     return defaults.map((step) => {
       const savedStep = savedSteps?.find(
@@ -145,12 +205,27 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
         description: savedStep?.description ?? step.description,
       };
     });
-  }, [data.id, isWrittenRecruitment, savedSteps]);
+  }, [data.id, isWrittenRecruitment, isOfficeInterview, savedSteps]);
   const [editableSteps, setEditableSteps] = useState<fullStepType[]>(fixedStepList);
   const [groupOptionsText, setGroupOptionsText] = useState(() =>
     (data.groupOptions ?? []).join('\n'),
   );
   const [department, setDepartment] = useState<string | null>(data.department ?? null);
+  /* 语义化「流程类型」：管理员可改（组合口径 = type + department）；非管理员只读 */
+  const currentTypeOption = flowTypeOptionOf(currentType, department);
+  const typeOptionValue = currentTypeOption?.value ?? CURRENT_FLOW_TYPE_VALUE;
+
+  /* 改类型即同时改归属部门；选中「当前」回落项（解析失败）时不改动任何值 */
+  const handleTypeOptionChange = (value: string) => {
+    const parsed = parseFlowTypeOptionValue(value);
+    if (!parsed) return;
+    editFlowForm.setValue('type', parsed.type as displayFlow['type']);
+    setDepartment(parsed.department);
+    /* 非办公类流程不保留仅办公类可用的面试时段，避免校验报错 */
+    if (!isOfficeInterviewFlow(parsed.type)) {
+      editFlowForm.setValue('slotOptions', []);
+    }
+  };
   const [groupDepartments, setGroupDepartments] = useState<Record<string, string>>(
     data.groupDepartments ?? {},
   );
@@ -315,6 +390,32 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
                 )}
               />
             )}
+
+            <div className="grid gap-2">
+              <Label htmlFor={`edit-steps-${data.id}-type`}>流程类型</Label>
+              {canChooseDepartment ? (
+                <FlowTypeSelect
+                  idPrefix={`edit-steps-${data.id}`}
+                  value={typeOptionValue}
+                  options={flowTypeOptionsForDepartment(null)}
+                  extraOption={
+                    currentTypeOption
+                      ? undefined
+                      : {
+                          value: CURRENT_FLOW_TYPE_VALUE,
+                          label: `${flowTypeLabel(currentType, department)}（当前，未在标准列表）`,
+                        }
+                  }
+                  onChange={handleTypeOptionChange}
+                  disabled={isSubmitting}
+                />
+              ) : (
+                <FlowTypeReadonly type={currentType} department={department} />
+              )}
+              <p className="text-xs text-muted-foreground">
+                流程类型决定步骤模板与可配置项；仅管理员可修改，改类型会同时更新归属部门。
+              </p>
+            </div>
 
             <div className="grid gap-2">
               <Label>归属部门</Label>

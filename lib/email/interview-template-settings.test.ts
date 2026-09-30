@@ -207,7 +207,10 @@ describe("listInterviewScheduleTemplateSettings", () => {
 
     const payload = await listInterviewScheduleTemplateSettings("software", scope);
 
-    expect(payload.departments).toEqual(["media", "software"]);
+    /* 选项 = Link 部门目录 ∪ 库中已出现覆盖的部门 */
+    expect(payload.departments).toEqual(
+      expect.arrayContaining(["media", "software", "office"]),
+    );
     expect(payload.scope).toEqual(scope);
     expect(payload.rows).toHaveLength(5);
 
@@ -270,7 +273,10 @@ describe("listInterviewScheduleTemplateSettings", () => {
       department: "software",
     });
 
-    expect(payload.departments).toEqual(["software"]);
+    /* 部长也能切到其他部门只读浏览，因此选项是完整目录 */
+    expect(payload.departments).toEqual(
+      expect.arrayContaining(["software", "media"]),
+    );
     expect(payload.rows.every((row) => row.editable === false)).toBe(true);
   });
 
@@ -283,15 +289,17 @@ describe("listInterviewScheduleTemplateSettings", () => {
     expect(payload.scope).toEqual({ kind: "none" });
   });
 
-  it("reads global rows plus its own department overrides for a department account", async () => {
+  it("does not restrict a department account's read path, so it can browse other departments", async () => {
     await listInterviewScheduleTemplateSettings(null, {
       kind: "department",
       department: "software",
     });
 
     const sql = renderCondition(whereCondition);
-    expect(sql.sql).toContain('"email_template_content"."department" is null');
-    expect(sql.params).toContain("software");
+    /* 只读浏览依赖读路径不过滤部门；写权限仍由 update/reset 的跨部门校验收口 */
+    expect(sql.sql).not.toContain('"email_template_content"."department"');
+    expect(sql.params).not.toContain("software");
+    expect(sql.params).toContain("interview.schedule.created");
   });
 
   it("reads only global rows for an account without department scope", async () => {

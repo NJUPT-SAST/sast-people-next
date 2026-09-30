@@ -7,6 +7,8 @@ export type EmailCategory = "result" | "interview" | "test";
 export type ResultEmailTemplateKey =
   | "recruitment.result.accepted"
   | "recruitment.result.rejected"
+  | "recruitment_exemption.result.accepted"
+  | "recruitment_exemption.result.rejected"
   | "woc.result.accepted"
   | "woc.result.rejected"
   | "soc.result.accepted"
@@ -56,7 +58,13 @@ export type ResultEmailRenderVariables = {
   name: string;
   flowName: string;
   setting?: ResultEmailTemplateSetting;
-  flowKind?: "recruitment" | "woc" | "soc" | "office_round1" | "office_round2";
+  flowKind?:
+    | "recruitment"
+    | "recruitment_exemption"
+    | "woc"
+    | "soc"
+    | "office_round1"
+    | "office_round2";
   /** 办公类部门面试轮次：1 = 一轮，2 = 二轮 */
   round?: number | null;
   /** 候选人所报部门展示名（{department} 变量） */

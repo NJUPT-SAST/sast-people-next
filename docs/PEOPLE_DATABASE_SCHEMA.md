@@ -19,7 +19,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | 枚举 | 值 | 用途 |
 | --- | --- | --- |
 | `flow_step_type_enum` | `registering`、`checking`、`judging`、`email`、`finished` | 流程步骤类型 |
-| `flow_type_enum` | `recruitment`、`recruitment_exemption`、`woc`、`soc` | 流程类型 |
+| `flow_type_enum` | `recruitment`、`recruitment_exemption`、`woc`、`soc`、`office_interview` | 流程类型；界面按「部门 + 阶段」语义化展示（软件研发部笔试/WOC、多媒体部WOD、办公室面试…），因此不需要单独的「归属部门」展示列 |
 | `progress_status_enum` | `not_started`、`ongoing`、`passed`、`failed` | 流程进行状态（报名即进流程，无需审核） |
 | `evaluation_status_enum` | `submitted`、`returned`、`approved`、`rejected` | 面评状态（讲师提交 → 管理员可退回重写或终审） |
 | `email_batch_status_enum` | `draft`、`queued`、`completed`、`failed` | 邮件批次状态 |
@@ -65,7 +65,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `department` | `varchar(64)` | 流程归属部门（Link 部门标识）；办公类流程必填（每个办公部门一条流程），`NULL` = 全局流程 |
 | `group_options` | `jsonb` | 技术部门面试流程的投递组别选项（办公类不使用） |
 | `group_departments` | `jsonb` | 组别 → 部门 映射（技术部门共享流程据此给候选人定部门） |
-| `slot_options` | `jsonb` | 面试时段选项（办公类部门面试，如 `[{"label":"13:00-14:00"}]`） |
+| `slot_options` | `jsonb` | 面试时段选项（办公类部门面试，如 `[{"label":"13:00-14:00"}]`）；`isConflict: true` 的项是「时间冲突，约面时间QQ群中另行通知」特殊选项 |
 | `created_at` | `timestamp` | 创建时间 |
 | `started_at` | `timestamp` | 开始时间 |
 | `ended_at` | `timestamp` | 结束时间（NULL = 未结束） |
@@ -103,7 +103,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `fk_current_step_id` | `integer` | 当前步骤，关联 `flow_step.id`（SET NULL on delete） |
 | `apply_group` | `varchar(100)` | 技术部门面试流程的投递组别（办公类流程为 NULL） |
 | `round` | `smallint` | 办公类部门面试当前阶段：1=一面，2=二面 |
-| `interview_slot` | `varchar(100)` | 办公类部门面试选择的时段（`flow.slot_options` 的 label） |
+| `interview_slot` | `varchar(100)` | 办公类部门面试选择的时段（`flow.slot_options` 的 label，含「时间冲突」选项）；改时段由部长在面试管理页直接修改 |
 | `choice` | `smallint` | 办公类部门面试志愿类型：1=第一志愿、2=第二志愿 |
 | `final_department` | `varchar(64)` | 部长团评议的最终去向部门（Link 部门标识）；为空时按「第一志愿优先」自动归属 |
 | `department` | `varchar(64)` | 报名记录归属部门（Link 部门标识）：报名时按组别映射 → 流程归属解析后固化 |
@@ -207,20 +207,20 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 
 ### `interview_slot_change_request`
 
-面试时间/时段变更申请表。办公类部门面试按 `flow.slot_options` 的时段申请、由部长审批（通过后写回 `user_flow.interview_slot`）；技术部门面试（免试/WOC/SOC）绑定飞书日程、由预约讲师审批（通过后同步日程与留档会议并发改约邮件）。
+面试改期申请表（**仅技术部门面试**：免试/WOC/SOC）。候选人绑定飞书日程提交新时间，由预约讲师审批（通过后同步日程与留档会议并发改约邮件）。办公类部门面试的时段调整不走本表：改由部长在面试管理页直接修改 `user_flow.interview_slot`，存量办公类 pending 申请由迁移 0067 关闭。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `serial` | 申请 ID |
 | `fk_user_flow_id` | `integer` | 关联 `user_flow.id`（CASCADE） |
-| `fk_interview_schedule_id` | `integer` | 关联 `interview_schedule.id`（CASCADE，可空）；技术部门改期申请绑定当前生效日程 |
-| `requested_slot` | `varchar(100)` | 办公类：申请改到的时段（可空） |
-| `requested_starts_at` | `timestamp` | 技术部门：申请改到的新开始时间（可空，时长沿用原日程） |
-| `requested_ends_at` | `timestamp` | 技术部门：申请改到的新结束时间（可空） |
+| `fk_interview_schedule_id` | `integer` | 关联 `interview_schedule.id`（CASCADE，可空）；改期申请绑定当前生效日程 |
+| `requested_slot` | `varchar(100)` | 历史字段：办公类改期申请已下线，仅保留存量记录 |
+| `requested_starts_at` | `timestamp` | 申请改到的新开始时间（可空，时长沿用原日程） |
+| `requested_ends_at` | `timestamp` | 申请改到的新结束时间（可空） |
 | `reason` | `text` | 候选人填写的申请理由（必填） |
 | `status` | `varchar(16)` | `pending` / `approved` / `rejected`，默认 `pending` |
 | `fk_requested_by` | `integer` | 申请人 Link 用户 ID（候选人本人） |
-| `fk_reviewed_by` | `integer` | 审批人 Link 用户 ID（办公类为部长，技术部门为预约讲师） |
+| `fk_reviewed_by` | `integer` | 审批人 Link 用户 ID（预约讲师） |
 | `review_note` | `text` | 审批备注；驳回时必填（随驳回邮件发送给候选人） |
 | `reviewed_at` | `timestamp` | 审批时间 |
 | `created_at` / `updated_at` | `timestamp` | 创建 / 更新时间 |

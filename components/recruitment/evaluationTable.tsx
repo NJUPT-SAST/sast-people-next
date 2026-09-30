@@ -77,6 +77,7 @@ import {
 } from "@/lib/interview-status";
 import { normalizeWithdrawalReason, WITHDRAWAL_REASON_MAX_LENGTH } from "@/lib/validation/user-flow";
 import { updateCandidateApplyGroup } from "@/action/user-flow/apply-group";
+import { updateCandidateInterviewSlot } from "@/action/user-flow/interview-slot";
 import { createEvaluation } from "@/action/user-flow/evaluation";
 import { MIN_PASSED_EVALUATION_LENGTH } from "@/lib/evaluation-constants";
 import {
@@ -533,6 +534,13 @@ const ScoreCell = ({ candidate }: { candidate: Candidate }) => {
                     ? "二面"
                     : "阶段未标记"}
               </p>
+              {/* 办公类的面试意见可选：填了才展示，只作参考 */}
+              {evaluation.recommendation && (
+                <p className="text-xs text-muted-foreground">
+                  意见：
+                  {evaluation.recommendation === "passed" ? "建议通过" : "建议不通过"}
+                </p>
+              )}
               <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
                 {evaluation.content}
               </p>
@@ -565,27 +573,78 @@ const ScheduleIconLink = ({
   </a>
 );
 
+/* 办公类时段下拉的「未选择」哨兵值：不与其他时段的字符串冲突 */
+const OFFICE_SLOT_NONE = "\u0000none";
+
 const ScheduleInfo = ({
   candidate,
   now,
   scoringEnabled = false,
+  slotOptions = [],
+  slotEditable = false,
+  slotSaving = false,
+  onSlotChange,
 }: {
   candidate: Candidate;
   now: number | null;
   scoringEnabled?: boolean;
+  /** 办公类流程配置的面试时段（flow.slot_options 的 label） */
+  slotOptions?: string[];
+  /** 是否允许行内直接改时段（办公类 + role>=3） */
+  slotEditable?: boolean;
+  slotSaving?: boolean;
+  onSlotChange?: (slot: string | null) => void;
 }) => {
   /* 办公类面试不排日程，展示的是候选人选择的集中面谈时段 */
   if (scoringEnabled) {
+    const withdrawnNote =
+      candidate.status === "withdrawn" && candidate.withdrawReason ? (
+        <p className="truncate text-xs text-destructive" title={candidate.withdrawReason}>
+          退回理由：{candidate.withdrawReason}
+        </p>
+      ) : null;
+
+    /* 部长在行内直接改时段：候选人私下联系部长后由部长调整，不再走改期审批 */
+    if (slotEditable && slotOptions.length > 0 && onSlotChange) {
+      return (
+        <div className="min-w-0 space-y-1">
+          <Select
+            value={candidate.interviewSlot || OFFICE_SLOT_NONE}
+            onValueChange={(value) =>
+              onSlotChange(value === OFFICE_SLOT_NONE ? null : value)
+            }
+            disabled={slotSaving}
+          >
+            <SelectTrigger
+              aria-label={`修改${candidate.name}的面试时段`}
+              title={slotSaving ? "正在保存面试时段…" : "点击可修改面试时段"}
+              className="h-8 w-full min-w-0 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+            >
+              {/* 存量的时段若已不在选项里，也按原值展示，不会假称「未选择」 */}
+              <SelectValue
+                placeholder={candidate.interviewSlot ?? "未选择面谈时段"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={OFFICE_SLOT_NONE}>未选择</SelectItem>
+              {slotOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {withdrawnNote}
+        </div>
+      );
+    }
+
     return (
       <div className="min-w-0 space-y-1">
         <p className="truncate text-sm text-foreground" title={candidate.interviewSlot ?? undefined}>
           {candidate.interviewSlot || "未选择面谈时段"}
         </p>
-        {candidate.status === "withdrawn" && candidate.withdrawReason && (
-          <p className="truncate text-xs text-destructive" title={candidate.withdrawReason}>
-            退回理由：{candidate.withdrawReason}
-          </p>
-        )}
+        {withdrawnNote}
       </div>
     );
   }
@@ -811,6 +870,7 @@ export const EvaluationTable = ({
   targetScheduleId,
   loading = false,
   scoringEnabled = false,
+  slotOptions = [],
   onRefresh,
 }: {
   candidates: Candidate[];
@@ -821,17 +881,37 @@ export const EvaluationTable = ({
   loading?: boolean;
   /** 办公类面试：面评需填写 0-100 分数，且一位候选人可有多份面评 */
   scoringEnabled?: boolean;
+  /** 办公类面试流程配置的时段选项（label）：用于行内改时段与时段筛选 */
+  slotOptions?: string[];
   onRefresh: () => void;
 }) => {
+  /* 行内改时段的乐观覆盖：提交成功后立刻反映到行数据；服务端刷新或切换流程后丢弃 */
+  const [slotDrafts, setSlotDrafts] = useState<Record<number, string | null>>({});
+  const candidatesRef = useRef(candidates);
+  useEffect(() => {
+    if (candidatesRef.current === candidates) return;
+    candidatesRef.current = candidates;
+    setSlotDrafts({});
+  }, [candidates]);
+
+  const safeSlotOptions = Array.isArray(slotOptions) ? slotOptions : [];
+
   /* 办公类面试无需预约日程：把标记写回行数据，让状态、筛选口径与操作保持一致 */
   const safeCandidates = useMemo(
     () =>
       (Array.isArray(candidates) ? candidates : []).map((candidate) => ({
         ...candidate,
         scoringEnabled,
+        interviewSlot:
+          candidate.userFlowId in slotDrafts
+            ? (slotDrafts[candidate.userFlowId] ?? null)
+            : candidate.interviewSlot,
       })),
-    [candidates, scoringEnabled],
+    [candidates, scoringEnabled, slotDrafts],
   );
+  /* 办公类时段只能由部长（role>=3）在工作台内直接调整 */
+  const canEditInterviewSlot =
+    scoringEnabled && role >= 3 && safeSlotOptions.length > 0;
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [portfolioCandidate, setPortfolioCandidate] = useState<Candidate | null>(null);
   const [returnConfirmCandidate, setReturnConfirmCandidate] = useState<Candidate | null>(null);
@@ -843,7 +923,10 @@ export const EvaluationTable = ({
   const [meetingLink, setMeetingLink] = useState("");
   const [score, setScore] = useState("");
   const [scoreError, setScoreError] = useState<string | null>(null);
-  const [recommendation, setRecommendation] = useState<"passed" | "failed">("passed");
+  /* 技术流程的讲师建议必填（默认建议通过）；办公类的「面试意见」可选，null=不填 */
+  const [recommendation, setRecommendation] = useState<"passed" | "failed" | null>(
+    "passed",
+  );
   const [scheduleStartsAt, setScheduleStartsAt] = useState("");
   const [scheduleEndsAt, setScheduleEndsAt] = useState("");
   const [scheduleLocation, setScheduleLocation] = useState("");
@@ -859,6 +942,8 @@ export const EvaluationTable = ({
   const [feishuBound, setFeishuBound] = useState<boolean | null>(null);
   const [feishuStatusFailed, setFeishuStatusFailed] = useState(false);
   const [loadingId, setLoadingId] = useState<number | null>(null);
+  /* 行内改时段的进行中行：禁用该行的下拉，避免重复提交 */
+  const [slotSavingId, setSlotSavingId] = useState<number | null>(null);
   const [evaluationError, setEvaluationError] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
   const [groupEditingCandidate, setGroupEditingCandidate] = useState<Candidate | null>(null);
@@ -868,6 +953,8 @@ export const EvaluationTable = ({
   const [applyGroupFilter, setApplyGroupFilter] = useState<string | null>(null);
   /* 办公类按志愿筛选：1=第一志愿，2=第二志愿 */
   const [choiceFilter, setChoiceFilter] = useState<1 | 2 | null>(null);
+  /* 办公类按面试时段筛选：null=全部，OFFICE_SLOT_NONE=未选择，其余为时段 label */
+  const [slotFilter, setSlotFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<InterviewStatusKey | "mine" | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
@@ -927,8 +1014,11 @@ export const EvaluationTable = ({
         : String(ownEvaluation.score),
     );
     setMeetingLink(c.scheduleMeetingMinuteLink ?? c.evalMeetingLink ?? "");
+    /* 办公类的意见可选：新记录默认不填，修改时回填本人已存的意见 */
     setRecommendation(
-      ownEvaluation?.recommendation ?? c.evalRecommendation ?? "passed",
+      scoringEnabled
+        ? (ownEvaluation ? ownEvaluation.recommendation ?? null : null)
+        : ownEvaluation?.recommendation ?? c.evalRecommendation ?? "passed",
     );
     setEvaluationError(null);
     setScoreError(null);
@@ -956,7 +1046,7 @@ export const EvaluationTable = ({
     setMeetingLink("");
     setScore("");
     setScoreError(null);
-    setRecommendation("passed");
+    setRecommendation(scoringEnabled ? null : "passed");
     setEvaluationError(null);
   };
 
@@ -1022,6 +1112,40 @@ export const EvaluationTable = ({
     }
   };
 
+  /**
+   * 办公类面试：部长在行内直接改面试时段（改期审批入口已下线）。
+   * 先乐观更新行数据让选择立刻可见，失败时删掉覆盖值回滚到服务端值。
+   */
+  const handleSlotChange = async (candidate: Candidate, nextSlot: string | null) => {
+    const previous = candidate.interviewSlot ?? null;
+    if (nextSlot === previous) return;
+    setSlotSavingId(candidate.userFlowId);
+    setSlotDrafts((current) => ({ ...current, [candidate.userFlowId]: nextSlot }));
+    const rollback = () =>
+      setSlotDrafts((current) => {
+        const next = { ...current };
+        delete next[candidate.userFlowId];
+        return next;
+      });
+    try {
+      const result = await updateCandidateInterviewSlot(candidate.userFlowId, nextSlot);
+      if (!result.success) {
+        rollback();
+        toast.error(result.error?.message ?? "修改面试时段失败");
+        return;
+      }
+      toast.success(
+        nextSlot ? `面试时段已改为 ${nextSlot}` : "已清除该候选人的面试时段",
+      );
+      onRefresh();
+    } catch (error) {
+      rollback();
+      toast.error(error instanceof Error ? error.message : "修改面试时段失败");
+    } finally {
+      setSlotSavingId(null);
+    }
+  };
+
   const editingCandidate =
     safeCandidates.find((c) => c.userFlowId === evaluatingId) ?? null;
   const schedulingCandidate =
@@ -1060,9 +1184,9 @@ export const EvaluationTable = ({
     setScoreError(null);
     setLoadingId(userFlowId);
     try {
-      /* 办公类只提交记录内容与分数：不带讲师建议，也不带妙记/会议链接 */
+      /* 办公类提交记录内容、可选的面试意见与分数：意见仅供参考，不带妙记/会议链接 */
       const result = scoringEnabled
-        ? await createEvaluation(userFlowId, content, undefined, undefined, parsedScore)
+        ? await createEvaluation(userFlowId, content, recommendation, undefined, parsedScore)
         : await createEvaluation(userFlowId, content, recommendation, meetingLink);
       if (!result.success) {
         const message = result.error?.message ?? "提交失败";
@@ -1266,17 +1390,24 @@ export const EvaluationTable = ({
     );
   }, [safeCandidates, search]);
 
-  /* 办公类按志愿收敛，技术流程按投递组别收敛 */
+  /* 办公类按志愿 + 时段收敛，技术流程按投递组别收敛 */
   const scopeFiltered = useMemo(() => {
     if (scoringEnabled) {
-      return choiceFilter
-        ? searched.filter((candidate) => candidate.choice === choiceFilter)
-        : searched;
+      let rows = searched;
+      if (choiceFilter) {
+        rows = rows.filter((candidate) => candidate.choice === choiceFilter);
+      }
+      if (slotFilter === OFFICE_SLOT_NONE) {
+        rows = rows.filter((candidate) => !candidate.interviewSlot);
+      } else if (slotFilter) {
+        rows = rows.filter((candidate) => candidate.interviewSlot === slotFilter);
+      }
+      return rows;
     }
     return applyGroupFilter
       ? searched.filter((candidate) => candidate.applyGroup === applyGroupFilter)
       : searched;
-  }, [searched, scoringEnabled, choiceFilter, applyGroupFilter]);
+  }, [searched, scoringEnabled, choiceFilter, slotFilter, applyGroupFilter]);
 
   // Counts describe the search + group scope but ignore the status filter, so
   // selecting a status chip cannot make every other chip read zero.
@@ -1428,12 +1559,14 @@ export const EvaluationTable = ({
     Boolean(search.trim()) ||
     Boolean(applyGroupFilter) ||
     Boolean(choiceFilter) ||
+    Boolean(slotFilter) ||
     Boolean(statusFilter);
 
   const clearFilters = () => {
     setSearch("");
     setApplyGroupFilter(null);
     setChoiceFilter(null);
+    setSlotFilter(null);
     setStatusFilter(null);
   };
 
@@ -1483,25 +1616,56 @@ export const EvaluationTable = ({
               className="h-9 min-w-0 flex-1 sm:w-[13rem] sm:flex-none"
             />
             {scoringEnabled ? (
-              <Select
-                value={choiceFilter ? String(choiceFilter) : "all"}
-                onValueChange={(value) => {
-                  setChoiceFilter(value === "all" ? null : (Number(value) as 1 | 2));
-                }}
-              >
-                <SelectTrigger
-                  className="h-9 w-full min-w-0 truncate text-xs sm:w-[8.5rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
-                  aria-label="按志愿筛选候选人"
-                  title={choiceFilter ? CHOICE_LABELS[choiceFilter] : "全部志愿"}
+              <>
+                <Select
+                  value={choiceFilter ? String(choiceFilter) : "all"}
+                  onValueChange={(value) => {
+                    setChoiceFilter(value === "all" ? null : (Number(value) as 1 | 2));
+                  }}
                 >
-                  <SelectValue placeholder="全部志愿" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部志愿</SelectItem>
-                  <SelectItem value="1">第一志愿</SelectItem>
-                  <SelectItem value="2">第二志愿</SelectItem>
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    className="h-9 w-full min-w-0 truncate text-xs sm:w-[8.5rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                    aria-label="按志愿筛选候选人"
+                    title={choiceFilter ? CHOICE_LABELS[choiceFilter] : "全部志愿"}
+                  >
+                    <SelectValue placeholder="全部志愿" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部志愿</SelectItem>
+                    <SelectItem value="1">第一志愿</SelectItem>
+                    <SelectItem value="2">第二志愿</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={slotFilter ?? "all"}
+                  onValueChange={(value) => {
+                    setSlotFilter(value === "all" ? null : value);
+                  }}
+                >
+                  <SelectTrigger
+                    className="h-9 w-full min-w-0 truncate text-xs sm:w-[10rem] [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                    aria-label="按面试时段筛选候选人"
+                    title={
+                      slotFilter === null
+                        ? "全部时段"
+                        : slotFilter === OFFICE_SLOT_NONE
+                          ? "未选择"
+                          : slotFilter
+                    }
+                  >
+                    <SelectValue placeholder="全部时段" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部时段</SelectItem>
+                    <SelectItem value={OFFICE_SLOT_NONE}>未选择</SelectItem>
+                    {safeSlotOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
             ) : safeGroupOptions.length > 0 ? (
               <Select
                 value={applyGroupFilter ?? "all"}
@@ -1746,6 +1910,10 @@ export const EvaluationTable = ({
                         candidate={c}
                         now={now}
                         scoringEnabled={scoringEnabled}
+                        slotOptions={safeSlotOptions}
+                        slotEditable={canEditInterviewSlot}
+                        slotSaving={slotSavingId === c.userFlowId}
+                        onSlotChange={(slot) => void handleSlotChange(c, slot)}
                       />
                     </div>
                   </TableCell>
@@ -1885,6 +2053,10 @@ export const EvaluationTable = ({
                   candidate={c}
                   now={now}
                   scoringEnabled={scoringEnabled}
+                  slotOptions={safeSlotOptions}
+                  slotEditable={canEditInterviewSlot}
+                  slotSaving={slotSavingId === c.userFlowId}
+                  onSlotChange={(slot) => void handleSlotChange(c, slot)}
                 />
                 {scoringEnabled && (
                   <div className="flex items-center gap-2 text-sm">
@@ -2074,7 +2246,37 @@ export const EvaluationTable = ({
                 </p>
               </div>
             )}
-            {/* 办公类只留档：没有讲师建议，也没有会议/妙记链接 */}
+            {/* 办公类的面试意见可选：只作参考留档，不参与结果判定 */}
+            {scoringEnabled && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">面试意见（参考）</label>
+                <Select
+                  value={recommendation ?? "none"}
+                  onValueChange={(value) =>
+                    setRecommendation(
+                      value === "none" ? null : (value as "passed" | "failed"),
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    id="evaluation-recommendation"
+                    aria-label="面试意见（参考）"
+                    className="h-10 w-full max-w-xs"
+                  >
+                    <SelectValue placeholder="不填" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">不填</SelectItem>
+                    <SelectItem value="passed">建议通过</SelectItem>
+                    <SelectItem value="failed">建议不通过</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  意见仅供参考，不影响面试结果；结果由部长在名单确认时决定。
+                </p>
+              </div>
+            )}
+            {/* 技术流程才有讲师建议与妙记链接 */}
             {!scoringEnabled && (
               <>
                 <div className="space-y-2">

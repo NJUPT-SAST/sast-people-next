@@ -57,6 +57,8 @@ export async function RecruitmentWorkspacePage({
       type: flow.type,
       groupOptions: flow.groupOptions,
       department: flow.department,
+      /* 办公类面试时段选项：工作台的面评表要据此做行内改时段与时段筛选 */
+      slotOptions: flow.slotOptions,
     })
     .from(flow)
     .where(

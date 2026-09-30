@@ -74,11 +74,10 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
         groupOptions: item.flow.groupOptions,
         slotOptions: item.flow.slotOptions,
         flowDepartment: item.flow.department,
+        /* 改期申请只剩技术部门会产生；办公类时段调整由部长在面试管理页直接修改 */
         pendingSlotChange: item.interview_slot_change_request
           ? {
               id: item.interview_slot_change_request.id,
-              requestedSlot:
-                item.interview_slot_change_request.requestedSlot,
               requestedStartsAt:
                 item.interview_slot_change_request.requestedStartsAt,
               requestedEndsAt:

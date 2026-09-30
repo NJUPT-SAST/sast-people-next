@@ -41,12 +41,11 @@ test.describe("email center", () => {
     await expect(page.getByRole("heading", { name: "模板管理" })).toBeVisible({
       timeout: 15_000,
     });
-    /* 模板归属：部门账号固定在本部门覆盖（只有管理员才有下拉选择） */
+    /* 模板归属：部长同样能在下拉里切换部门，默认落在本部门（只读浏览其他部门） */
     await expect(page.getByText("模板归属", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("模板归属")).toContainText("软件研发部");
     await expect(
-      page
-        .getByText(/本部门覆盖：|全局默认（所有部门）/)
-        .first(),
+      page.getByText(/本部门覆盖可编辑，其他部门只读浏览/),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "测试发送" }).first(),
@@ -57,6 +56,34 @@ test.describe("email center", () => {
         .getByText(/^(本部门覆盖|全局默认（只读）|全局默认|其他部门覆盖)$/)
         .first(),
     ).toBeVisible();
+  });
+
+  test("department manager can browse another department read-only", async ({
+    page,
+    context,
+  }) => {
+    await signInAs(context, {
+      uid: 900003,
+      role: 3,
+      name: "Playwright Dept Reader",
+      department: "software",
+    });
+
+    await page.goto("/dashboard/emails?tab=templates");
+    await expect(page.getByRole("heading", { name: "模板管理" })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await page.getByLabel("模板归属").click();
+    await page.getByRole("option", { name: /多媒体部/ }).click();
+
+    await expect(page).toHaveURL(/department=media/, { timeout: 15_000 });
+    await expect(page.getByLabel("模板归属")).toContainText("多媒体部");
+    /* 浏览的是别人的部门：卡片写明只读，且不给测试发送入口 */
+    await expect(
+      page.getByText(/只读浏览「多媒体部」的覆盖/).first(),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "测试发送" })).toHaveCount(0);
   });
 
   test("administrator can switch the template scope to a department", async ({

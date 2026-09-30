@@ -69,6 +69,8 @@ export async function renderEmailTemplate(
   switch (request.templateKey) {
     case "recruitment.result.accepted":
     case "recruitment.result.rejected":
+    case "recruitment_exemption.result.accepted":
+    case "recruitment_exemption.result.rejected":
     case "woc.result.accepted":
     case "woc.result.rejected":
     case "soc.result.accepted":

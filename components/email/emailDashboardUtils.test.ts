@@ -245,6 +245,30 @@ describe("groupTemplateRowsByKey", () => {
     expect(getTemplateRowStatusLabel("other-department")).toBe("其他部门覆盖");
   });
 
+  it("marks the browsed department's override as other-department for a department account", () => {
+    const [group] = groupTemplateRowsByKey(
+      [
+        {
+          templateKey: "recruitment.result.accepted",
+          department: "media",
+          editable: false,
+          hasOverride: true,
+        },
+      ],
+      { department: "media", scope: { kind: "department", department: "software" } },
+    );
+
+    expect(group).toMatchObject({
+      status: "other-department",
+      readOnly: true,
+      writable: false,
+      hasOverride: true,
+    });
+    expect(getTemplateRowStatusLabel(group.status, { readOnly: group.readOnly })).toBe(
+      "其他部门覆盖",
+    );
+  });
+
   it("treats a department row without an explicit hasOverride flag as an override", () => {
     const [group] = groupTemplateRowsByKey(
       [

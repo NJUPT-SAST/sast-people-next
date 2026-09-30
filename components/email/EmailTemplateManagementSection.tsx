@@ -47,6 +47,7 @@ import type {
 import {
   getTemplateRowStatusLabel,
   groupTemplateRowsByKey,
+  normalizeTemplateDepartment,
   type TemplateRowStatus,
 } from "./emailDashboardUtils";
 
@@ -78,16 +79,21 @@ function TemplateOverrideBadge({
   );
 }
 
-/** 卡片提示：写到哪里、是否已有覆盖 */
+/** 卡片提示：写到哪里、是否已有覆盖、是否只是只读浏览 */
 function getTemplateScopeHint({
   targetDepartment,
   hasOverride,
+  writable,
 }: {
   targetDepartment: string | null;
   hasOverride: boolean;
+  writable: boolean;
 }) {
   if (!targetDepartment) {
     return "当前编辑全局默认，未配置覆盖的部门都会用它。";
+  }
+  if (!writable) {
+    return `只读浏览「${departmentLabel(targetDepartment)}」的覆盖，本部门的覆盖请切回本部门再编辑。`;
   }
   if (hasOverride) {
     return `「${departmentLabel(targetDepartment)}」已有独立覆盖，改动不影响其他部门。`;
@@ -164,7 +170,8 @@ function TemplateDialog({
 }) {
   const router = useRouter();
   const isAcceptedTemplate = setting.templateKey.endsWith("accepted");
-  const isRecruitmentTemplate = setting.templateKey.startsWith("recruitment.");
+  /* 招新一族（recruitment / recruitment_exemption）共用成员注册版式，故按前缀判断 */
+  const isRecruitmentTemplate = setting.templateKey.startsWith("recruitment");
   const usesInternalGroup =
     isAcceptedTemplate &&
     (isRecruitmentTemplate || setting.templateKey.startsWith("soc."));
@@ -187,12 +194,14 @@ function TemplateDialog({
         <DialogHeader>
           <DialogTitle>{getSettingLabel(setting.templateKey)}</DialogTitle>
           <DialogDescription>
-            编辑邮件标题、结果卡片、正文和后续行动。当前写入目标：
-            {targetLabel}
-            {department && !hasOverride
-              ? "（尚未覆盖，保存会创建该部门的独立文案）"
-              : ""}
-            。保存后请先预览，再进行测试发送。
+            编辑邮件标题、结果卡片、正文和后续行动。
+            {writable
+              ? `当前写入目标：${targetLabel}${
+                  department && !hasOverride
+                    ? "（尚未覆盖，保存会创建该部门的独立文案）"
+                    : ""
+                }。保存后请先预览，再进行测试发送。`
+              : `当前为只读浏览：${targetLabel} 属于其他部门，只能查看，不能保存。`}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -354,9 +363,11 @@ function TemplateDialog({
               </Button>
             ) : (
               <span className="text-xs text-muted-foreground">
-                {department
-                  ? `保存会写入${targetLabel}覆盖，未覆盖前继续回落全局默认。`
-                  : "保存会写入全局默认，未覆盖的部门都会用它。"}
+                {writable
+                  ? department
+                    ? `保存会写入${targetLabel}覆盖，未覆盖前继续回落全局默认。`
+                    : "保存会写入全局默认，未覆盖的部门都会用它。"
+                  : "只读浏览其他部门的覆盖，保存与恢复按钮已隐藏。"}
               </span>
             )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -431,8 +442,13 @@ function InterviewTemplateDialog({
             {isWithdrawalTemplate
               ? "编辑候选人报名被退回后的通知内容；退回理由会自动显示在邮件的信息卡片里。"
               : "编辑邮件开头的提示语。预约时间、地点和讲师会自动生成在邮件信息卡片里；候选人邮件不包含飞书会议入口。"}
-            当前写入目标：{targetLabel}
-            {department && !hasOverride ? "（尚未覆盖，保存会创建该部门的独立文案）" : ""}。
+            {writable
+              ? `当前写入目标：${targetLabel}${
+                  department && !hasOverride
+                    ? "（尚未覆盖，保存会创建该部门的独立文案）"
+                    : ""
+                }。`
+              : `当前为只读浏览：${targetLabel} 属于其他部门，只能查看，不能保存。`}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -531,9 +547,11 @@ function InterviewTemplateDialog({
               </Button>
             ) : (
               <span className="text-xs text-muted-foreground">
-                {department
-                  ? `保存会写入${targetLabel}覆盖，未覆盖前继续回落全局默认。`
-                  : "保存会写入全局默认，未覆盖的部门都会用它。"}
+                {writable
+                  ? department
+                    ? `保存会写入${targetLabel}覆盖，未覆盖前继续回落全局默认。`
+                    : "保存会写入全局默认，未覆盖的部门都会用它。"
+                  : "只读浏览其他部门的覆盖，保存与恢复按钮已隐藏。"}
               </span>
             )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -727,6 +745,14 @@ export function EmailTemplateManagementSection({
       return { definition, group, templateKey };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);
+  /* 只读浏览其他部门时隐藏测试发送：测试发送会按该部门写入投递记录，写权限只限本部门 */
+  const scope = templateSettings.scope;
+  const canSendTestEmail =
+    scope.kind === "all" ||
+    (scope.kind === "department" &&
+      (!department ||
+        normalizeTemplateDepartment(department) ===
+          normalizeTemplateDepartment(scope.department)));
 
   return (
     <div className="flex flex-col gap-5">
@@ -741,11 +767,13 @@ export function EmailTemplateManagementSection({
               onChange={onDepartmentChange}
             />
           </div>
-          <TestEmailButton
-            flowName={selectedFlowTitle}
-            department={department}
-            templateDefinitions={templateDefinitions}
-          />
+          {canSendTestEmail && (
+            <TestEmailButton
+              flowName={selectedFlowTitle}
+              department={department}
+              templateDefinitions={templateDefinitions}
+            />
+          )}
         </div>
 
         <div className="space-y-5 p-4">
@@ -795,12 +823,14 @@ export function EmailTemplateManagementSection({
                         }
                       />
                     )}
-                    <TestEmailButton
-                      flowName={selectedFlowTitle}
-                      department={department}
-                      templateDefinitions={templateDefinitions}
-                      defaultTemplateKey={group.templateKey as EmailTemplateDefinition["key"]}
-                    />
+                    {group.writable && (
+                      <TestEmailButton
+                        flowName={selectedFlowTitle}
+                        department={department}
+                        templateDefinitions={templateDefinitions}
+                        defaultTemplateKey={group.templateKey as EmailTemplateDefinition["key"]}
+                      />
+                    )}
                   </div>
                 </div>
               ))}
@@ -815,12 +845,14 @@ export function EmailTemplateManagementSection({
                     </div>
                   </div>
                   <div className="mt-auto pt-4">
-                    <TestEmailButton
-                      flowName={selectedFlowTitle}
-                      department={department}
-                      templateDefinitions={templateDefinitions}
-                      defaultTemplateKey={definition.key}
-                    />
+                    {canSendTestEmail && (
+                      <TestEmailButton
+                        flowName={selectedFlowTitle}
+                        department={department}
+                        templateDefinitions={templateDefinitions}
+                        defaultTemplateKey={definition.key}
+                      />
+                    )}
                   </div>
                 </div>
               ))}
@@ -875,12 +907,14 @@ export function EmailTemplateManagementSection({
                         }
                       />
                     )}
-                    <TestEmailButton
-                      flowName={selectedFlowTitle}
-                      department={department}
-                      templateDefinitions={templateDefinitions}
-                      defaultTemplateKey={definition.key}
-                    />
+                    {group.writable && (
+                      <TestEmailButton
+                        flowName={selectedFlowTitle}
+                        department={department}
+                        templateDefinitions={templateDefinitions}
+                        defaultTemplateKey={definition.key}
+                      />
+                    )}
                   </div>
                 </div>
               ))}

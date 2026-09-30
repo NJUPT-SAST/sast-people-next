@@ -100,6 +100,10 @@ export const RecruitmentContent = ({
   const scoringEnabled = isOfficeInterviewFlow(
     safeFlowTypes.find((flow) => flow.id === Number(flowId))?.type ?? '',
   );
+  /* 办公类流程配置的时段选项（label）：行内改时段与时段筛选用 */
+  const currentFlowSlotOptions = (
+    safeFlowTypes.find((flow) => flow.id === Number(flowId))?.slotOptions ?? []
+  ).map((option) => option.label);
 
   const isEvaluationWorkspace = mode === 'interview';
   const [interviewFlowType, setInterviewFlowType] = useState<InterviewFlowType>(
@@ -109,9 +113,9 @@ export const RecruitmentContent = ({
     ? safeFlowTypes.filter((flow) => flow.type === interviewFlowType)
     : safeFlowTypes;
 
-  /* 改期申请按所选流程加载：审批列表只显示当前流程的申请，不串到别的流程 */
+  /* 改期审批已从办公类下线：待审批列表只给技术流程加载，避免无意义请求 */
   useEffect(() => {
-    if (!isEvaluationWorkspace || !flowId) {
+    if (!isEvaluationWorkspace || !flowId || scoringEnabled) {
       setPendingSlotRows([]);
       return;
     }
@@ -126,15 +130,12 @@ export const RecruitmentContent = ({
     return () => {
       cancelled = true;
     };
-  }, [flowId, isEvaluationWorkspace]);
+  }, [flowId, isEvaluationWorkspace, scoringEnabled]);
 
-  /* 页签名称按流程归属部门生成（软件研发部WOC / 多媒体部WOD …） */
+  /* 页签按阶段分组（免试/WOC/SOC/办公类面试），具体流程的部门在流程选择器里体现 */
   const interviewTabs = interviewTypeValues.map((value) => ({
     value,
-    label: flowTypeLabel(
-      value,
-      safeFlowTypes.find((flow) => flow.type === value)?.department ?? null,
-    ),
+    label: flowTypeLabel(value, null),
   }));
 
   const handleFlowChange = async (value: string) => {
@@ -431,10 +432,12 @@ export const RecruitmentContent = ({
               targetScheduleId={targetScheduleId}
               loading={loading}
               scoringEnabled={scoringEnabled}
+              slotOptions={currentFlowSlotOptions}
               onRefresh={refreshEvalDataAndPublication}
             />
           )}
-          <PendingSlotChangePanel rows={pendingSlotRows} />
+          {/* 办公类改时段已改为部长在工作台内直接调整：不再展示改期审批面板 */}
+          {!scoringEnabled && <PendingSlotChangePanel rows={pendingSlotRows} />}
         </div>
       ) : loading ? (
         <Loading />

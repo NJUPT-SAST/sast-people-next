@@ -16,7 +16,6 @@ import {
   TableCell,
 } from '../ui/table';
 import originalDayjs from '@/lib/dayjs';
-import { departmentLabel } from '@/const/department';
 import { flowTypeLabel } from '@/const/flow';
 import { Operations } from './operations';
 
@@ -45,18 +44,6 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
       return (
         <span className="inline-flex rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80">
           {flowTypeLabel(type, row.original.department)}
-        </span>
-      );
-    },
-  },
-  {
-    accessorKey: 'department',
-    header: '归属部门',
-    accessorFn: (data) => data.department,
-    cell({ row }) {
-      return (
-        <span className="text-sm text-muted-foreground">
-          {departmentLabel(row.original.department)}
         </span>
       );
     },
@@ -127,12 +114,11 @@ export function FlowTable<TData extends displayFlow, TValue>({
       <div className="hidden xl:block">
         <Table className="table-fixed" containerClassName="overflow-x-visible">
           <colgroup>
-            <col className="w-[30%]" />
-            <col className="w-[12%]" />
+            <col className="w-[34%]" />
             <col className="w-[14%]" />
-            <col className="w-[12%]" />
-            <col className="w-[12%]" />
-            <col className="w-[20%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
+            <col className="w-[24%]" />
           </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -218,10 +204,6 @@ export function FlowTable<TData extends displayFlow, TValue>({
               </div>
               <div className="text-sm space-y-2 px-1">
                 <div className="text-muted-foreground break-words">{row.original.description || '-'}</div>
-                <div className="flex justify-between items-center text-muted-foreground">
-                  <span>归属部门</span>
-                  <span className="text-foreground">{departmentLabel(row.original.department)}</span>
-                </div>
                 <div className="flex justify-between items-center text-muted-foreground pt-2">
                   <span>开始时间</span>
                   <span className="text-foreground text-xs font-mono">{originalDayjs(row.original.startedAt).format('YYYY-MM-DD HH:mm')}</span>

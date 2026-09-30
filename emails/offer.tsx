@@ -49,7 +49,7 @@ interface OfferEmailProps {
   name?: string;
   flowName?: string;
   accept?: boolean;
-  flowKind?: 'recruitment' | 'woc' | 'soc' | 'office_round1' | 'office_round2';
+  flowKind?: 'recruitment' | 'recruitment_exemption' | 'woc' | 'soc' | 'office_round1' | 'office_round2';
   /** 候选人所报部门展示名：办公类部门面试通知的 {department} 变量 */
   department?: string;
   /** 后续 QQ 群号：办公类部门面试通知的 {groupNumber} 变量 */
@@ -110,6 +110,9 @@ export const OfferEmail = ({
     feishuRegisterHelpUrl,
   };
   const isOfficeFlowKind = flowKind === 'office_round1' || flowKind === 'office_round2';
+  /* 免试（recruitment_exemption）与笔试共用同一套成员注册版式，仅模板键与文案不同 */
+  const isRecruitmentFlowKind =
+    flowKind === 'recruitment' || flowKind === 'recruitment_exemption';
   const officeRoundLabel = flowKind === 'office_round2' ? '二轮' : '一轮';
   const officeDepartment = department || '部门';
   const defaultTitle = isOfficeFlowKind
@@ -205,7 +208,7 @@ export const OfferEmail = ({
                     ? `恭喜你顺利通过${officeDepartment}${officeRoundLabel}面试。后续面试考核流程与地点将由部门负责人另行通知。`
                     : flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，本阶段考核结果已确认。` : flowKind === 'soc' ? `恭喜你通过本次 ${flowName} 考核，正式留任为讲师！` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}
                 </Text>
-                {flowKind === 'recruitment' ? (
+                {isRecruitmentFlowKind ? (
                   <>
                     <Text style={text}>
                       我们欣赏你对技术的热情和积极的态度。在这里，希望你能与志同道合的伙伴们一起，将脑海中天马行空的创意变为现实，在项目实战中挑战自我，感受协同攻克难关的纯粹快乐。
@@ -313,14 +316,14 @@ export const OfferEmail = ({
                 <Text style={text}>
                   {flowKind === 'woc'
                     ? '如果你想了解本次考核中可以改进的地方，欢迎联系邮箱与我们交流。期待在未来的活动中再次见到你。'
-                    : flowKind === 'recruitment'
+                    : isRecruitmentFlowKind
                     ? '希望你能继续保持这份对技术的热忱，不断精进，再接再厉。我们期待在未来的活动中再次看到你的身影！'
                     : flowKind === 'soc'
                       ? '如需交流后续学习或发展方向，欢迎联系邮箱。期待在未来的活动中再见！'
                       : '祝愿你在未来的道路上继续成长，期待今后有机会再次与你交流。'}
                 </Text>
 
-                {flowKind === 'recruitment' && (
+                {isRecruitmentFlowKind && (
                   <Section style={calendarCard}>
                     <Text style={importantText}>
                       【查看授课日历】

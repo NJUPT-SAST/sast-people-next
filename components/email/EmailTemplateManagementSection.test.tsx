@@ -111,33 +111,60 @@ function renderSection({
 }
 
 describe("EmailTemplateManagementSection", () => {
-  it("部门账号看到本部门归属与只读的全局默认回落", () => {
+  it("部门账号看到模板归属选择器与本部门归属，跨部门仍是只读", () => {
     renderSection({
       templateSettings: {
         rows: [
           createResultRow("recruitment.result.accepted", null, false, false),
           createResultRow("recruitment.result.rejected", "software", true, true),
         ],
-        departments: ["software"],
+        departments: ["software", "media"],
         scope: { kind: "department", department: "software" },
       },
       department: "software",
     });
 
+    /* 部长也能切换部门（只读浏览），因此选择器与管理员同样是下拉 */
+    expect(screen.getByLabelText("模板归属")).toHaveTextContent(
+      "软件研发部（software）",
+    );
     expect(
-      screen.getByText("本部门覆盖：软件研发部（software）"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/未配置时回落全局默认/),
+      screen.getByText(/本部门覆盖可编辑，其他部门只读浏览/),
     ).toBeInTheDocument();
     /* 没有本部门覆盖的模板回落全局默认，并按服务端 editable 标成只读 */
     expect(screen.getByText("全局默认（只读）")).toBeInTheDocument();
     expect(screen.getByText("本部门覆盖")).toBeInTheDocument();
     expect(screen.queryByText(/其他部门覆盖/)).toBeNull();
-    expect(screen.queryByLabelText("模板归属")).toBeNull();
   });
 
-  it("管理员可以切换归属，并看到已配置过覆盖的部门", () => {
+  it("部长浏览其他部门时该部门覆盖标为其他部门覆盖且不给保存按钮", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [createResultRow("recruitment.result.accepted", "media", false, true)],
+        departments: ["software", "media"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "media",
+    });
+
+    expect(screen.getByText("其他部门覆盖")).toBeInTheDocument();
+    expect(screen.queryByText("本部门覆盖")).toBeNull();
+    /* 卡片提示明确这是只读浏览，不是可保存的本部门覆盖 */
+    expect(screen.getByText(/只读浏览「多媒体部」的覆盖/)).toBeInTheDocument();
+    /* 只读浏览时连测试发送也隐藏：测试发送要按该部门写入投递记录 */
+    expect(screen.queryByRole("button", { name: "测试发送" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "招新通过模板" }));
+
+    expect(
+      await screen.findByText(/只读浏览其他部门的覆盖，保存与恢复按钮已隐藏/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /保存到/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /恢复为全局默认/ })).toBeNull();
+  });
+
+  it("管理员可以切换归属，并看到部门目录选项", () => {
     renderSection({
       templateSettings: {
         rows: [createResultRow("recruitment.result.accepted", null, true, false)],
@@ -149,9 +176,7 @@ describe("EmailTemplateManagementSection", () => {
 
     expect(screen.getByLabelText("模板归属")).toBeInTheDocument();
     expect(screen.getByText("全局默认")).toBeInTheDocument();
-    expect(screen.getByText(/已配置过覆盖的部门：/)).toHaveTextContent(
-      "已配置过覆盖的部门：软件研发部（software）、多媒体部（media）。",
-    );
+    expect(screen.getByText(/下拉来自 Link 部门目录与已有覆盖行/)).toBeInTheDocument();
     expect(
       screen.getByText(/当前编辑全局默认，未配置覆盖的部门都会用它。/),
     ).toBeInTheDocument();

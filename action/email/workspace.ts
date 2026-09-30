@@ -2,7 +2,7 @@
 
 import { batchSendEmail } from "@/action/user/sendEmail";
 import { sendEmailBatch } from "@/action/email/send";
-import { getEmailTemplateSetting } from "@/action/email/template";
+import { readResultEmailTemplateSetting } from "@/lib/email-center/template-resolution";
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
 import { getDepartmentScope, type DepartmentScope, verifyManager } from "@/lib/authz";
@@ -95,8 +95,8 @@ export async function listEmailFlowTargets() {
     const resultRound = isOfficeInterviewFlow(item.type) ? 2 : null;
     const acceptedTemplateKey = getResultEmailTemplateKey(item.type, true, resultRound);
     const rejectedTemplateKey = getResultEmailTemplateKey(item.type, false, resultRound);
-    const acceptedSetting = await getEmailTemplateSetting(acceptedTemplateKey, item.department);
-    const rejectedSetting = await getEmailTemplateSetting(rejectedTemplateKey, item.department);
+    const acceptedSetting = await readResultEmailTemplateSetting(acceptedTemplateKey, item.department);
+    const rejectedSetting = await readResultEmailTemplateSetting(rejectedTemplateKey, item.department);
     /* 办公类模板需要 {department} 展示名，其他流程的模板变量用不到 */
     const departmentDisplay = departmentLabel(item.department);
     const flowTargets = hydratedTargets.filter((target) => target.flowId === item.id);

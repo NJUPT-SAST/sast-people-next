@@ -12,6 +12,7 @@ import {
 export type ResultEmailKind = "accepted" | "rejected";
 export type ResultEmailFlowKind =
   | "recruitment"
+  | "recruitment_exemption"
   | "woc"
   | "soc"
   | "office_round1"
@@ -58,6 +59,8 @@ export function getResultEmailFlowKind(
   }
   if (flowType === "woc") return "woc";
   if (flowType === "soc") return "soc";
+  /* 免试招新单独成一套模板（免试 vs 笔试），不再折叠成 recruitment */
+  if (flowType === "recruitment_exemption") return "recruitment_exemption";
   return "recruitment";
 }
 

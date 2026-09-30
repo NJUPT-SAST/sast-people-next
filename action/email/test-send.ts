@@ -1,6 +1,6 @@
 "use server";
 
-import { getEmailTemplateSetting } from "@/action/email/template";
+import { readResultEmailTemplateSetting } from "@/lib/email-center/template-resolution";
 import { getDepartmentScope } from "@/lib/authz";
 import { verifyRole } from "@/lib/dal";
 import { resolveTemplateEditTarget } from "@/lib/email-center/template-access";
@@ -148,7 +148,8 @@ async function createTestRenderRequest({
   department: string | null;
 }): Promise<EmailTemplateRenderRequest> {
   if (getEmailTemplateDefinition(templateKey)?.category === "result") {
-    const setting = await getEmailTemplateSetting(templateKey, department);
+    /* 内部读取：写入目标已由 resolveTemplateEditTarget 校验，这里不需要再走 action */
+    const setting = await readResultEmailTemplateSetting(templateKey, department);
     const [flowKind] = templateKey.split(".");
     /* 办公类模板按轮次区分；测试发送沿用模板键里的轮次 */
     const round =

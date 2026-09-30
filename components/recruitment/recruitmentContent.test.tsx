@@ -50,8 +50,24 @@ jest.mock("@/components/recruitment/table", () => ({
 }));
 
 jest.mock("@/components/recruitment/evaluationTable", () => ({
-  EvaluationTable: ({ loading }: { loading?: boolean }) => (
-    <div data-testid="evaluation-table" data-loading={String(Boolean(loading))} />
+  EvaluationTable: ({
+    loading,
+    slotOptions,
+  }: {
+    loading?: boolean;
+    slotOptions?: string[];
+  }) => (
+    <div
+      data-testid="evaluation-table"
+      data-loading={String(Boolean(loading))}
+      data-slot-options={(slotOptions ?? []).join(",")}
+    />
+  ),
+}));
+
+jest.mock("@/components/recruitment/pendingSlotChangePanel", () => ({
+  PendingSlotChangePanel: ({ rows }: { rows: unknown[] }) => (
+    <div data-testid="pending-slot-panel" data-count={rows.length} />
   ),
 }));
 
@@ -182,6 +198,18 @@ describe("RecruitmentContent", () => {
       title: "办公类部门面试招新",
       type: "office_interview",
       groupOptions: ["办公室"],
+      slotOptions: [{ label: "13:00-14:00" }, { label: "14:00-15:00" }],
+    },
+  ] as never;
+
+  /* 技术部门面试流程：改期审批面板只对它展示 */
+  const technicalFlowTypes = [
+    {
+      id: 5,
+      title: "软件研发部WOC招新",
+      type: "woc",
+      groupOptions: ["开发组"],
+      slotOptions: null,
     },
   ] as never;
 
@@ -359,6 +387,46 @@ describe("RecruitmentContent", () => {
     );
     expect(mockToastSuccess).not.toHaveBeenCalled();
     expect(screen.getAllByText("张三").length).toBeGreaterThan(0);
+  });
+
+  it("passes the office slot options to the table and hides the slot change panel", () => {
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    /* 办公类由部长在工作台内直接改时段：时段选项要传给面评表 */
+    expect(screen.getByTestId("evaluation-table")).toHaveAttribute(
+      "data-slot-options",
+      "13:00-14:00,14:00-15:00",
+    );
+    /* 改期审批已从办公类下线 */
+    expect(screen.queryByTestId("pending-slot-panel")).not.toBeInTheDocument();
+  });
+
+  it("keeps the slot change panel for the technical interview flows", async () => {
+    render(
+      <RecruitmentContent
+        flowTypes={technicalFlowTypes}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="5"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    expect(await screen.findByTestId("pending-slot-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("evaluation-table")).toHaveAttribute(
+      "data-slot-options",
+      "",
+    );
   });
 
   it("keeps the round-one roster away from non-managers and non-office flows", () => {

@@ -2,11 +2,7 @@
 
 import { normalizeDepartmentKey } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
-import {
-  DepartmentAccessError,
-  getDepartmentScope,
-  type DepartmentScope,
-} from "@/lib/authz";
+import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
 import {
   deleteInterviewScheduleTemplateSetting,
   getInterviewNotificationTemplateSetting,
@@ -48,8 +44,9 @@ async function getInterviewTemplateSession() {
 }
 
 /**
- * 读取目标部门：管理员按传入值（缺省 = 全局默认）；部门账号只允许读本部门的覆盖，
- * 未归属部门的账号（含管理员之外的 role 3）只读全局默认。
+ * 读取目标部门：管理员按传入值（缺省 = 全局默认）；部门账号缺省本部门，
+ * 但允许跨部门只读浏览（写权限在 update/reset 里另行校验，仍拒绝跨部门）；
+ * 无部门账号只读全局默认。
  */
 function resolveTemplateReadDepartment(
   scope: DepartmentScope,
@@ -57,12 +54,7 @@ function resolveTemplateReadDepartment(
 ): string | null {
   const target = normalizeDepartmentKey(requested);
   if (scope.kind === "all") return target;
-  if (scope.kind === "department") {
-    if (target && target !== scope.department) {
-      throw new DepartmentAccessError("无权查看其他部门的邮件模板");
-    }
-    return scope.department;
-  }
+  if (scope.kind === "department") return target ?? scope.department;
   return null;
 }
 

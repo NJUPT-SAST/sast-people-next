@@ -124,7 +124,7 @@ export type TemplateScopeGroup<TRow extends TemplateScopeRow> = {
   /** 当前归属是否可写（写入 targetDepartment） */
   writable: boolean;
   status: TemplateRowStatus;
-  /** 其他部门已配置覆盖的标识（管理员才拿得到这些行） */
+  /** 其他部门已配置覆盖的标识（读路径放开后管理员与部长都能拿到这些行） */
   otherDepartments: string[];
 };
 
@@ -139,10 +139,13 @@ export function getTemplateRowStatus({
   row,
   department,
   hasOverride,
+  viewerDepartment,
 }: {
   row: { department: string | null } | null;
   department: string | null | undefined;
   hasOverride: boolean;
+  /** 当前账号自己的部门；传入后跨部门浏览会被标成「其他部门覆盖」 */
+  viewerDepartment?: string | null;
 }): TemplateRowStatus {
   if (!row) return "missing";
 
@@ -150,6 +153,9 @@ export function getTemplateRowStatus({
   const rowDepartment = normalizeTemplateDepartment(row.department);
 
   if (!rowDepartment) return "global-default";
+  /* 部长浏览别人的部门时，命中行属于该部门而不是自己的，标注为其他部门覆盖（只读） */
+  const viewer = normalizeTemplateDepartment(viewerDepartment);
+  if (target && viewer && target !== viewer) return "other-department";
   if (target && rowDepartment === target) {
     return hasOverride ? "department-override" : "global-fallback";
   }
@@ -221,6 +227,7 @@ export function groupTemplateRowsByKey<TRow extends TemplateScopeRow>(
       row,
       department: target,
       hasOverride,
+      viewerDepartment: options.scope?.department,
     });
     /** 生效内容来源：有真实覆盖时是覆盖行，否则是全局默认行 */
     const contentFromOverride = target !== null && hasOverride;

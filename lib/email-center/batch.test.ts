@@ -75,8 +75,8 @@ jest.mock("@/db/drizzle", () => ({
   },
 }));
 
-jest.mock("@/action/email/template", () => ({
-  getEmailTemplateSetting: mockGetEmailTemplateSetting,
+jest.mock("@/lib/email-center/template-resolution", () => ({
+  readResultEmailTemplateSetting: mockGetEmailTemplateSetting,
 }));
 
 jest.mock("@/action/user-flow/roleTransition", () => ({
@@ -298,6 +298,40 @@ describe("email batch service", () => {
       expect.objectContaining({
         templateKey: "woc.result.accepted",
         variables: expect.objectContaining({ flowKind: "woc" }),
+      }),
+    );
+  });
+
+  it("selects the exemption result template for exemption flows", async () => {
+    mockSelectResults.push([
+      { userFlowId: 209, userId: 309, flowName: "2026 免试招新" },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[309, { id: 309, name: "Ivy", studentId: "B009" }]]),
+    );
+    mockGetEmailTemplateSetting.mockResolvedValue({
+      templateKey: "recruitment_exemption.result.accepted",
+      subjectTemplate: "{flowName} 结果通知",
+    });
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [309],
+        flowId: 13,
+        flowType: "recruitment_exemption",
+        accept: true,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "recruitment_exemption.result.accepted",
+      null,
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: "recruitment_exemption.result.accepted",
+        variables: expect.objectContaining({ flowKind: "recruitment_exemption" }),
       }),
     );
   });

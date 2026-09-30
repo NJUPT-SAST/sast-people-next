@@ -1,6 +1,6 @@
 import { db } from "@/db/drizzle";
 import { emailTemplateSetting } from "@/db/schema";
-import { getEmailTemplateSetting } from "@/action/email/template";
+import { readResultEmailTemplateSetting as getEmailTemplateSetting } from "@/lib/email-center/template-resolution";
 import { and, eq, isNull } from "drizzle-orm";
 
 const TEMPLATE_KEY = "recruitment.result.accepted";

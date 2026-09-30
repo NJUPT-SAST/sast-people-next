@@ -5,6 +5,7 @@ import { emailTemplateContent, normalizeDepartmentKey } from "@/db/schema";
 import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
 import {
   canEditTemplateRow,
+  mergeTemplateDepartmentOptions,
   pickTemplateSettingRow,
   templateReadFilter,
 } from "@/lib/email-center/template-access";
@@ -75,9 +76,9 @@ export type InterviewScheduleTemplateListRow =
 
 export type InterviewScheduleTemplateSettingsPayload = {
   rows: InterviewScheduleTemplateListRow[];
-  /** 可选的模板归属部门：管理员 = 数据库中已出现的部门，部门账号 = 仅本部门 */
+  /** 可选模板归属部门：Link 部门目录 ∪ 库中已有覆盖行；无部门账号为空 */
   departments: string[];
-  /** 当前账号的写入范围，UI 据此锁定「模板归属」选择器 */
+  /** 当前账号的写入范围：UI 据此判断哪些行可写、是否提供手填新标识 */
   scope: DepartmentScope;
 };
 
@@ -260,18 +261,14 @@ export async function getInterviewWithdrawalTemplateSetting(
   );
 }
 
-/** 可归属部门：管理员取库中已出现的部门（可再手填），部门账号仅本部门 */
+/** 归属下拉选项：Link 部门目录 ∪ 库中已出现覆盖的部门（无部门账号为空） */
 async function listTemplateDepartments(scope: DepartmentScope) {
-  if (scope.kind === "department") return [scope.department];
   if (scope.kind === "none") return [];
 
   const rows = await db
     .selectDistinct({ department: emailTemplateContent.department })
     .from(emailTemplateContent);
-  return rows
-    .map((row) => row.department)
-    .filter((value): value is string => Boolean(value))
-    .sort((a, b) => a.localeCompare(b, "zh-CN"));
+  return mergeTemplateDepartmentOptions(rows.map((row) => row.department));
 }
 
 export async function listInterviewScheduleTemplateSettings(
@@ -279,7 +276,7 @@ export async function listInterviewScheduleTemplateSettings(
   scope?: DepartmentScope,
 ): Promise<InterviewScheduleTemplateSettingsPayload> {
   const effectiveScope = scope ?? (await getDepartmentScope());
-  // 读路径过滤：部门账号只能看到全局默认与本部门覆盖，避免列表泄露其他部门的文案
+  // 读路径过滤：部门账号也放开为可读全部（只读浏览其他部门），无部门账号只看全局默认
   const rows = await db
     .select()
     .from(emailTemplateContent)

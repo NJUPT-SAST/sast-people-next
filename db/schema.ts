@@ -180,7 +180,7 @@ export const userFlow = pgTable("user_flow", {
   applyGroup: varchar("apply_group", { length: 100 }),
   /* 办公类面试当前阶段：1=一面，2=二面（一面通过后进入二面）；其他流程为 NULL */
   round: smallint("round"),
-  /* 候选人选择的面试时段（flow.slot_options 中的 label，含「时间冲突」选项） */
+  /* 候选人选择的面试时段（flow.slot_options 中的 label，含「时间冲突」选项）；办公类可由部长在面试管理页直接调整 */
   interviewSlot: varchar("interview_slot", { length: 100 }),
   /* 办公类部门面试：志愿类型 1=第一志愿、2=第二志愿（其他流程为 NULL）；每个办公部门一条流程，报名分别提交 */
   choice: smallint("choice"),
@@ -225,12 +225,12 @@ export const interviewSlotChangeRequest = pgTable(
     fkUserFlowId: integer("fk_user_flow_id")
       .references(() => userFlow.id, { onDelete: "cascade" })
       .notNull(),
-    /* 技术部门面试：绑定的飞书日程；办公类按 requested_slot 申请，此列为 NULL */
+    /* 技术部门面试：申请所绑定的飞书日程 */
     fkInterviewScheduleId: integer("fk_interview_schedule_id").references(
       () => interviewSchedule.id,
       { onDelete: "cascade" },
     ),
-    /* 办公类：候选人申请改到的面试时段（flow.slot_options 的 label） */
+    /* 历史字段：办公类改期申请已下线（改由部长在面试管理页直接改时段），仅保留存量记录 */
     requestedSlot: varchar("requested_slot", { length: 100 }),
     /* 技术部门：候选人申请改到的新时间（时长沿用原日程） */
     requestedStartsAt: timestamp("requested_starts_at", { withTimezone: true }),

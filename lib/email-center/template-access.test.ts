@@ -2,6 +2,8 @@
 
 import {
   canEditTemplateRow,
+  canReadTemplateDepartment,
+  mergeTemplateDepartmentOptions,
   pickTemplateSettingRow,
   resolveTemplateEditTarget,
   templateReadFilter,
@@ -145,12 +147,10 @@ describe("templateReadFilter", () => {
     expect(templateReadFilter(emailTemplateSetting.department, all)).toBeUndefined();
   });
 
-  it("shows the global default plus own overrides to department accounts", () => {
-    const { sql, params } = renderFilter(software);
-
-    expect(sql).toContain('"email_template_setting"."department" is null');
-    expect(sql).toContain("or");
-    expect(params).toEqual(["software"]);
+  it("does not restrict department accounts either, so they can browse other departments", () => {
+    /* 只读浏览其他部门要求读路径不过滤；写权限由 canEditTemplateRow 单独收口 */
+    expect(templateReadFilter(emailTemplateSetting.department, software)).toBeUndefined();
+    expect(templateReadFilter(emailTemplateSetting.department, office)).toBeUndefined();
   });
 
   it("shows only the global default without a department", () => {
@@ -158,5 +158,33 @@ describe("templateReadFilter", () => {
 
     expect(sql).toContain('"email_template_setting"."department" is null');
     expect(params).toEqual([]);
+  });
+});
+
+describe("canReadTemplateDepartment", () => {
+  it("lets admins and department accounts read any department", () => {
+    expect(canReadTemplateDepartment(all, null)).toBe(true);
+    expect(canReadTemplateDepartment(all, "media")).toBe(true);
+    expect(canReadTemplateDepartment(software, "media")).toBe(true);
+    expect(canReadTemplateDepartment(software, "software")).toBe(true);
+    expect(canReadTemplateDepartment(software, null)).toBe(true);
+  });
+
+  it("pins department-less accounts to the global default", () => {
+    expect(canReadTemplateDepartment(none, null)).toBe(true);
+    expect(canReadTemplateDepartment(none, "software")).toBe(false);
+  });
+});
+
+describe("mergeTemplateDepartmentOptions", () => {
+  it("lists the Link department directory plus stored override rows", () => {
+    const options = mergeTemplateDepartmentOptions(["software", null, "custom_dept"]);
+
+    /* 目录里的部门即使还没建过覆盖也要出现，方便直接切换过去 */
+    expect(options).toContain("media");
+    expect(options).toContain("office");
+    expect(options).toContain("custom_dept");
+    expect(new Set(options).size).toBe(options.length);
+    expect([...options]).toEqual([...options].sort((a, b) => a.localeCompare(b, "zh-CN")));
   });
 });

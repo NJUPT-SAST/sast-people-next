@@ -96,6 +96,9 @@ export function getSettingLabel(templateKey: string) {
   if (templateKey.startsWith("office_round2.")) {
     return accepted ? "办公类二面通过模板" : "办公类二面不通过模板";
   }
+  if (templateKey.startsWith("recruitment_exemption.")) {
+    return accepted ? "免试招新通过模板" : "免试招新不通过模板";
+  }
   if (templateKey.startsWith("woc.")) {
     return accepted ? "WoC/WoD 通过模板" : "WoC/WoD 不通过模板";
   }

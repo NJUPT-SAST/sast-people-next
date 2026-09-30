@@ -257,12 +257,12 @@ describe("办公类部门流程的轮次推进", () => {
     if (createdId === undefined) throw new Error("面评未返回 id");
 
     const row = await readEvaluation(createdId);
-    /* 办公类面评只留档：轮次 + 分数 + 内容，不再写「建议通过/不通过」 */
+    /* 办公类面评留档：轮次 + 分数 + 内容 + 可选「面试意见」（仅供参考，不影响结果判定） */
     expect(row).toEqual({
       round: 1,
       status: "submitted",
       score: 88,
-      recommendation: null,
+      recommendation: "passed",
     });
 
     const candidate = await readCandidate(userFlowId);
@@ -471,7 +471,8 @@ describe("办公类部门流程的轮次推进", () => {
     expect(approvalRows.some((row) => row.evaluation.id === softwareEvaluation.id)).toBe(false);
   });
 
-  it("部长能看到并审批本部门流程的改时段申请", async () => {
+  it("办公类改期申请已下线：存量 pending 记录不再可见也无法审批", async () => {
+    /* 办公类「申请改时段 → 部长审批」整体下线，改由部长在面试管理页直接修改 */
     const [request] = await db
       .insert(interviewSlotChangeRequest)
       .values({
@@ -483,16 +484,17 @@ describe("办公类部门流程的轮次推进", () => {
       .returning({ id: interviewSlotChangeRequest.id });
 
     const pending = await listPendingSlotChangeRequests();
-    expect(pending.map((row) => row.id)).toContain(request.id);
+    expect(pending.map((row) => row.id)).not.toContain(request.id);
 
-    const result = await reviewInterviewSlotChange(request.id, true);
-    expect(result).toEqual({ success: true, appliedSlot: "15:00-16:00" });
+    await expect(
+      reviewInterviewSlotChange(request.id, true),
+    ).rejects.toThrow("该流程不支持修改面试时间");
 
-    const [candidate] = await db
+    const [unchanged] = await db
       .select({ slot: userFlow.interviewSlot })
       .from(userFlow)
       .where(eq(userFlow.id, userFlowId))
       .limit(1);
-    expect(candidate.slot).toBe("15:00-16:00");
+    expect(unchanged.slot).not.toBe("15:00-16:00");
   });
 });

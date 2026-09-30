@@ -19,44 +19,19 @@ jest.mock("sonner", () => ({
 
 import { PendingSlotChangePanel } from "./pendingSlotChangePanel";
 
+/* 改期审批只剩技术部门：办公类时段调整已下线（部长直接改） */
 const pendingRow = {
-  id: 7,
-  userFlowId: 12,
-  flowId: 5,
-  flowTitle: "办公室面试招新",
-  flowType: "office_interview",
-  isOfficeFlow: true,
-  department: "office",
-  userId: 4,
-  candidateName: "李四",
-  candidateStudentId: "B24040002",
-  currentSlot: "13:00-14:00",
-  currentStartsAt: null,
-  currentEndsAt: null,
-  requestedSlot: "15:00-16:00",
-  requestedStartsAt: null,
-  requestedEndsAt: null,
-  reason: "与考试冲突",
-  scheduleId: null,
-  organizerId: null,
-  createdAt: new Date("2026-08-21T02:00:00Z"),
-};
-
-const technicalPendingRow = {
   id: 8,
   userFlowId: 13,
   flowId: 6,
   flowTitle: "2026 软件研发部 WOC",
   flowType: "woc",
-  isOfficeFlow: false,
   department: "software",
   userId: 5,
   candidateName: "王五",
   candidateStudentId: "B24040003",
-  currentSlot: null,
   currentStartsAt: new Date("2026-06-06T08:00:00.000Z"),
   currentEndsAt: new Date("2026-06-06T08:30:00.000Z"),
-  requestedSlot: null,
   requestedStartsAt: new Date("2026-06-07T08:00:00.000Z"),
   requestedEndsAt: new Date("2026-06-07T08:30:00.000Z"),
   reason: "与课程冲突",
@@ -77,20 +52,24 @@ describe("PendingSlotChangePanel", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("approves a pending slot change request with an optional note", async () => {
+  it("approves a technical reschedule request with the new interview time", async () => {
     const user = userEvent.setup();
     mockReviewInterviewSlotChange.mockResolvedValue({
       success: true,
-      appliedSlot: "15:00-16:00",
+      appliedStartsAt: pendingRow.requestedStartsAt,
     });
 
     render(<PendingSlotChangePanel rows={[pendingRow]} />);
 
-    expect(screen.getByText("李四")).toBeInTheDocument();
-    expect(screen.getByText("与考试冲突")).toBeInTheDocument();
-    expect(screen.getByText("2026-08-21 10:00")).toBeInTheDocument();
+    expect(screen.getByText("2026 软件研发部 WOC")).toBeInTheDocument();
+    expect(screen.getByText("王五")).toBeInTheDocument();
+    expect(screen.getByText("与课程冲突")).toBeInTheDocument();
+    expect(screen.getByText("2026-06-05 10:00")).toBeInTheDocument();
+    expect(screen.getByText("2026-06-06 16:00")).toBeInTheDocument();
+    expect(screen.getByText("2026-06-07 16:00")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "通过" }));
+    expect(screen.getByText(/同步飞书日程与留档会议/)).toBeInTheDocument();
     await user.type(
       screen.getByLabelText("备注（选填）"),
       "已与候选人确认",
@@ -102,6 +81,11 @@ describe("PendingSlotChangePanel", () => {
         pendingRow.id,
         true,
         { reviewNote: "已与候选人确认" },
+      ),
+    );
+    await waitFor(() =>
+      expect(jest.requireMock("sonner").toast.success).toHaveBeenCalledWith(
+        expect.stringContaining("飞书日程与通知已同步"),
       ),
     );
     expect(mockRefresh).toHaveBeenCalled();
@@ -118,7 +102,7 @@ describe("PendingSlotChangePanel", () => {
 
     await user.type(
       screen.getByLabelText("驳回理由（必填）"),
-      "该时段已有其他安排",
+      "该时间已有其他安排",
     );
     await user.click(screen.getByRole("button", { name: "确认驳回" }));
 
@@ -126,38 +110,10 @@ describe("PendingSlotChangePanel", () => {
       expect(mockReviewInterviewSlotChange).toHaveBeenCalledWith(
         pendingRow.id,
         false,
-        { reviewNote: "该时段已有其他安排" },
+        { reviewNote: "该时间已有其他安排" },
       ),
     );
     expect(mockRefresh).toHaveBeenCalled();
-  });
-
-  it("approves a technical reschedule request with the new interview time", async () => {
-    const user = userEvent.setup();
-    mockReviewInterviewSlotChange.mockResolvedValue({
-      success: true,
-      appliedStartsAt: technicalPendingRow.requestedStartsAt,
-    });
-
-    render(<PendingSlotChangePanel rows={[technicalPendingRow]} />);
-
-    expect(screen.getByText("2026 软件研发部 WOC")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "通过" }));
-    expect(screen.getByText(/同步飞书日程与留档会议/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "确认通过" }));
-
-    await waitFor(() =>
-      expect(mockReviewInterviewSlotChange).toHaveBeenCalledWith(
-        technicalPendingRow.id,
-        true,
-        { reviewNote: undefined },
-      ),
-    );
-    await waitFor(() =>
-      expect(jest.requireMock("sonner").toast.success).toHaveBeenCalledWith(
-        expect.stringContaining("飞书日程与通知已同步"),
-      ),
-    );
   });
 
   it("surfaces a failed review instead of refreshing the list", async () => {

@@ -108,6 +108,7 @@ jest.mock("@/components/flow/add", () => {
       id: z.number().optional(),
       title: z.string(),
       description: z.string(),
+      type: z.string().optional(),
       startedAt: z.date(),
       endedAt: z.date().nullable().optional(),
     }),
@@ -180,6 +181,42 @@ describe("EditSteps", () => {
             order: 3,
           }),
         ]),
+      );
+    });
+  });
+
+  it("lets an admin change the flow type and submits the paired department", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <EditSteps
+        canChooseDepartment
+        data={{
+          id: 9,
+          title: "软件研发部笔试招新",
+          description: "部门流程",
+          type: "recruitment",
+          department: "software",
+          startedAt: new Date("2026-03-22T08:00:00.000Z"),
+          endedAt: new Date("2026-03-22T18:00:00.000Z"),
+        } as never}
+      />,
+    );
+
+    /* 编辑态当前组合按语义化标签展示（软件研发部笔试） */
+    expect(screen.getByText("软件研发部笔试")).toBeInTheDocument();
+
+    /* 换成「办公室面试」：type 与 department 一起变 */
+    await user.click(screen.getByRole("button", { name: "办公室面试" }));
+    await user.click(screen.getByRole("button", { name: "保存流程信息" }));
+
+    await waitFor(() => {
+      expect(mockUpdateFlow).toHaveBeenCalledWith(
+        9,
+        expect.objectContaining({
+          type: "office_interview",
+          department: "office",
+        }),
       );
     });
   });

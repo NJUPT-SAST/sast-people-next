@@ -48,14 +48,9 @@ test.describe("office interview flow creation", () => {
     await dialog.getByLabel("流程名称").fill(title);
     await dialog.getByLabel("流程描述").fill("E2E 验证办公类流程配置。");
 
+    /* 语义化类型：选中「办公室面试」即同时确定 type 与归属部门 */
     await dialog.getByRole("combobox").nth(0).click();
-    await page.getByRole("option", { name: "办公类部门面试招新" }).click();
-
-    /* 归属部门与其它流程一致：管理员直接选择办公部门，不再有可投递部门映射 */
-    await dialog.getByRole("combobox").nth(1).click();
-    await page
-      .getByRole("option", { name: OFFICE_DEPARTMENT.label, exact: true })
-      .click();
+    await page.getByRole("option", { name: "办公室面试" }).click();
 
     await dialog.locator("#add-flow-slots").fill("13:00-14:00\n14:00-15:00");
     await dialog.locator("#add-flow-slot-conflict").click();
@@ -101,8 +96,8 @@ test.describe("office interview flow creation", () => {
     );
     expect(steps.rows.map((step) => step.title)).toEqual([
       "报名",
-      "一面面试",
-      "二轮面试",
+      "一面",
+      "二面",
       "结果确认",
     ]);
   });

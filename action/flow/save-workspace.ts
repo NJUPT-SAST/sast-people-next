@@ -5,7 +5,7 @@ import { flow, flowStep, normalizeDepartmentKey, problem } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
 import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { resolveGroupDepartments } from "./department-utils";
-import { OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
+import { resolveFlowTypeChange } from "./type-change";
 import { editFlowSchema } from "@/lib/validation/flow";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { fullStepType } from "@/types/step";
@@ -45,16 +45,22 @@ export async function saveFlowWorkspace(input: WorkspaceInput) {
   };
 
   /* 只有管理员能改归属部门；部长保持原部门不变 */
+  const nextDepartment =
+    session.scope.kind === "all" && values.department !== undefined
+      ? normalizeDepartmentKey(values.department)
+      : flowRow.department;
   if (session.scope.kind === "all" && values.department !== undefined) {
-    patch.department = normalizeDepartmentKey(values.department);
+    patch.department = nextDepartment;
   }
-  /* 办公类部门面试招新按部门隔离：每条流程必须归属一个办公部门 */
-  if (
-    flowRow.type === OFFICE_INTERVIEW_FLOW_TYPE &&
-    !(patch.department !== undefined ? patch.department : flowRow.department)
-  ) {
-    throw new Error("办公类部门面试招新必须归属一个办公部门");
-  }
+  /* 类型变更：仅管理员可改、有报名记录则拒绝；办公类必须有归属部门（共享 helper 校验） */
+  const typeChange = await resolveFlowTypeChange({
+    flowId: input.flowId,
+    scope: session.scope,
+    currentType: flowRow.type,
+    nextType: values.type,
+    nextDepartment,
+  });
+  if (typeChange) Object.assign(patch, typeChange);
   if (values.groupDepartments !== undefined) {
     patch.groupDepartments = resolveGroupDepartments(
       groupOptions,
@@ -116,7 +122,7 @@ export async function saveFlowWorkspace(input: WorkspaceInput) {
     }
   });
 
-  await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.update_workspace", resourceType: "flow", resourceId: input.flowId, department: patch.department !== undefined ? patch.department : flowRow.department, metadata: { stepCount: input.steps.length, problemCount: problemRows.length, department: flowRow.department } });
+  await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.update_workspace", resourceType: "flow", resourceId: input.flowId, department: patch.department !== undefined ? patch.department : flowRow.department, metadata: { stepCount: input.steps.length, problemCount: problemRows.length, department: flowRow.department, previousType: flowRow.type, newType: patch.type ?? flowRow.type } });
   revalidatePath("/dashboard/flow");
   revalidatePath(`/dashboard/flow/edit?id=${input.flowId}`);
 }

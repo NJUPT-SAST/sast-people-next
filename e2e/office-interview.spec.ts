@@ -7,6 +7,9 @@ import { signInAs } from "./session";
    避免与 demo 种子数据互相干扰「办公类最多两条报名」的名额 */
 const candidate = { uid: 11, role: 2, name: "讲师二" };
 
+/* 部长账号：部门与办公流程归属一致，才能在工作台看到该流程并直接改时段 */
+const officeManager = { uid: 213, role: 3, name: "邵晨", department: "office" };
+
 const SLOT_OPTIONS = [
   { label: "13:00-14:00" },
   { label: "14:00-15:00" },
@@ -249,5 +252,48 @@ test.describe("office interview registration", () => {
     expect(
       (await officeRegistrations()).map((row) => row.fk_flow_id),
     ).toEqual([firstFlowId, secondFlowId]);
+  });
+
+  /* 办公类改时段不再走候选人申请 + 审批：部长在面试管理页行内直接改 */
+  test("lets the manager edit the interview slot inline and filter by slot", async ({
+    page,
+  }) => {
+    await signInAs(page.context(), officeManager);
+    await page.goto(`/dashboard/interviews?flowId=${firstFlowId}`);
+
+    const slotSelect = page.getByLabel(`修改${candidate.name}的面试时段`).first();
+    await expect(slotSelect).toContainText("13:00-14:00");
+
+    await slotSelect.click();
+    await page.getByRole("option", { name: "14:00-15:00", exact: true }).click();
+    await expect(
+      page.locator("[data-sonner-toast]", {
+        hasText: "面试时段已改为 14:00-15:00",
+      }),
+    ).toBeVisible();
+    await expect(slotSelect).toContainText("14:00-15:00");
+
+    /* 改动落到报名记录上 */
+    await expect
+      .poll(async () => {
+        const row = (await officeRegistrations()).find(
+          (registration) => registration.fk_flow_id === firstFlowId,
+        );
+        return row?.interview_slot ?? null;
+      })
+      .toBe("14:00-15:00");
+
+    /* 时段筛选：按新时段能筛到本人，换成已无人选择的时段则清空列表 */
+    await page.getByLabel("按面试时段筛选候选人").click();
+    await page.getByRole("option", { name: "14:00-15:00", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: candidate.name }).first(),
+    ).toBeVisible();
+
+    await page.getByLabel("按面试时段筛选候选人").click();
+    await page.getByRole("option", { name: "13:00-14:00", exact: true }).click();
+    await expect(
+      page.getByText("没有符合条件的候选人。").first(),
+    ).toBeVisible();
   });
 });

@@ -37,20 +37,9 @@ type PendingTarget = { row: PendingSlotChangeRow; decision: Decision };
 const formatStartsAt = (value: Date | null) =>
   value ? dayjs(value).format("YYYY-MM-DD HH:mm") : "待定";
 
-/** 当前时间 → 申请改到的展示文本：办公类为时段，技术部门为具体时间 */
-const currentTimeText = (row: PendingSlotChangeRow) =>
-  row.isOfficeFlow
-    ? (row.currentSlot ?? "未选择")
-    : formatStartsAt(row.currentStartsAt);
-
-const requestedTimeText = (row: PendingSlotChangeRow) =>
-  row.isOfficeFlow
-    ? (row.requestedSlot ?? "待定")
-    : formatStartsAt(row.requestedStartsAt);
-
 /**
- * 面试时间/时段变更待审批：办公类由部长审批（通过后写回报名时段），
- * 技术部门由预约讲师审批（通过后同步飞书日程与改约邮件）。
+ * 面试时间变更待审批（技术部门）：预约讲师审批通过后同步飞书日程与改约邮件。
+ * 办公类时段调整已下线（由部长在面试管理页直接修改），不再出现在此列表。
  * 驳回必须填写理由，系统会邮件通知候选人。
  */
 export function PendingSlotChangePanel({
@@ -88,11 +77,9 @@ export function PendingSlotChangePanel({
       }
       toast.success(
         approved
-          ? target.row.isOfficeFlow
-            ? `已通过，面试时段更新为 ${result.appliedSlot ?? requestedTimeText(target.row)}`
-            : `已通过，面试时间已改为 ${formatStartsAt(
-                result.appliedStartsAt ?? target.row.requestedStartsAt,
-              )}，飞书日程与通知已同步`
+          ? `已通过，面试时间已改为 ${formatStartsAt(
+              result.appliedStartsAt ?? target.row.requestedStartsAt,
+            )}，飞书日程与通知已同步`
           : "已驳回该改期申请，已邮件通知候选人",
       );
       setTarget(null);
@@ -117,7 +104,7 @@ export function PendingSlotChangePanel({
         <Badge variant="outline">{rows.length} 条</Badge>
       </div>
       <p className="text-xs leading-5 text-muted-foreground">
-        候选人提交的改期申请按流程显示。办公类通过后按申请时段更新报名记录；技术部门通过后同步调整飞书日程与留档会议，并发送改约邮件。驳回必须填写理由，系统会邮件通知候选人。
+        候选人提交的改期申请按流程显示。通过后同步调整飞书日程与留档会议，并发送改约邮件。驳回必须填写理由，系统会邮件通知候选人。
       </p>
       <div className="overflow-x-auto rounded-md border">
         <Table>
@@ -126,11 +113,7 @@ export function PendingSlotChangePanel({
               <TableHead>流程</TableHead>
               <TableHead>候选人</TableHead>
               <TableHead>学号</TableHead>
-              <TableHead>
-                {rows.some((row) => row.isOfficeFlow)
-                  ? "当前时段 → 申请时段"
-                  : "当前时间 → 申请时间"}
-              </TableHead>
+              <TableHead>当前时间 → 申请时间</TableHead>
               <TableHead>申请理由</TableHead>
               <TableHead>申请时间</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -150,10 +133,12 @@ export function PendingSlotChangePanel({
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   <span className="text-muted-foreground">
-                    {currentTimeText(row)}
+                    {formatStartsAt(row.currentStartsAt)}
                   </span>
                   <span className="mx-1 text-muted-foreground">→</span>
-                  <span className="font-medium">{requestedTimeText(row)}</span>
+                  <span className="font-medium">
+                    {formatStartsAt(row.requestedStartsAt)}
+                  </span>
                 </TableCell>
                 <TableCell className="max-w-56 whitespace-pre-wrap text-muted-foreground">
                   {row.reason}
@@ -198,16 +183,14 @@ export function PendingSlotChangePanel({
             </DialogTitle>
             <DialogDescription>
               {target &&
-                `${target.row.flowTitle} · ${target.row.candidateName ?? "该候选人"}：${currentTimeText(
-                  target.row,
-                )} → ${requestedTimeText(target.row)}`}
+                `${target.row.flowTitle} · ${target.row.candidateName ?? "该候选人"}：${formatStartsAt(
+                  target.row.currentStartsAt,
+                )} → ${formatStartsAt(target.row.requestedStartsAt)}`}
             </DialogDescription>
           </DialogHeader>
           {target?.decision === "approve" && (
             <p className="text-xs leading-5 text-muted-foreground">
-              {target.row.isOfficeFlow
-                ? "通过后将按申请时段更新报名记录，并邮件通知候选人。"
-                : "通过后将按申请时间同步飞书日程与留档会议，并邮件通知候选人。"}
+              通过后将按申请时间同步飞书日程与留档会议，并邮件通知候选人。
             </p>
           )}
           <div className="space-y-2">

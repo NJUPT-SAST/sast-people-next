@@ -65,16 +65,15 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
   /* user_flow.round 表示候选人当前所处的面试阶段：1=一面，2=二面 */
   const stageLabel =
     safeFlow.round === 1 ? "一面" : safeFlow.round === 2 ? "二面" : "";
-  const slotOptions = Array.isArray(safeFlow.slotOptions) ? safeFlow.slotOptions : [];
   const pendingSlotChange = safeFlow.pendingSlotChange ?? null;
   const interviewSchedule = safeFlow.interviewSchedule ?? null;
   const registrationEditable =
     safeFlow.status === "not_started" || safeFlow.status === "ongoing";
-  /* 办公类按流程配置的时段申请改时段；技术部门按已预约的飞书日程申请改时间 */
+  /* 技术部门按已预约的飞书日程申请改时间；办公类时段调整由部长直接修改，候选人不再有申请入口 */
   const canRequestSlotChange =
     typeof safeFlow.id === "number" &&
-    ((isOfficeFlow && slotOptions.length > 0) ||
-      (isTechFlow && !!interviewSchedule)) &&
+    isTechFlow &&
+    !!interviewSchedule &&
     (registrationEditable || !!pendingSlotChange);
   const visibleStatus = resultPublished
     ? safeFlow.status
@@ -127,7 +126,13 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                 </p>
               )}
             {isOfficeFlow && safeFlow.interviewSlot && (
-              <p>面试时段：{safeFlow.interviewSlot}</p>
+              <>
+                <p>面试时段：{safeFlow.interviewSlot}</p>
+                {/* 办公类改期申请→部长审批已下线：改时段请直接联系部长 */}
+                <p className="text-xs">
+                  如需调整面试时段，请联系本部门部长
+                </p>
+              </>
             )}
             {isTechFlow && interviewSchedule && (
               <p>
@@ -144,11 +149,8 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
         {canRequestSlotChange && typeof safeFlow.id === "number" && (
           <SlotChangeRequest
             userFlowId={safeFlow.id}
-            flowType={safeFlow.flowType ?? ""}
-            currentSlot={safeFlow.interviewSlot ?? null}
             currentStartsAt={interviewSchedule?.startsAt ?? null}
             currentEndsAt={interviewSchedule?.endsAt ?? null}
-            slotOptions={slotOptions}
             pending={pendingSlotChange}
             editable={registrationEditable}
           />

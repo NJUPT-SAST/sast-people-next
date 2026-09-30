@@ -26,12 +26,10 @@ export type displayUserFlow = UserFlowRow & {
   slotOptions?: InferSelectModel<typeof flow>["slotOptions"];
   /** 当前流程的归属部门（Link 部门标识） */
   flowDepartment?: string | null;
-  /** 待审批的面试时间/时段变更申请 */
+  /** 待审批的面试改期申请（技术部门） */
   pendingSlotChange?: {
     id: number;
-    /** 办公类：申请改到的时段 */
-    requestedSlot: string | null;
-    /** 技术部门：申请改到的新时间 */
+    /** 申请改到的新时间 */
     requestedStartsAt: Date | null;
     requestedEndsAt: Date | null;
   } | null;

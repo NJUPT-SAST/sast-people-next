@@ -183,7 +183,7 @@ describe("FlowCard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("offers a slot change while the office registration is still editable", async () => {
+  it("tells office candidates to contact the department manager instead of offering a change request", async () => {
     const ui = await FlowCard({
       flow: {
         id: 8,
@@ -201,22 +201,32 @@ describe("FlowCard", () => {
     render(ui);
 
     expect(
-      screen.getByRole("button", { name: "申请修改面试时段" }),
-    ).toBeEnabled();
+      screen.getByText("如需调整面试时段，请联系本部门部长"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "申请修改面试时段" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/改时段申请待审批/)).not.toBeInTheDocument();
   });
 
-  it("shows the pending slot change request instead of letting the candidate resubmit", async () => {
+  it("shows the pending technical reschedule request instead of letting the candidate resubmit", async () => {
     const ui = await FlowCard({
       flow: {
         id: 9,
-        title: "办公室面试招新",
+        title: "软研 WOC 面试",
         status: "ongoing",
-        flowType: "office_interview",
-        round: 1,
-        interviewSlot: "13:00-14:00",
-        slotOptions: [{ label: "13:00-14:00" }, { label: "15:00-16:00" }],
-        pendingSlotChange: { id: 3, requestedSlot: "15:00-16:00" },
+        flowType: "woc",
+        interviewSchedule: {
+          id: 5,
+          startsAt: new Date("2026-06-06T08:00:00.000Z"),
+          endsAt: new Date("2026-06-06T08:30:00.000Z"),
+          location: null,
+        },
+        pendingSlotChange: {
+          id: 3,
+          requestedStartsAt: new Date("2026-06-07T08:00:00.000Z"),
+          requestedEndsAt: new Date("2026-06-07T08:30:00.000Z"),
+        },
         currentStepOrder: 1,
         steps: [{ id: 1, order: 1, title: "报名", description: "提交资料" }],
       } as never,
@@ -225,10 +235,10 @@ describe("FlowCard", () => {
     render(ui);
 
     expect(
-      screen.getByText("改时段申请待审批：15:00-16:00"),
+      screen.getByText("改时间申请待审批：2026-06-07 16:00"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "申请修改面试时段" }),
+      screen.getByRole("button", { name: "申请修改面试时间" }),
     ).toBeDisabled();
   });
 
@@ -259,28 +269,5 @@ describe("FlowCard", () => {
       screen.getByRole("button", { name: "申请修改面试时间" }),
     ).toBeEnabled();
     expect(screen.queryByText("面试时段：14:00-15:00")).not.toBeInTheDocument();
-  });
-
-  it("hides the slot change entry once the office registration is finished", async () => {
-    const ui = await FlowCard({
-      flow: {
-        id: 10,
-        title: "办公室面试招新",
-        status: "passed",
-        publicationStatus: "published",
-        flowType: "office_interview",
-        round: 1,
-        interviewSlot: "13:00-14:00",
-        slotOptions: [{ label: "13:00-14:00" }, { label: "15:00-16:00" }],
-        currentStepOrder: 1,
-        steps: [{ id: 1, order: 1, title: "报名", description: "提交资料" }],
-      } as never,
-    });
-
-    render(ui);
-
-    expect(
-      screen.queryByRole("button", { name: "申请修改面试时段" }),
-    ).not.toBeInTheDocument();
   });
 });

@@ -174,7 +174,7 @@ describe("result email template settings", () => {
   });
 
   describe("getEmailTemplateSetting", () => {
-    it("prefers the department override over the global default", async () => {
+    it("checks the role before reading", async () => {
       mockSelectResults.push([globalRow, softwareRow]);
 
       const setting = await getEmailTemplateSetting(
@@ -182,6 +182,7 @@ describe("result email template settings", () => {
         "software",
       );
 
+      expect(mockVerifyRole).toHaveBeenCalledWith(3);
       expect(setting.subjectTemplate).toBe("软件主题");
       expect(setting.department).toBe("software");
       /* 覆盖行为空字段时继续回落到内置默认文案 */
@@ -212,10 +213,32 @@ describe("result email template settings", () => {
       expect(setting.subjectTemplate).toBe(recruitmentDefault.subjectTemplate);
       expect(setting.department).toBeNull();
     });
+
+    it("lets a department account read another department (read-only browsing)", async () => {
+      mockGetDepartmentScope.mockResolvedValue({
+        kind: "department",
+        department: "software",
+      });
+      mockSelectResults.push([globalRow]);
+
+      await expect(
+        getEmailTemplateSetting("recruitment.result.accepted", "media"),
+      ).resolves.toMatchObject({ subjectTemplate: "全局主题" });
+    });
+
+    it("refuses a department-less account reading another department", async () => {
+      mockGetDepartmentScope.mockResolvedValue({ kind: "none" });
+
+      await expect(
+        getEmailTemplateSetting("recruitment.result.accepted", "media"),
+      ).rejects.toThrow(DepartmentAccessError);
+
+      expect(mockDb.select).not.toHaveBeenCalled();
+    });
   });
 
   describe("listEmailTemplateSettings", () => {
-    it("filters rows by the department scope and reports editability", async () => {
+    it("reads every department row for a department account and keeps only its own editable", async () => {
       mockGetDepartmentScope.mockResolvedValue({
         kind: "department",
         department: "software",
@@ -225,12 +248,14 @@ describe("result email template settings", () => {
 
       const payload = await listEmailTemplateSettings("software");
 
-      const readFilter = sqlDialect.sqlToQuery(mockSelectWhereCalls[0] as SQL);
-      expect(readFilter.sql).toContain("department");
-      expect(readFilter.params).toContain("software");
+      /* 读路径不再按部门过滤：跨部门浏览需要能看到其他部门的覆盖行 */
+      expect(mockSelectWhereCalls).toEqual([]);
 
       expect(payload.scope).toEqual({ kind: "department", department: "software" });
-      expect(payload.departments).toEqual(["software"]);
+      /* 选项来自 Link 部门目录 ∪ 库中已出现覆盖的部门 */
+      expect(payload.departments).toEqual(
+        expect.arrayContaining(["software", "media", "office"]),
+      );
 
       const accepted = payload.rows.find(
         (row) => row.templateKey === "recruitment.result.accepted",
@@ -256,7 +281,7 @@ describe("result email template settings", () => {
       );
     });
 
-    it("lists the departments seen in stored rows for admins", async () => {
+    it("merges the department directory with the departments seen in stored rows", async () => {
       mockSelectResults.push([globalRow, softwareRow]);
       mockSelectDistinctResults.push([
         { department: "software" },
@@ -266,7 +291,18 @@ describe("result email template settings", () => {
 
       const payload = await listEmailTemplateSettings();
 
-      expect(payload.departments).toEqual(["media", "software"]);
+      /* 动态导入：jest.mock 工厂依赖本文件的常量，静态 import 会提前触发 require */
+      const { mergeTemplateDepartmentOptions } = await import(
+        "@/lib/email-center/template-access"
+      );
+      const expectedOptions = mergeTemplateDepartmentOptions([
+        "software",
+        "media",
+      ]);
+      expect(payload.departments).toEqual(expectedOptions);
+      expect(payload.departments).toEqual(
+        expect.arrayContaining(["media", "software"]),
+      );
       expect(payload.scope).toEqual({ kind: "all" });
       expect(mockSelectWhereCalls).toEqual([]);
     });

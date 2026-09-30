@@ -268,4 +268,19 @@ describe("getInterviewScheduleEmailTemplate", () => {
       expect.objectContaining({ bodyTemplate: "软件-预约", department: "software" }),
     );
   });
+
+  it("lets a department account read another department's override (read-only browsing)", async () => {
+    mockGetDepartmentScope.mockResolvedValue({
+      kind: "department",
+      department: "software",
+    });
+    selectedRows = [
+      contentRow(templateKey, null, "全局-预约"),
+      contentRow(templateKey, "media", "媒体-预约"),
+    ];
+
+    await expect(getInterviewScheduleEmailTemplate("media")).resolves.toEqual(
+      expect.objectContaining({ bodyTemplate: "媒体-预约", department: "media" }),
+    );
+  });
 });
