@@ -40,6 +40,7 @@ SAST People owns the recruitment and review process. User identity, profile data
 | `recruitment_exemption` | Registration, lecturer review, administrator review | Approved candidates become members |
 | `woc` | Registration, lecturer review, administrator review | New students become members |
 | `soc` | Registration, lecturer review, administrator review | Approved users become lecturers |
+| `office_interview` | Registration (first choice = the flow's department, optional second office-department choice, interview slot), interview scoring, result confirmation | Round-2 passers become members |
 
 ### `user_flow.progress_status`
 
@@ -60,6 +61,17 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 | `email_batch.status` | `draft`, `queued`, `completed`, `failed` | Result email batch lifecycle |
 | `email_delivery.status` | `pending`, `sending`, `sent`, `failed`, `dead` | Per-recipient delivery state |
 | `interview_schedule.status` | `created`, `cancelled`, `failed` | Feishu interview schedule state |
+
+### 办公类部门面试招新 (`office_interview`)
+
+- **一条共享流程**：所有办公部门共用一条 `office_interview` 流程（归属部门为空），流程内配置四个办公部门（投递组别 + 部门映射）与面试时段；办公类部门的账号可共同管理该流程（编辑、评审、发布、发信）。
+- 候选人**一次报名**：第一志愿、第二志愿办公部门（第二志愿可空，不能与第一志愿相同）与面试时段；报名记录归属第一志愿部门，`user_flow.round` 记录当前阶段（1=一面，2=二面）。
+- **流程内两轮**：一面由面试部长一对一打分；一面通过后系统自动把候选人推进到二轮面试阶段（无需二次报名），二面无领导小组由多位部长分别打分；两轮都通过后 `passed` 并同步部员角色（技术部门为免试/笔试任一通过即部员）。
+- 结果邮件：一面结果通知（`office_round1.result.accepted|rejected`，面试管理页「发送一面结果通知」批量发送通过 + 未通过，按钮显示人数）与二面最终结果（`office_round2.result.*`，走结果发布 + 邮件中心）；最终结果只发给进入二面阶段的候选人，一面未通过者不会重复收到不通过邮件。
+- 办公类模板由**办公部门统一管理**：一份共享的全局模板（任何办公部门账号可编辑，不走部门覆盖），支持 `{department}`、`{groupNumber}` 变量；办公类邮件不在邮件中心通用发送通道中混排（面试管理页单独发送，发送记录与重试保留）。
+- 面试互斥：办公类部门之间同时只能参加一个（技术部门之间暂时不互斥，技术 + 办公可同时参加）。
+- 第二志愿可见：办公类部门可在面试管理页查看「第二志愿投递本部门」的候选人只读名单。
+- 报名后修改面试时段需候选人申请、部长及以上审批（`interview_slot_change_request`，面试管理页待审批列表）。
 
 ## Tech Stack
 
