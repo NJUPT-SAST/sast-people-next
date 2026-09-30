@@ -4,8 +4,9 @@ import { editFlowSchema } from "@/lib/validation/flow";
 import { db } from "@/db/drizzle";
 import { flow, normalizeDepartmentKey } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
-import { assertFlowEditable } from "@/lib/flow-access";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { resolveGroupDepartments, type FlowScopedSession } from "./department-utils";
+import { OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 import { logServerError } from "@/lib/server-error-log";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { eq } from "drizzle-orm";
@@ -24,12 +25,12 @@ export const updateFlow = async (
     parsedValues = editFlowSchema.parse(values);
 
     const [flowRow] = await db
-      .select({ department: flow.department })
+      .select({ department: flow.department, type: flow.type })
       .from(flow)
       .where(eq(flow.id, id))
       .limit(1);
     if (!flowRow) throw new Error("流程不存在");
-    assertFlowEditable(session.scope, flowRow.department);
+    assertFlowEditableRecord(session.scope, flowRow);
 
     const groupOptions = parsedValues.groupOptions?.length
       ? parsedValues.groupOptions
@@ -47,11 +48,20 @@ export const updateFlow = async (
     if (session.scope.kind === "all" && parsedValues.department !== undefined) {
       patch.department = normalizeDepartmentKey(parsedValues.department);
     }
+    /* 办公类部门面试招新是所有办公部门共用的一条流程，归属部门固定为空 */
+    if (flowRow.type === OFFICE_INTERVIEW_FLOW_TYPE) {
+      patch.department = null;
+    }
     if (parsedValues.groupDepartments !== undefined) {
       patch.groupDepartments = resolveGroupDepartments(
         groupOptions,
         parsedValues.groupDepartments,
       );
+    }
+    if (parsedValues.slotOptions !== undefined) {
+      patch.slotOptions = parsedValues.slotOptions?.length
+        ? parsedValues.slotOptions
+        : null;
     }
 
     await db.update(flow).set(patch).where(eq(flow.id, id));

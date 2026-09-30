@@ -29,6 +29,50 @@ on conflict (id) do update set
   group_options = excluded.group_options,
   department = excluded.department;
 
+/* 清理旧的「按部门 × 轮次拆分」办公类面试演示数据：流程 111–118 及其报名、面评、改时段申请 */
+delete from interview_slot_change_request where id = 9001;
+delete from interview_evaluation where id in (9001, 9002, 9003, 9004);
+delete from interview_evaluation
+where fk_user_flow_id in (
+  select id from user_flow where fk_flow_id in (111, 112, 113, 114, 115, 116, 117, 118)
+);
+delete from user_flow where id in (301, 302, 303, 304, 305, 306, 307, 308, 309, 310);
+delete from flow_step where fk_flow_id in (111, 112, 113, 114, 115, 116, 117, 118);
+delete from flow where id in (111, 112, 113, 114, 115, 116, 117, 118);
+
+/* 办公类部门面试招新：办公室 / 科宣部 / 外联部 / 赛事部共用一条流程（department 为空），
+   报名时按 group_options 选第一志愿部门（group_departments 映射到 Link 部门），流程内依次完成一面与二面 */
+insert into flow (
+  id,
+  title,
+  description,
+  type,
+  owner_id,
+  department,
+  group_options,
+  group_departments,
+  slot_options,
+  created_at,
+  started_at,
+  ended_at,
+  updated_at,
+  is_deleted
+) values
+  (120, '2026 办公类部门面试招新 Demo', '办公类部门面试招新（办公室 / 科宣部 / 外联部 / 赛事部）共享同一条流程：报名时选择第一志愿、第二志愿部门与面试时段，随后在流程内依次进行一面、二面与结果确认。', 'office_interview', 1, null, '["办公室","科宣部","外联部","赛事部"]'::jsonb, '{"办公室":"office","科宣部":"publicity","外联部":"liaison","赛事部":"competition"}'::jsonb, '[{"label":"13:00-14:00"},{"label":"14:00-15:00"},{"label":"15:00-16:00"},{"label":"16:00-17:00"},{"label":"17:00-18:00"},{"label":"时间冲突，约面时间QQ群中另行通知","isConflict":true}]'::jsonb, now(), now() - interval '3 days', now() + interval '14 days', now(), false)
+on conflict (id) do update set
+  title = excluded.title,
+  description = excluded.description,
+  type = excluded.type,
+  owner_id = excluded.owner_id,
+  department = excluded.department,
+  group_options = excluded.group_options,
+  group_departments = excluded.group_departments,
+  slot_options = excluded.slot_options,
+  started_at = excluded.started_at,
+  ended_at = excluded.ended_at,
+  updated_at = now(),
+  is_deleted = excluded.is_deleted;
+
 insert into flow_step (
   id,
   title,
@@ -48,7 +92,12 @@ insert into flow_step (
   (1023, '管理员审核', '管理员审核面评结果并确认最终状态。', 'finished', 3, 102, now(), now(), false),
   (1031, '报名', '新同学提交报名信息，报名后进入批卷环节。', 'registering', 1, 103, now(), now(), false),
   (1032, '批卷', '讲师为当前流程内报名同学批改试卷。', 'judging', 2, 103, now(), now(), false),
-  (1033, '录取确认', '按分数线筛选并确认最终通过名单。', 'finished', 3, 103, now(), now(), false)
+  (1033, '录取确认', '按分数线筛选并确认最终通过名单。', 'finished', 3, 103, now(), now(), false),
+  -- 办公类部门面试招新（共享流程）：报名 → 一面面试 → 二面面试 → 结果确认
+  (1201, '报名', '提交报名信息，选择第一志愿、第二志愿部门与面试时段。', 'registering', 1, 120, now(), now(), false),
+  (1202, '一面面试', '部长进行一面面试并提交面评与分数，通过后进入二面。', 'checking', 2, 120, now(), now(), false),
+  (1203, '二面面试', '无领导小组面试，由多位部长分别打分。', 'checking', 3, 120, now(), now(), false),
+  (1204, '结果确认', '部长/管理员确认最终结果并发布录取通知。', 'finished', 4, 120, now(), now(), false)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,
@@ -110,6 +159,43 @@ on conflict (id) do update set
   fk_current_step_id = excluded.fk_current_step_id,
   portfolio_link = excluded.portfolio_link,
   apply_group = excluded.apply_group,
+  fk_flow_id = excluded.fk_flow_id,
+  fk_user_id = excluded.fk_user_id,
+  department = excluded.department;
+
+/* 办公类部门面试招新报名（共享流程 120）：apply_group 为第一志愿部门，round 为当前阶段（1=一面，2=二面）
+   - 401/402/408 一面进行中（402 有待审批的改时段申请）
+   - 403/404 已通过一面、二面进行中（403 带多位部长的二面面评）
+   - 405 两轮均通过（带一面面评），406 一面未通过，407 一面通过但二面未通过
+   - 409 已退出：第二志愿面板应隐藏该候选人 */
+insert into user_flow (
+  id,
+  progress_status,
+  fk_current_step_id,
+  apply_group,
+  round,
+  interview_slot,
+  second_choice_department,
+  fk_flow_id,
+  fk_user_id,
+  department
+) values
+  (401, 'ongoing', 1202, '办公室', 1, '13:00-14:00', 'publicity', 120, 4, 'office'),
+  (402, 'ongoing', 1202, '办公室', 1, '14:00-15:00', 'liaison', 120, 5, 'office'),
+  (403, 'ongoing', 1203, '办公室', 2, '15:00-16:00', 'publicity', 120, 6, 'office'),
+  (404, 'ongoing', 1203, '科宣部', 2, '16:00-17:00', 'office', 120, 7, 'publicity'),
+  (405, 'passed', 1204, '办公室', 2, '13:00-14:00', 'competition', 120, 8, 'office'),
+  (406, 'failed', 1204, '外联部', 1, '14:00-15:00', 'publicity', 120, 9, 'liaison'),
+  (407, 'failed', 1204, '赛事部', 2, '15:00-16:00', 'office', 120, 10, 'competition'),
+  (408, 'ongoing', 1202, '科宣部', 1, '17:00-18:00', 'office', 120, 4, 'publicity'),
+  (409, 'withdrawn', 1202, '赛事部', 1, '16:00-17:00', 'publicity', 120, 5, 'competition')
+on conflict (id) do update set
+  progress_status = excluded.progress_status,
+  fk_current_step_id = excluded.fk_current_step_id,
+  apply_group = excluded.apply_group,
+  round = excluded.round,
+  interview_slot = excluded.interview_slot,
+  second_choice_department = excluded.second_choice_department,
   fk_flow_id = excluded.fk_flow_id,
   fk_user_id = excluded.fk_user_id,
   department = excluded.department;
@@ -228,6 +314,59 @@ on conflict (id) do update set
   recommendation = excluded.recommendation,
   status = excluded.status,
   fk_reviewed_by = excluded.fk_reviewed_by,
+  updated_at = now();
+
+/* 办公类部门面试招新面评（共享流程 120）：round 记录面评所属轮次
+   - 9001 为两轮均通过候选人（405）的一面面评
+   - 9002–9004 为二面进行中候选人（403）的二面面评，三位部长分别打分，用于平均分与排序演示 */
+insert into interview_evaluation (
+  id,
+  fk_user_flow_id,
+  fk_user_id,
+  score,
+  round,
+  content,
+  meeting_link,
+  recommendation,
+  status,
+  fk_reviewed_by,
+  created_at,
+  updated_at
+) values
+  (9001, 405, 213, 88, 1, '候选人表达清晰，对办公室日常事务的理解比较到位。对社团活动的组织流程也有自己的思考，建议通过一面。', 'https://memo.example.com/demo-office-405', 'passed', 'submitted', null, now() - interval '1 day', now() - interval '1 day'),
+  (9002, 403, 213, 85, 2, '无领导小组讨论中主动承担记录与汇总，配合度较好。发言时能结合具体例子，观点比较扎实。', 'https://memo.example.com/demo-office-403-a', 'passed', 'submitted', null, now() - interval '6 hours', now() - interval '6 hours'),
+  (9003, 403, 217, 90, 2, '对议题的理解有深度，能照顾到组内其他同学的意见。表达和沟通能力在小组中比较突出。', 'https://memo.example.com/demo-office-403-b', 'passed', 'submitted', null, now() - interval '5 hours', now() - interval '5 hours'),
+  (9004, 403, 221, 78, 2, '发言相对被动，抛出观点后缺少进一步论证。不过材料准备充分，整体仍有提升空间。', 'https://memo.example.com/demo-office-403-c', 'passed', 'submitted', null, now() - interval '4 hours', now() - interval '4 hours')
+on conflict (id) do update set
+  fk_user_flow_id = excluded.fk_user_flow_id,
+  fk_user_id = excluded.fk_user_id,
+  score = excluded.score,
+  round = excluded.round,
+  content = excluded.content,
+  meeting_link = excluded.meeting_link,
+  recommendation = excluded.recommendation,
+  status = excluded.status,
+  fk_reviewed_by = excluded.fk_reviewed_by,
+  updated_at = now();
+
+/* 待审批的改时段申请：办公室一面候选人（402 / uid 5）申请从 14:00-15:00 改到 16:00-17:00 */
+insert into interview_slot_change_request (
+  id,
+  fk_user_flow_id,
+  requested_slot,
+  reason,
+  status,
+  fk_requested_by,
+  created_at,
+  updated_at
+) values
+  (9001, 402, '16:00-17:00', '下午第二节有专业课，和 14:00-15:00 的面试冲突，希望能改到 16:00-17:00，谢谢！', 'pending', 5, now() - interval '2 hours', now() - interval '2 hours')
+on conflict (id) do update set
+  fk_user_flow_id = excluded.fk_user_flow_id,
+  requested_slot = excluded.requested_slot,
+  reason = excluded.reason,
+  status = excluded.status,
+  fk_requested_by = excluded.fk_requested_by,
   updated_at = now();
 
 insert into interview_schedule (
@@ -405,6 +544,7 @@ select setval(pg_get_serial_sequence('user_flow', 'id'), greatest((select coales
 select setval(pg_get_serial_sequence('user_point', 'id'), greatest((select coalesce(max(id), 1) from user_point), 1));
 select setval(pg_get_serial_sequence('interview_evaluation', 'id'), greatest((select coalesce(max(id), 1) from interview_evaluation), 1));
 select setval(pg_get_serial_sequence('interview_schedule', 'id'), greatest((select coalesce(max(id), 1) from interview_schedule), 1));
+select setval(pg_get_serial_sequence('interview_slot_change_request', 'id'), greatest((select coalesce(max(id), 1) from interview_slot_change_request), 1));
 select setval(pg_get_serial_sequence('email_batch', 'id'), greatest((select coalesce(max(id), 1) from email_batch), 1));
 select setval(pg_get_serial_sequence('email_delivery', 'id'), greatest((select coalesce(max(id), 1) from email_delivery), 1));
 select setval(pg_get_serial_sequence('email_template_setting', 'id'), greatest((select coalesce(max(id), 1) from email_template_setting), 1));

@@ -4,6 +4,66 @@ type FlowStepInsert = typeof flowStep.$inferInsert;
 
 export const isWrittenRecruitmentFlow = (type: string) => type === "recruitment";
 
+export const isOfficeInterviewFlowType = (type: string) =>
+  type === "office_interview";
+
+/**
+ * 办公类部门面试招新：一个共享流程内完成两轮面试，
+ * 一面通过后由系统推进到「二轮面试」，二轮通过后进入结果确认。
+ */
+export const officeInterviewSteps = (
+  flowId: number,
+): Array<Omit<FlowStepInsert, "id">> => [
+  {
+    title: "报名",
+    description: "填写个人信息，选择第一志愿与第二志愿办公部门及面试时段",
+    type: "registering",
+    order: 1,
+    fkFlowId: flowId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+  },
+  {
+    title: "一面面试",
+    description: "部门部长进行一对一面试并打分",
+    type: "checking",
+    order: 2,
+    fkFlowId: flowId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+  },
+  {
+    title: "二轮面试",
+    description: "无领导小组面试，多位部长共同打分（一面通过后进入）",
+    type: "checking",
+    order: 3,
+    fkFlowId: flowId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+  },
+  {
+    title: "结果确认",
+    description: "确认最终通过名单并发送结果通知",
+    type: "finished",
+    order: 4,
+    fkFlowId: flowId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    isDeleted: false,
+  },
+];
+
+/** 按流程类型选择初始化步骤模板 */
+export const stepsForFlowType = (type: string, flowId: number) =>
+  isWrittenRecruitmentFlow(type)
+    ? writtenRecruitmentSteps(flowId)
+    : isOfficeInterviewFlowType(type)
+      ? officeInterviewSteps(flowId)
+      : evaluationFlowSteps(flowId);
+
 export const writtenRecruitmentSteps = (
   flowId: number,
 ): Array<Omit<FlowStepInsert, "id">> => [

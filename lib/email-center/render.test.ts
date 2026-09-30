@@ -2,7 +2,9 @@ jest.mock("server-only", () => ({}));
 
 jest.mock("@/lib/email/result-email", () => ({
   renderResultEmail: jest.fn(async () => "<html>result</html>"),
-  renderResultEmailSubject: jest.fn((flowName: string) => `${flowName} 结果通知`),
+  renderResultEmailSubject: jest.fn(
+    (variables: { flowName: string }) => `${variables.flowName} 结果通知`,
+  ),
 }));
 
 jest.mock("@/lib/email/interview-schedule", () => ({
@@ -60,7 +62,12 @@ describe("renderEmailTemplate", () => {
       html: "<html>result</html>",
     });
     expect(renderResultEmailSubject).toHaveBeenCalledWith(
-      "2026 春季招新",
+      {
+        name: "张三",
+        flowName: "2026 春季招新",
+        department: undefined,
+        groupNumber: undefined,
+      },
       undefined,
     );
     expect(renderResultEmail).toHaveBeenCalledWith(

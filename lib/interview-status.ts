@@ -144,6 +144,8 @@ export type InterviewCandidateLike = {
   canManageSchedule: boolean;
   /* whether the current user may write/edit this row's evaluation */
   canEditEvaluation: boolean;
+  /* 办公类面试：无需预约日程，直接提交带分数的面评 */
+  scoringEnabled?: boolean;
 };
 
 /**
@@ -161,6 +163,8 @@ export function getInterviewStatus(
   if (evalStatus === "submitted") return "pending";
   if (evalStatus === "returned") return "returned";
   if (status === "failed") return "rejected";
+  /* 办公类面试不预约日程，未提交/未终审面评即处于待评估 */
+  if (candidate.scoringEnabled) return "ready";
   if (!candidate.scheduleMeetingLink) return "unscheduled";
   if (candidate.scheduleMeetingStatus !== "ended") return "scheduled";
   return "ready";
@@ -257,7 +261,11 @@ export function deriveInterviewActions(
   const startsAt = toTime(candidate.scheduleStartsAt);
   const canConfirmEnded =
     now !== null && hasSchedule && !scheduleEnded && (startsAt ?? Infinity) <= now;
-  const canEvaluate = scheduleEnded || candidate.evalStatus !== null || isDecided;
+  const canEvaluate =
+    candidate.scoringEnabled === true ||
+    scheduleEnded ||
+    candidate.evalStatus !== null ||
+    isDecided;
   const canManageSchedule =
     !isWithdrawn && (!hasSchedule || candidate.canManageSchedule);
   const canReturn = !isWithdrawn && (!hasSchedule || candidate.canManageSchedule || role >= 3);
@@ -338,7 +346,10 @@ export function deriveInterviewActions(
     primary: canSubmitEvaluation
       ? { id: "evaluation", label: "填写面评" }
       : null,
-    overflow: canManageSchedule ? [{ id: "schedule", label: "改约" }] : [],
+    overflow:
+      canManageSchedule && !candidate.scoringEnabled
+        ? [{ id: "schedule", label: "改约" }]
+        : [],
     lockedReason: canSubmitEvaluation
       ? null
       : candidate.scheduleOrganizerName

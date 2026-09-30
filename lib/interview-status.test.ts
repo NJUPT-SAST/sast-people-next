@@ -83,6 +83,13 @@ describe("getInterviewStatus", () => {
     expect(getInterviewStatus(scheduled())).toBe("scheduled");
     expect(getInterviewStatus(ended())).toBe("ready");
   });
+
+  it("reads an office candidate with no booking as ready to evaluate", () => {
+    expect(getInterviewStatus(candidate({ scoringEnabled: true }))).toBe("ready");
+    expect(
+      getInterviewStatus(candidate({ scoringEnabled: true, evalStatus: "submitted" })),
+    ).toBe("pending");
+  });
 });
 
 describe("interviewStatusMeta tones", () => {
@@ -217,6 +224,40 @@ describe("deriveInterviewActions", () => {
     expect(plan.primary).toEqual({ id: "evaluation", label: "填写面评" });
     expect(plan.overflow).toEqual([{ id: "schedule", label: "改约" }]);
     expect(plan.lockedReason).toBeNull();
+  });
+
+  it("sends office candidates straight to the evaluation with no booking actions", () => {
+    const plan = deriveInterviewActions(
+      candidate({ scoringEnabled: true }),
+      2,
+      NOW,
+    );
+
+    expect(plan.status).toBe("ready");
+    expect(plan.primary).toEqual({ id: "evaluation", label: "填写面评" });
+    expect(plan.overflow).toEqual([]);
+    expect(plan.lockedReason).toBeNull();
+  });
+
+  it("lets an office evaluator rework only their own evaluation", () => {
+    expect(
+      deriveInterviewActions(
+        candidate({ scoringEnabled: true, evalStatus: "submitted" }),
+        2,
+        NOW,
+      ).primary,
+    ).toEqual({ id: "evaluation", label: "修改" });
+    expect(
+      deriveInterviewActions(
+        candidate({
+          scoringEnabled: true,
+          evalStatus: "returned",
+          canEditEvaluation: false,
+        }),
+        2,
+        NOW,
+      ).primary,
+    ).toBeNull();
   });
 
   it("names the organiser when the evaluation is not this user's to write", () => {

@@ -6,7 +6,8 @@ import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
-import { assertFlowEditable, canEditFlow } from "@/lib/flow-access";
+import { assertFlowEditableRecord, canEditFlowRecord } from "@/lib/flow-access";
+import { isOfficeInterviewFlow } from "@/const/flow";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { syncUserRolesFromAcceptedFlows } from "@/action/user-flow/roleTransition";
@@ -59,15 +60,17 @@ export async function getFlowResultPublicationSummary(flowId: number) {
     db.select().from(flowResultPublication).where(eq(flowResultPublication.fkFlowId, flowId)).limit(1),
   ]);
   if (!flowRow[0]) throw new Error("流程不存在");
-  assertFlowEditable(session.scope, flowRow[0].department);
+  assertFlowEditableRecord(session.scope, flowRow[0]);
+  /* 办公类共享流程一次性发布的是二轮（最终）结果，模板按二轮解析；其他流程类型不区分轮次 */
+  const resultRound = isOfficeInterviewFlow(flowRow[0].type) ? 2 : null;
   const rows = await getFlowRows(flowId);
   const accepted = rows.filter((row) => row.status === "passed").length;
   const rejected = rows.filter((row) => row.status === "failed").length;
   const withdrawn = rows.filter((row) => row.status === "withdrawn").length;
   const unfinished = rows.filter((row) => !terminalStatuses.has(row.status)).length;
   const [acceptedTemplate, rejectedTemplate] = await Promise.all([
-    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, true), flowRow[0].department),
-    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, false), flowRow[0].department),
+    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, true, resultRound), flowRow[0].department),
+    getEmailTemplateSetting(getResultEmailTemplateKey(flowRow[0].type, false, resultRound), flowRow[0].department),
   ]);
   return {
     flow: flowRow[0],
@@ -97,7 +100,8 @@ export async function publishFlowResults(
   const session = await verifyManager();
   if (!confirmTemplate) throw new Error("发布前必须确认本年度通过和不通过邮件模板");
   const summary = await getFlowResultPublicationSummary(flowId);
-  assertFlowEditable(session.scope, summary.flow.department);
+  assertFlowEditableRecord(session.scope, summary.flow);
+  const resultRound = isOfficeInterviewFlow(summary.flow.type) ? 2 : null;
   if (summary.publication?.status === "published") throw new Error("该流程结果已经发布");
   if (summary.counts.unfinished > 0) throw new Error(`还有 ${summary.counts.unfinished} 名候选人没有最终结果，暂不能发布`);
 
@@ -110,8 +114,8 @@ export async function publishFlowResults(
   const selectedUserFlowIds = recipientUserFlowIds === undefined
     ? selectableUserFlowIds
     : new Set(recipientUserFlowIds.filter((id) => selectableUserFlowIds.has(id)));
-  const acceptedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, true), summary.flow.department);
-  const rejectedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, false), summary.flow.department);
+  const acceptedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, true, resultRound), summary.flow.department);
+  const rejectedTemplate = await getEmailTemplateSetting(getResultEmailTemplateKey(summary.flow.type, false, resultRound), summary.flow.department);
   const resultSnapshot = {
     flowId,
     flowTitle: summary.flow.title,
@@ -212,11 +216,11 @@ export async function publishFlowResults(
 export async function getPublishedFlowResult(flowId: number) {
   const session = await verifyManager();
   const [flowRow] = await db
-    .select({ department: flow.department })
+    .select({ department: flow.department, type: flow.type })
     .from(flow)
     .where(eq(flow.id, flowId))
     .limit(1);
-  if (!flowRow || !canEditFlow(session.scope, flowRow.department)) return null;
+  if (!flowRow || !canEditFlowRecord(session.scope, flowRow)) return null;
   const [publication] = await db.select().from(flowResultPublication).where(and(eq(flowResultPublication.fkFlowId, flowId), eq(flowResultPublication.status, "published"))).limit(1);
   return publication ?? null;
 }

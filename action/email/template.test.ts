@@ -106,6 +106,7 @@ const globalRow = {
   contactEmail: "global@example.com",
   memberFormLabel: "成员信息表",
   feishuGroupName: "SAST 群",
+  groupNumber: "123456789",
   updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 };
 
@@ -133,6 +134,7 @@ const templateValues = {
   contactEmail: "template@example.com",
   memberFormLabel: "成员信息表",
   feishuGroupName: "SAST 群",
+  groupNumber: "987654321",
 };
 
 const recruitmentDefault = defaultResultEmailTemplateSettings.find(
@@ -321,6 +323,55 @@ describe("result email template settings", () => {
           metadata: expect.objectContaining({ department: "software" }),
         }),
       );
+    });
+
+    it("keeps the QQ group number optional for existing template families", async () => {
+      mockSelectResults.push([]);
+
+      await expect(
+        updateEmailTemplateSetting("recruitment.result.accepted", {
+          ...templateValues,
+          groupNumber: "",
+        }),
+      ).resolves.toEqual({ ok: true });
+
+      expect(mockInsertValueCalls).toEqual([
+        expect.objectContaining({
+          templateKey: "recruitment.result.accepted",
+          groupNumber: "",
+        }),
+      ]);
+    });
+
+    it("saves the office round-2 QQ group number", async () => {
+      mockSelectResults.push([]);
+
+      await expect(
+        updateEmailTemplateSetting("office_round2.result.accepted", {
+          subjectTemplate: "{name}{department}二轮面试结果通知",
+          titleTemplate: "{department}二轮面试结果通知",
+          subtitleTemplate: "恭喜通过{department}二轮面试",
+          resultBadgeTemplate: "通过通知",
+          resultTitleTemplate: "恭喜你顺利通过二轮面试",
+          resultSummaryTemplate: "本次{department}二轮面试结果已确认",
+          bodyTemplate: "请及时加入专属部门qq群{groupNumber}。",
+          memberInfoFormUrl: "https://example.com/form",
+          feishuGroupUrl: "https://example.com/group",
+          calendarUrl: "https://example.com/calendar",
+          feishuRegisterHelpUrl: "https://example.com/help",
+          contactEmail: "template@example.com",
+          memberFormLabel: "成员信息表",
+          feishuGroupName: "SAST 群",
+          groupNumber: "123456789",
+        }),
+      ).resolves.toEqual({ ok: true });
+
+      expect(mockInsertValueCalls).toEqual([
+        expect.objectContaining({
+          templateKey: "office_round2.result.accepted",
+          groupNumber: "123456789",
+        }),
+      ]);
     });
 
     it("writes the global default row for admins", async () => {

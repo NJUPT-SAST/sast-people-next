@@ -1,6 +1,12 @@
 "use server";
 import { db } from "@/db/drizzle";
-import { flow, flowStep, userFlow } from "@/db/schema";
+import {
+  flow,
+  flowSlotOptionsSchema,
+  flowStep,
+  normalizeDepartmentKey,
+  userFlow,
+} from "@/db/schema";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logServerError } from "@/lib/server-error-log";
@@ -10,6 +16,8 @@ import { isValidExternalUrl } from "@/lib/link";
 import { formatBeijingDateTime } from "@/lib/timezone";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { resolveUserFlowDepartment } from "@/lib/flow-access";
+import { departmentCategory } from "@/const/department";
+import { OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 
 /** 查找 flow 下指定 order 的步骤 ID */
 async function findStepIdByOrder(
@@ -27,6 +35,10 @@ async function findStepIdByOrder(
 export type RegisterSubmission = {
   /** 投递组别（面试流程配置组别时必填） */
   group?: string;
+  /** 面试时段（办公类部门面试招新配置时段时必填，取 flow.slot_options 的 label） */
+  slot?: string;
+  /** 第二志愿部门（Link 部门标识，仅办公类部门面试招新可填，第一志愿为报名所在流程的归属部门） */
+  secondChoice?: string;
   portfolioLink?: string;
   portfolioDescription?: string;
 };
@@ -107,6 +119,7 @@ export const register = async (
           title: flow.title,
           type: flow.type,
           groupOptions: flow.groupOptions,
+          slotOptions: flow.slotOptions,
           /* 报名归属：流程归属部门 + 组别映射 */
           department: flow.department,
           groupDepartments: flow.groupDepartments,
@@ -128,16 +141,20 @@ export const register = async (
       const { startedAt, endedAt, title, type, groupOptions } = flowInfo[0];
       const flowDepartment = flowInfo[0].department;
       const groupDepartments = flowInfo[0].groupDepartments;
-      const interviewFlowTypes = [
-        "recruitment_exemption",
-        "woc",
-        "soc",
-      ] as const;
-      if (interviewFlowTypes.includes(type as (typeof interviewFlowTypes)[number])) {
+      const parsedSlotOptions = flowSlotOptionsSchema.safeParse(
+        flowInfo[0].slotOptions ?? [],
+      );
+      const slotOptions = parsedSlotOptions.success ? parsedSlotOptions.data : [];
+      const isOfficeInterview = type === OFFICE_INTERVIEW_FLOW_TYPE;
+
+      if (isOfficeInterview) {
         // Serialize registrations for the same user so the mutual-exclusion
         // check and the following insert/update cannot race each other.
         await tx.execute(sql`select pg_advisory_xact_lock(${uid})`);
-        const [activeInterviewFlow] = await tx
+
+        /* 办公部门内部互斥：同时只能参加一个办公类部门的面试。
+           技术部门之间暂时不互斥（按办公部门要求临时放开），技术 + 办公可以同时参加。 */
+        const [activeOfficeFlow] = await tx
           .select({ title: flow.title })
           .from(userFlow)
           .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
@@ -145,16 +162,17 @@ export const register = async (
             and(
               eq(userFlow.fkUserId, uid),
               eq(userFlow.progressStatus, "ongoing"),
-              inArray(flow.type, interviewFlowTypes),
+              eq(flow.type, OFFICE_INTERVIEW_FLOW_TYPE),
+              eq(flow.isDeleted, false),
               ne(userFlow.fkFlowId, flowId),
             ),
           )
           .limit(1);
-        if (activeInterviewFlow) {
+        if (activeOfficeFlow) {
           return {
             success: false,
             error: {
-              message: `您正在进行“${activeInterviewFlow.title}”，请先完成或退回当前面试流程。`,
+              message: `您正在进行“${activeOfficeFlow.title}”，办公类部门之间同时只能参加一个面试，请先完成或退回当前面试流程。`,
             },
           };
         }
@@ -181,14 +199,87 @@ export const register = async (
       const configuredGroups = normalizeGroupOptions(groupOptions);
       const isWrittenRecruitment = type === "recruitment";
 
+      /* 办公类面试：一次报名只能选择一个第一志愿部门（流程的投递组别=办公部门），可再填第二志愿 */
+      let secondChoiceDepartment: string | null = null;
+      if (isOfficeInterview) {
+        if (submissions.length > 1) {
+          return {
+            success: false,
+            error: {
+              message: "办公类面试只能选择一个第一志愿部门",
+            },
+          };
+        }
+        const firstChoiceDepartment = resolveUserFlowDepartment(
+          groupDepartments,
+          submissions[0]?.group,
+          null,
+        );
+        const secondChoice = normalizeDepartmentKey(submissions[0]?.secondChoice);
+        if (secondChoice) {
+          if (departmentCategory(secondChoice) !== "office") {
+            return {
+              success: false,
+              error: {
+                message: "第二志愿必须是办公类部门",
+              },
+            };
+          }
+          if (secondChoice === firstChoiceDepartment) {
+            return {
+              success: false,
+              error: {
+                message: "第二志愿不能与第一志愿相同",
+              },
+            };
+          }
+          secondChoiceDepartment = secondChoice;
+        }
+      }
+
       // 归一化并校验每组投递（校验失败直接返回结构化错误，避免 Server Action 吞消息）
       const normalized: Array<{
         group?: string;
+        slot?: string;
         portfolioLink: string | null;
         portfolioDescription: string | null;
       }> = [];
       for (const submission of submissions) {
         const group = submission.group?.trim() || undefined;
+        const slot = submission.slot?.trim() || undefined;
+        if (isOfficeInterview) {
+          if (slotOptions.length === 0) {
+            if (slot) {
+              return {
+                success: false,
+                error: {
+                  message: "该流程未配置面试时段，暂不支持选择时段",
+                },
+              };
+            }
+          } else if (!slot) {
+            return {
+              success: false,
+              error: {
+                message: "请选择面试时段",
+              },
+            };
+          } else if (!slotOptions.some((option) => option.label === slot)) {
+            return {
+              success: false,
+              error: {
+                message: `面试时段“${slot}”不在该流程的选项内`,
+              },
+            };
+          }
+        } else if (slot) {
+          return {
+            success: false,
+            error: {
+              message: "该流程不支持选择面试时段",
+            },
+          };
+        }
         if (isWrittenRecruitment) {
           if (group) {
             return {
@@ -200,6 +291,7 @@ export const register = async (
           }
           normalized.push({
             group: undefined,
+            slot,
             portfolioLink: null,
             portfolioDescription: null,
           });
@@ -216,6 +308,7 @@ export const register = async (
           }
           normalized.push({
             group: undefined,
+            slot,
             portfolioLink: submission.portfolioLink?.trim() || null,
             portfolioDescription:
               submission.portfolioDescription?.trim() || null,
@@ -240,6 +333,7 @@ export const register = async (
         }
         normalized.push({
           group,
+          slot,
           portfolioLink: submission.portfolioLink?.trim() || null,
           portfolioDescription:
             submission.portfolioDescription?.trim() || null,
@@ -322,6 +416,15 @@ export const register = async (
 
       // 检查每个投递是否已存在（先查全再写入，事务失败时不产生半成品）
       const duplicates: string[] = [];
+      /* 办公类面试：同一个流程只能报名一次（更换第一志愿请先退回） */
+      if (isOfficeInterview && existingFlows.some((row) => row.progressStatus !== "withdrawn")) {
+        return {
+          success: false,
+          error: {
+            message: "您已报名该流程，如需更换第一志愿请先退回报名。",
+          },
+        };
+      }
       for (const submission of normalized) {
         const existing = existingByGroup.get(submission.group ?? null);
         if (existing && existing.progressStatus !== "withdrawn") {
@@ -360,6 +463,9 @@ export const register = async (
               portfolioDescription: submission.portfolioDescription,
               applyGroup: submission.group ?? null,
               department,
+              secondChoiceDepartment,
+              round: isOfficeInterview ? 1 : null,
+              interviewSlot: submission.slot ?? null,
               updatedAt: new Date(),
             })
             .where(eq(userFlow.id, existing.id));
@@ -376,6 +482,9 @@ export const register = async (
               portfolioDescription: submission.portfolioDescription,
               applyGroup: submission.group ?? null,
               department,
+              secondChoiceDepartment,
+              round: isOfficeInterview ? 1 : null,
+              interviewSlot: submission.slot ?? null,
             })
             .returning();
           createdUserFlowIds.push(newFlow.id);
@@ -401,6 +510,8 @@ export const register = async (
           createdUserFlowIds,
           submissions: submissions.map((s) => ({
             group: s.group?.trim() ?? null,
+            slot: s.slot?.trim() ?? null,
+            secondChoice: s.secondChoice?.trim() ?? null,
             hasPortfolioLink: Boolean(s.portfolioLink?.trim()),
           })),
         },

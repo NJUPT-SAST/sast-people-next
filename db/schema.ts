@@ -7,6 +7,7 @@ import {
   pgEnum,
   pgTable,
   serial,
+  smallint,
   text,
   timestamp,
   unique,
@@ -24,6 +25,26 @@ export const flowGroupOptionsSchema = z
       .max(100, "组别名称不能超过 100 字"),
   )
   .max(30, "组别数量不能超过 30 个");
+
+/* 面试流程可配置的时段选项：label 如「13:00-14:00」；isConflict 标记「时间冲突，另行约面」选项 */
+export const flowSlotOptionsSchema = z
+  .array(
+    z.object({
+      label: z
+        .string()
+        .trim()
+        .min(1, "时段不能为空")
+        .max(100, "时段名称不能超过 100 字"),
+      isConflict: z.boolean().optional(),
+    }),
+  )
+  .max(30, "时段数量不能超过 30 个")
+  .refine(
+    (options) => new Set(options.map((option) => option.label)).size === options.length,
+    "时段名称不能重复",
+  );
+
+export type FlowSlotOption = z.infer<typeof flowSlotOptionsSchema>[number];
 
 /* 组别 → 部门 映射（键为 flow.group_options 中的组别名，值为 Link 部门标识） */
 export const flowGroupDepartmentsSchema = z
@@ -59,6 +80,8 @@ export const flowTypeEnum = pgEnum("flow_type_enum", [
   "recruitment_exemption",
   "woc",
   "soc",
+  /* 办公类部门面试招新（办公室/科宣部/外联部/赛事部），按部门 × 轮次各建一条流程 */
+  "office_interview",
 ]);
 
 export const progressStatusEnum = pgEnum("progress_status_enum", [
@@ -115,6 +138,8 @@ export const flow = pgTable("flow", {
   department: varchar("department", { length: 64 }),
   /* 组别 → 部门 映射：共享流程按候选人选择的组别定部门 */
   groupDepartments: jsonb("group_departments").$type<Record<string, string>>(),
+  /* 面试时段选项（含「时间冲突，另行约面」特殊项）；NULL = 不选时段 */
+  slotOptions: jsonb("slot_options").$type<FlowSlotOption[]>(),
   /* Link 用户 ID */
   ownerId: integer("owner_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -153,6 +178,12 @@ export const userFlow = pgTable("user_flow", {
   progressStatus: progressStatusEnum("progress_status"),
   /* 候选人报名时选择的投递组别 */
   applyGroup: varchar("apply_group", { length: 100 }),
+  /* 办公类面试当前阶段：1=一面，2=二面（一面通过后进入二面）；其他流程为 NULL */
+  round: smallint("round"),
+  /* 候选人选择的面试时段（flow.slot_options 中的 label，含「时间冲突」选项） */
+  interviewSlot: varchar("interview_slot", { length: 100 }),
+  /* 第二志愿部门（Link 部门标识）：仅办公类部门面试招新使用，第一志愿为报名所在流程的归属部门 */
+  secondChoiceDepartment: varchar("second_choice_department", { length: 64 }),
   /* 报名记录归属部门（Link 部门标识）：报名时按组别映射 → 流程归属解析后固化 */
   department: varchar("department", { length: 64 }),
   /* 讲师/管理员退回面试时填写的理由 */
@@ -184,6 +215,40 @@ export const userFlow = pgTable("user_flow", {
   userIdIdx: index("user_flow_fk_user_id_idx").on(table.fkUserId),
   departmentIdx: index("user_flow_department_idx").on(table.department),
 }));
+
+export const interviewSlotChangeRequest = pgTable(
+  "interview_slot_change_request",
+  {
+    id: serial("id").primaryKey(),
+    fkUserFlowId: integer("fk_user_flow_id")
+      .references(() => userFlow.id, { onDelete: "cascade" })
+      .notNull(),
+    /* 候选人申请改到的面试时段（flow.slot_options 的 label） */
+    requestedSlot: varchar("requested_slot", { length: 100 }).notNull(),
+    /* 候选人填写的申请理由 */
+    reason: text("reason"),
+    /* pending / approved / rejected */
+    status: varchar("status", { length: 16 }).notNull().default("pending"),
+    /* Link 用户 ID — 申请人（候选人本人） */
+    fkRequestedBy: integer("fk_requested_by").notNull(),
+    /* Link 用户 ID — 审批人（部长及以上） */
+    fkReviewedBy: integer("fk_reviewed_by"),
+    reviewNote: text("review_note"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => sql`now()`),
+  },
+  (table) => ({
+    /* 同一条报名最多一个待审批的改时段申请 */
+    pendingUnique: uniqueIndex("interview_slot_change_pending_uidx")
+      .on(table.fkUserFlowId)
+      .where(sql`${table.status} = 'pending'`),
+    statusIdx: index("interview_slot_change_status_idx").on(table.status),
+  }),
+);
 
 export const problem = pgTable("problem", {
   id: serial("id").primaryKey(),
@@ -358,6 +423,8 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
   contactEmail: varchar("contact_email", { length: 254 }).notNull(),
   memberFormLabel: varchar("member_form_label", { length: 100 }).notNull(),
   feishuGroupName: varchar("feishu_group_name", { length: 100 }).notNull(),
+  /* QQ 群号：办公类部门面试通知里使用（{groupNumber} 变量），逐轮/逐部门维护 */
+  groupNumber: varchar("group_number", { length: 64 }).notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -413,6 +480,10 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .references(() => userFlow.id, { onDelete: "cascade" })
     .notNull(),
   content: text("content").notNull(),
+  /* 面试打分（0-100）：一面由面试部长单人打分，二面无领导小组由多位部长分别打分 */
+  score: integer("score"),
+  /* 面试轮次：1=一面，2=二面（办公类流程使用，其他流程为 NULL） */
+  round: smallint("round"),
   meetingLink: text("meeting_link"),
   /* 讲师建议，不等同于管理员最终决定。历史记录允许为空。 */
   recommendation: evaluationRecommendationEnum("recommendation"),

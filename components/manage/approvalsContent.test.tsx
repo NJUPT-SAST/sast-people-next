@@ -38,6 +38,7 @@ function row({
   recommendation,
   reviewerName = null,
   department = null,
+  score = null,
 }: {
   id: number;
   candidateName: string;
@@ -45,12 +46,15 @@ function row({
   recommendation: "passed" | "failed" | null;
   reviewerName?: string | null;
   department?: string | null;
+  score?: number | null;
 }) {
   return {
     evaluation: {
       id,
       fkUserFlowId: id,
       content: `${candidateName} 的面评`,
+      score,
+      round: null,
       meetingLink: null,
       recommendation,
       status,
@@ -260,5 +264,25 @@ describe("ApprovalsContent", () => {
     );
 
     expect(screen.getByRole("button", { name: "周七" })).toBeInTheDocument();
+  });
+
+  it("shows the interview score only when the evaluation was scored", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({
+            id: 6,
+            candidateName: "打分同学",
+            status: "submitted",
+            recommendation: "passed",
+            score: 88,
+          }),
+          row({ id: 7, candidateName: "未打分同学", status: "submitted", recommendation: "passed" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("面试打分 88")).toBeInTheDocument();
+    expect(screen.getAllByText(/^面试打分 /)).toHaveLength(1);
   });
 });

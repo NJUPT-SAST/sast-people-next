@@ -10,7 +10,11 @@ export type ResultEmailTemplateKey =
   | "woc.result.accepted"
   | "woc.result.rejected"
   | "soc.result.accepted"
-  | "soc.result.rejected";
+  | "soc.result.rejected"
+  | "office_round1.result.accepted"
+  | "office_round1.result.rejected"
+  | "office_round2.result.accepted"
+  | "office_round2.result.rejected";
 
 export type InterviewScheduleEmailTemplateKey =
   | "interview.schedule.created"
@@ -51,7 +55,13 @@ export type ResultEmailRenderVariables = {
   name: string;
   flowName: string;
   setting?: ResultEmailTemplateSetting;
-  flowKind?: "recruitment" | "woc" | "soc";
+  flowKind?: "recruitment" | "woc" | "soc" | "office_round1" | "office_round2";
+  /** 办公类部门面试轮次：1 = 一轮，2 = 二轮 */
+  round?: number | null;
+  /** 候选人所报部门展示名（{department} 变量） */
+  department?: string;
+  /** 后续 QQ 群号（{groupNumber} 变量） */
+  groupNumber?: string;
   genericGreeting?: boolean;
 };
 

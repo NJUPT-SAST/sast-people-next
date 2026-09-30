@@ -17,6 +17,7 @@ import type {
   ResultEmailTemplateKey,
 } from "@/lib/email-center/types";
 import { getEducationEmail, normalizeEducationEmailInput } from "@/lib/email/address";
+import { departmentLabel } from "@/const/department";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { getResultEmailFlowKind } from "@/lib/email/result-email";
@@ -148,14 +149,20 @@ async function createTestRenderRequest({
 }): Promise<EmailTemplateRenderRequest> {
   if (getEmailTemplateDefinition(templateKey)?.category === "result") {
     const setting = await getEmailTemplateSetting(templateKey, department);
-    const [flowType] = templateKey.split(".");
+    const [flowKind] = templateKey.split(".");
+    /* 办公类模板按轮次区分；测试发送沿用模板键里的轮次 */
+    const round =
+      flowKind === "office_round2" ? 2 : flowKind === "office_round1" ? 1 : null;
     return {
       templateKey: templateKey as ResultEmailTemplateKey,
       variables: {
         name,
         flowName,
+        round,
+        department: departmentLabel(department, "办公室"),
+        groupNumber: "123456789",
         setting,
-        flowKind: getResultEmailFlowKind(flowType),
+        flowKind: getResultEmailFlowKind(flowKind, round),
         genericGreeting: false,
       },
       department,

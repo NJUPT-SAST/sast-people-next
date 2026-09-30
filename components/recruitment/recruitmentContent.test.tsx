@@ -1,8 +1,23 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RecruitmentContent } from "@/components/recruitment/recruitmentContent";
 import { calScore } from "@/action/user-flow/user-point/calScore";
 import { getEvaluationCandidates } from "@/action/user-flow/evaluation";
+import { sendOfficeRoundOneEmails } from "@/action/email/office-round-one";
+
+const mockToastSuccess = jest.fn();
+const mockToastError = jest.fn();
+
+jest.mock("sonner", () => ({
+  toast: {
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
+  },
+}));
+
+jest.mock("@/action/email/office-round-one", () => ({
+  sendOfficeRoundOneEmails: jest.fn(),
+}));
 
 jest.mock("@/action/user-flow/user-point/calScore", () => ({
   calScore: jest.fn(),
@@ -152,5 +167,114 @@ describe("RecruitmentContent", () => {
       "data-loading",
       "false",
     );
+  });
+
+  const officeFlowTypes = [
+    {
+      id: 1,
+      title: "办公类部门面试招新",
+      type: "office_interview",
+      groupOptions: ["办公室"],
+    },
+  ] as never;
+
+  it("sends the office round-one emails after confirmation", async () => {
+    const user = userEvent.setup();
+    jest
+      .mocked(sendOfficeRoundOneEmails)
+      .mockResolvedValue({ success: true, sent: 2, passCount: 1, rejectCount: 1 });
+
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={
+          [
+            { userFlowId: 1, status: "ongoing", round: 2 },
+            { userFlowId: 2, status: "failed", round: 1 },
+          ] as never
+        }
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "发送一面结果通知（通过 1 人 · 未通过 1 人）" }));
+    await user.click(screen.getByRole("button", { name: "确认发送" }));
+
+    await waitFor(() =>
+      expect(sendOfficeRoundOneEmails).toHaveBeenCalledWith(1),
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "已发送一面结果通知：通过 1 人 · 未通过 1 人",
+    );
+  });
+
+  it("surfaces a failed office round-one send without claiming success", async () => {
+    const user = userEvent.setup();
+    jest.mocked(sendOfficeRoundOneEmails).mockResolvedValue({
+      success: false,
+      error: { message: "暂无可发送的一面结果通知" },
+    } as never);
+
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={
+          [
+            { userFlowId: 1, status: "ongoing", round: 2 },
+            { userFlowId: 2, status: "failed", round: 1 },
+          ] as never
+        }
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "发送一面结果通知（通过 1 人 · 未通过 1 人）" }));
+    await user.click(screen.getByRole("button", { name: "确认发送" }));
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "暂无可发送的一面结果通知",
+      ),
+    );
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("keeps the office round-one email away from non-managers and non-office flows", () => {
+    const { unmount } = render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="1"
+        mode="interview"
+        role={2}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "发送一面通过通知" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <RecruitmentContent
+        flowTypes={[]}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "发送一面通过通知" }),
+    ).not.toBeInTheDocument();
   });
 });

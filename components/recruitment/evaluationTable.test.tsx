@@ -529,6 +529,69 @@ describe("EvaluationTable", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("请填写面评内容后再提交。");
   });
 
+  it("requires and sends the score when editing an office evaluation", async () => {
+    const user = userEvent.setup();
+    // jest.requireMock types the module as unknown; the mock factory above pins this shape.
+    const evaluationActionMock = jest.requireMock(
+      "@/action/user-flow/evaluation",
+    ) as { createEvaluation: jest.Mock };
+    const mockCreateEvaluation = evaluationActionMock.createEvaluation;
+    mockCreateEvaluation
+      .mockReset()
+      .mockResolvedValue({ success: true, data: { id: 11 } });
+
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "甲同学",
+          evaluations: [
+            {
+              id: 11,
+              score: 80,
+              content: "原面评内容",
+              recommendation: "passed",
+              status: "submitted",
+              authorId: 2,
+              authorName: "甲部长",
+              isMine: true,
+            },
+          ],
+          averageScore: 80,
+          evaluationCount: 1,
+        }),
+      ],
+      { scoringEnabled: true },
+    );
+
+    const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    await user.click(rowMenu.getByRole("button", { name: "修改" }));
+
+    // 编辑的是本人那一份：分数与内容回填
+    expect(screen.getByLabelText(/面试打分/)).toHaveValue(80);
+    expect(screen.getByLabelText(/面评内容/)).toHaveValue("原面评内容");
+
+    await user.clear(screen.getByLabelText(/面试打分/));
+    const contentBox = screen.getByLabelText(/面评内容/);
+    await user.clear(contentBox);
+    await user.type(contentBox, "该同学表达清晰，项目经历与部门需求匹配，建议通过。");
+    await user.click(screen.getByRole("button", { name: "提交面评" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("请填写 0-100 的面试分数");
+    expect(mockCreateEvaluation).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText(/面试打分/), "88");
+    await user.click(screen.getByRole("button", { name: "提交面评" }));
+
+    expect(mockCreateEvaluation).toHaveBeenCalledWith(
+      1,
+      "该同学表达清晰，项目经历与部门需求匹配，建议通过。",
+      "passed",
+      "",
+      88,
+    );
+  });
+
   it("hides schedule and pending evaluation edits from non-owners", () => {
     render(
       <EvaluationTable
@@ -1139,5 +1202,148 @@ describe("EvaluationTable", () => {
     // No numbered pager.
     expect(screen.queryByRole("button", { name: /第 \d+ 页/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "下一页" })).not.toBeInTheDocument();
+  });
+
+  it("shows the office score column with the average and reviewer count", () => {
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "甲同学",
+          interviewSlot: "10:00-11:00",
+          averageScore: 90,
+          evaluationCount: 2,
+          evaluations: [
+            {
+              id: 11,
+              score: 80,
+              content: "甲部长的面评",
+              recommendation: "passed",
+              status: "submitted",
+              authorId: 2,
+              authorName: "甲部长",
+              round: 1,
+              isMine: true,
+            },
+            {
+              id: 12,
+              score: 100,
+              content: "乙部长的面评",
+              recommendation: "passed",
+              status: "submitted",
+              authorId: 3,
+              authorName: "乙部长",
+              round: 2,
+              isMine: false,
+            },
+          ],
+        }),
+      ],
+      { scoringEnabled: true },
+    );
+
+    expect(screen.getByText("分数")).toBeInTheDocument();
+    expect(screen.getByText("面试时段")).toBeInTheDocument();
+    expect(screen.getAllByText("10:00-11:00").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("90").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("(2)").length).toBeGreaterThan(0);
+    // 办公类面试不排日程，行上不能出现改约入口。
+    expect(screen.queryByText("改约")).not.toBeInTheDocument();
+  });
+
+  it("labels each evaluation's stage in the score popover", async () => {
+    const user = userEvent.setup();
+
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "甲同学",
+          averageScore: 90,
+          evaluationCount: 2,
+          evaluations: [
+            {
+              id: 11,
+              score: 80,
+              content: "甲部长的面评",
+              recommendation: "passed",
+              status: "submitted",
+              authorId: 2,
+              authorName: "甲部长",
+              round: 1,
+              isMine: true,
+            },
+            {
+              id: 12,
+              score: 100,
+              content: "乙部长的面评",
+              recommendation: "passed",
+              status: "submitted",
+              authorId: 3,
+              authorName: "乙部长",
+              round: 2,
+              isMine: false,
+            },
+          ],
+        }),
+      ],
+      { scoringEnabled: true },
+    );
+
+    await user.click(
+      screen.getAllByRole("button", { name: "查看甲同学当前阶段的全部面评" })[0],
+    );
+
+    expect(
+      await screen.findByText("当前阶段面评 · 2 份打分"),
+    ).toBeInTheDocument();
+    /* 面评按阶段区分：一面 / 二面 */
+    expect(screen.getAllByText("一面").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("二面").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the score column out of the other interview flows", () => {
+    renderTable([makeCandidate()]);
+
+    expect(screen.queryByText("分数")).not.toBeInTheDocument();
+    expect(screen.queryByText("面试时段")).not.toBeInTheDocument();
+  });
+
+  it("reads office candidates as 待评估 even though they never book a slot", () => {
+    renderTable([makeCandidate({ userFlowId: 3, name: "办公同学" })], {
+      scoringEnabled: true,
+    });
+
+    expect(screen.getAllByText("待评估").length).toBeGreaterThan(0);
+    expect(screen.queryByText("待预约")).not.toBeInTheDocument();
+  });
+
+  it("sorts office candidates by average score, highest first", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "低分同学",
+          studentId: "B002",
+          averageScore: 60,
+          evaluationCount: 1,
+        }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "高分同学",
+          studentId: "B001",
+          averageScore: 95,
+          evaluationCount: 1,
+        }),
+      ],
+      { scoringEnabled: true },
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "分数" })[0]);
+
+    const rows = Array.from(document.querySelectorAll("table tbody tr"));
+    expect(rows[0].textContent).toContain("高分同学");
+    expect(rows[1].textContent).toContain("低分同学");
   });
 });

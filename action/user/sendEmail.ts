@@ -1,6 +1,6 @@
 "use server";
 import { verifyManager } from "@/lib/authz";
-import { assertFlowEditable } from "@/lib/flow-access";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { db } from "@/db/drizzle";
 import {
   requireBooleanInput,
@@ -43,14 +43,15 @@ export const batchSendEmail = async (
       .from(flow)
       .where(eq(flow.id, flowId))
       .limit(1);
-    /* 邮件批次归属流程：只有流程归属部门或管理员可以创建 */
-    assertFlowEditable(session.scope, flowRecord?.department, "无权为其他部门的流程发送邮件");
+    /* 邮件批次归属流程：只有流程归属部门、管理员或办公类共享流程的办公部门可以创建 */
+    if (!flowRecord) throw new Error("流程不存在");
+    assertFlowEditableRecord(session.scope, flowRecord, "无权为其他部门的流程发送邮件");
     const result = await createResultEmailBatch({
       userIds: targetUserIds,
       flowId,
       accept,
       createdBy: actorId,
-      flowType: flowRecord?.type ?? "recruitment",
+      flowType: flowRecord.type,
     });
 
     if (result.batchId) {

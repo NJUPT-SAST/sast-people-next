@@ -1,5 +1,11 @@
 import { db } from "@/db/drizzle";
-import { flow, flowResultPublication, flowStep, userFlow } from "@/db/schema";
+import {
+  flow,
+  flowResultPublication,
+  flowStep,
+  interviewSlotChangeRequest,
+  userFlow,
+} from "@/db/schema";
 import { verifySession } from "@/lib/dal";
 import { fullStepType } from "@/types/step";
 import { displayUserFlow, computeStatus } from "@/types/userflow";
@@ -16,6 +22,13 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
       eq(flowResultPublication.fkFlowId, flow.id),
     )
     .leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId))
+    .leftJoin(
+      interviewSlotChangeRequest,
+      and(
+        eq(interviewSlotChangeRequest.fkUserFlowId, userFlow.id),
+        eq(interviewSlotChangeRequest.status, "pending"),
+      ),
+    )
     .where(and(eq(userFlow.fkUserId, session.uid), eq(flow.isDeleted, false)))
     .orderBy(flowStep.order);
 
@@ -51,6 +64,15 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
         flowType: item.flow.type,
         publicationStatus: item.flow_result_publication?.status ?? null,
         groupOptions: item.flow.groupOptions,
+        slotOptions: item.flow.slotOptions,
+        flowDepartment: item.flow.department,
+        pendingSlotChange: item.interview_slot_change_request
+          ? {
+              id: item.interview_slot_change_request.id,
+              requestedSlot:
+                item.interview_slot_change_request.requestedSlot,
+            }
+          : null,
         steps: [] as fullStepType[],
       });
     }

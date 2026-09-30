@@ -18,6 +18,10 @@ describe("email template registry", () => {
         "woc.result.rejected",
         "soc.result.accepted",
         "soc.result.rejected",
+        "office_round1.result.accepted",
+        "office_round1.result.rejected",
+        "office_round2.result.accepted",
+        "office_round2.result.rejected",
         "interview.schedule.created",
         "interview.schedule.rescheduled",
         "interview.schedule.cancelled",
@@ -46,6 +50,22 @@ describe("email template registry", () => {
           "endsAt",
         ]),
       );
+    }
+  });
+
+  it("requires name, flowName and department for office interview results", () => {
+    const officeDefinitions = emailTemplateDefinitions.filter((definition) =>
+      definition.key.startsWith("office_round"),
+    );
+
+    expect(officeDefinitions).toHaveLength(4);
+    for (const definition of officeDefinitions) {
+      expect(
+        definition.variables.filter((variable) => variable.required).map((variable) => variable.key),
+      ).toEqual(["name", "flowName", "department"]);
+      expect(
+        definition.variables.find((variable) => variable.key === "groupNumber")?.required,
+      ).toBe(false);
     }
   });
 

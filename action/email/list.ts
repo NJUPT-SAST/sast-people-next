@@ -10,11 +10,8 @@ import {
   userFlow,
 } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
-import {
-  departmentScopeFilter,
-  getDepartmentScope,
-  type DepartmentScope,
-} from "@/lib/authz";
+import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
+import { visibleFlowPredicate } from "@/lib/flow-access";
 import {
   findPeopleUserIdsByKeyword,
   listPeopleUsersByLinkIds,
@@ -55,7 +52,7 @@ const scopedDeliveryFlowCondition = (scope: DepartmentScope) => {
     db
       .select({ id: flow.id })
       .from(flow)
-      .where(departmentScopeFilter(flow.department, scope)),
+      .where(visibleFlowPredicate(scope)),
   );
 };
 
@@ -240,7 +237,7 @@ export async function listEmailBatches() {
     })
     .from(emailBatch)
     .innerJoin(flow, eq(flow.id, emailBatch.fkFlowId))
-    .where(and(eq(emailBatch.category, "result"), departmentScopeFilter(flow.department, scope)))
+    .where(and(eq(emailBatch.category, "result"), visibleFlowPredicate(scope)))
     .orderBy(desc(emailBatch.createdAt))
     .limit(20);
 

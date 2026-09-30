@@ -13,7 +13,17 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { flowSelection } from '@/types/flow';
 import { BadgeCheck, ClipboardList, Users } from 'lucide-react';
+import { toast } from 'sonner';
 import { ResultPublicationPanel } from '@/components/recruitment/ResultPublicationPanel';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { sendOfficeRoundOneEmails } from '@/action/email/office-round-one';
 
 type ExamResult = Awaited<ReturnType<typeof calScore>>;
 type CandidatesResult = Awaited<ReturnType<typeof getEvaluationCandidates>>;
@@ -23,6 +33,7 @@ const interviewTypeTabs = [
   { value: 'recruitment_exemption', label: '免试招新' },
   { value: 'woc', label: 'WOC/WOD' },
   { value: 'soc', label: 'SOC/SOD' },
+  { value: 'office_interview', label: '办公类面试' },
 ] as const;
 
 type InterviewFlowType = (typeof interviewTypeTabs)[number]['value'];
@@ -65,12 +76,19 @@ export const RecruitmentContent = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [publicationRefreshKey, setPublicationRefreshKey] = useState(0);
   const [publicationStatus, setPublicationStatus] = useState<string | null>(null);
+  /* 办公类一体流程：一面通过通知的二次确认与发送状态 */
+  const [roundOneDialogOpen, setRoundOneDialogOpen] = useState(false);
+  const [sendingRoundOne, setSendingRoundOne] = useState(false);
   const flowRequestId = useRef(0);
   const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
   const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
   const safeEvalData = Array.isArray(evalData) ? evalData : [];
   const currentFlowGroupOptions =
     safeFlowTypes.find((flow) => flow.id === Number(flowId))?.groupOptions ?? [];
+  /* 办公类面试在面评里打分，其他流程保持原来的面评表单 */
+  const scoringEnabled =
+    safeFlowTypes.find((flow) => flow.id === Number(flowId))?.type ===
+    'office_interview';
 
   const isEvaluationWorkspace = mode === 'interview';
   const [interviewFlowType, setInterviewFlowType] = useState<InterviewFlowType>(
@@ -140,6 +158,41 @@ export const RecruitmentContent = ({
 
   const retryLoad = () => {
     if (flowId) void handleFlowChange(flowId);
+  };
+
+  /* 一面通过通知发给「一面已通过、已进入二面」的候选人，只对办公类流程开放 */
+  const canSendRoundOneEmails =
+    isEvaluationWorkspace && scoringEnabled && role >= 3 && Boolean(flowId) && !loadError;
+  /* 当前流程的一面结果候选人数（未发送校验在服务端）：通过=已进入二面，未通过=停在一面 */
+  const roundOneCounts = (() => {
+    const rows = Array.isArray(evalData) ? evalData : [];
+    return {
+      pass: rows.filter((row) => row.status === "ongoing" && row.round === 2).length,
+      reject: rows.filter((row) => row.status === "failed" && row.round === 1).length,
+    };
+  })();
+  const roundOneCountText = `通过 ${roundOneCounts.pass} 人 · 未通过 ${roundOneCounts.reject} 人`;
+
+  const sendRoundOneEmails = async () => {
+    if (!flowId) return;
+    setSendingRoundOne(true);
+    try {
+      const result = await sendOfficeRoundOneEmails(Number(flowId));
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      setRoundOneDialogOpen(false);
+      toast.success(
+        `已发送一面结果通知：通过 ${result.passCount} 人 · 未通过 ${result.rejectCount} 人`,
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : '发送一面结果通知失败，请稍后重试',
+      );
+    } finally {
+      setSendingRoundOne(false);
+    }
   };
 
   const handleInterviewFlowTypeChange = async (value: string) => {
@@ -216,6 +269,54 @@ export const RecruitmentContent = ({
             onChange={handleFlowChange}
           />
 
+          {canSendRoundOneEmails && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10 shrink-0 lg:h-8"
+                disabled={roundOneCounts.pass + roundOneCounts.reject === 0}
+                onClick={() => setRoundOneDialogOpen(true)}
+              >
+                发送一面结果通知（{roundOneCountText}）
+              </Button>
+              <Dialog
+                open={roundOneDialogOpen}
+                onOpenChange={(next) => {
+                  if (!sendingRoundOne) setRoundOneDialogOpen(next);
+                }}
+              >
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>发送一面结果通知</DialogTitle>
+                    <DialogDescription>
+                      将给本流程中一面通过的候选人发送通过通知、一面未通过的候选人发送结果通知（当前名单：{roundOneCountText}）。已发送过的候选人不会重复发送，邮件发出后无法撤回。
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={sendingRoundOne}
+                      onClick={() => setRoundOneDialogOpen(false)}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      type="button"
+                      loading={sendingRoundOne}
+                      disabled={sendingRoundOne}
+                      onClick={() => void sendRoundOneEmails()}
+                    >
+                      确认发送
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+
           {/* Written mode only, and on the same line as the selector: with the
               heading gone, a separate row left the card half empty. Interview
               totals live in the 全部 chip instead of here. */}
@@ -268,6 +369,7 @@ export const RecruitmentContent = ({
               targetUserFlowId={targetUserFlowId}
               targetScheduleId={targetScheduleId}
               loading={loading}
+              scoringEnabled={scoringEnabled}
               onRefresh={refreshEvalDataAndPublication}
             />
           )}

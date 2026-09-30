@@ -3,7 +3,7 @@ import { getPublishedFlowResult } from "@/action/flow/result-publication";
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
-import { assertFlowEditable } from "@/lib/flow-access";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import type { FlowScopedSession } from "@/action/flow/department-utils";
 import { eq } from "drizzle-orm";
 
@@ -21,14 +21,14 @@ export async function GET(request: NextRequest) {
   try {
     session = await verifyManager();
 
-    /* 结果导出属于流程数据，只有流程归属部门或管理员可以下载 */
+    /* 结果导出属于流程数据，只有流程归属部门、管理员或办公类共享流程的办公部门可以下载 */
     const [flowRow] = await db
-      .select({ department: flow.department })
+      .select({ department: flow.department, type: flow.type })
       .from(flow)
       .where(eq(flow.id, flowId))
       .limit(1);
     if (!flowRow) return NextResponse.json({ message: "流程不存在" }, { status: 404 });
-    assertFlowEditable(session.scope, flowRow.department);
+    assertFlowEditableRecord(session.scope, flowRow);
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "无权导出该流程的结果" },

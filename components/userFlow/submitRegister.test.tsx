@@ -313,6 +313,155 @@ describe("SubmitRegister", () => {
     });
   });
 
+  it("submits the first/second choice departments and the interview slot for office interview flows", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[
+          {
+            id: 9,
+            title: "办公室面试",
+            type: "office_interview",
+            department: null,
+            /* 共享办公流程：投递组别即办公部门，映射决定报名记录落到哪个部门 */
+            groupOptions: ["办公室", "科宣部", "外联部"],
+            groupDepartments: {
+              办公室: "office",
+              科宣部: "publicity",
+              外联部: "liaison",
+            },
+            slotOptions: [
+              { label: "13:00-14:00" },
+              { label: "时间冲突，约面时间QQ群中另行通知", isConflict: true },
+            ],
+            startedAt: new Date("2026-03-21T08:00:00.000Z"),
+            endedAt: new Date("2026-03-23T08:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "提交报名" }));
+    await user.click(screen.getByRole("button", { name: /办公室面试/i }));
+
+    expect(screen.queryByText("投递组别")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "确认报名" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("请选择第一志愿部门");
+    expect(mockRegister).not.toHaveBeenCalled();
+
+    /* 第一志愿与第二志愿的下拉共用同一份办公部门清单，按出现顺序取第一志愿里的选项 */
+    await user.click(screen.getAllByRole("button", { name: "办公室" })[0]);
+    await user.click(screen.getByRole("button", { name: "确认报名" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("请选择面试时段");
+    expect(mockRegister).not.toHaveBeenCalled();
+
+    /* 第二志愿与第一志愿互斥：第一志愿已选项不再出现在第二志愿清单里 */
+    expect(screen.getAllByRole("button", { name: "办公室" })).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "13:00-14:00" }));
+    await user.click(screen.getAllByRole("button", { name: "科宣部" })[1]);
+    await user.click(screen.getByRole("button", { name: "确认报名" }));
+
+    await waitFor(() => {
+      expect(mockRegister).toHaveBeenCalledWith(9, 7, [
+        {
+          group: "办公室",
+          slot: "13:00-14:00",
+          /* 第二志愿提交 Link 部门标识 */
+          secondChoice: "publicity",
+          portfolioLink: "",
+          portfolioDescription: "",
+        },
+      ]);
+    });
+  });
+
+  it("keeps the office second choice optional", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[
+          {
+            id: 9,
+            title: "办公室面试",
+            type: "office_interview",
+            groupOptions: ["办公室", "科宣部"],
+            groupDepartments: { 办公室: "office", 科宣部: "publicity" },
+            startedAt: new Date("2026-03-21T08:00:00.000Z"),
+            endedAt: new Date("2026-03-23T08:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "提交报名" }));
+    await user.click(screen.getByRole("button", { name: /办公室面试/i }));
+    await user.click(screen.getAllByRole("button", { name: "办公室" })[0]);
+    await user.click(screen.getByRole("button", { name: "确认报名" }));
+
+    await waitFor(() => {
+      expect(mockRegister).toHaveBeenCalledWith(9, 7, [
+        {
+          group: "办公室",
+          slot: undefined,
+          secondChoice: undefined,
+          portfolioLink: "",
+          portfolioDescription: "",
+        },
+      ]);
+    });
+  });
+
+  it("registers office candidates straight into the first round without a round-two gate", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[
+          {
+            id: 10,
+            title: "办公室面试",
+            type: "office_interview",
+            groupOptions: ["办公室"],
+            groupDepartments: { 办公室: "office" },
+            startedAt: new Date("2026-03-21T08:00:00.000Z"),
+            endedAt: new Date("2026-03-23T08:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "提交报名" }));
+    await user.click(screen.getByRole("button", { name: /办公室面试/i }));
+
+    expect(
+      screen.queryByText("请先通过一轮面试，才能报名二轮面试"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: "办公室" })[0]);
+    expect(screen.getByRole("button", { name: "确认报名" })).not.toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "确认报名" }));
+
+    await waitFor(() => {
+      expect(mockRegister).toHaveBeenCalledWith(10, 7, [
+        {
+          group: "办公室",
+          slot: undefined,
+          secondChoice: undefined,
+          portfolioLink: "",
+          portfolioDescription: "",
+        },
+      ]);
+    });
+  });
+
   it("clears the draft when the dialog is closed", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 

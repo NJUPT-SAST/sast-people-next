@@ -11,6 +11,7 @@ import {
 import {
   renderResultEmail,
   renderResultEmailSubject,
+  type ResultEmailFlowKind,
 } from "@/lib/email/result-email";
 import { getEmailTemplateDefinition } from "@/lib/email-center/registry";
 import type {
@@ -68,17 +69,26 @@ export async function renderEmailTemplate(
     case "woc.result.accepted":
     case "woc.result.rejected":
     case "soc.result.accepted":
-    case "soc.result.rejected": {
+    case "soc.result.rejected":
+    case "office_round1.result.accepted":
+    case "office_round1.result.rejected":
+    case "office_round2.result.accepted":
+    case "office_round2.result.rejected": {
       const [flowKind, , resultKind] = request.templateKey.split(".");
       return {
         subject: renderResultEmailSubject(
-          request.variables.flowName,
+          {
+            name: request.variables.name,
+            flowName: request.variables.flowName,
+            department: request.variables.department,
+            groupNumber: request.variables.groupNumber,
+          },
           request.variables.setting,
         ),
         html: await renderResultEmail({
           ...request.variables,
           accept: resultKind === "accepted",
-          flowKind: flowKind === "woc" || flowKind === "soc" ? flowKind : "recruitment",
+          flowKind: flowKind as ResultEmailFlowKind,
         }),
       };
     }

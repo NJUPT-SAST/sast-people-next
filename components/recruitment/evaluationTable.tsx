@@ -58,6 +58,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
   countInterviewStatuses,
@@ -98,6 +103,20 @@ import {
 } from "@/lib/interview-meeting-rooms";
 import { formatBeijingDate, toBeijingWallClockDate } from "@/lib/timezone";
 
+type CandidateEvaluation = {
+  id: number;
+  score: number | null;
+  content: string;
+  recommendation: "passed" | "failed" | null;
+  status: string | null;
+  authorId: number;
+  authorName: string | null;
+  /* 面评所属面试阶段：1=一面，2=二面（办公类流程使用） */
+  round?: number | null;
+  /* 是否为当前登录讲师本人提交的面评（服务端标记） */
+  isMine: boolean;
+};
+
 type Candidate = {
   userFlowId: number;
   uid: number;
@@ -113,13 +132,22 @@ type Candidate = {
   department?: string | null;
   evalId: number | null;
   evalContent: string | null;
+  evalScore?: number | null;
   evalMeetingLink: string | null;
   evalRecommendation: "passed" | "failed" | null;
   evalStatus: string | null;
   evalReturnReason?: string | null;
   evalAuthorId: number | null;
+  /* 办公类面试：候选人选择的面谈时段 */
+  interviewSlot?: string | null;
+  /* 办公类面试：全部面评、均分与参与打分的人数 */
+  evaluations?: CandidateEvaluation[];
+  averageScore?: number | null;
+  evaluationCount?: number;
   canEditEvaluation: boolean;
   canManageSchedule: boolean;
+  /* 办公类面试的行标记：由 EvaluationTable 按所选流程写入行数据 */
+  scoringEnabled?: boolean;
   scheduleId: number | null;
   scheduleOrganizerName: string | null;
   scheduleMeetingLink: string | null;
@@ -134,8 +162,11 @@ type Candidate = {
   scheduleMeetingEndedAt: Date | string | null;
 };
 
-type SortKey = "schedule" | "name" | "status";
+type SortKey = "schedule" | "name" | "status" | "score";
 type SortDir = "asc" | "desc";
+
+/* 与服务端 action/user-flow/evaluation.ts 的面评分数校验文案保持一致 */
+const SCORE_ERROR_MESSAGE = "请填写 0-100 的面试分数";
 
 // Shared chip chrome. The focus ring matches components/ui/button.tsx — plain
 // <button> chips would otherwise fall back to the UA outline.
@@ -406,6 +437,80 @@ const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
 
   return badge;
 };
+
+/**
+ * 办公类面试的平均分单元格：只统计候选人当前阶段的面评，多位部长打分时用 (n) 说明参评人数，
+ * 点开 popover 可查看每位部长在当前阶段的分数与面评内容。
+ */
+const ScoreCell = ({ candidate }: { candidate: Candidate }) => {
+  const evaluations = candidate.evaluations ?? [];
+  const averageScore = candidate.averageScore ?? null;
+  const evaluationCount = candidate.evaluationCount ?? 0;
+
+  if (evaluations.length === 0) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`查看${candidate.name}当前阶段的全部面评`}
+          className="inline-flex items-center gap-1 rounded px-1 text-sm text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          <span className="font-medium tabular-nums">
+            {averageScore === null
+              ? "—"
+              : Number.isInteger(averageScore)
+                ? String(averageScore)
+                : averageScore.toFixed(1)}
+          </span>
+          {evaluationCount > 1 && (
+            <span className="text-xs text-muted-foreground">({evaluationCount})</span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 space-y-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          当前阶段面评 · {evaluationCount} 份打分
+        </p>
+        <div className="max-h-72 space-y-3 overflow-y-auto">
+          {evaluations.map((evaluation) => (
+            <div
+              key={evaluation.id}
+              className="space-y-1 border-b pb-3 last:border-0 last:pb-0"
+            >
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate font-medium text-foreground">
+                  {evaluation.authorName ?? "未知讲师"}
+                  {evaluation.isMine && (
+                    <span className="text-muted-foreground">（我）</span>
+                  )}
+                </span>
+                <span className="shrink-0 tabular-nums text-foreground">
+                  {evaluation.score ?? "未打分"}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {/* 面评按阶段区分：一面/二面 */}
+                {evaluation.round === 1
+                  ? "一面"
+                  : evaluation.round === 2
+                    ? "二面"
+                    : "阶段未标记"}
+              </p>
+              <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
+                {evaluation.content}
+              </p>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const ScheduleIconLink = ({
   href,
   label,
@@ -430,10 +535,28 @@ const ScheduleIconLink = ({
 const ScheduleInfo = ({
   candidate,
   now,
+  scoringEnabled = false,
 }: {
   candidate: Candidate;
   now: number | null;
+  scoringEnabled?: boolean;
 }) => {
+  /* 办公类面试不排日程，展示的是候选人选择的集中面谈时段 */
+  if (scoringEnabled) {
+    return (
+      <div className="min-w-0 space-y-1">
+        <p className="truncate text-sm text-foreground" title={candidate.interviewSlot ?? undefined}>
+          {candidate.interviewSlot || "未选择面谈时段"}
+        </p>
+        {candidate.status === "withdrawn" && candidate.withdrawReason && (
+          <p className="truncate text-xs text-destructive" title={candidate.withdrawReason}>
+            退回理由：{candidate.withdrawReason}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (!candidate.scheduleMeetingLink) {
     return (
       <div className="min-w-0 space-y-1">
@@ -654,6 +777,7 @@ export const EvaluationTable = ({
   targetUserFlowId,
   targetScheduleId,
   loading = false,
+  scoringEnabled = false,
   onRefresh,
 }: {
   candidates: Candidate[];
@@ -662,11 +786,18 @@ export const EvaluationTable = ({
   targetUserFlowId?: number;
   targetScheduleId?: number;
   loading?: boolean;
+  /** 办公类面试：面评需填写 0-100 分数，且一位候选人可有多份面评 */
+  scoringEnabled?: boolean;
   onRefresh: () => void;
 }) => {
+  /* 办公类面试无需预约日程：把标记写回行数据，让状态、筛选口径与操作保持一致 */
   const safeCandidates = useMemo(
-    () => (Array.isArray(candidates) ? candidates : []),
-    [candidates],
+    () =>
+      (Array.isArray(candidates) ? candidates : []).map((candidate) => ({
+        ...candidate,
+        scoringEnabled,
+      })),
+    [candidates, scoringEnabled],
   );
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
   const [portfolioCandidate, setPortfolioCandidate] = useState<Candidate | null>(null);
@@ -677,6 +808,8 @@ export const EvaluationTable = ({
   const [schedulingId, setSchedulingId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
+  const [score, setScore] = useState("");
+  const [scoreError, setScoreError] = useState<string | null>(null);
   const [recommendation, setRecommendation] = useState<"passed" | "failed">("passed");
   const [scheduleStartsAt, setScheduleStartsAt] = useState("");
   const [scheduleEndsAt, setScheduleEndsAt] = useState("");
@@ -729,16 +862,39 @@ export const EvaluationTable = ({
   }, []);
 
   const planFor = useCallback(
-    (candidate: Candidate) => deriveInterviewActions(candidate, role, now),
+    (candidate: Candidate) =>
+      deriveInterviewActions(
+        candidate.scoringEnabled
+          ? {
+              ...candidate,
+              // 办公类面试多人各写一份，行上的"我的面评"决定能否修改/是否待填写
+              evalStatus:
+                candidate.evaluations?.find((evaluation) => evaluation.isMine)
+                  ?.status ?? null,
+              canEditEvaluation: true,
+            }
+          : candidate,
+        role,
+        now,
+      ),
     [role, now],
   );
 
   const startEdit = (c: Candidate) => {
+    const ownEvaluation = c.evaluations?.find((evaluation) => evaluation.isMine);
     setEvaluatingId(c.userFlowId);
-    setContent(c.evalContent ?? "");
+    setContent(ownEvaluation?.content ?? c.evalContent ?? "");
+    setScore(
+      ownEvaluation?.score === null || ownEvaluation?.score === undefined
+        ? ""
+        : String(ownEvaluation.score),
+    );
     setMeetingLink(c.scheduleMeetingMinuteLink ?? c.evalMeetingLink ?? "");
-    setRecommendation(c.evalRecommendation ?? "passed");
+    setRecommendation(
+      ownEvaluation?.recommendation ?? c.evalRecommendation ?? "passed",
+    );
     setEvaluationError(null);
+    setScoreError(null);
   };
 
   const startSchedule = (c: Candidate) => {
@@ -761,6 +917,8 @@ export const EvaluationTable = ({
     setEvaluatingId(null);
     setContent("");
     setMeetingLink("");
+    setScore("");
+    setScoreError(null);
     setRecommendation("passed");
     setEvaluationError(null);
   };
@@ -832,13 +990,28 @@ export const EvaluationTable = ({
 
   const handlePass = async (userFlowId: number) => {
     if (!content.trim()) {
+      setScoreError(null);
       setEvaluationError("请填写面评内容后再提交。");
       return;
     }
     if (recommendation === "passed" && content.trim().length < MIN_PASSED_EVALUATION_LENGTH) {
+      setScoreError(null);
       setEvaluationError(`建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。`);
       return;
     }
+    const parsedScore = Number(score);
+    if (
+      scoringEnabled &&
+      (!score.trim() ||
+        !Number.isInteger(parsedScore) ||
+        parsedScore < 0 ||
+        parsedScore > 100)
+    ) {
+      setEvaluationError(null);
+      setScoreError(SCORE_ERROR_MESSAGE);
+      return;
+    }
+    setScoreError(null);
     setLoadingId(userFlowId);
     try {
       const result = await createEvaluation(
@@ -846,10 +1019,15 @@ export const EvaluationTable = ({
         content,
         recommendation,
         meetingLink,
+        scoringEnabled ? parsedScore : undefined,
       );
       if (!result.success) {
         const message = result.error?.message ?? "提交失败";
-        setEvaluationError(message);
+        if (scoringEnabled && message === SCORE_ERROR_MESSAGE) {
+          setScoreError(message);
+        } else {
+          setEvaluationError(message);
+        }
         toast.error(message);
         return;
       }
@@ -1100,6 +1278,9 @@ export const EvaluationTable = ({
           INTERVIEW_STATUS_ORDER.indexOf(getInterviewStatus(b))
         );
       }
+      if (sort.key === "score") {
+        return (a.averageScore ?? 0) - (b.averageScore ?? 0);
+      }
       return (
         (getTime(a.scheduleStartsAt) ?? Infinity) -
         (getTime(b.scheduleStartsAt) ?? Infinity)
@@ -1118,6 +1299,15 @@ export const EvaluationTable = ({
           return aTime === null ? 1 : -1;
         }
       }
+      if (sort.key === "score") {
+        // 未打分（或只有退回重写记录）的候选人同样固定在末尾
+        const aScore = a.averageScore ?? null;
+        const bScore = b.averageScore ?? null;
+        if (aScore === null || bScore === null) {
+          if (aScore === bScore) return byStudentId(a, b);
+          return aScore === null ? 1 : -1;
+        }
+      }
       return compare(a, b) * direction || byStudentId(a, b);
     });
     return sorted;
@@ -1127,7 +1317,8 @@ export const EvaluationTable = ({
     setSort((current) =>
       current.key === key
         ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
-        : { key, dir: "asc" },
+        : // 分数默认从高到低：先看最高分才有意义
+          { key, dir: key === "score" ? "desc" : "asc" },
     );
   };
 
@@ -1205,6 +1396,9 @@ export const EvaluationTable = ({
     safeCandidates.length > 0
       ? "没有符合条件的候选人。"
       : "该流程暂时没有可处理的报名人员。";
+
+  /* 办公类面试多一列「分数」；列数同时驱动骨架屏和空状态跨列 */
+  const columnCount = (role >= 2 ? 6 : 5) + (scoringEnabled ? 1 : 0);
 
   const renderRowActions = (
     candidate: Candidate,
@@ -1322,25 +1516,46 @@ export const EvaluationTable = ({
             and a student id of one letter plus eight digits, which is far
             shorter than the demo seed. `table-auto` keeps min-content as a
             floor, so nothing clips at narrow widths. */}
-        <Table className="w-full min-w-[52rem]" containerClassName="overflow-x-auto">
+        <Table
+          className={cn(
+            "w-full",
+            scoringEnabled ? "min-w-[56rem]" : "min-w-[52rem]",
+          )}
+          containerClassName="overflow-x-auto"
+        >
           <TableHeader>
             <TableRow className="border-b border-border/60 hover:bg-transparent">
               {renderSortableHead(
                 "候选人",
                 "name",
-                "h-10 w-[19%] px-4 text-xs font-medium text-muted-foreground",
+                cn(
+                  "h-10 px-4 text-xs font-medium text-muted-foreground",
+                  scoringEnabled ? "w-[18%]" : "w-[19%]",
+                ),
               )}
-              <TableHead className="h-10 w-[12%] px-3 text-xs font-medium text-muted-foreground">投递组别</TableHead>
-              <TableHead className="h-10 w-[15%] px-3 text-xs font-medium text-muted-foreground">作品</TableHead>
+              <TableHead className={cn("h-10 px-3 text-xs font-medium text-muted-foreground", scoringEnabled ? "w-[11%]" : "w-[12%]")}>投递组别</TableHead>
+              <TableHead className={cn("h-10 px-3 text-xs font-medium text-muted-foreground", scoringEnabled ? "w-[13%]" : "w-[15%]")}>作品</TableHead>
               {renderSortableHead(
-                "面试安排",
+                scoringEnabled ? "面试时段" : "面试安排",
                 "schedule",
-                "h-10 w-[23%] px-3 text-xs font-medium text-muted-foreground",
+                cn(
+                  "h-10 px-3 text-xs font-medium text-muted-foreground",
+                  scoringEnabled ? "w-[20%]" : "w-[23%]",
+                ),
               )}
+              {scoringEnabled &&
+                renderSortableHead(
+                  "分数",
+                  "score",
+                  "h-10 w-[10%] px-3 text-right text-xs font-medium text-muted-foreground",
+                )}
               {renderSortableHead(
                 "状态",
                 "status",
-                "h-10 w-[15%] px-3 text-right text-xs font-medium text-muted-foreground",
+                cn(
+                  "h-10 px-3 text-right text-xs font-medium text-muted-foreground",
+                  scoringEnabled ? "w-[12%]" : "w-[15%]",
+                ),
               )}
               {role >= 2 && (
                 <TableHead className="h-10 w-[16%] px-4 text-right text-xs font-medium text-muted-foreground">操作</TableHead>
@@ -1351,7 +1566,7 @@ export const EvaluationTable = ({
             {loading ? (
               Array.from({ length: 5 }, (_, index) => (
                 <TableRow key={`skeleton-${index}`} className="border-b border-border/40">
-                  {Array.from({ length: role >= 2 ? 6 : 5 }, (_, cellIndex) => (
+                  {Array.from({ length: columnCount }, (_, cellIndex) => (
                     <TableCell key={cellIndex} className="px-4 py-2.5">
                       {/* Mirrors the real two-line cell: the schedule cell's
                           icon links are size-6, so its first line is 24px, not
@@ -1368,7 +1583,7 @@ export const EvaluationTable = ({
             ) : visibleCandidates.length === 0 ? (
               <TableRow className="border-b-0">
                 <TableCell
-                  colSpan={role >= 2 ? 6 : 5}
+                  colSpan={columnCount}
                   className="h-32 px-4 text-center"
                 >
                   <p className="text-sm text-muted-foreground">{emptyMessage}</p>
@@ -1434,9 +1649,18 @@ export const EvaluationTable = ({
                         candidate is one line where a booked one is two, and the
                         resulting 4px wobble reads as uneven row spacing. */}
                     <div className="flex min-h-[2.75rem] min-w-0 flex-col justify-center">
-                      <ScheduleInfo candidate={c} now={now} />
+                      <ScheduleInfo
+                        candidate={c}
+                        now={now}
+                        scoringEnabled={scoringEnabled}
+                      />
                     </div>
                   </TableCell>
+                  {scoringEnabled && (
+                    <TableCell className="px-3 py-2 align-middle text-right">
+                      <ScoreCell candidate={c} />
+                    </TableCell>
+                  )}
                   <TableCell className="px-3 py-2 align-middle text-right">
                     <EvalStatusText candidate={c} />
                   </TableCell>
@@ -1546,7 +1770,17 @@ export const EvaluationTable = ({
                     onOpen={() => setPortfolioCandidate(c)}
                   />
                 </div>
-                <ScheduleInfo candidate={c} now={now} />
+                <ScheduleInfo
+                  candidate={c}
+                  now={now}
+                  scoringEnabled={scoringEnabled}
+                />
+                {scoringEnabled && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-xs text-muted-foreground">平均分</span>
+                    <ScoreCell candidate={c} />
+                  </div>
+                )}
                 {role >= 2 && hasActionArea && (
                   <div className="border-t border-border/60 pt-3">
                     <ActionCell
@@ -1681,6 +1915,45 @@ export const EvaluationTable = ({
                 </p>
               )}
             </div>
+            {scoringEnabled && (
+              <div className="space-y-2">
+                <label htmlFor="evaluation-score" className="text-sm font-medium">
+                  面试打分（0-100） <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  id="evaluation-score"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={100}
+                  step={1}
+                  placeholder="请输入 0-100 的整数"
+                  value={score}
+                  onChange={(event) => {
+                    setScore(event.target.value);
+                    if (scoreError) setScoreError(null);
+                  }}
+                  aria-invalid={Boolean(scoreError)}
+                  aria-describedby={
+                    scoreError ? "evaluation-score-error" : undefined
+                  }
+                  required
+                  className="h-10 w-32"
+                />
+                {scoreError && (
+                  <p
+                    id="evaluation-score-error"
+                    role="alert"
+                    className="text-sm text-destructive"
+                  >
+                    {scoreError}
+                  </p>
+                )}
+                <p className="text-xs leading-5 text-muted-foreground">
+                  分数为该讲师的面试评分，最终结果取各讲师已提交分数的平均分。
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-medium">讲师建议</label>
               <div className="grid grid-cols-2 gap-2" role="group" aria-label="讲师建议">

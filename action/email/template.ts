@@ -2,6 +2,7 @@
 
 import { db } from "@/db/drizzle";
 import { emailTemplateSetting, normalizeDepartmentKey } from "@/db/schema";
+import { departmentLabel } from "@/const/department";
 import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
 import { verifyRole } from "@/lib/dal";
 import {
@@ -60,6 +61,7 @@ const requiredFieldLabels: Record<keyof ResultEmailTemplateValues, string> = {
   contactEmail: "联系邮箱",
   memberFormLabel: "表单按钮文案",
   feishuGroupName: "飞书群名",
+  groupNumber: "QQ 群号",
 };
 
 const urlFields: Array<keyof ResultEmailTemplateValues> = [
@@ -87,6 +89,7 @@ function normalizeResultEmailTemplateValues(
     contactEmail: values.contactEmail.trim(),
     memberFormLabel: values.memberFormLabel.trim(),
     feishuGroupName: values.feishuGroupName.trim(),
+    groupNumber: values.groupNumber.trim(),
   };
 }
 
@@ -105,8 +108,11 @@ function validateResultEmailTemplateValues(
 ) {
   const isRecruitment = templateKey.startsWith("recruitment.");
   const isSocAccepted = templateKey === "soc.result.accepted";
+  /* QQ 群号只服务办公类模板，且允许留空，因此不参与必填校验 */
   const requiredKeys = isRecruitment
-    ? Object.keys(requiredFieldLabels).filter((key) => key !== "bodyTemplate")
+    ? Object.keys(requiredFieldLabels).filter(
+        (key) => key !== "bodyTemplate" && key !== "groupNumber",
+      )
     : [
         "subjectTemplate", "titleTemplate", "subtitleTemplate",
         "resultBadgeTemplate", "resultTitleTemplate", "resultSummaryTemplate",
@@ -176,6 +182,7 @@ function mergeResultEmailTemplateSetting(
     contactEmail: saved.contactEmail,
     memberFormLabel: saved.memberFormLabel,
     feishuGroupName: saved.feishuGroupName,
+    groupNumber: saved.groupNumber ?? fallback.groupNumber,
     department: saved.department ?? null,
   };
 }
@@ -217,7 +224,11 @@ export async function listEmailTemplateSettings(
     return {
       ...mergeResultEmailTemplateSetting(fallback.templateKey, saved),
       id: saved?.id ?? null,
-      editable: canEditTemplateRow(effectiveScope, saved?.department ?? null),
+      editable: canEditTemplateRow(
+        effectiveScope,
+        saved?.department ?? null,
+        fallback.templateKey,
+      ),
       hasOverride: saved !== null && saved.department === target,
     } satisfies ResultEmailTemplateSettingRow;
   });
@@ -255,6 +266,9 @@ export async function getResultEmailPreviews(department?: string | null) {
         variables: {
           name: "同学",
           flowName: "示例流程",
+          /* 办公类模板需要 {department}；示例数据用归属部门展示名，缺省给「办公室」 */
+          department: departmentLabel(target, "办公室"),
+          groupNumber: "123456789",
           setting,
           genericGreeting: true,
         },
@@ -287,7 +301,7 @@ export async function updateEmailTemplateSetting(
 ) {
   const session = await verifyRole(3);
   const scope = await getDepartmentScope();
-  const target = resolveTemplateEditTarget(scope, department);
+  const target = resolveTemplateEditTarget(scope, department, templateKey);
   const targetDepartment = target.kind === "department" ? target.department : null;
 
   const normalized = normalizeResultEmailTemplateValues(values);
@@ -380,7 +394,7 @@ export async function resetEmailTemplateSetting(
 ) {
   const session = await verifyRole(3);
   const scope = await getDepartmentScope();
-  const target = resolveTemplateEditTarget(scope, department);
+  const target = resolveTemplateEditTarget(scope, department, templateKey);
   const targetDepartment = target.kind === "department" ? target.department : null;
 
   const [existing] = await db

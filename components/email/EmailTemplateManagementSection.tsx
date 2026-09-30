@@ -116,6 +116,7 @@ function createValuesFromForm(form: HTMLFormElement) {
     contactEmail: String(data.get("contactEmail") ?? ""),
     memberFormLabel: String(data.get("memberFormLabel") ?? ""),
     feishuGroupName: String(data.get("feishuGroupName") ?? ""),
+    groupNumber: String(data.get("groupNumber") ?? ""),
   };
 }
 
@@ -246,7 +247,7 @@ function TemplateDialog({
               placeholder={isRecruitmentTemplate ? "招新正文使用固定版式，可按需填写自定义文案。" : "填写本流程的结果说明和后续安排。"}
               className="min-h-[180px] resize-y bg-background"
             />
-            <p className="text-xs text-muted-foreground">可用变量：{"{name}"}、{"{flowName}"}、{"{contactEmail}"}、{"{feishuGroupName}"}、{"{calendarUrl}"}。</p>
+            <p className="text-xs text-muted-foreground">可用变量：{"{name}"}、{"{flowName}"}、{"{department}"}、{"{groupNumber}"}、{"{contactEmail}"}、{"{feishuGroupName}"}、{"{calendarUrl}"}。</p>
           </div>
 
           <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 md:col-span-2 md:grid-cols-2">
@@ -262,6 +263,12 @@ function TemplateDialog({
               label="活动日历链接"
               name="calendarUrl"
               defaultValue={setting.calendarUrl}
+            />
+            <TemplateField
+              id={`${setting.templateKey}-group-number`}
+              label="QQ 群号"
+              name="groupNumber"
+              defaultValue={setting.groupNumber}
             />
             {usesInternalGroup ? (
               <>

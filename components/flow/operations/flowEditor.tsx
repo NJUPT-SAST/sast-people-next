@@ -17,7 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DateTimeInput } from '@/components/ui/datetime-input';
 import { editFlowSchema } from '@/components/flow/add';
 import { departmentLabel } from '@/const/department';
+import { isOfficeInterviewFlow } from '@/const/flow';
 import { DepartmentSelect, GroupDepartmentMapping, pickGroupDepartments } from '@/components/flow/departmentFields';
+import { SlotOptionsField } from '@/components/flow/officeInterviewFields';
 import { saveFlowWorkspace } from '@/action/flow/save-workspace';
 import { displayFlow } from '@/types/flow';
 import { fullStepType } from '@/types/step';
@@ -57,15 +59,19 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
     defaultValues: {
       title: data.title || '',
       description: data.description || '',
+      type: data.type,
       startedAt: data.startedAt,
       endedAt: data.endedAt ?? null,
       groupOptions: data.groupOptions ?? [],
+      slotOptions: data.slotOptions ?? [],
       id: data.id,
     },
   });
   const { isSubmitting } = form.formState;
   const [isSaving, setIsSaving] = useState(false);
   const isWrittenRecruitment = !data.type || data.type === 'recruitment';
+  /* 办公类部门面试招新是所有办公部门共用的共享流程：部门为空，用投递组别配置办公部门 */
+  const isOfficeInterview = isOfficeInterviewFlow(data.type);
   const { data: savedSteps } = useFlowStepsInfoClient(data.id);
   const defaults = useMemo(
     () => (isWrittenRecruitment ? writtenRecruitmentSteps(data.id) : evaluationSteps(data.id)),
@@ -91,6 +97,14 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
 
   useEffect(() => setEditableSteps(fixedStepList), [fixedStepList]);
 
+  /* 办公类流程同样用投递组别维护办公部门，保存口径与其他面试流程一致 */
+  const groupValues = {
+    groupOptions: parsedGroupOptions,
+    groupDepartments: pickGroupDepartments(parsedGroupOptions, groupDepartments),
+  };
+  /* 共享办公流程没有归属部门，落库固定为 null */
+  const departmentValue = isOfficeInterview ? null : department;
+
   const save = async () => {
     const values = form.getValues();
     setGroupOptionsText(parsedGroupOptions.join('\n'));
@@ -100,9 +114,8 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
         flowId: data.id,
         values: {
           ...values,
-          groupOptions: parsedGroupOptions,
-          department,
-          groupDepartments: pickGroupDepartments(parsedGroupOptions, groupDepartments),
+          ...groupValues,
+          department: departmentValue,
         },
         steps: editableSteps,
       });
@@ -114,9 +127,8 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
   const getDraft = () => ({
     values: {
       ...form.getValues(),
-      groupOptions: parsedGroupOptions,
-      department,
-      groupDepartments: pickGroupDepartments(parsedGroupOptions, groupDepartments),
+      ...groupValues,
+      department: departmentValue,
     },
     steps: editableSteps,
   });
@@ -158,16 +170,24 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
             <div className="lg:row-span-2"><FormField control={form.control} name="description" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>流程描述</FormLabel><FormControl><Textarea className="min-h-24 resize-y" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>} /></div>
             <FormField control={form.control} name="startedAt" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>开始时间</FormLabel><FormControl><DateTimeInput {...field} native value={field.value ?? undefined} onChange={(date) => field.onChange(date ?? null)} /></FormControl><FormMessage /></FormItem>} />
             <FormField control={form.control} name="endedAt" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>结束时间</FormLabel><FormControl><DateTimeInput {...field} native value={field.value ?? undefined} onChange={(date) => field.onChange(date ?? null)} /></FormControl><FormMessage /></FormItem>} />
-            {!isWrittenRecruitment && <FormField control={form.control} name="groupOptions" disabled={isSubmitting} render={() => <FormItem className="lg:col-span-2"><FormLabel>投递组别选项</FormLabel><FormControl><Textarea className="min-h-24 resize-y" value={groupOptionsText} onChange={(event) => setGroupOptionsText(event.target.value)} placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'} /></FormControl><p className="text-xs text-muted-foreground">每行一个组别，留空表示不启用投递组别。</p><FormMessage /></FormItem>} />}
-            <div className="grid gap-2 lg:col-span-2">
-              <span className="text-sm font-medium leading-none">归属部门</span>
-              {canChooseDepartment ? (
-                <DepartmentSelect allowGlobal disabled={isSubmitting} value={department} onChange={setDepartment} />
-              ) : (
-                <p className="text-sm text-muted-foreground">{departmentLabel(department)}</p>
-              )}
-              <p className="text-xs text-muted-foreground">部长只能维护本部门的流程；全局流程仅管理员可见可改。</p>
-            </div>
+            {isOfficeInterview && (
+              <FormField control={form.control} name="slotOptions" disabled={isSubmitting} render={({ field }) => <FormItem className="lg:col-span-2"><FormLabel htmlFor={`flow-editor-${data.id}-slots`}>面试时段</FormLabel><SlotOptionsField idPrefix={`flow-editor-${data.id}`} disabled={isSubmitting} value={field.value} onChange={field.onChange} /><FormMessage /></FormItem>} />
+            )}
+            {!isWrittenRecruitment && <FormField control={form.control} name="groupOptions" disabled={isSubmitting} render={() => <FormItem className="lg:col-span-2"><FormLabel>投递组别选项</FormLabel><FormControl><Textarea className="min-h-24 resize-y" value={groupOptionsText} onChange={(event) => setGroupOptionsText(event.target.value)} placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'} /></FormControl><p className="text-xs text-muted-foreground">{isOfficeInterview ? '办公类流程的投递组别即办公部门，候选人报名时从中选择第一/第二志愿。' : '每行一个组别，留空表示不启用投递组别。'}</p><FormMessage /></FormItem>} />}
+            {!isOfficeInterview && (
+              <div className="grid gap-2 lg:col-span-2">
+                <span className="text-sm font-medium leading-none">归属部门</span>
+                {canChooseDepartment ? (
+                  <DepartmentSelect allowGlobal disabled={isSubmitting} value={department} onChange={setDepartment} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">{departmentLabel(department)}</p>
+                )}
+                <p className="text-xs text-muted-foreground">部长只能维护本部门的流程；全局流程仅管理员可见可改。</p>
+              </div>
+            )}
+            {isOfficeInterview && (
+              <p className="text-xs text-muted-foreground lg:col-span-2">办公类部门面试招新是所有办公部门共用的共享流程，没有归属部门；报名记录的部门由投递组别映射决定。</p>
+            )}
             <div className="lg:col-span-2">
               <GroupDepartmentMapping groupOptions={parsedGroupOptions} value={groupDepartments} onChange={setGroupDepartments} disabled={isSubmitting} />
             </div>

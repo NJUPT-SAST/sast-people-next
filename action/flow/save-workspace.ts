@@ -3,8 +3,9 @@
 import { db } from "@/db/drizzle";
 import { flow, flowStep, normalizeDepartmentKey, problem } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
-import { assertFlowEditable } from "@/lib/flow-access";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { resolveGroupDepartments } from "./department-utils";
+import { OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 import { editFlowSchema } from "@/lib/validation/flow";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { fullStepType } from "@/types/step";
@@ -26,12 +27,12 @@ export async function saveFlowWorkspace(input: WorkspaceInput) {
   if (input.steps.length === 0) throw new Error("流程至少需要一个步骤");
 
   const [flowRow] = await db
-    .select({ department: flow.department })
+    .select({ department: flow.department, type: flow.type })
     .from(flow)
     .where(eq(flow.id, input.flowId))
     .limit(1);
   if (!flowRow) throw new Error("流程不存在");
-  assertFlowEditable(session.scope, flowRow.department);
+  assertFlowEditableRecord(session.scope, flowRow);
 
   const groupOptions = values.groupOptions?.length ? values.groupOptions : null;
   const patch: Partial<typeof flow.$inferInsert> = {
@@ -47,11 +48,18 @@ export async function saveFlowWorkspace(input: WorkspaceInput) {
   if (session.scope.kind === "all" && values.department !== undefined) {
     patch.department = normalizeDepartmentKey(values.department);
   }
+  /* 办公类部门面试招新是所有办公部门共用的一条流程，归属部门固定为空 */
+  if (flowRow.type === OFFICE_INTERVIEW_FLOW_TYPE) {
+    patch.department = null;
+  }
   if (values.groupDepartments !== undefined) {
     patch.groupDepartments = resolveGroupDepartments(
       groupOptions,
       values.groupDepartments,
     );
+  }
+  if (values.slotOptions !== undefined) {
+    patch.slotOptions = values.slotOptions?.length ? values.slotOptions : null;
   }
 
   const problemRows = input.problems

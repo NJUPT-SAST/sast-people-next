@@ -4,6 +4,7 @@ import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
 import { updateLinkUserRoles } from "@/lib/link/admin";
 import { MANAGER_ROLE, peopleRoleToLinkRole } from "@/lib/link/role";
+import { OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { and, eq, inArray, or } from "drizzle-orm";
@@ -20,6 +21,8 @@ const roleGrantedByFlow = (flowType: string) => {
   ) {
     return 1;
   }
+  /* 办公类部门面试招新：一个流程内两轮都通过后才会 passed，通过即部员 */
+  if (flowType === OFFICE_INTERVIEW_FLOW_TYPE) return 1;
   return 0;
 };
 
@@ -38,7 +41,10 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingF
   const [users, acceptedFlows] = await Promise.all([
     listPeopleUsersByLinkIds(uniqueUids),
     db
-    .select({ uid: userFlow.fkUserId, type: flow.type })
+    .select({
+      uid: userFlow.fkUserId,
+      type: flow.type,
+    })
     .from(userFlow)
     .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
     .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
@@ -54,21 +60,22 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingF
     ),
   ]);
 
-  const calculatedRoles = new Map(uniqueUids.map((uid) => [uid, 0]));
+  /* 只有真正授予角色的通过记录才参与计算：无授予（如办公类未通过）不动 Link 角色，避免降级 */
+  const calculatedRoles = new Map<number, number>();
   for (const acceptedFlow of acceptedFlows) {
+    const grantedRole = roleGrantedByFlow(acceptedFlow.type);
+    if (grantedRole <= 0) continue;
     calculatedRoles.set(
       acceptedFlow.uid,
-      Math.max(
-        calculatedRoles.get(acceptedFlow.uid) ?? 0,
-        roleGrantedByFlow(acceptedFlow.type),
-      ),
+      Math.max(calculatedRoles.get(acceptedFlow.uid) ?? 0, grantedRole),
     );
   }
 
   const idsByRole = new Map<number, number[]>();
   for (const uid of uniqueUids) {
     const user = users.get(uid);
-    const calculatedRole = calculatedRoles.get(uid) ?? 0;
+    const calculatedRole = calculatedRoles.get(uid);
+    if (calculatedRole === undefined) continue;
     // People must never automatically change an administrator role.
     if (!user || user.role === null || user.role >= MANAGER_ROLE || user.role === calculatedRole) {
       continue;

@@ -435,6 +435,27 @@
       "when": 1789250000006,
       "tag": "0061_email_template_departments",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1789250000007,
+      "tag": "0062_office_interview",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1789250000008,
+      "tag": "0063_interview_slot_change_request",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1789250000009,
+      "tag": "0064_office_interview_single_flow",
+      "breakpoints": true
     }
   ]
 }

@@ -36,3 +36,62 @@ describe("editFlowSchema", () => {
     ).toThrow();
   });
 });
+
+describe("editFlowSchema office interview", () => {
+  const officeFlow = {
+    ...validFlow,
+    type: "office_interview" as const,
+    groupOptions: ["办公室", "科宣部", "外联部", "赛事部"],
+    groupDepartments: {
+      办公室: "office",
+      科宣部: "publicity",
+      外联部: "liaison",
+      赛事部: "competition",
+    },
+  };
+
+  it("requires the office department list and its mapping", () => {
+    expect(() =>
+      editFlowSchema.parse({ ...validFlow, type: "office_interview" as const }),
+    ).toThrow("办公类部门面试招新请配置可投递的办公部门");
+    expect(() =>
+      editFlowSchema.parse({
+        ...officeFlow,
+        groupDepartments: { 办公室: "office" },
+      }),
+    ).toThrow("请为每个办公部门配置对应的部门标识");
+  });
+
+  it("accepts office departments and interview slots", () => {
+    const parsed = editFlowSchema.parse({
+      ...officeFlow,
+      slotOptions: [
+        { label: " 13:00-14:00 " },
+        { label: "时间冲突，约面时间QQ群中另行通知", isConflict: true },
+      ],
+    });
+
+    expect(parsed.slotOptions).toEqual([
+      { label: "13:00-14:00" },
+      { label: "时间冲突，约面时间QQ群中另行通知", isConflict: true },
+    ]);
+  });
+
+  it("rejects duplicate slot labels", () => {
+    expect(() =>
+      editFlowSchema.parse({
+        ...officeFlow,
+        slotOptions: [{ label: "13:00-14:00" }, { label: "13:00-14:00" }],
+      }),
+    ).toThrow("时段名称不能重复");
+  });
+
+  it("rejects interview slots on other flow types", () => {
+    expect(() =>
+      editFlowSchema.parse({
+        ...validFlow,
+        slotOptions: [{ label: "13:00-14:00" }],
+      }),
+    ).toThrow("只有办公类部门面试招新支持面试时段");
+  });
+});

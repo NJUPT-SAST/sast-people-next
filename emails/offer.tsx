@@ -49,7 +49,11 @@ interface OfferEmailProps {
   name?: string;
   flowName?: string;
   accept?: boolean;
-  flowKind?: 'recruitment' | 'woc' | 'soc';
+  flowKind?: 'recruitment' | 'woc' | 'soc' | 'office_round1' | 'office_round2';
+  /** 候选人所报部门展示名：办公类部门面试通知的 {department} 变量 */
+  department?: string;
+  /** 后续 QQ 群号：办公类部门面试通知的 {groupNumber} 变量 */
+  groupNumber?: string;
   bodyTemplate?: string;
   titleTemplate?: string;
   subtitleTemplate?: string;
@@ -71,6 +75,8 @@ export const OfferEmail = ({
   flowName,
   accept,
   flowKind = 'recruitment',
+  department = '',
+  groupNumber = '',
   bodyTemplate = '',
   titleTemplate = '',
   subtitleTemplate = '',
@@ -94,6 +100,8 @@ export const OfferEmail = ({
   const copyVariables = {
     name: name ?? '[同学姓名]',
     flowName: flowName ?? '本次流程',
+    department,
+    groupNumber,
     contactEmail,
     feishuGroupName,
     feishuGroupUrl,
@@ -101,11 +109,28 @@ export const OfferEmail = ({
     memberInfoFormUrl,
     feishuRegisterHelpUrl,
   };
-  const defaultTitle = flowKind === 'woc' ? 'WoC / WoD 考核结果通知' : flowKind === 'soc' ? 'SoC / SoD 留任结果通知' : 'SAST 招新结果通知';
-  const defaultSubtitle = flowKind === 'woc' ? (accept ? '恭喜完成 WoC / WoD 阶段考核' : '感谢你完成 WoC / WoD 阶段考核') : flowKind === 'soc' ? (accept ? '恭喜通过暑期考核并留任讲师' : '感谢你完成 SoC / SoD 暑期考核') : (accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程');
+  const isOfficeFlowKind = flowKind === 'office_round1' || flowKind === 'office_round2';
+  const officeRoundLabel = flowKind === 'office_round2' ? '二轮' : '一轮';
+  const officeDepartment = department || '部门';
+  const defaultTitle = isOfficeFlowKind
+    ? accept
+      ? `${officeDepartment}${officeRoundLabel}面试结果通知`
+      : `${officeDepartment}面试结果通知`
+    : flowKind === 'woc' ? 'WoC / WoD 考核结果通知' : flowKind === 'soc' ? 'SoC / SoD 留任结果通知' : 'SAST 招新结果通知';
+  const defaultSubtitle = isOfficeFlowKind
+    ? accept
+      ? `恭喜通过${officeDepartment}${officeRoundLabel}面试`
+      : `感谢你参与${officeDepartment}面试`
+    : flowKind === 'woc' ? (accept ? '恭喜完成 WoC / WoD 阶段考核' : '感谢你完成 WoC / WoD 阶段考核') : flowKind === 'soc' ? (accept ? '恭喜通过暑期考核并留任讲师' : '感谢你完成 SoC / SoD 暑期考核') : (accept ? '欢迎加入南京邮电大学大学生科学技术协会' : '感谢你认真完成这次招新流程');
   const defaultBadge = accept ? '通过通知' : '结果通知';
-  const defaultResultTitle = accept ? '恭喜你顺利通过' : '感谢你的参与';
-  const defaultSummary = flowKind === 'woc' ? '本阶段考核结果已确认。' : flowKind === 'soc' ? '本次暑期考核结果已确认。' : accept ? '本次考核结果已确认。' : '本次招新结果已确认。';
+  const defaultResultTitle = isOfficeFlowKind
+    ? accept
+      ? `恭喜你顺利通过${officeRoundLabel}面试`
+      : '感谢你的参与'
+    : accept ? '恭喜你顺利通过' : '感谢你的参与';
+  const defaultSummary = isOfficeFlowKind
+    ? `本次${officeDepartment}${officeRoundLabel}面试结果已确认`
+    : flowKind === 'woc' ? '本阶段考核结果已确认。' : flowKind === 'soc' ? '本次暑期考核结果已确认。' : accept ? '本次考核结果已确认。' : '本次招新结果已确认。';
 
   return (
     <Html>
@@ -176,7 +201,9 @@ export const OfferEmail = ({
             ) : accept ? (
               <>
                 <Text style={text}>
-                  {flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，本阶段考核结果已确认。` : flowKind === 'soc' ? `恭喜你通过本次 ${flowName} 考核，正式留任为讲师！` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}
+                  {isOfficeFlowKind
+                    ? `恭喜你顺利通过${officeDepartment}${officeRoundLabel}面试。后续面试考核流程与地点将由部门负责人另行通知。`
+                    : flowKind === 'woc' ? `恭喜你顺利完成 ${flowName}，本阶段考核结果已确认。` : flowKind === 'soc' ? `恭喜你通过本次 ${flowName} 考核，正式留任为讲师！` : `恭喜你顺利通过 ${flowName}，正式成为南京邮电大学大学生科学技术协会的一员。`}
                 </Text>
                 {flowKind === 'recruitment' ? (
                   <>
@@ -239,11 +266,30 @@ export const OfferEmail = ({
                       </Text>
                     </Section>
                   </>
+                ) : isOfficeFlowKind ? (
+                  <Text style={text}>
+                    恭喜你通过{officeDepartment}{officeRoundLabel}面试。后续面试考核流程与地点将由部门负责人另行通知，请留意群内消息。
+                  </Text>
                 ) : (
                   <Text style={text}>
                     感谢你在本阶段中的投入和贡献。后续安排将由各组负责人另行通知，请继续关注科协相关信息。
                   </Text>
                 )}
+              </>
+            ) : isOfficeFlowKind ? (
+              <>
+                <Text style={text}>
+                  感谢你参加本次{officeDepartment}{officeRoundLabel}面试。经过面试小组综合考察与讨论，很遗憾你本次未能通过。
+                </Text>
+                <Text style={text}>
+                  感谢你的认真准备与付出。面试结果不代表你的全部，欢迎继续关注并参与校科协的公开课、技术分享和项目交流等后续活动。
+                </Text>
+                <Text style={text}>
+                  如需了解本次面试中可以改进的地方，欢迎联系 {contactEmail} 与我们交流。期待在未来的活动中再次见到你。
+                </Text>
+                <Text style={text}>
+                  再次感谢你的参与！
+                </Text>
               </>
             ) : (
               <>

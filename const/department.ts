@@ -23,3 +23,36 @@ export const departmentLabel = (
   if (!key) return fallback;
   return DEPARTMENT_LABELS[key] ?? key;
 };
+
+/**
+ * 部门大类：招新限制「技术部门内部互斥、办公部门内部互斥，
+ * 但可以同时参加一个技术部门和一个办公部门」。
+ * Link 新增的未知部门按 unknown 处理（按最保守的互斥规则）。
+ */
+export type DepartmentCategory = "tech" | "office" | "unknown";
+
+export const DEPARTMENT_CATEGORIES: Record<string, DepartmentCategory> = {
+  software: "tech",
+  media: "tech",
+  electronics: "tech",
+  office: "office",
+  publicity: "office",
+  liaison: "office",
+  competition: "office",
+};
+
+/* 办公类部门标识（第一/第二志愿的可选项顺序） */
+export const OFFICE_DEPARTMENT_KEYS = [
+  "office",
+  "publicity",
+  "liaison",
+  "competition",
+] as const;
+
+export const departmentCategory = (
+  value: string | null | undefined,
+): DepartmentCategory => {
+  const key = normalizeDepartmentKey(value);
+  if (!key) return "unknown";
+  return DEPARTMENT_CATEGORIES[key] ?? "unknown";
+};

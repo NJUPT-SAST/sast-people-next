@@ -37,7 +37,8 @@ describe("useMyFlowList", () => {
       },
     ]);
     const where = jest.fn(() => ({ orderBy }));
-    const stepJoin = jest.fn(() => ({ where }));
+    const slotRequestJoin = jest.fn(() => ({ where }));
+    const stepJoin = jest.fn(() => ({ leftJoin: slotRequestJoin }));
     const publicationJoin = jest.fn(() => ({ leftJoin: stepJoin }));
     const flowJoin = jest.fn(() => ({ leftJoin: publicationJoin }));
     const from = jest.fn(() => ({ innerJoin: flowJoin }));

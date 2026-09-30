@@ -90,6 +90,12 @@ export function formatDate(value: Date | string | null) {
 
 export function getSettingLabel(templateKey: string) {
   const accepted = templateKey.endsWith("accepted");
+  if (templateKey.startsWith("office_round1.")) {
+    return accepted ? "办公类一面通过模板" : "办公类一面不通过模板";
+  }
+  if (templateKey.startsWith("office_round2.")) {
+    return accepted ? "办公类二面通过模板" : "办公类二面不通过模板";
+  }
   if (templateKey.startsWith("woc.")) {
     return accepted ? "WoC/WoD 通过模板" : "WoC/WoD 不通过模板";
   }

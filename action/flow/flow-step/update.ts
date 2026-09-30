@@ -3,13 +3,13 @@
 import { db } from "@/db/drizzle";
 import { flow, flowStep } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
-import { assertFlowEditable } from "@/lib/flow-access";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { fullStepType } from "@/types/step";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { evaluationFlowSteps, isWrittenRecruitmentFlow, writtenRecruitmentSteps } from "../defaultSteps";
+import { officeInterviewSteps, stepsForFlowType } from "../defaultSteps";
 import type { FlowScopedSession } from "../department-utils";
 
 type FlowStepInsert = typeof flowStep.$inferInsert;
@@ -29,10 +29,10 @@ export const updateFlowStep = async (
       .limit(1);
 
     if (!flowRecord) throw new Error("流程不存在");
-    assertFlowEditable(session.scope, flowRecord.department);
+    assertFlowEditableRecord(session.scope, flowRecord);
 
     const stepsWithAdminText = (
-      fixedSteps: ReturnType<typeof writtenRecruitmentSteps>,
+      fixedSteps: ReturnType<typeof officeInterviewSteps>,
     ) => {
       const customStepByOrder = new Map(
         stepList.map((step) => [step.order, step]),
@@ -51,10 +51,9 @@ export const updateFlowStep = async (
     };
 
     await db.transaction(async (tx) => {
-      const nextSteps: Array<Omit<FlowStepInsert, "id">> =
-        isWrittenRecruitmentFlow(flowRecord.type)
-          ? stepsWithAdminText(writtenRecruitmentSteps(id))
-          : stepsWithAdminText(evaluationFlowSteps(id));
+      const nextSteps: Array<Omit<FlowStepInsert, "id">> = stepsWithAdminText(
+        stepsForFlowType(flowRecord.type, id),
+      );
 
       for (const step of nextSteps) {
         await tx

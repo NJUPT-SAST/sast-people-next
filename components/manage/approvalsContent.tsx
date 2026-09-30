@@ -328,6 +328,7 @@ export const ApprovalsContent = ({
               <SelectItem value="recruitment_exemption">免试招新</SelectItem>
               <SelectItem value="woc">WOC/WOD</SelectItem>
               <SelectItem value="soc">SOC/SOD</SelectItem>
+              <SelectItem value="office_interview">办公类部门面试招新</SelectItem>
               <SelectItem value="recruitment">笔试招新</SelectItem>
             </SelectContent>
           </Select>
@@ -409,6 +410,14 @@ export const ApprovalsContent = ({
                         }`}
                       >
                         {recommendationLabel[row.evaluation.recommendation]}
+                      </Badge>
+                    )}
+                    {row.evaluation.score !== null && (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 whitespace-nowrap text-xs"
+                      >
+                        面试打分 {row.evaluation.score}
                       </Badge>
                     )}
                     {row.evaluation.status !== "submitted" && (

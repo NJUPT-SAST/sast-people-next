@@ -8,6 +8,14 @@ jest.mock("./portfolioLinkEditor", () => ({
   PortfolioLinkEditor: () => null,
 }));
 
+jest.mock("@/action/user-flow/office-interview", () => ({
+  requestInterviewSlotChange: jest.fn(),
+}));
+
+jest.mock("sonner", () => ({
+  toast: { success: jest.fn(), error: jest.fn() },
+}));
+
 import { FlowCard } from "./flowCard";
 
 describe("FlowCard", () => {
@@ -108,4 +116,121 @@ describe("FlowCard", () => {
     expect(screen.getByRole("button", { name: "结果确认，已通过。点击查看详情" })).toBeInTheDocument();
   });
 
+  it("shows the current stage, interview slot, and second choice for office interview flows", async () => {
+    const ui = await FlowCard({
+      flow: {
+        id: 6,
+        title: "办公室面试招新",
+        status: "ongoing",
+        flowType: "office_interview",
+        round: 2,
+        interviewSlot: "14:00-15:00",
+        secondChoiceDepartment: "publicity",
+        currentStepOrder: 1,
+        steps: [{ id: 1, order: 1, title: "报名", description: "提交资料" }],
+      } as never,
+    });
+
+    render(ui);
+
+    expect(screen.getByText("当前阶段：二面")).toBeInTheDocument();
+    expect(screen.getByText("面试时段：14:00-15:00")).toBeInTheDocument();
+    expect(screen.getByText("第二志愿部门：科宣部")).toBeInTheDocument();
+  });
+
+  it("omits office interview details for other flow types", async () => {
+    const ui = await FlowCard({
+      flow: {
+        id: 7,
+        title: "免试流程",
+        status: "ongoing",
+        flowType: "recruitment_exemption",
+        round: 1,
+        interviewSlot: "14:00-15:00",
+        secondChoiceDepartment: "publicity",
+        currentStepOrder: 1,
+        steps: [{ id: 1, order: 1, title: "报名", description: "提交资料" }],
+      } as never,
+    });
+
+    render(ui);
+
+    expect(screen.queryByText("面试时段：14:00-15:00")).not.toBeInTheDocument();
+    expect(screen.queryByText("第二志愿部门：科宣部")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "申请修改面试时段" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers a slot change while the office registration is still editable", async () => {
+    const ui = await FlowCard({
+      flow: {
+        id: 8,
+        title: "办公室面试招新",
+        status: "ongoing",
+        flowType: "office_interview",
+        round: 1,
+        interviewSlot: "13:00-14:00",
+        slotOptions: [{ label: "13:00-14:00" }, { label: "15:00-16:00" }],
+        currentStepOrder: 1,
+        steps: [{ id: 1, order: 1, title: "报名", description: "提交资料" }],
+      } as never,
+    });
+
+    render(ui);
+
+    expect(
+      screen.getByRole("button", { name: "申请修改面试时段" }),
+    ).toBeEnabled();
+    expect(screen.queryByText(/改时段申请待审批/)).not.toBeInTheDocument();
+  });
+
+  it("shows the pending slot change request instead of letting the candidate resubmit", async () => {
+    const ui = await FlowCard({
+      flow: {
+        id: 9,
+        title: "办公室面试招新",
+        status: "ongoing",
+        flowType: "office_interview",
+        round: 1,
+        interviewSlot: "13:00-14:00",
+        slotOptions: [{ label: "13:00-14:00" }, { label: "15:00-16:00" }],
+        pendingSlotChange: { id: 3, requestedSlot: "15:00-16:00" },
+        currentStepOrder: 1,
+        steps: [{ id: 1, order: 1, title: "报名", description: "提交资料" }],
+      } as never,
+    });
+
+    render(ui);
+
+    expect(
+      screen.getByText("改时段申请待审批：15:00-16:00"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "申请修改面试时段" }),
+    ).toBeDisabled();
+  });
+
+  it("hides the slot change entry once the office registration is finished", async () => {
+    const ui = await FlowCard({
+      flow: {
+        id: 10,
+        title: "办公室面试招新",
+        status: "passed",
+        publicationStatus: "published",
+        flowType: "office_interview",
+        round: 1,
+        interviewSlot: "13:00-14:00",
+        slotOptions: [{ label: "13:00-14:00" }, { label: "15:00-16:00" }],
+        currentStepOrder: 1,
+        steps: [{ id: 1, order: 1, title: "报名", description: "提交资料" }],
+      } as never,
+    });
+
+    render(ui);
+
+    expect(
+      screen.queryByRole("button", { name: "申请修改面试时段" }),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -63,6 +63,7 @@ function createResultRow(
     contactEmail: "sast@njupt.edu.cn",
     memberFormLabel: "填写表单",
     feishuGroupName: "SAST 群",
+    groupNumber: "",
   };
 }
 
@@ -247,5 +248,40 @@ describe("EmailTemplateManagementSection", () => {
     expect(
       screen.queryByRole("button", { name: /恢复内置默认文案/ }),
     ).toBeNull();
+  });
+
+  it("办公类模板可以查看并提交 QQ 群号", async () => {
+    const user = userEvent.setup();
+    const { updateEmailTemplateSetting } = jest.requireMock(
+      "@/action/email/template",
+    ) as { updateEmailTemplateSetting: jest.Mock };
+    renderSection({
+      templateSettings: {
+        rows: [
+          {
+            ...createResultRow("office_round1.result.accepted", null, true, false),
+            groupNumber: "123456789",
+          },
+        ],
+        departments: [],
+        scope: { kind: "all" },
+      },
+      department: null,
+    });
+
+    await user.click(screen.getByRole("button", { name: "办公类一面通过模板" }));
+
+    const groupNumberInput = await screen.findByLabelText("QQ 群号");
+    expect(groupNumberInput).toHaveValue("123456789");
+
+    await user.clear(groupNumberInput);
+    await user.type(groupNumberInput, "987654321");
+    await user.click(screen.getByRole("button", { name: /保存到全局默认/ }));
+
+    expect(updateEmailTemplateSetting).toHaveBeenCalledWith(
+      "office_round1.result.accepted",
+      expect.objectContaining({ groupNumber: "987654321" }),
+      null,
+    );
   });
 });

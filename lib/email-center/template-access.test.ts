@@ -21,7 +21,40 @@ const renderFilter = (scope: DepartmentScope) =>
 
 const all: DepartmentScope = { kind: "all" };
 const software: DepartmentScope = { kind: "department", department: "software" };
+const office: DepartmentScope = { kind: "department", department: "office" };
 const none: DepartmentScope = { kind: "none" };
+
+describe("office interview templates are managed jointly by office departments", () => {
+  const officeKey = "office_round1.result.accepted";
+
+  it("maps every office department to the shared global template", () => {
+    expect(resolveTemplateEditTarget(office, null, officeKey)).toEqual({
+      kind: "global",
+    });
+    expect(
+      resolveTemplateEditTarget(office, "publicity", officeKey),
+    ).toEqual({ kind: "global" });
+    expect(resolveTemplateEditTarget(all, "media", officeKey)).toEqual({
+      kind: "global",
+    });
+  });
+
+  it("rejects non-office departments", () => {
+    expect(() =>
+      resolveTemplateEditTarget(software, null, officeKey),
+    ).toThrow("办公类部门面试招新邮件模板由办公部门统一管理。");
+    expect(() => resolveTemplateEditTarget(none, null, officeKey)).toThrow(
+      "办公类部门面试招新邮件模板由办公部门统一管理。",
+    );
+  });
+
+  it("lets office departments edit the shared row but not department overrides", () => {
+    expect(canEditTemplateRow(office, null, officeKey)).toBe(true);
+    expect(canEditTemplateRow(office, "office", officeKey)).toBe(false);
+    expect(canEditTemplateRow(all, null, officeKey)).toBe(true);
+    expect(canEditTemplateRow(software, null, officeKey)).toBe(false);
+  });
+});
 
 describe("resolveTemplateEditTarget", () => {
   it("lets admins write the global default or any department", () => {

@@ -3,7 +3,7 @@
 import { db } from "@/db/drizzle";
 import { flow, flowStep, problem } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
-import { assertFlowEditable } from "@/lib/flow-access";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { asc, eq, inArray } from "drizzle-orm";
@@ -32,7 +32,7 @@ export async function duplicateFlow(sourceFlowId: number) {
         throw new Error("Flow not found");
       }
 
-      assertFlowEditable(session!.scope, sourceFlow.department);
+      assertFlowEditableRecord(session!.scope, sourceFlow);
       sourceDepartment = sourceFlow.department;
 
       const [newFlow] = await tx
@@ -48,6 +48,7 @@ export async function duplicateFlow(sourceFlowId: number) {
           department: sourceFlow.department,
           groupOptions: sourceFlow.groupOptions,
           groupDepartments: sourceFlow.groupDepartments,
+          slotOptions: sourceFlow.slotOptions,
         })
         .returning({ id: flow.id });
       copiedFlowId = newFlow.id;

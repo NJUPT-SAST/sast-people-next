@@ -1,7 +1,7 @@
 "use server";
 
 import { verifyManager } from "@/lib/authz";
-import { assertFlowEditable } from "@/lib/flow-access";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { db } from "@/db/drizzle";
 import { eq } from "drizzle-orm";
 import { flow } from "@/db/schema";
@@ -17,12 +17,12 @@ export async function deleteFlow(id: number) {
     session = await verifyManager();
 
     const [flowRow] = await db
-      .select({ department: flow.department })
+      .select({ department: flow.department, type: flow.type })
       .from(flow)
       .where(eq(flow.id, id))
       .limit(1);
     if (!flowRow) throw new Error("流程不存在");
-    assertFlowEditable(session.scope, flowRow.department);
+    assertFlowEditableRecord(session.scope, flowRow);
 
     await db
       .update(flow)

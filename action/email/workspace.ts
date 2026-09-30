@@ -5,30 +5,39 @@ import { sendEmailBatch } from "@/action/email/send";
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
-import { departmentScopeFilter, getDepartmentScope, type DepartmentScope, verifyManager } from "@/lib/authz";
-import { assertFlowEditable } from "@/lib/flow-access";
+import { getDepartmentScope, type DepartmentScope, verifyManager } from "@/lib/authz";
+import { assertFlowEditableRecord, visibleFlowPredicate } from "@/lib/flow-access";
 import { verifyRole } from "@/lib/dal";
+import { isOfficeInterviewFlow, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
+import { departmentLabel } from "@/const/department";
 import {
   requireBooleanInput,
   requirePositiveIntegerInput,
 } from "@/lib/email-center/action-input";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { getResultEmailFlowKind, getResultEmailTemplateKey } from "@/lib/email/result-email";
+import { getResultEmailTemplateKey } from "@/lib/email/result-email";
 import { renderEmailTemplate } from "@/lib/email-center/render";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { assertFlowResultsPublished } from "@/lib/flow-result-publication-guard";
 
-const resultFlowTypes = ["recruitment", "recruitment_exemption", "woc", "soc"] as const;
+const resultFlowTypes = [
+  "recruitment",
+  "recruitment_exemption",
+  "woc",
+  "soc",
+  OFFICE_INTERVIEW_FLOW_TYPE,
+] as const;
 
-/* 邮件批次归属于流程：只有流程归属部门或管理员可以创建 / 发送 */
+/* 邮件批次归属于流程：只有流程归属部门、管理员或办公类共享流程的办公部门可以创建 / 发送 */
 async function assertFlowEmailEditable(scope: DepartmentScope, flowId: number) {
   const [sourceFlow] = await db
-    .select({ department: flow.department })
+    .select({ type: flow.type, department: flow.department })
     .from(flow)
     .where(eq(flow.id, flowId))
     .limit(1);
-  assertFlowEditable(scope, sourceFlow?.department, "无权为其他部门的流程发送邮件");
+  if (!sourceFlow) throw new Error("流程不存在");
+  assertFlowEditableRecord(scope, sourceFlow, "无权为其他部门的流程发送邮件");
 }
 
 export async function listEmailFlowTargets() {
@@ -45,7 +54,15 @@ export async function listEmailFlowTargets() {
     })
     .from(flow)
     .innerJoin(flowResultPublication, and(eq(flowResultPublication.fkFlowId, flow.id), eq(flowResultPublication.status, "published")))
-    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes), departmentScopeFilter(flow.department, scope)))
+    .where(
+      and(
+        eq(flow.isDeleted, false),
+        inArray(flow.type, resultFlowTypes),
+        /* 办公类部门面试招新的邮件在面试管理页单独发送，不混入通用发结果通道 */
+        ne(flow.type, OFFICE_INTERVIEW_FLOW_TYPE),
+        visibleFlowPredicate(scope),
+      ),
+    )
     .orderBy(desc(flow.createdAt));
 
   if (flows.length === 0) return [];
@@ -74,18 +91,26 @@ export async function listEmailFlowTargets() {
   }));
 
   return Promise.all(flows.map(async (item) => {
-    const flowKind = getResultEmailFlowKind(item.type);
-    const acceptedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(flowKind, true), item.department);
-    const rejectedSetting = await getEmailTemplateSetting(getResultEmailTemplateKey(flowKind, false), item.department);
+    /* 办公类共享流程发布的是二轮（最终）结果，模板与变量按二轮解析 */
+    const resultRound = isOfficeInterviewFlow(item.type) ? 2 : null;
+    const acceptedTemplateKey = getResultEmailTemplateKey(item.type, true, resultRound);
+    const rejectedTemplateKey = getResultEmailTemplateKey(item.type, false, resultRound);
+    const acceptedSetting = await getEmailTemplateSetting(acceptedTemplateKey, item.department);
+    const rejectedSetting = await getEmailTemplateSetting(rejectedTemplateKey, item.department);
+    /* 办公类模板需要 {department} 展示名，其他流程的模板变量用不到 */
+    const departmentDisplay = departmentLabel(item.department);
     const flowTargets = hydratedTargets.filter((target) => target.flowId === item.id);
     const passed = flowTargets.filter((t) => t.status === "passed");
     const failed = flowTargets.filter((t) => t.status === "failed");
     const acceptedPreview = passed[0]
       ? await renderEmailTemplate({
-          templateKey: getResultEmailTemplateKey(flowKind, true),
+          templateKey: acceptedTemplateKey,
           variables: {
             name: passed[0].name,
             flowName: item.title,
+            round: resultRound,
+            department: departmentDisplay,
+            groupNumber: acceptedSetting.groupNumber,
             setting: acceptedSetting,
             genericGreeting: true,
           },
@@ -94,10 +119,13 @@ export async function listEmailFlowTargets() {
       : null;
     const rejectedPreview = failed[0]
       ? await renderEmailTemplate({
-          templateKey: getResultEmailTemplateKey(flowKind, false),
+          templateKey: rejectedTemplateKey,
           variables: {
             name: failed[0].name,
             flowName: item.title,
+            round: resultRound,
+            department: departmentDisplay,
+            groupNumber: rejectedSetting.groupNumber,
             setting: rejectedSetting,
             genericGreeting: true,
           },
@@ -129,7 +157,7 @@ export async function listEmailFlowOptions() {
       title: flow.title,
     })
     .from(flow)
-    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes), departmentScopeFilter(flow.department, scope)))
+    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes), visibleFlowPredicate(scope)))
     .orderBy(desc(flow.createdAt));
 }
 
