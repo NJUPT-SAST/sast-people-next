@@ -89,6 +89,11 @@ test.describe("flow result publication syncs member department", () => {
 
     await page.getByRole("button", { name: "确认并发布结果" }).click();
     const dialog = page.getByRole("dialog");
+    /* 本用例验证「发布结果 → 同步成员部门」，不依赖邮件服务：
+       取消全选后按 UI 支持的路径发布（未选人员会发布结果但不发本次邮件），
+       CI 没有 Inngest/SMTP，选了收件人反而会让发布因邮件服务不可用而失败。 */
+    await dialog.getByRole("button", { name: "取消全选" }).click();
+    await expect(dialog.getByText(/已选择 0 \//)).toBeVisible();
     await dialog
       .getByText("我已在邮件中心核对本年度通过和不通过邮件模板，确认内容无误。")
       .click();
