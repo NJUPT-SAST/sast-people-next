@@ -5,6 +5,7 @@ import {
   listMockLoginAccounts,
   listMockUsers,
   mockAccessTokenFor,
+  updateMockUserDepartments,
 } from "./mock";
 
 describe("mock Link department accounts", () => {
@@ -32,6 +33,26 @@ describe("mock Link department accounts", () => {
       ]);
       expect(new Set(departmentMembers.map((account) => account.department)).size).toBe(1);
     }
+  });
+
+  it("updates a member's department in the mock Link store", async () => {
+    const [freshman] = (
+      await listMockUsers({ studentId: "B00040005", pageSize: 1 })
+    ).users;
+    expect(freshman).toBeDefined();
+    const originalDepartment = freshman.department;
+
+    const result = await updateMockUserDepartments([freshman.id], "office");
+    expect(result.results).toEqual([
+      { id: freshman.id, success: true, department: "office" },
+    ]);
+    const [updated] = (
+      await listMockUsers({ studentId: "B00040005", pageSize: 1 })
+    ).users;
+    expect(updated.department).toBe("office");
+
+    /* 还原，避免影响同文件的其他用例 */
+    await updateMockUserDepartments([freshman.id], originalDepartment ?? null);
   });
 
   it("resolves the current user from the mock access token", async () => {

@@ -92,6 +92,17 @@ export type LinkBatchRoleUpdateResponse = {
   results: LinkBatchRoleUpdateResult[];
 };
 
+export type LinkBatchDepartmentUpdateResult = {
+  id: number;
+  success: boolean;
+  department?: LinkDepartment | null;
+  reason?: string;
+};
+
+export type LinkBatchDepartmentUpdateResponse = {
+  results: LinkBatchDepartmentUpdateResult[];
+};
+
 export type LinkListUsersParams = {
   page?: number;
   pageSize?: number;

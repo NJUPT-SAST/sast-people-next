@@ -10,7 +10,7 @@ import { assertFlowEditableRecord, canEditFlowRecord } from "@/lib/flow-access";
 import { isOfficeInterviewFlow } from "@/const/flow";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { syncUserRolesFromAcceptedFlows } from "@/action/user-flow/roleTransition";
+import { syncUserIdentityFromAcceptedFlows } from "@/action/user-flow/roleTransition";
 import { getResultEmailTemplateKey } from "@/lib/email/result-email";
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -164,7 +164,7 @@ export async function publishFlowResults(
   }
 
   try {
-    await syncUserRolesFromAcceptedFlows(rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId);
+    await syncUserIdentityFromAcceptedFlows(rows.filter((row) => row.status === "passed").map((row) => row.userId), flowId);
     const acceptedRows = rows.filter(
       (row) => row.status === "passed" && selectedUserFlowIds.has(row.userFlowId),
     );
@@ -206,7 +206,7 @@ export async function publishFlowResults(
     await db.update(flowResultPublication)
       .set({ status: "failed", updatedAt: new Date() })
       .where(and(eq(flowResultPublication.id, publication.id), eq(flowResultPublication.status, "publishing")));
-    await syncUserRolesFromAcceptedFlows(
+    await syncUserIdentityFromAcceptedFlows(
       rows.filter((row) => row.status === "passed").map((row) => row.userId),
     );
     throw error;

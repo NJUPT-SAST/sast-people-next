@@ -1,5 +1,6 @@
 import type {
   LinkAdminUserItem,
+  LinkDepartment,
   LinkListUsersParams,
   LinkRole,
   LinkUserProfile,
@@ -453,6 +454,30 @@ export const updateMockUserRoles = async (ids: number[], role: LinkRole) => {
     }
     user.role = role;
     results.push({ id, success: true, role });
+  }
+
+  return { results };
+};
+
+export const updateMockUserDepartments = async (
+  ids: number[],
+  department: LinkDepartment | null,
+) => {
+  const results = [] as Array<{
+    id: number;
+    success: boolean;
+    department?: LinkDepartment | null;
+    reason?: string;
+  }>;
+
+  for (const id of new Set(ids)) {
+    const user = mockUsers.find((item) => item.id === id);
+    if (!user) {
+      results.push({ id, success: false, reason: "用户不存在" });
+      continue;
+    }
+    user.profile = { ...(user.profile ?? {}), department };
+    results.push({ id, success: true, department });
   }
 
   return { results };

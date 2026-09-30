@@ -1,10 +1,11 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { flow, flowResultPublication, userFlow } from "@/db/schema";
-import { updateLinkUserRoles } from "@/lib/link/admin";
+import { flow, flowResultPublication, normalizeDepartmentKey, userFlow } from "@/db/schema";
+import { updateLinkUserDepartments, updateLinkUserRoles } from "@/lib/link/admin";
 import { MANAGER_ROLE, peopleRoleToLinkRole } from "@/lib/link/role";
 import { OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
+import { resolveLatestPassedDepartments } from "@/lib/flow-result-department";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { and, eq, inArray, or } from "drizzle-orm";
@@ -32,7 +33,13 @@ const chunk = <T,>(values: T[], size: number) =>
     (_, index) => values.slice(index * size, (index + 1) * size),
   );
 
-export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingFlowId?: number) => {
+/**
+ * 已发布流程结果 → Link 身份同步：
+ * 1) 角色：通过技术部门流程即部员、SoC 通过为讲师、办公类流程两轮都过后为部员；
+ * 2) 部门归属：通过某部门流程后自动归属到该部门，多次通过以最后一次通过的部门为准（可覆盖）。
+ * 不会改动管理员/部长角色，也不会改动部长及以上账号的部门。
+ */
+export const syncUserIdentityFromAcceptedFlows = async (uids: number[], publishingFlowId?: number) => {
   const uniqueUids = Array.from(
     new Set(uids.filter((uid) => Number.isSafeInteger(uid) && uid > 0)),
   );
@@ -44,6 +51,10 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingF
     .select({
       uid: userFlow.fkUserId,
       type: flow.type,
+      flowDepartment: flow.department,
+      rowDepartment: userFlow.department,
+      publishedAt: flowResultPublication.publishedAt,
+      updatedAt: userFlow.updatedAt,
     })
     .from(userFlow)
     .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
@@ -85,11 +96,30 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingF
     idsByRole.set(calculatedRole, ids);
   }
 
-  if (idsByRole.size === 0) return;
+  /* 部门归属：多次通过以最后一次为准；部长及以上账号不改动，已是目标部门的跳过 */
+  const latestDepartments = resolveLatestPassedDepartments(
+    acceptedFlows.map((row) => ({
+      uid: row.uid,
+      flowDepartment: row.flowDepartment,
+      rowDepartment: row.rowDepartment,
+      passedAt: row.publishedAt ?? row.updatedAt,
+    })),
+  );
+  const idsByDepartment = new Map<string, number[]>();
+  for (const [uid, department] of latestDepartments) {
+    const user = users.get(uid);
+    if (!user || user.role === null || user.role >= MANAGER_ROLE) continue;
+    if (normalizeDepartmentKey(user.departments[0] ?? null) === department) continue;
+    const ids = idsByDepartment.get(department) ?? [];
+    ids.push(uid);
+    idsByDepartment.set(department, ids);
+  }
+
+  if (idsByRole.size === 0 && idsByDepartment.size === 0) return;
 
   const accessToken = await getLinkAdminAccessTokenFromSession();
   const failures: Array<{ id: number; reason: string }> = [];
-  let changedRole = false;
+  let changedIdentity = false;
   for (const [role, ids] of idsByRole) {
     for (const batch of chunk(ids, LINK_BATCH_ROLE_UPDATE_LIMIT)) {
       try {
@@ -103,7 +133,7 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingF
           if (!item.success) {
             failures.push({ id: item.id, reason: item.reason ?? "未知错误" });
           } else {
-            changedRole = true;
+            changedIdentity = true;
           }
         }
         for (const id of batch) {
@@ -119,18 +149,54 @@ export const syncUserRolesFromAcceptedFlows = async (uids: number[], publishingF
     }
   }
 
-  if (changedRole) {
+  for (const [department, ids] of idsByDepartment) {
+    for (const batch of chunk(ids, LINK_BATCH_ROLE_UPDATE_LIMIT)) {
+      try {
+        const result = await updateLinkUserDepartments(
+          accessToken,
+          batch,
+          department,
+        );
+        const returnedIds = new Set(result.results.map((item) => item.id));
+        for (const item of result.results) {
+          if (!item.success) {
+            failures.push({
+              id: item.id,
+              reason: item.reason ?? "部门更新失败",
+            });
+          } else {
+            changedIdentity = true;
+          }
+        }
+        for (const id of batch) {
+          if (!returnedIds.has(id)) {
+            failures.push({ id, reason: "Link 未返回该用户的部门更新结果" });
+          }
+        }
+      } catch (error) {
+        for (const id of batch) {
+          failures.push({
+            id,
+            reason: error instanceof Error ? error.message : "未知错误",
+          });
+        }
+      }
+    }
+  }
+
+  if (changedIdentity) {
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/manage");
   }
 
   if (failures.length > 0) {
     throw new Error(
-      `Link 批量更新用户角色失败：${failures.map(({ id, reason }) => `${id} (${reason})`).join(", ")}`,
+      `Link 批量同步用户身份失败：${failures.map(({ id, reason }) => `${id} (${reason})`).join(", ")}`,
     );
   }
 
 };
 
-export const syncUserRoleFromAcceptedFlows = async (uid: number) =>
-  syncUserRolesFromAcceptedFlows([uid]);
+/** 单个用户的身份同步（角色 + 部门） */
+export const syncUserIdentityFromAcceptedFlow = async (uid: number) =>
+  syncUserIdentityFromAcceptedFlows([uid]);

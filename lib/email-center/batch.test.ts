@@ -80,8 +80,8 @@ jest.mock("@/action/email/template", () => ({
 }));
 
 jest.mock("@/action/user-flow/roleTransition", () => ({
-  syncUserRoleFromAcceptedFlows: mockSyncUserRoleFromAcceptedFlows,
-  syncUserRolesFromAcceptedFlows: mockSyncUserRolesFromAcceptedFlows,
+  syncUserIdentityFromAcceptedFlow: mockSyncUserRoleFromAcceptedFlows,
+  syncUserIdentityFromAcceptedFlows: mockSyncUserRolesFromAcceptedFlows,
 }));
 
 jest.mock("@/event", () => ({

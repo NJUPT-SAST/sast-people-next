@@ -42,6 +42,8 @@ SAST People owns the recruitment and review process. User identity, profile data
 | `soc` | Registration, lecturer review, administrator review | Approved users become lecturers |
 | `office_interview` | Registration (first choice = the flow's department, optional second office-department choice, interview slot), interview scoring, result confirmation | Round-2 passers become members |
 
+结果发布后 People 会自动把成员身份同步回 SAST Link：角色（免试/笔试/WOC 任一通过 → 部员、SoC 通过 → 讲师、办公类两轮都通过 → 部员）与**部门归属**（通过某部门流程即归属该部门，先后通过多个部门时以最后一次通过为准；`manager` 及以上账号不改动）——招新不再需要在 Link 手动改部门。
+
 ### `user_flow.progress_status`
 
 | Status | Meaning |
