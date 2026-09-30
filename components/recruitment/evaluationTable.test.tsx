@@ -529,7 +529,7 @@ describe("EvaluationTable", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("请填写面评内容后再提交。");
   });
 
-  it("requires and sends the score when editing an office evaluation", async () => {
+  it("requires a score and sends no recommendation when saving an office record", async () => {
     const user = userEvent.setup();
     // jest.requireMock types the module as unknown; the mock factory above pins this shape.
     const evaluationActionMock = jest.requireMock(
@@ -539,6 +539,8 @@ describe("EvaluationTable", () => {
     mockCreateEvaluation
       .mockReset()
       .mockResolvedValue({ success: true, data: { id: 11 } });
+    const mockToastSuccess = jest.requireMock("sonner").toast.success as jest.Mock;
+    mockToastSuccess.mockReset();
 
     renderTable(
       [
@@ -549,8 +551,8 @@ describe("EvaluationTable", () => {
             {
               id: 11,
               score: 80,
-              content: "原面评内容",
-              recommendation: "passed",
+              content: "原面试记录",
+              recommendation: null,
               status: "submitted",
               authorId: 2,
               authorName: "甲部长",
@@ -565,31 +567,31 @@ describe("EvaluationTable", () => {
     );
 
     const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
-    await user.click(rowMenu.getByRole("button", { name: "修改" }));
+    await user.click(rowMenu.getByRole("button", { name: "修改记录" }));
 
-    // 编辑的是本人那一份：分数与内容回填
-    expect(screen.getByLabelText(/面试打分/)).toHaveValue(80);
-    expect(screen.getByLabelText(/面评内容/)).toHaveValue("原面评内容");
+    // 编辑的是本人那一份：分数与记录内容回填
+    expect(screen.getByLabelText(/面试分数/)).toHaveValue(80);
+    expect(screen.getByLabelText(/面试记录内容/)).toHaveValue("原面试记录");
+    // 办公类弹窗只剩记录内容与分数：没有讲师建议，也没有妙记链接
+    expect(screen.queryByRole("group", { name: /建议/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("妙记链接")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "建议通过" })).not.toBeInTheDocument();
 
-    await user.clear(screen.getByLabelText(/面试打分/));
-    const contentBox = screen.getByLabelText(/面评内容/);
+    await user.clear(screen.getByLabelText(/面试分数/));
+    const contentBox = screen.getByLabelText(/面试记录内容/);
     await user.clear(contentBox);
-    await user.type(contentBox, "该同学表达清晰，项目经历与部门需求匹配，建议通过。");
-    await user.click(screen.getByRole("button", { name: "提交面评" }));
+    await user.type(contentBox, "表达清晰。");
+    await user.click(screen.getByRole("button", { name: "保存记录" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("请填写 0-100 的面试分数");
     expect(mockCreateEvaluation).not.toHaveBeenCalled();
 
-    await user.type(screen.getByLabelText(/面试打分/), "88");
-    await user.click(screen.getByRole("button", { name: "提交面评" }));
+    await user.type(screen.getByLabelText(/面试分数/), "88");
+    await user.click(screen.getByRole("button", { name: "保存记录" }));
 
-    expect(mockCreateEvaluation).toHaveBeenCalledWith(
-      1,
-      "该同学表达清晰，项目经历与部门需求匹配，建议通过。",
-      "passed",
-      "",
-      88,
-    );
+    // 办公类只提交记录内容与分数：不传讲师建议，也不传妙记/会议链接
+    expect(mockCreateEvaluation).toHaveBeenCalledWith(1, "表达清晰。", undefined, undefined, 88);
+    expect(mockToastSuccess).toHaveBeenCalledWith("面试记录已保存");
   });
 
   it("hides schedule and pending evaluation edits from non-owners", () => {
@@ -1309,13 +1311,84 @@ describe("EvaluationTable", () => {
     expect(screen.queryByText("面试时段")).not.toBeInTheDocument();
   });
 
-  it("reads office candidates as 待评估 even though they never book a slot", () => {
-    renderTable([makeCandidate({ userFlowId: 3, name: "办公同学" })], {
-      scoringEnabled: true,
-    });
+  it("reads office rows as 待记录 / 已记录 instead of any approval state", () => {
+    renderTable(
+      [
+        makeCandidate({ userFlowId: 3, name: "办公同学" }),
+        makeCandidate({
+          userFlowId: 4,
+          name: "已记录同学",
+          studentId: "B002",
+          evaluationCount: 2,
+        }),
+      ],
+      { scoringEnabled: true },
+    );
 
-    expect(screen.getAllByText("待评估").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("待记录").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("已记录 2 份").length).toBeGreaterThan(0);
     expect(screen.queryByText("待预约")).not.toBeInTheDocument();
+    // 办公类没有面评审批：行上不出现终审/退回重写这类状态
+    expect(screen.queryByText("待终审")).not.toBeInTheDocument();
+    expect(screen.queryByText("退回重写")).not.toBeInTheDocument();
+  });
+
+  it("labels office row actions as 填写面试记录 / 修改记录", () => {
+    renderTable(
+      [
+        makeCandidate({ userFlowId: 1, name: "无记录同学" }),
+        makeCandidate({
+          userFlowId: 2,
+          name: "本人已记录同学",
+          studentId: "B002",
+          evaluationCount: 1,
+          evaluations: [
+            {
+              id: 12,
+              score: 70,
+              content: "本人记录",
+              recommendation: null,
+              status: "submitted",
+              authorId: 9,
+              authorName: "本部长",
+              isMine: true,
+            },
+          ],
+        }),
+        makeCandidate({
+          userFlowId: 3,
+          name: "他人已记录同学",
+          studentId: "B003",
+          evaluationCount: 1,
+          evaluations: [
+            {
+              id: 13,
+              score: 60,
+              content: "他人记录",
+              recommendation: null,
+              status: "submitted",
+              authorId: 8,
+              authorName: "其他部长",
+              isMine: false,
+            },
+          ],
+        }),
+      ],
+      { scoringEnabled: true },
+    );
+
+    const menus = screen.getAllByTestId("row-menu");
+    expect(
+      within(menus[0]).getByRole("button", { name: "填写面试记录" }),
+    ).toBeInTheDocument();
+    expect(
+      within(menus[1]).getByRole("button", { name: "修改记录" }),
+    ).toBeInTheDocument();
+    // 别人的记录只改变行状态（已记录 1 份），本人仍然是从零写一份
+    expect(within(menus[2]).getByRole("button", { name: "填写面试记录" })).toBeInTheDocument();
+    expect(screen.getAllByText("已记录 1 份").length).toBeGreaterThan(0);
+    // 办公类没有面评审批：行菜单里没有退回这一项
+    expect(screen.queryByRole("button", { name: "退回" })).not.toBeInTheDocument();
   });
 
   it("sorts office candidates by average score, highest first", async () => {
@@ -1439,21 +1512,28 @@ describe("EvaluationTable", () => {
     expect(screen.queryByText("另一志愿部门")).not.toBeInTheDocument();
   });
 
-  it("calls the office reviewer 部长 in the evaluation dialog", async () => {
+  it("keeps the office record dialog to content and score only", async () => {
     const user = userEvent.setup();
     renderTable([makeCandidate({ userFlowId: 1, name: "办公同学" })], {
       scoringEnabled: true,
     });
 
     const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
-    await user.click(rowMenu.getByRole("button", { name: "填写面评" }));
+    await user.click(rowMenu.getByRole("button", { name: "填写面试记录" }));
 
-    expect(screen.getByRole("group", { name: "部长建议" })).toBeInTheDocument();
-    expect(
-      screen.getByText(/分数为该部长的面试评分/),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/此为部长意见/)).toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "讲师建议" })).not.toBeInTheDocument();
+    // 办公类弹窗标题与提交按钮
+    expect(screen.getByRole("dialog")).toHaveTextContent("填写面试记录");
+    expect(screen.getByRole("button", { name: "保存记录" })).toBeInTheDocument();
+    // 字段只剩「面试记录内容 + 面试分数」
+    expect(screen.getByLabelText(/面试记录内容/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/面试分数/)).toBeInTheDocument();
+    expect(screen.getByText(/分数为该部长的面试评分/)).toBeInTheDocument();
+    // 没有讲师建议、没有妙记链接，也没有作品区块
+    expect(screen.queryByRole("group", { name: /建议/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("建议通过")).not.toBeInTheDocument();
+    expect(screen.queryByText("建议不通过")).not.toBeInTheDocument();
+    expect(screen.queryByText("妙记链接")).not.toBeInTheDocument();
+    expect(screen.queryByText("作品链接")).not.toBeInTheDocument();
   });
 
   it("keeps the lecturer wording in the technical interview flows", async () => {

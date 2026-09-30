@@ -69,6 +69,7 @@ import {
   deriveInterviewActions,
   getInterviewStatus,
   INTERVIEW_STATUS_ORDER,
+  interviewStatusLabel,
   interviewStatusMeta,
   type InterviewAction,
   type InterviewActionId,
@@ -448,7 +449,7 @@ const EvalStatusText = ({ candidate }: { candidate: Candidate }) => {
       )}
       title={meta.description}
     >
-      {meta.label}
+      {interviewStatusLabel(candidate)}
     </span>
   );
 
@@ -1029,10 +1030,17 @@ export const EvaluationTable = ({
   const handlePass = async (userFlowId: number) => {
     if (!content.trim()) {
       setScoreError(null);
-      setEvaluationError("请填写面评内容后再提交。");
+      setEvaluationError(
+        scoringEnabled ? "请填写面试记录内容后再提交。" : "请填写面评内容后再提交。",
+      );
       return;
     }
-    if (recommendation === "passed" && content.trim().length < MIN_PASSED_EVALUATION_LENGTH) {
+    /* 办公类只留档，内容不设 20 字下限 */
+    if (
+      !scoringEnabled &&
+      recommendation === "passed" &&
+      content.trim().length < MIN_PASSED_EVALUATION_LENGTH
+    ) {
       setScoreError(null);
       setEvaluationError(`建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。`);
       return;
@@ -1052,13 +1060,10 @@ export const EvaluationTable = ({
     setScoreError(null);
     setLoadingId(userFlowId);
     try {
-      const result = await createEvaluation(
-        userFlowId,
-        content,
-        recommendation,
-        meetingLink,
-        scoringEnabled ? parsedScore : undefined,
-      );
+      /* 办公类只提交记录内容与分数：不带讲师建议，也不带妙记/会议链接 */
+      const result = scoringEnabled
+        ? await createEvaluation(userFlowId, content, undefined, undefined, parsedScore)
+        : await createEvaluation(userFlowId, content, recommendation, meetingLink);
       if (!result.success) {
         const message = result.error?.message ?? "提交失败";
         if (scoringEnabled && message === SCORE_ERROR_MESSAGE) {
@@ -1069,7 +1074,9 @@ export const EvaluationTable = ({
         toast.error(message);
         return;
       }
-      toast.success("面评已提交，等待管理员审核");
+      toast.success(
+        scoringEnabled ? "面试记录已保存" : "面评已提交，等待管理员审核",
+      );
       cancelEdit();
       onRefresh();
     } catch {
@@ -1974,11 +1981,15 @@ export const EvaluationTable = ({
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>面评记录</DialogTitle>
+            <DialogTitle>
+              {scoringEnabled ? "填写面试记录" : "面评记录"}
+            </DialogTitle>
             <DialogDescription>
               {editingCandidate
                 ? `${editingCandidate.name}（${editingCandidate.studentId ?? "无学号"}）`
-                : "面试结束后填写评价内容和妙记链接。"}
+                : scoringEnabled
+                  ? "面试记录只做留档：填写记录内容与面试分数。"
+                  : "面试结束后填写评价内容和妙记链接。"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
@@ -1993,14 +2004,17 @@ export const EvaluationTable = ({
             )}
             <div className="space-y-2">
               <label htmlFor="evaluation-content" className="text-sm font-medium">
-                面评内容 <span className="text-destructive">*</span>
+                {scoringEnabled ? "面试记录内容" : "面评内容"}{" "}
+                <span className="text-destructive">*</span>
               </label>
               <p className="text-xs leading-5 text-muted-foreground">
-                面评内容必填；建议通过时至少填写 {MIN_PASSED_EVALUATION_LENGTH} 个字。
+                {scoringEnabled
+                  ? "面试记录内容必填。"
+                  : `面评内容必填；建议通过时至少填写 ${MIN_PASSED_EVALUATION_LENGTH} 个字。`}
               </p>
               <Textarea
                 id="evaluation-content"
-                placeholder="请输入面评内容..."
+                placeholder={scoringEnabled ? "请输入面试记录内容..." : "请输入面评内容..."}
                 value={content}
                 onChange={(e) => {
                   setContent(e.target.value);
@@ -2023,7 +2037,8 @@ export const EvaluationTable = ({
             {scoringEnabled && (
               <div className="space-y-2">
                 <label htmlFor="evaluation-score" className="text-sm font-medium">
-                  面试打分（0-100） <span className="text-destructive">*</span>
+                  {scoringEnabled ? "面试分数（0-100）" : "面试打分（0-100）"}{" "}
+                  <span className="text-destructive">*</span>
                 </label>
                 <Input
                   id="evaluation-score"
@@ -2059,48 +2074,53 @@ export const EvaluationTable = ({
                 </p>
               </div>
             )}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{reviewerLabel}建议</label>
-              <div className="grid grid-cols-2 gap-2" role="group" aria-label={`${reviewerLabel}建议`}>
-                <Button
-                  type="button"
-                  variant={recommendation === "passed" ? "default" : "outline"}
-                  aria-pressed={recommendation === "passed"}
-                  onClick={() => setRecommendation("passed")}
-                >
-                  建议通过
-                </Button>
-                <Button
-                  type="button"
-                  variant={recommendation === "failed" ? "destructive" : "outline"}
-                  aria-pressed={recommendation === "failed"}
-                  onClick={() => setRecommendation("failed")}
-                >
-                  建议不通过
-                </Button>
-              </div>
-              <p className="text-xs leading-5 text-muted-foreground">
-                此为{reviewerLabel}意见，最终结果由管理员结合面评审核决定。
-              </p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">妙记链接</label>
-              {meetingLink ? (
-                <a
-                  href={externalHref(meetingLink)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex max-w-full items-center gap-1.5 text-sm text-foreground hover:text-primary hover:underline"
-                >
-                  <span className="truncate">查看妙记</span>
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                </a>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  飞书生成妙记后会自动同步到这里。
-                </p>
-              )}
-            </div>
+            {/* 办公类只留档：没有讲师建议，也没有会议/妙记链接 */}
+            {!scoringEnabled && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{reviewerLabel}建议</label>
+                  <div className="grid grid-cols-2 gap-2" role="group" aria-label={`${reviewerLabel}建议`}>
+                    <Button
+                      type="button"
+                      variant={recommendation === "passed" ? "default" : "outline"}
+                      aria-pressed={recommendation === "passed"}
+                      onClick={() => setRecommendation("passed")}
+                    >
+                      建议通过
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={recommendation === "failed" ? "destructive" : "outline"}
+                      aria-pressed={recommendation === "failed"}
+                      onClick={() => setRecommendation("failed")}
+                    >
+                      建议不通过
+                    </Button>
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    此为{reviewerLabel}意见，最终结果由管理员结合面评审核决定。
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">妙记链接</label>
+                  {meetingLink ? (
+                    <a
+                      href={externalHref(meetingLink)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex max-w-full items-center gap-1.5 text-sm text-foreground hover:text-primary hover:underline"
+                    >
+                      <span className="truncate">查看妙记</span>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    </a>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      飞书生成妙记后会自动同步到这里。
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">
             <div className="min-h-9">
@@ -2121,7 +2141,7 @@ export const EvaluationTable = ({
                     : false
                 }
               >
-                提交面评
+                {scoringEnabled ? "保存记录" : "提交面评"}
               </Button>
             </div>
           </DialogFooter>

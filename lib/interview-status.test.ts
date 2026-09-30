@@ -3,6 +3,7 @@ import {
   deriveInterviewActions,
   getInterviewStatus,
   INTERVIEW_STATUS_ORDER,
+  interviewStatusLabel,
   interviewStatusMeta,
   type InterviewCandidateLike,
 } from "./interview-status";
@@ -84,11 +85,44 @@ describe("getInterviewStatus", () => {
     expect(getInterviewStatus(ended())).toBe("ready");
   });
 
-  it("reads an office candidate with no booking as ready to evaluate", () => {
-    expect(getInterviewStatus(candidate({ scoringEnabled: true }))).toBe("ready");
+  it("reads an office row by its record count instead of the approval states", () => {
+    // 办公类只留档：没有记录是「待记录」，有记录是「已记录」
+    expect(getInterviewStatus(candidate({ scoringEnabled: true }))).toBe("toRecord");
     expect(
-      getInterviewStatus(candidate({ scoringEnabled: true, evalStatus: "submitted" })),
-    ).toBe("pending");
+      getInterviewStatus(
+        candidate({ scoringEnabled: true, evaluationCount: 2 }),
+      ),
+    ).toBe("recorded");
+    // 记录提交即归档，历史上写下的待审状态也不再有审批含义
+    expect(
+      getInterviewStatus(
+        candidate({
+          scoringEnabled: true,
+          evaluationCount: 1,
+          evalStatus: "submitted",
+        }),
+      ),
+    ).toBe("recorded");
+    // 未通过/已退回来自流程本身，仍然是行状态
+    expect(
+      getInterviewStatus(candidate({ scoringEnabled: true, status: "passed" })),
+    ).toBe("accepted");
+    expect(
+      getInterviewStatus(candidate({ scoringEnabled: true, status: "failed" })),
+    ).toBe("rejected");
+    expect(
+      getInterviewStatus(candidate({ scoringEnabled: true, status: "withdrawn" })),
+    ).toBe("withdrawn");
+  });
+
+  it("counts the records on an office row into its badge copy", () => {
+    expect(
+      interviewStatusLabel(candidate({ scoringEnabled: true, evaluationCount: 3 })),
+    ).toBe("已记录 3 份");
+    expect(interviewStatusLabel(candidate({ scoringEnabled: true }))).toBe("待记录");
+    // 其他流程的文案保持静态
+    expect(interviewStatusLabel(ended())).toBe("待评估");
+    expect(interviewStatusLabel(candidate({ evalStatus: "submitted" }))).toBe("待终审");
   });
 });
 
@@ -105,6 +139,9 @@ describe("interviewStatusMeta tones", () => {
     expect(interviewStatusMeta.pending.tone).toBe("attention");
     expect(interviewStatusMeta.accepted.tone).toBe("success");
     expect(interviewStatusMeta.rejected.tone).toBe("danger");
+    // 办公类：等记录需要人动手，记录完成只是留档
+    expect(interviewStatusMeta.toRecord.tone).toBe("attention");
+    expect(interviewStatusMeta.recorded.tone).toBe("neutral");
   });
 
   it("builds every active badge from the same tint recipe", () => {
@@ -141,6 +178,9 @@ describe("countInterviewStatuses", () => {
       candidate({ evalStatus: "returned" }),
       candidate({ evalStatus: "approved" }),
       candidate({ status: "withdrawn" }),
+      /* 办公类的两个留档态也要各占一个桶 */
+      candidate({ scoringEnabled: true }),
+      candidate({ scoringEnabled: true, evaluationCount: 2 }),
     ];
 
     const counts = countInterviewStatuses(rows);
@@ -151,6 +191,8 @@ describe("countInterviewStatuses", () => {
 
     expect(counts.total).toBe(rows.length);
     expect(sum).toBe(rows.length);
+    expect(counts.toRecord).toBe(1);
+    expect(counts.recorded).toBe(1);
   });
 
   it("buckets a failed flow status as rejected instead of dropping it", () => {
@@ -226,27 +268,27 @@ describe("deriveInterviewActions", () => {
     expect(plan.lockedReason).toBeNull();
   });
 
-  it("sends office candidates straight to the evaluation with no booking actions", () => {
+  it("sends office candidates straight to the record form with no booking actions", () => {
     const plan = deriveInterviewActions(
       candidate({ scoringEnabled: true }),
       2,
       NOW,
     );
 
-    expect(plan.status).toBe("ready");
-    expect(plan.primary).toEqual({ id: "evaluation", label: "填写面评" });
+    expect(plan.status).toBe("toRecord");
+    expect(plan.primary).toEqual({ id: "evaluation", label: "填写面试记录" });
     expect(plan.overflow).toEqual([]);
     expect(plan.lockedReason).toBeNull();
   });
 
-  it("lets an office evaluator rework only their own evaluation", () => {
+  it("lets an office reviewer rework only their own record", () => {
     expect(
       deriveInterviewActions(
         candidate({ scoringEnabled: true, evalStatus: "submitted" }),
         2,
         NOW,
       ).primary,
-    ).toEqual({ id: "evaluation", label: "修改" });
+    ).toEqual({ id: "evaluation", label: "修改记录" });
     expect(
       deriveInterviewActions(
         candidate({
@@ -258,6 +300,18 @@ describe("deriveInterviewActions", () => {
         NOW,
       ).primary,
     ).toBeNull();
+    // 办公类没有退回重写这一级：别人的记录不会在本行暴露成审批动作
+    const recorded = deriveInterviewActions(
+      candidate({ scoringEnabled: true, evaluationCount: 2 }),
+      2,
+      NOW,
+    );
+    expect(recorded.status).toBe("recorded");
+    expect(recorded.primary).toEqual({
+      id: "evaluation",
+      label: "填写面试记录",
+    });
+    expect(recorded.overflow).toEqual([]);
   });
 
   it("names the organiser when the evaluation is not this user's to write", () => {

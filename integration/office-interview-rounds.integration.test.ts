@@ -3,6 +3,7 @@
 jest.mock("next/cache", () => ({
   revalidatePath: jest.fn(),
   revalidateTag: jest.fn(),
+  unstable_cache: (fn: unknown) => fn,
 }));
 
 jest.mock("@/lib/operation-audit", () => ({
@@ -34,7 +35,10 @@ jest.mock("@/lib/authz", () => {
 
 import { db } from "@/db/drizzle";
 import {
+  emailBatch,
+  emailDelivery,
   flow,
+  flowResultPublication,
   flowStep,
   interviewEvaluation,
   interviewSlotChangeRequest,
@@ -53,9 +57,11 @@ import {
   listPendingSlotChangeRequests,
   reviewInterviewSlotChange,
 } from "@/action/user-flow/interview-slot-change";
+import { closeOfficeRoundOne, closeOfficeRoundTwo } from "@/action/user-flow/office-rounds";
 
 /* 办公类部门面试招新：每个办公部门一条流程（flow.department = 办公部门）。
-   审批账号属于办公部门 publicity（role 3），只能操作本部门流程的候选人。 */
+   审批账号属于办公部门 publicity（role 3），只能操作本部门流程的候选人。
+   办公类没有面评审批：面试记录（内容 + 分数）只留档，结果由部长在名单确认时决定。 */
 const VIEWER_ID = 900991;
 const CANDIDATE_ID = 900992;
 
@@ -123,6 +129,7 @@ const insertEvaluation = async (
   round: number,
   authorId: number,
   status: "submitted" | "approved" = "submitted",
+  score = 88,
 ) => {
   const [row] = await db
     .insert(interviewEvaluation)
@@ -130,7 +137,7 @@ const insertEvaluation = async (
       fkUserFlowId: candidateUserFlowId,
       fkUserId: authorId,
       content: "一面表现不错，技术基础扎实，沟通清晰，建议进入二轮。",
-      score: 88,
+      score,
       round,
       recommendation: "passed",
       status,
@@ -148,6 +155,20 @@ const readCandidate = async (id: number) => {
     })
     .from(userFlow)
     .where(eq(userFlow.id, id))
+    .limit(1);
+  return row;
+};
+
+const readEvaluation = async (id: number) => {
+  const [row] = await db
+    .select({
+      status: interviewEvaluation.status,
+      score: interviewEvaluation.score,
+      recommendation: interviewEvaluation.recommendation,
+      round: interviewEvaluation.round,
+    })
+    .from(interviewEvaluation)
+    .where(eq(interviewEvaluation.id, id))
     .limit(1);
   return row;
 };
@@ -200,6 +221,12 @@ afterAll(async () => {
     .from(userFlow)
     .where(inArray(userFlow.fkFlowId, flowIds));
   const candidateIds = candidates.map((row) => row.id);
+  /* 结果发布留下的邮件与发布记录会引用流程（on delete restrict），必须先清掉 */
+  await db.delete(emailDelivery).where(inArray(emailDelivery.fkFlowId, flowIds));
+  await db.delete(emailBatch).where(inArray(emailBatch.fkFlowId, flowIds));
+  await db
+    .delete(flowResultPublication)
+    .where(inArray(flowResultPublication.fkFlowId, flowIds));
   if (candidateIds.length > 0) {
     await db
       .delete(interviewSlotChangeRequest)
@@ -216,10 +243,10 @@ describe("办公类部门流程的轮次推进", () => {
   let roundOneEvaluationId = 0;
   let roundTwoEvaluationId = 0;
 
-  it("部长可以为本部门流程的候选人写面评，并记录当前轮次", async () => {
+  it("部长可以为本部门流程的候选人写面评（内容 + 分数），提交后直接归档", async () => {
     const result = await createEvaluation(
       userFlowId,
-      "一面表现不错，技术基础扎实，沟通表达清晰，建议进入二轮面试继续考察。",
+      "一面表现不错，技术基础扎实，沟通表达清晰，可以进入二面面试继续考察。",
       "passed",
       undefined,
       88,
@@ -229,12 +256,14 @@ describe("办公类部门流程的轮次推进", () => {
     const createdId = result.data?.id;
     if (createdId === undefined) throw new Error("面评未返回 id");
 
-    const [row] = await db
-      .select({ round: interviewEvaluation.round, status: interviewEvaluation.status })
-      .from(interviewEvaluation)
-      .where(eq(interviewEvaluation.id, createdId))
-      .limit(1);
-    expect(row).toEqual({ round: 1, status: "submitted" });
+    const row = await readEvaluation(createdId);
+    /* 办公类面评只留档：轮次 + 分数 + 内容，不再写「建议通过/不通过」 */
+    expect(row).toEqual({
+      round: 1,
+      status: "submitted",
+      score: 88,
+      recommendation: null,
+    });
 
     const candidate = await readCandidate(userFlowId);
     expect(candidate.round).toBe(1);
@@ -243,35 +272,57 @@ describe("办公类部门流程的轮次推进", () => {
     roundTwoEvaluationId = await insertEvaluation(userFlowId, 2, VIEWER_ID + 1);
   });
 
-  it("二面面评不能在一面通过前审批", async () => {
+  it("办公类没有面评审批：审批、驳回、退回都被拒绝且不影响候选人", async () => {
+    await expect(approveEvaluation(roundOneEvaluationId)).rejects.toThrow(
+      "无需面评审批",
+    );
+    await expect(rejectEvaluation(roundOneEvaluationId)).rejects.toThrow(
+      "无需面评审批",
+    );
+    await expect(
+      returnEvaluation(roundOneEvaluationId, "请补充细节"),
+    ).rejects.toThrow("无需面评审批");
+    /* 二面面评同样不需要审批，不会因为「一面未审批」而阻塞 */
     await expect(approveEvaluation(roundTwoEvaluationId)).rejects.toThrow(
-      "请先完成一面审批",
+      "无需面评审批",
     );
-  });
 
-  it("一面面评通过后候选人进入二轮面试且状态仍为进行中", async () => {
-    await approveEvaluation(roundOneEvaluationId);
-
+    expect(await readEvaluation(roundOneEvaluationId)).toMatchObject({
+      status: "submitted",
+    });
     const candidate = await readCandidate(userFlowId);
-    expect(candidate.round).toBe(2);
+    expect(candidate.round).toBe(1);
     expect(candidate.status).toBe("ongoing");
-    expect(candidate.stepId).toBe(stepIdByOrder.get(3));
   });
 
-  it("候选人已进入二轮后不能再审批此前的一面面评", async () => {
-    const staleRoundOne = await insertEvaluation(userFlowId, 1, VIEWER_ID + 2);
-    await expect(approveEvaluation(staleRoundOne)).rejects.toThrow(
-      "该候选人已进入二轮面试",
+  it("一面名单确认：通过者进入二面且状态仍为进行中，未通过者结果直接为不通过", async () => {
+    const result = await closeOfficeRoundOne(
+      flowId,
+      [
+        { userFlowId, passed: true },
+        { userFlowId: secondUserFlowId, passed: false },
+      ],
+      true,
     );
+    if (!result.success) throw new Error(JSON.stringify(result));
+    expect(result.passCount).toBe(1);
+    expect(result.rejectCount).toBe(1);
+
+    const passed = await readCandidate(userFlowId);
+    expect(passed.round).toBe(2);
+    expect(passed.status).toBe("ongoing");
+    expect(passed.stepId).toBe(stepIdByOrder.get(3));
+
+    const rejected = await readCandidate(secondUserFlowId);
+    expect(rejected.status).toBe("failed");
+    expect(rejected.stepId).toBe(stepIdByOrder.get(4));
   });
 
-  it("二面面评通过后候选人结果为通过并进入结果确认", async () => {
-    await approveEvaluation(roundTwoEvaluationId);
-
-    const candidate = await readCandidate(userFlowId);
-    expect(candidate.round).toBe(2);
-    expect(candidate.status).toBe("passed");
-    expect(candidate.stepId).toBe(stepIdByOrder.get(4));
+  it("名单确认必须覆盖全部待确认的候选人", async () => {
+    const result = await closeOfficeRoundTwo(flowId, [], [], true);
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("未确认名单时不应成功");
+    expect(result.error.message).toContain("未确认结果");
   });
 
   it("列表返回候选人轮次，且均分只统计当前轮次的面评", async () => {
@@ -305,7 +356,46 @@ describe("办公类部门流程的轮次推进", () => {
     expect(single?.siblingDepartment).toBeNull();
   });
 
-  it("另一个办公部门的流程对本部门部长不可见", async () => {
+  it("二面名单确认写入最终结果并调用结果发布（本地无邮件服务时给出可重试的提示）", async () => {
+    const result = await closeOfficeRoundTwo(
+      flowId,
+      [{ userFlowId, passed: true }],
+      [userFlowId],
+      true,
+    );
+
+    /* 集成环境没有邮件服务：名单已经确认，只有结果发布失败，提示要能原样展示给部长 */
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("无邮件服务时不应发布成功");
+    expect(result.error.message).toContain("名单已确认，但结果发布失败");
+
+    const candidate = await readCandidate(userFlowId);
+    expect(candidate.status).toBe("passed");
+    expect(candidate.round).toBe(2);
+    expect(candidate.stepId).toBe(stepIdByOrder.get(4));
+
+    const [publication] = await db
+      .select({ status: flowResultPublication.status })
+      .from(flowResultPublication)
+      .where(eq(flowResultPublication.fkFlowId, flowId))
+      .limit(1);
+    expect(publication?.status).toBe("failed");
+  });
+
+  it("名单已确认时可重试发布：不需要再确认名单，结果可以发布成功", async () => {
+    /* 重试时没有待确认候选人，且本次不发送邮件（无邮件服务的环境） */
+    const result = await closeOfficeRoundTwo(flowId, [], [], true);
+    expect(result).toEqual({ success: true, publishedCount: 2 });
+
+    const [publication] = await db
+      .select({ status: flowResultPublication.status })
+      .from(flowResultPublication)
+      .where(eq(flowResultPublication.fkFlowId, flowId))
+      .limit(1);
+    expect(publication?.status).toBe("published");
+  });
+
+  it("另一个办公部门的流程对本部门部长不可见，面评也不进审批列表", async () => {
     expect(await getEvaluationCandidates(officeFlowId)).toEqual([]);
 
     await expect(
@@ -318,32 +408,15 @@ describe("办公类部门流程的轮次推进", () => {
       ),
     ).rejects.toThrow("无权操作其他部门的候选人");
 
+    /* 办公类没有面评审批：本部门流程的面评也不会出现在审批列表里 */
     const approvalRows = await getAllEvaluations();
     expect(approvalRows.some((row) => row.department === "office")).toBe(false);
     expect(
       approvalRows.some((row) => row.evaluation.fkUserFlowId === userFlowId),
-    ).toBe(true);
-  });
-
-  it("退回面评保持原行为，驳回则结果为不通过并进入结果确认", async () => {
-    const revertible = await insertEvaluation(secondUserFlowId, 2, VIEWER_ID + 3);
-    const returned = await returnEvaluation(revertible, "请补充细节");
-    expect(returned.success).toBe(true);
-
-    const [returnedRow] = await db
-      .select({ status: interviewEvaluation.status })
-      .from(interviewEvaluation)
-      .where(eq(interviewEvaluation.id, revertible))
-      .limit(1);
-    expect(returnedRow.status).toBe("returned");
-    expect((await readCandidate(secondUserFlowId)).status).toBe("ongoing");
-
-    const rejected = await insertEvaluation(secondUserFlowId, 2, VIEWER_ID + 3);
-    await rejectEvaluation(rejected);
-
-    const candidate = await readCandidate(secondUserFlowId);
-    expect(candidate.status).toBe("failed");
-    expect(candidate.stepId).toBe(stepIdByOrder.get(4));
+    ).toBe(false);
+    expect(approvalRows.some((row) => row.flowType === "office_interview")).toBe(
+      false,
+    );
   });
 
   it("看不到非办公类流程的候选人", async () => {
@@ -396,9 +469,6 @@ describe("办公类部门流程的轮次推进", () => {
 
     const approvalRows = await getAllEvaluations();
     expect(approvalRows.some((row) => row.evaluation.id === softwareEvaluation.id)).toBe(false);
-    expect(
-      approvalRows.some((row) => row.evaluation.fkUserFlowId === userFlowId),
-    ).toBe(true);
   });
 
   it("部长能看到并审批本部门流程的改时段申请", async () => {

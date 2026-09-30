@@ -22,14 +22,10 @@ import { BadgeCheck, ClipboardList, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResultPublicationPanel } from '@/components/recruitment/ResultPublicationPanel';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { sendOfficeRoundOneEmails } from '@/action/email/office-round-one';
+  OfficeRosterDialog,
+  type OfficeRosterRow,
+} from '@/components/recruitment/officeRosterDialog';
+import { closeOfficeRoundOne } from '@/action/user-flow/office-rounds';
 
 type ExamResult = Awaited<ReturnType<typeof calScore>>;
 type CandidatesResult = Awaited<ReturnType<typeof getEvaluationCandidates>>;
@@ -86,9 +82,14 @@ export const RecruitmentContent = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [publicationRefreshKey, setPublicationRefreshKey] = useState(0);
   const [publicationStatus, setPublicationStatus] = useState<string | null>(null);
-  /* 办公类一体流程：一面通过通知的二次确认与发送状态 */
+  /* 办公类一体流程：结束一面时的名单确认状态（逐人通过/不通过 + 模板核对） */
   const [roundOneDialogOpen, setRoundOneDialogOpen] = useState(false);
-  const [sendingRoundOne, setSendingRoundOne] = useState(false);
+  const [closingRoundOne, setClosingRoundOne] = useState(false);
+  const [roundOneDecisions, setRoundOneDecisions] = useState<
+    Record<number, boolean>
+  >({});
+  const [roundOneTemplateConfirmed, setRoundOneTemplateConfirmed] =
+    useState(false);
   const flowRequestId = useRef(0);
   const safeFlowTypes = Array.isArray(flowTypes) ? flowTypes : [];
   const safeScoreData = Array.isArray(scoreData) ? scoreData : [];
@@ -198,38 +199,78 @@ export const RecruitmentContent = ({
     if (flowId) void handleFlowChange(flowId);
   };
 
-  /* 一面通过通知发给「一面已通过、已进入二面」的候选人，只对办公类流程开放 */
-  const canSendRoundOneEmails =
+  /* 结束一面：部长在名单弹窗里逐人确认结果，确认即归档并发一面结果通知；只对办公类流程开放 */
+  const canCloseRoundOne =
     isEvaluationWorkspace && scoringEnabled && role >= 3 && Boolean(flowId) && !loadError;
-  /* 当前流程的一面结果候选人数（未发送校验在服务端）：通过=已进入二面，未通过=停在一面 */
-  const roundOneCounts = (() => {
-    const rows = Array.isArray(evalData) ? evalData : [];
-    return {
-      pass: rows.filter((row) => row.status === "ongoing" && row.round === 2).length,
-      reject: rows.filter((row) => row.status === "failed" && row.round === 1).length,
-    };
-  })();
-  const roundOneCountText = `通过 ${roundOneCounts.pass} 人 · 未通过 ${roundOneCounts.reject} 人`;
+  const currentFlowTitle =
+    safeFlowTypes.find((flow) => flow.id === Number(flowId))?.title ?? '';
+  /* 名单来源：本流程「一面进行中」的候选人（列表接口已排除撤回者） */
+  const roundOneRoster: OfficeRosterRow[] = safeEvalData
+    .filter((candidate) => candidate.status === 'ongoing' && candidate.round === 1)
+    .map((candidate) => ({
+      userFlowId: candidate.userFlowId,
+      name: candidate.name,
+      studentId: candidate.studentId,
+      choice: candidate.choice,
+      siblingDepartment: candidate.siblingDepartment,
+      /* 一面记录：该候选人 round=1 的面评分数（办公类必填 0-100） */
+      scores: candidate.evaluations
+        .filter(
+          (evaluation) => evaluation.round === 1 && evaluation.score !== null,
+        )
+        .map((evaluation) => evaluation.score as number),
+      /* 一面不涉及最终去向，也不发送结果邮件，这两列由组件按 mode 省略 */
+      officeChoices: [],
+      finalDepartment: null,
+    }));
 
-  const sendRoundOneEmails = async () => {
+  const openRoundOneDialog = () => {
+    /* 每次打开都按当前名单重建默认结论：全部通过、邮件模板未核对 */
+    setRoundOneDecisions(
+      Object.fromEntries(roundOneRoster.map((row) => [row.userFlowId, true])),
+    );
+    setRoundOneTemplateConfirmed(false);
+    setRoundOneDialogOpen(true);
+  };
+
+  const handleRoundOneDecisionChange = (userFlowId: number, passed: boolean) => {
+    setRoundOneDecisions((current) => ({ ...current, [userFlowId]: passed }));
+  };
+
+  const handleRoundOneSetAll = (passed: boolean) => {
+    setRoundOneDecisions(
+      Object.fromEntries(roundOneRoster.map((row) => [row.userFlowId, passed])),
+    );
+  };
+
+  const confirmRoundOne = async () => {
     if (!flowId) return;
-    setSendingRoundOne(true);
+    setClosingRoundOne(true);
     try {
-      const result = await sendOfficeRoundOneEmails(Number(flowId));
+      const result = await closeOfficeRoundOne(
+        Number(flowId),
+        roundOneRoster.map((row) => ({
+          userFlowId: row.userFlowId,
+          passed: roundOneDecisions[row.userFlowId] !== false,
+        })),
+        roundOneTemplateConfirmed,
+      );
       if (!result.success) {
         toast.error(result.error.message);
         return;
       }
       setRoundOneDialogOpen(false);
       toast.success(
-        `已发送一面结果通知：通过 ${result.passCount} 人 · 未通过 ${result.rejectCount} 人`,
+        `一面名单已确认：通过 ${result.passCount} 人 · 未通过 ${result.rejectCount} 人`,
       );
+      if (result.emailWarning) toast.warning(result.emailWarning);
+      await refreshEvalData();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : '发送一面结果通知失败，请稍后重试',
+        error instanceof Error ? error.message : '结束一面失败，请稍后重试',
       );
     } finally {
-      setSendingRoundOne(false);
+      setClosingRoundOne(false);
     }
   };
 
@@ -307,51 +348,33 @@ export const RecruitmentContent = ({
             onChange={handleFlowChange}
           />
 
-          {canSendRoundOneEmails && (
+          {canCloseRoundOne && (
             <>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="h-10 shrink-0 lg:h-8"
-                disabled={roundOneCounts.pass + roundOneCounts.reject === 0}
-                onClick={() => setRoundOneDialogOpen(true)}
+                onClick={openRoundOneDialog}
               >
-                发送一面结果通知（{roundOneCountText}）
+                结束一面并发送通知
               </Button>
-              <Dialog
+              <OfficeRosterDialog
                 open={roundOneDialogOpen}
                 onOpenChange={(next) => {
-                  if (!sendingRoundOne) setRoundOneDialogOpen(next);
+                  if (!closingRoundOne) setRoundOneDialogOpen(next);
                 }}
-              >
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>发送一面结果通知</DialogTitle>
-                    <DialogDescription>
-                      将给本流程中一面通过的候选人发送通过通知、一面未通过的候选人发送结果通知（当前名单：{roundOneCountText}）。已发送过的候选人不会重复发送，邮件发出后无法撤回。
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={sendingRoundOne}
-                      onClick={() => setRoundOneDialogOpen(false)}
-                    >
-                      取消
-                    </Button>
-                    <Button
-                      type="button"
-                      loading={sendingRoundOne}
-                      disabled={sendingRoundOne}
-                      onClick={() => void sendRoundOneEmails()}
-                    >
-                      确认发送
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                mode="round1"
+                flowTitle={currentFlowTitle}
+                rows={roundOneRoster}
+                decisions={roundOneDecisions}
+                onDecisionChange={handleRoundOneDecisionChange}
+                onSetAll={handleRoundOneSetAll}
+                templateConfirmed={roundOneTemplateConfirmed}
+                onTemplateConfirmedChange={setRoundOneTemplateConfirmed}
+                submitting={closingRoundOne}
+                onConfirm={() => void confirmRoundOne()}
+              />
             </>
           )}
 

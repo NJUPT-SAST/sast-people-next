@@ -43,11 +43,12 @@ const INVALID_SCORE_MESSAGE = "请填写 0-100 的面试分数";
 const RESULT_LOCKED_MESSAGE = "该候选人结果已确认，不能再修改";
 /* 办公类部门没有讲师这一级：候选人列表与面评提交都只对部长开放 */
 const OFFICE_MANAGER_ONLY_MESSAGE = "办公类部门面试由部长操作，讲师账号无法评分";
+/* 办公类部门没有面评审批：结果由部长在名单确认时直接决定 */
+const OFFICE_APPROVAL_UNSUPPORTED_MESSAGE =
+  "办公类部门面试由部长在名单确认时决定，无需面评审批";
 
-/* 办公类流程的固定步骤 order：一面面试=2、二轮面试=3、结果确认=4
-   （两个 checking 步骤无法按 type 区分，只能按 order 精确定位） */
-const OFFICE_SECOND_ROUND_STEP_ORDER = 3;
-const OFFICE_RESULT_STEP_ORDER = 4;
+/* 办公类流程的固定步骤 order：一面面试=2、二轮面试=3（两个 checking 步骤无法按
+   type 区分，只能按 order 精确定位）；二面之后候选人由名单确认（closeOfficeRound*）推进 */
 
 function isEvaluationRecommendation(
   value: string,
@@ -272,7 +273,8 @@ async function safeNotifyFeishuApprovalGroup(
 export const createEvaluation = async (
   userFlowId: number,
   content: string,
-  recommendation: EvaluationRecommendation,
+  /* 办公类面试只留档，不再有讲师建议；参数保留只为兼容既有调用方 */
+  recommendation?: EvaluationRecommendation | null,
   meetingLink?: string,
   score?: number,
 ) => {
@@ -281,25 +283,8 @@ export const createEvaluation = async (
   try {
     session = await verifyScopedRole(2);
 
-    if (!content.trim()) {
-      return { success: false, error: { message: "面评内容不能为空" } };
-    }
-    if (!isEvaluationRecommendation(recommendation)) {
-      return { success: false, error: { message: "请选择讲师建议" } };
-    }
-    if (recommendation === "passed" && content.trim().length < MIN_PASSED_EVALUATION_LENGTH) {
-      return {
-        success: false,
-        error: { message: `建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。` },
-      };
-    }
-
-    const hasScoreArg = score !== undefined;
-    if (hasScoreArg && (!Number.isInteger(score) || score < 0 || score > 100)) {
-      return { success: false, error: { message: INVALID_SCORE_MESSAGE } };
-    }
-
-    // 面评只能写给有权限的候选人：报名归属部门与当前 scope 一致（管理员放行）
+    // 面评只能写给有权限的候选人：报名归属部门与当前 scope 一致（管理员放行）。
+    // 必填项随流程类型不同，所以流程类型必须先读出来。
     const [scopeTarget] = await db
       .select({
         department: userFlow.department,
@@ -312,17 +297,57 @@ export const createEvaluation = async (
     if (scopeTarget) {
       assertUserFlowAccess(session.scope, userFlowAccessTarget(scopeTarget));
     }
+    const isOfficeFlow = isOfficeInterviewFlow(scopeTarget?.flowType ?? "");
     /* 办公类部门没有讲师这一级：面评只能由部长提交（技术部门仍由预约讲师填写） */
-    if (
-      scopeTarget &&
-      isOfficeInterviewFlow(scopeTarget.flowType) &&
-      session.role < MANAGER_ROLE
-    ) {
+    if (isOfficeFlow && session.role < MANAGER_ROLE) {
       throw new Error(OFFICE_MANAGER_ONLY_MESSAGE);
     }
 
-    const hasMeetingLinkArg = meetingLink !== undefined;
-    const link = hasMeetingLinkArg ? meetingLink.trim() || null : undefined;
+    if (!content.trim()) {
+      return {
+        success: false,
+        error: {
+          message: isOfficeFlow ? "面试记录内容不能为空" : "面评内容不能为空",
+        },
+      };
+    }
+
+    /* 办公类只留档：没有讲师建议，内容也不设 20 字下限 */
+    const normalizedRecommendation: EvaluationRecommendation | null =
+      !isOfficeFlow && recommendation && isEvaluationRecommendation(recommendation)
+        ? recommendation
+        : null;
+    if (!isOfficeFlow) {
+      if (!normalizedRecommendation) {
+        return { success: false, error: { message: "请选择讲师建议" } };
+      }
+      if (
+        normalizedRecommendation === "passed" &&
+        content.trim().length < MIN_PASSED_EVALUATION_LENGTH
+      ) {
+        return {
+          success: false,
+          error: {
+            message: `建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。`,
+          },
+        };
+      }
+    }
+
+    /* 办公类分数必填（均分是名单确认的唯一依据）；技术流程分数可选，但给了就得合法 */
+    const hasScoreArg = score !== undefined;
+    const scoreIsValid =
+      score !== undefined &&
+      Number.isInteger(score) &&
+      score >= 0 &&
+      score <= 100;
+    if ((isOfficeFlow || hasScoreArg) && !scoreIsValid) {
+      return { success: false, error: { message: INVALID_SCORE_MESSAGE } };
+    }
+
+    /* 办公类不使用会议/妙记链接 */
+    const hasMeetingLinkArg = !isOfficeFlow && meetingLink !== undefined;
+    const link = meetingLink !== undefined ? meetingLink.trim() || null : undefined;
 
     const result = await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(${userFlowId})`);
@@ -371,16 +396,9 @@ export const createEvaluation = async (
         };
       }
 
-      // 办公类面试：无需面试日程，多位部长各写一份带分数的面评。
-      // 每位面评人只维护自己那一份，绝不改动他人的面评。
+      // 办公类面试：无需面试日程，多位部长各写一份带分数的面试记录。
+      // 每位面评人只维护自己那一份，绝不改动他人的记录。
       if (isOfficeInterviewFlow(currentFlow.flowType)) {
-        if (!hasScoreArg) {
-          return {
-            success: false as const,
-            error: { message: INVALID_SCORE_MESSAGE },
-          };
-        }
-
         const [own] = await tx
           .select({ id: interviewEvaluation.id })
           .from(interviewEvaluation)
@@ -398,10 +416,8 @@ export const createEvaluation = async (
           tx,
           userFlowId,
           "ongoing",
-          /* 办公类面试：提交面评只回到候选人当前阶段（一面/二轮面试），等待审批 */
-          isOfficeInterviewFlow(currentFlow.flowType)
-            ? { order: (currentFlow.round ?? 1) >= 2 ? 3 : 2 }
-            : { type: evaluationStepTypeForAction("submit_for_review") },
+          /* 办公类面试：提交记录只回到候选人当前阶段（一面/二轮面试），等待名单确认 */
+          { order: (currentFlow.round ?? 1) >= 2 ? 3 : 2 },
         );
 
         if (own) {
@@ -409,14 +425,15 @@ export const createEvaluation = async (
             .update(interviewEvaluation)
             .set({
               content: content.trim(),
-              recommendation,
-              score,
+              /* 办公类只留档分数与记录内容：不含讲师建议，也不含会议/妙记链接 */
+              recommendation: null,
+              meetingLink: null,
+              score: score ?? null,
               /* 办公类面试按候选人当前阶段记录轮次 */
               round: currentFlow.round ?? 1,
               status: "submitted",
               fkReviewedBy: null,
               returnReason: null,
-              ...(hasMeetingLinkArg ? { meetingLink: link ?? null } : {}),
               updatedAt: new Date(),
             })
             .where(eq(interviewEvaluation.id, own.id));
@@ -435,9 +452,9 @@ export const createEvaluation = async (
             fkUserFlowId: userFlowId,
             fkUserId: session!.uid,
             content: content.trim(),
-            meetingLink: link ?? null,
-            recommendation,
-            score,
+            meetingLink: null,
+            recommendation: null,
+            score: score ?? null,
             /* 办公类面试按候选人当前阶段记录轮次 */
             round: currentFlow.round ?? 1,
             status: "submitted",
@@ -539,10 +556,7 @@ export const createEvaluation = async (
         tx,
         userFlowId,
         "ongoing",
-        /* 办公类面试：提交面评只回到候选人当前阶段（一面/二轮面试），等待审批 */
-        isOfficeInterviewFlow(currentFlow.flowType)
-          ? { order: (currentFlow.round ?? 1) >= 2 ? 3 : 2 }
-          : { type: evaluationStepTypeForAction("submit_for_review") },
+        { type: evaluationStepTypeForAction("submit_for_review") },
       );
 
       if (active?.status === "submitted" || active?.status === "returned") {
@@ -550,7 +564,7 @@ export const createEvaluation = async (
           .update(interviewEvaluation)
           .set({
             content: content.trim(),
-            recommendation,
+            recommendation: normalizedRecommendation,
             ...(hasScoreArg ? { score } : {}),
             status: "submitted",
             fkReviewedBy: null,
@@ -577,7 +591,7 @@ export const createEvaluation = async (
           fkUserId: session!.uid,
           content: content.trim(),
           meetingLink: link ?? null,
-          recommendation,
+          recommendation: normalizedRecommendation,
           score: score ?? null,
           status: "submitted",
         })
@@ -608,18 +622,16 @@ export const createEvaluation = async (
       department: scopeTarget?.department ?? null,
       metadata: {
         userFlowId,
-        hasMeetingLink: hasMeetingLinkArg
-          ? Boolean(link)
-          : undefined,
-        recommendation,
+        hasMeetingLink: hasMeetingLinkArg ? Boolean(link) : undefined,
+        recommendation: normalizedRecommendation,
         ...(hasScoreArg ? { score } : {}),
       },
     });
 
-    await safeNotifyFeishuApprovalGroup(
-      result.evaluationId,
-      session,
-    );
+    /* 办公类面试没有面评审批：提交即留档，不推审批飞书卡片 */
+    if (!isOfficeFlow) {
+      await safeNotifyFeishuApprovalGroup(result.evaluationId, session);
+    }
 
     return { success: true, data: result.data };
   } catch (error) {
@@ -650,7 +662,6 @@ export const approveEvaluation = async (evaluationId: number) => {
           status: interviewEvaluation.status,
           content: interviewEvaluation.content,
           recommendation: interviewEvaluation.recommendation,
-          round: interviewEvaluation.round,
         })
         .from(interviewEvaluation)
         .where(eq(interviewEvaluation.id, evaluationId))
@@ -664,7 +675,6 @@ export const approveEvaluation = async (evaluationId: number) => {
           fkUserId: userFlow.fkUserId,
           department: userFlow.department,
           progressStatus: userFlow.progressStatus,
-          round: userFlow.round,
           flowType: flow.type,
         })
         .from(userFlow)
@@ -681,6 +691,11 @@ export const approveEvaluation = async (evaluationId: number) => {
         }),
       );
       targetDepartment = uf?.department ?? null;
+
+      /* 办公类部门面试没有面评审批：结果由部长在名单确认时直接决定 */
+      if (isOfficeInterviewFlow(uf?.flowType ?? "")) {
+        throw new Error(OFFICE_APPROVAL_UNSUPPORTED_MESSAGE);
+      }
 
       // 候选人的结果已经落定，任何面评都不再改动其状态
       if (
@@ -703,19 +718,6 @@ export const approveEvaluation = async (evaluationId: number) => {
         );
       }
 
-      const isOfficeFlow = isOfficeInterviewFlow(uf?.flowType ?? "");
-      /* 历史数据轮次为空时按一面处理 */
-      const evaluationRound = evalRecord.round ?? 1;
-      const candidateRound = uf?.round ?? 1;
-      if (isOfficeFlow) {
-        /* 办公类面试按轮次顺序审批：不能跳到下一轮，也不能重复审批上一轮 */
-        if (evaluationRound >= 2) {
-          if (candidateRound !== 2) throw new Error("请先完成一面审批");
-        } else if (candidateRound !== 1) {
-          throw new Error("该候选人已进入二轮面试");
-        }
-      }
-
       await tx
         .update(interviewEvaluation)
         .set({
@@ -727,28 +729,12 @@ export const approveEvaluation = async (evaluationId: number) => {
 
       if (uf) {
         affectedUserId = uf.fkUserId;
-        if (isOfficeFlow && evaluationRound >= 2) {
-          /* 二面通过：进入结果确认 */
-          await moveUserFlowInTx(tx, evalRecord.fkUserFlowId, "passed", {
-            order: OFFICE_RESULT_STEP_ORDER,
-          });
-        } else if (isOfficeFlow) {
-          /* 一面通过：候选人进入二轮面试 */
-          await moveUserFlowInTx(
-            tx,
-            evalRecord.fkUserFlowId,
-            "ongoing",
-            { order: OFFICE_SECOND_ROUND_STEP_ORDER },
-            2,
-          );
-        } else {
-          await moveUserFlowInTx(
-            tx,
-            evalRecord.fkUserFlowId,
-            "passed",
-            { type: evaluationStepTypeForAction("admin_decision") },
-          );
-        }
+        await moveUserFlowInTx(
+          tx,
+          evalRecord.fkUserFlowId,
+          "passed",
+          { type: evaluationStepTypeForAction("admin_decision") },
+        );
       }
     });
 
@@ -816,6 +802,11 @@ export const rejectEvaluation = async (evaluationId: number) => {
       );
       targetDepartment = uf?.department ?? null;
 
+      /* 办公类部门面试没有面评审批：结果由部长在名单确认时直接决定 */
+      if (isOfficeInterviewFlow(uf?.flowType ?? "")) {
+        throw new Error(OFFICE_APPROVAL_UNSUPPORTED_MESSAGE);
+      }
+
       // 候选人的结果已经落定，任何面评都不再改动其状态
       if (
         uf?.progressStatus === "passed" ||
@@ -842,9 +833,7 @@ export const rejectEvaluation = async (evaluationId: number) => {
         tx,
         evalRecord.fkUserFlowId,
         "failed",
-        isOfficeInterviewFlow(uf?.flowType ?? "")
-          ? { order: OFFICE_RESULT_STEP_ORDER }
-          : { type: evaluationStepTypeForAction("admin_decision") },
+        { type: evaluationStepTypeForAction("admin_decision") },
       );
     });
 
@@ -912,6 +901,11 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
       );
       targetDepartment = uf?.department ?? null;
 
+      /* 办公类部门面试没有面评审批：结果由部长在名单确认时直接决定 */
+      if (isOfficeInterviewFlow(uf?.flowType ?? "")) {
+        throw new Error(OFFICE_APPROVAL_UNSUPPORTED_MESSAGE);
+      }
+
       if (!canReturnEvaluation(evaluation.status)) throw new Error("只能退回待终审的面评");
       await tx.update(interviewEvaluation).set({
         status: "returned",
@@ -959,7 +953,8 @@ export const getAllEvaluations = async () => {
     /* 审批列表按部门可见性收敛：不在范围内直接查不到 */
     const scopeFilter = departmentScopeFilter(userFlow.department, session.scope);
 
-    const allRows = await db
+    /* 办公类面试没有面评审批：结果由部长在名单确认时决定，这类记录不进审批列表 */
+    const rows = await db
       .select({
         evaluation: interviewEvaluation,
         meetingLink: interviewEvaluation.meetingLink,
@@ -967,8 +962,6 @@ export const getAllEvaluations = async () => {
         portfolioDescription: userFlow.portfolioDescription,
         applyGroup: userFlow.applyGroup,
         department: userFlow.department,
-        /* 志愿顺序：1=第一志愿，2=第二志愿（办公类流程；其他流程为 NULL） */
-        choice: userFlow.choice,
         authorId: interviewEvaluation.fkUserId,
         candidateId: userFlow.fkUserId,
         flowTitle: flow.title,
@@ -979,25 +972,8 @@ export const getAllEvaluations = async () => {
       .leftJoin(userFlow, eq(interviewEvaluation.fkUserFlowId, userFlow.id))
       .leftJoin(flow, eq(userFlow.fkFlowId, flow.id))
       .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
-      .where(scopeFilter)
+      .where(and(scopeFilter, ne(flow.type, OFFICE_INTERVIEW_FLOW_TYPE)))
       .orderBy(desc(interviewEvaluation.createdAt));
-
-    /* 办公类面试一位候选人会有多份待审面评（每位部长各一份），列表只保留
-       最新的一份待审记录；已通过/不通过的历史记录全部保留。 */
-    const seenOfficePending = new Set<number>();
-    const rows = allRows.filter((row) => {
-      const { fkUserFlowId, status } = row.evaluation;
-      if (
-        status !== "submitted" ||
-        fkUserFlowId === null ||
-        !isOfficeInterviewFlow(row.flowType ?? "")
-      ) {
-        return true;
-      }
-      if (seenOfficePending.has(fkUserFlowId)) return false;
-      seenOfficePending.add(fkUserFlowId);
-      return true;
-    });
 
     const userFlowIds = rows
       .map((row) => row.evaluation.fkUserFlowId)

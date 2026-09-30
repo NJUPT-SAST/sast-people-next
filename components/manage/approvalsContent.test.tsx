@@ -266,17 +266,22 @@ describe("ApprovalsContent", () => {
     expect(screen.getByRole("button", { name: "周七" })).toBeInTheDocument();
   });
 
-  it("labels an office evaluation as a manager's recommendation", async () => {
-    const user = userEvent.setup();
+  it("keeps office interview records out of the approval list", () => {
     render(
       <ApprovalsContent
         initialEvaluations={[
+          row({
+            id: 8,
+            candidateName: "技术同学",
+            status: "submitted",
+            recommendation: "passed",
+          }),
           {
             ...row({
-              id: 8,
+              id: 9,
               candidateName: "办公同学",
               status: "submitted",
-              recommendation: "passed",
+              recommendation: null,
             }),
             flowTitle: "2026 办公类部门面试招新",
             flowType: "office_interview",
@@ -285,50 +290,28 @@ describe("ApprovalsContent", () => {
       />,
     );
 
-    // 办公类部门没有讲师这一级：建议与提醒对象都是部长。
-    expect(screen.getByText("部长建议通过")).toBeInTheDocument();
-    expect(screen.queryByText("讲师建议通过")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "退回重写" }));
-
-    expect(
-      screen.getByText("请填写具体原因，部长会收到飞书机器人提醒。"),
-    ).toBeInTheDocument();
+    /* 办公类面试记录只留档：结果由部长在名单确认时决定，审批页不展示、也没有审批入口 */
+    expect(screen.getByText("技术同学")).toBeInTheDocument();
+    expect(screen.queryByText("办公同学")).not.toBeInTheDocument();
+    expect(screen.getByText("讲师建议通过")).toBeInTheDocument();
   });
 
-  it("shows the candidate's office choice instead of an apply group", () => {
+  it("shows an office-free approval card with the apply group", () => {
     render(
       <ApprovalsContent
         initialEvaluations={[
-          {
-            ...row({
-              id: 30,
-              candidateName: "第一志愿同学",
-              status: "submitted",
-              recommendation: "passed",
-            }),
-            flowType: "office_interview",
-            choice: 1,
-          },
-          {
-            ...row({
-              id: 31,
-              candidateName: "第二志愿同学",
-              status: "submitted",
-              recommendation: "passed",
-            }),
-            flowType: "office_interview",
-            choice: 2,
-          },
+          row({
+            id: 30,
+            candidateName: "免试同学",
+            status: "submitted",
+            recommendation: "passed",
+          }),
         ]}
       />,
     );
 
-    expect(screen.getAllByText("志愿")).toHaveLength(2);
-    expect(screen.getByText("第一志愿")).toBeInTheDocument();
-    expect(screen.getByText("第二志愿")).toBeInTheDocument();
-    expect(screen.queryByText("投递组别")).not.toBeInTheDocument();
-    expect(screen.queryByText("第一志愿部门")).not.toBeInTheDocument();
+    expect(screen.getByText("投递组别")).toBeInTheDocument();
+    expect(screen.queryByText("志愿")).not.toBeInTheDocument();
   });
 
   it("shows the interview score only when the evaluation was scored", () => {

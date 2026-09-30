@@ -65,7 +65,7 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 
 | Field | Values | Meaning |
 | --- | --- | --- |
-| `interview_evaluation.status` | `submitted`, `returned`, `approved`, `rejected` | Lecturer submission, return-for-rewrite, and administrator final review |
+| `interview_evaluation.status` | `submitted`, `returned`, `approved`, `rejected` | 技术部门流程：讲师提交面评 → 部长退回重写或终审；办公类提交即归档（保持 `submitted`，结果由部长在名单确认时决定） |
 | `email_batch.status` | `draft`, `queued`, `completed`, `failed` | Result email batch lifecycle |
 | `email_delivery.status` | `pending`, `sending`, `sent`, `failed`, `dead` | Per-recipient delivery state |
 | `interview_schedule.status` | `created`, `cancelled`, `failed` | Feishu interview schedule state |
@@ -75,10 +75,14 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 - **每个办公部门一条独立流程**：`flow.department` = 该办公部门；流程配置、权限、面试时段、评审、结果发布与邮件模板都归本部门，部门之间互不可见、互不干扰。
 - 候选人**分别报名**：在每个部门流程各报一次，报名时选择**志愿类型**（第一志愿 / 第二志愿）与面试时段。进行中的办公类报名最多两条，且必须一个第一志愿 + 一个第二志愿（不能两个第一志愿）；**没有互斥**——两个志愿部门可以同时面试。
 - `user_flow.choice` 记录志愿类型（1=第一志愿、2=第二志愿）；办公类报名不收集作品链接/简介。
-- **流程内两轮**：一面由面试部长一对一打分；一面通过后系统自动把候选人推进到二轮面试（无需再次报名），二面无领导小组由多位部长分别打分；两轮都通过后 `passed` 并同步部员角色。
-- **办公部门没有讲师这一级**：面试管理、评分、面评与改期审批都由部长（`manager`）操作；面试表格按「志愿」口径展示第一志愿/第二志愿与另一志愿部门。
-- 结果邮件都在各自流程内发送，模板与 QQ 群号按本部门维护：一面结果通知（`office_round1.result.accepted|rejected`，面试管理页批量发送通过 + 未通过，按钮显示人数）与二面最终结果（`office_round2.result.*`，走结果发布 + 邮件中心）。
-- **最终去向**：同一候选人通过多个办公部门时按「第一志愿优先」自动归属；部长团评议可在办公类流程的「完整结果名单」里逐人设置最终去向（写入 `user_flow.final_department`，立即同步成员部门），避免发布顺序影响归属。
+- **面试记录只留档**：办公类没有讲师这一级，面试记录 = 分数（0-100）+ 记录内容，**没有「建议通过/建议不通过」，也没有会议链接/妙记**（办公类不产生飞书会议）。
+- **没有面评审批**：技术部门由讲师提交面评、部长二次终审；办公类由部长直接决定结果，所以办公类面评提交即归档，不进入面评审批页。面试表格按「志愿」口径展示第一志愿/第二志愿与另一志愿部门。
+- **名单确认制收口每一轮**（部长操作）：
+  - **结束一面**：在名单弹窗里逐人确认通过/不通过（附当前记录均分与份数，无记录会有提示）→ 确认邮件模板 → 确认发送。通过者进入二面、未通过者结束流程，同时发送一面结果通知（`office_round1.result.accepted|rejected`，已发送的不重复）。
+  - **结束二面**：同一弹窗确认最终名单（同一人通过多个部门时在「最终去向」里选择归属，冲突由双方部门讨论决定）→ 确认邮件模板 → 确认发布，写入最终结果并发送结果邮件（`office_round2.result.*`）。
+  - 邮件队列不可用时名单确认仍然生效，界面会提示稍后补发（再次打开弹窗即可重发未发送的通知）。
+- 结果邮件都在各自流程内发送，模板与 QQ 群号按本部门维护（两轮各不相同）。
+- **最终去向**：同一候选人通过多个办公部门时按「第一志愿优先」自动归属；部长团评议可在名单确认时逐人设置最终去向（写入 `user_flow.final_department`，立即同步成员部门），避免发布顺序影响归属。
 - 改期申请（`interview_slot_change_request`）：候选人在「我的流程」卡片上对自己的面试发起改期，申请理由必填；办公类按本流程配置的时段申请、由部长审批（通过后写回报名时段）；技术部门（免试/WOC/SOC）按已预约的飞书日程申请新时间、由预约讲师审批——讲师会收到飞书卡片提醒，同意后飞书日程与留档会议同步改期并发改约邮件，不同意需填写驳回理由并邮件通知候选人。审批列表按所选流程显示，不会串到其他流程。
 
 ## Tech Stack

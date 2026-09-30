@@ -56,7 +56,7 @@ test.describe("office final destination", () => {
       [flowId],
     );
     createdFlowIds.push(flowId);
-    return { flowId, resultStepId: steps.rows[3]?.id ?? 0 };
+    return { flowId, roundTwoStepId: steps.rows[2]?.id ?? 0 };
   };
 
   test.beforeAll(async () => {
@@ -76,13 +76,13 @@ test.describe("office final destination", () => {
       `insert into user_flow
          (progress_status, fk_current_step_id, round, choice, fk_flow_id, fk_user_id, department)
        values
-         ('passed', $1, 2, 1, $2, $5, 'office'),
-         ('passed', $3, 2, 2, $4, $5, 'publicity')
+         ('ongoing', $1, 2, 1, $2, $5, 'office'),
+         ('ongoing', $3, 2, 2, $4, $5, 'publicity')
        returning id`,
       [
-        office.resultStepId,
+        office.roundTwoStepId,
         officeFlowId,
-        publicity.resultStepId,
+        publicity.roundTwoStepId,
         publicityFlowId,
         candidate.uid,
       ],
@@ -117,8 +117,12 @@ test.describe("office final destination", () => {
     await signInAs(page.context(), officeManager);
     await page.goto(`/dashboard/interviews?flowId=${officeFlowId}`);
 
-    await page.getByRole("button", { name: "查看完整名单" }).click();
-    const select = page.getByLabel(`设置 ${candidate.name} 的最终去向`);
+    /* 最终去向在「确认名单并发布」的二面名单弹窗里设置 */
+    await page.getByRole("button", { name: "确认名单并发布" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("确认最终名单并发布")).toBeVisible();
+
+    const select = dialog.getByLabel(`设置 ${candidate.name} 的最终去向`).first();
     await expect(select).toBeVisible();
     /* 默认自动（第一志愿优先） */
     await expect(select).toContainText("自动");

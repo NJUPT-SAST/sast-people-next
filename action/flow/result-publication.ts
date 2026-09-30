@@ -4,7 +4,7 @@ import { createResultEmailBatch } from "@/lib/email-center/batch";
 import { sendEmailBatch } from "@/action/email/send";
 import { getEmailTemplateSetting } from "@/action/email/template";
 import { db } from "@/db/drizzle";
-import { flow, flowResultPublication, userFlow } from "@/db/schema";
+import { flow, flowResultPublication, interviewEvaluation, userFlow } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
 import { assertFlowEditableRecord, canEditFlowRecord } from "@/lib/flow-access";
 import { isOfficeInterviewFlow, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
@@ -12,7 +12,7 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { syncUserIdentityFromAcceptedFlows } from "@/action/user-flow/roleTransition";
 import { getResultEmailTemplateKey } from "@/lib/email/result-email";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const terminalStatuses = new Set(["passed", "failed", "withdrawn"]);
@@ -27,7 +27,11 @@ type ResultSnapshotRow = {
   department: string | null;
   /* 办公类部门面试：志愿类型与部长团评议的最终去向 */
   choice: number | null;
+  /** 候选人当前所处轮次：1=一面、2=二面（其他流程为空） */
+  round: number | null;
   finalDepartment: string | null;
+  /** 候选人当前轮（办公类=二面）已记录的面试分数，用于名单确认时核对面试记录 */
+  scores: number[];
   /** 该候选人在办公类各流程的报名（用于最终去向选择） */
   officeChoices: Array<{
     userFlowId: number;
@@ -46,11 +50,40 @@ async function getFlowRows(flowId: number, flowType: string) {
       status: userFlow.progressStatus,
       department: userFlow.department,
       choice: userFlow.choice,
+      round: userFlow.round,
       finalDepartment: userFlow.finalDepartment,
     })
     .from(userFlow)
     .where(eq(userFlow.fkFlowId, flowId));
   const users = await listPeopleUsersByLinkIds(rows.map((row) => row.userId));
+
+  /* 办公类：最终名单确认要核对二面面试记录，因此带出每个候选人二面已记录的分数 */
+  const scoresByUserFlow = new Map<number, number[]>();
+  if (isOfficeInterviewFlow(flowType) && rows.length > 0) {
+    const scoreRows = await db
+      .select({
+        userFlowId: interviewEvaluation.fkUserFlowId,
+        score: interviewEvaluation.score,
+      })
+      .from(interviewEvaluation)
+      .where(
+        and(
+          inArray(
+            interviewEvaluation.fkUserFlowId,
+            rows.map((row) => row.userFlowId),
+          ),
+          eq(interviewEvaluation.round, 2),
+          isNotNull(interviewEvaluation.score),
+        ),
+      )
+      .orderBy(interviewEvaluation.id);
+    for (const scoreRow of scoreRows) {
+      if (scoreRow.score === null) continue;
+      const list = scoresByUserFlow.get(scoreRow.userFlowId) ?? [];
+      list.push(scoreRow.score);
+      scoresByUserFlow.set(scoreRow.userFlowId, list);
+    }
+  }
 
   /* 办公类：补充该候选人两个志愿部门的报名信息，供发布前设置最终去向 */
   const officeChoicesByUser = new Map<
@@ -102,7 +135,9 @@ async function getFlowRows(flowId: number, flowType: string) {
       status: row.status ?? "not_started",
       department: row.department ?? null,
       choice: row.choice ?? null,
+      round: row.round ?? null,
       finalDepartment: row.finalDepartment ?? null,
+      scores: scoresByUserFlow.get(row.userFlowId) ?? [],
       officeChoices: officeChoicesByUser.get(row.userId) ?? [],
     };
   });
