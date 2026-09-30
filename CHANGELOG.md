@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- 改约申请只对**预约该日程的讲师**可见、可处理：管理员与其他讲师在列表里看不到、调用也拒绝（`listPendingSlotChangeRequests` / `reviewInterviewSlotChange` 都按日程发起人收敛）。
+- 改约文案去「驳回」化：列表按钮与弹窗改成「同意改约 / 暂不改期」，暂不改期需填写**说明**；邮件模板 `interview.schedule.change.rejected` 显示名改为「面试暂不改期说明」，邮件标题/正文改成「关于面试时间调整的说明」，飞书提醒卡片同步措辞。
+- 邮件模板命名对齐流程口径：笔试结果的模板与通知改名「笔试招新通过 / 不通过…」（免试、WoC/WoD、SoC/SoD、办公类各自成组）；模板卡片顶部色条按语义区分——通过用主色、**不通过用红色**，避免整页绿条看错。
+- 本地演示数据补齐**全部门 × 全类型**流程：软件研发部 / 多媒体部 / 电子部的 笔试 / 免试 / WOC(WOD) / SOC(SOD) 加四个办公部门面试，共 17 条流程，每条带步骤与混合状态报名（面试类含 待审批 / 已通过 / 已驳回 / 退回重写 的面评，笔试类含题目与批卷分数）；流程标题、日程摘要与演示邮件统一成生产口径 `<年份> 校科协<部门> <阶段>`（如「2026 校科协软件研发部 笔试招新」「2026 校科协办公室 面试」）。seed 开头会清理历史脏数据（`test`、`E2E ...` 夹具流程及其邮件批次 / 发布记录）。
 - 办公类步骤默认改为 **报名 / 一面 / 二面 / 结果确认**（`action/flow/defaultSteps.ts` 与流程编辑工作台一致）；修复编辑工作台对办公类套用「讲师审核 / 管理员审核」模板、保存后把二面步骤改成「管理员审核」的问题。
 - 办公类改期审批下线：面试管理页不再展示待审批列表，候选人卡片不再有「申请改时间」入口（提示联系本部门部长，由部长在面试管理页直接改时段）；`interview_slot_change_request` 只服务技术部门（免试/WOC/SOC）的飞书日程改期；迁移 `0067_office_slot_change_cleanup` 关闭存量办公类 pending 申请。「时间冲突」特殊时段选项（`SLOT_CONFLICT_LABEL` / `isConflict`）保持可用。
 - 修复越权读取：`getEmailTemplateSetting` 之前是未做角色/部门校验的 server action，任何部长会话可读取任意部门模板；现拆分为内部读取（`lib/email-center/template-resolution.ts`，不可从客户端调用）与带 `verifyRole(3)` + 部门范围校验的对外 action。

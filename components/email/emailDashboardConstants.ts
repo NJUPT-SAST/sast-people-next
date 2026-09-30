@@ -105,5 +105,5 @@ export function getSettingLabel(templateKey: string) {
   if (templateKey.startsWith("soc.")) {
     return accepted ? "SoC/SoD 通过模板" : "SoC/SoD 不通过模板";
   }
-  return accepted ? "招新通过模板" : "招新不通过模板";
+  return accepted ? "笔试招新通过模板" : "笔试招新不通过模板";
 }

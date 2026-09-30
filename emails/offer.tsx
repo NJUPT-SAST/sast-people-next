@@ -119,7 +119,7 @@ export const OfferEmail = ({
     ? accept
       ? `${officeDepartment}${officeRoundLabel}面试结果通知`
       : `${officeDepartment}面试结果通知`
-    : flowKind === 'woc' ? 'WoC / WoD 考核结果通知' : flowKind === 'soc' ? 'SoC / SoD 留任结果通知' : 'SAST 招新结果通知';
+    : flowKind === 'woc' ? 'WoC / WoD 考核结果通知' : flowKind === 'soc' ? 'SoC / SoD 留任结果通知' : flowKind === 'recruitment_exemption' ? 'SAST 免试招新结果通知' : 'SAST 笔试招新结果通知';
   const defaultSubtitle = isOfficeFlowKind
     ? accept
       ? `恭喜通过${officeDepartment}${officeRoundLabel}面试`
@@ -133,7 +133,7 @@ export const OfferEmail = ({
     : accept ? '恭喜你顺利通过' : '感谢你的参与';
   const defaultSummary = isOfficeFlowKind
     ? `本次${officeDepartment}${officeRoundLabel}面试结果已确认`
-    : flowKind === 'woc' ? '本阶段考核结果已确认。' : flowKind === 'soc' ? '本次暑期考核结果已确认。' : accept ? '本次考核结果已确认。' : '本次招新结果已确认。';
+    : flowKind === 'woc' ? '本阶段考核结果已确认。' : flowKind === 'soc' ? '本次暑期考核结果已确认。' : flowKind === 'recruitment_exemption' ? (accept ? '本次免试考核结果已确认。' : '本次免试招新结果已确认。') : accept ? '本次笔试考核结果已确认。' : '本次笔试招新结果已确认。';
 
   return (
     <Html>

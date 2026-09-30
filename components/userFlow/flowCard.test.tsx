@@ -235,7 +235,7 @@ describe("FlowCard", () => {
     render(ui);
 
     expect(
-      screen.getByText("改时间申请待审批：2026-06-07 16:00"),
+      screen.getByText("改约申请处理中：2026-06-07 16:00"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "申请修改面试时间" }),

@@ -27,9 +27,9 @@ type PendingSlotChange = {
 
 /**
  * 候选人在自己的面试流程卡片里申请修改面试时间（技术部门）：
- * 给出希望改到的新时间，由预约讲师审批，同意后同步飞书日程。
+ * 给出希望改到的新时间，由预约讲师处理，同意后同步飞书日程。
  * 办公类时段调整已下线（改由部长直接修改），因此这里没有时段选项分支。
- * 申请理由必填，审批通过前仍按原安排进行。
+ * 申请理由必填，同意前仍按原安排进行。
  */
 export function SlotChangeRequest({
   userFlowId,
@@ -53,7 +53,7 @@ export function SlotChangeRequest({
   if (!editable && !pending) return null;
 
   const pendingText = pending
-    ? `改时间申请待审批：${
+    ? `改约申请处理中：${
         pending.requestedStartsAt
           ? dayjs(pending.requestedStartsAt).format("YYYY-MM-DD HH:mm")
           : "待定"
@@ -92,7 +92,7 @@ export function SlotChangeRequest({
         toast.error(result.error.message);
         return;
       }
-      toast.success("申请已提交，等待讲师审批");
+      toast.success("申请已提交，等待预约讲师处理");
       setOpen(false);
       resetDraft();
       router.refresh();
@@ -109,7 +109,7 @@ export function SlotChangeRequest({
     <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-xs text-muted-foreground">
         {pendingText ??
-          "面试时间不合适？提交申请，由预约讲师审批后同步调整日程。"}
+          "面试时间不合适？提交申请，由预约讲师处理，同意后会同步调整日程。"}
       </p>
       <Button
         type="button"
@@ -131,7 +131,7 @@ export function SlotChangeRequest({
             <DialogTitle>申请修改面试时间</DialogTitle>
             <DialogDescription>
               当前面试时间：{currentTimeText}
-              。提交后等待预约讲师审批，审批通过后飞书日程与面试时间会同步调整。
+              。提交后等待预约讲师处理，同意后飞书日程与面试时间会同步调整。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

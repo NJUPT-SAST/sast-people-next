@@ -4,7 +4,7 @@ import { signInAs } from "./session";
 
 /**
  * 面试改期申请：候选人对已预约的飞书日程申请新时间（技术部门，讲师审批）。
- * 覆盖：申请理由必填、审批列表按流程绑定、驳回理由必填 + 邮件记录。
+ * 覆盖：申请理由必填、改约列表只对预约讲师显示、暂不改期需填写说明 + 邮件记录。
  * 办公类时段调整已下线（部长在面试管理页直接改），不在本用例覆盖范围内。
  */
 
@@ -171,10 +171,10 @@ test.describe("interview reschedule requests", () => {
 
     await expect(
       page.locator("[data-sonner-toast]", {
-        hasText: "申请已提交，等待讲师审批",
+        hasText: "申请已提交，等待预约讲师处理",
       }),
     ).toBeVisible();
-    await expect(card.getByText(/改时间申请待审批/).first()).toBeVisible();
+    await expect(card.getByText(/改约申请处理中/).first()).toBeVisible();
 
     const [request] = (
       await database.query<{
@@ -216,26 +216,26 @@ test.describe("interview reschedule requests", () => {
     await page.goto(`/dashboard/interviews?flowId=${otherTechFlowId}`);
     await expect(page.getByText(otherTechFlowTitle).first()).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "面试时间变更待审批" }),
+      page.getByRole("heading", { name: "面试改约申请" }),
     ).toHaveCount(0);
 
     await page.goto(`/dashboard/interviews?flowId=${techFlowId}`);
     const panel = page.locator("section", {
-      has: page.getByRole("heading", { name: "面试时间变更待审批" }),
+      has: page.getByRole("heading", { name: "面试改约申请" }),
     });
     await expect(panel).toBeVisible();
     await expect(panel.getByText(techFlowTitle).first()).toBeVisible();
     await expect(panel.getByText(candidate.name).first()).toBeVisible();
 
-    await panel.getByRole("button", { name: "驳回" }).click();
-    /* 驳回理由必填：未填理由时不能确认 */
-    await expect(page.getByRole("button", { name: "确认驳回" })).toBeDisabled();
-    await page.getByLabel("驳回理由（必填）").fill("该时间讲师已有其他安排");
-    await page.getByRole("button", { name: "确认驳回" }).click();
+    await panel.getByRole("button", { name: "暂不改期" }).click();
+    /* 暂不改期的说明必填：未填说明时不能确认 */
+    await expect(page.getByRole("button", { name: "确认暂不改期" })).toBeDisabled();
+    await page.getByLabel("说明（必填）").fill("该时间讲师已有其他安排");
+    await page.getByRole("button", { name: "确认暂不改期" }).click();
 
     await expect(
       page.locator("[data-sonner-toast]", {
-        hasText: "已驳回该改期申请，已邮件通知候选人",
+        hasText: "已告知候选人暂不改期，面试仍按原时间进行",
       }),
     ).toBeVisible();
 

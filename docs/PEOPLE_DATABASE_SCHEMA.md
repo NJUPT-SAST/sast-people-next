@@ -221,7 +221,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `status` | `varchar(16)` | `pending` / `approved` / `rejected`，默认 `pending` |
 | `fk_requested_by` | `integer` | 申请人 Link 用户 ID（候选人本人） |
 | `fk_reviewed_by` | `integer` | 审批人 Link 用户 ID（预约讲师） |
-| `review_note` | `text` | 审批备注；驳回时必填（随驳回邮件发送给候选人） |
+| `review_note` | `text` | 处理备注；暂不改期时必填（随邮件发送给候选人） |
 | `reviewed_at` | `timestamp` | 审批时间 |
 | `created_at` / `updated_at` | `timestamp` | 创建 / 更新时间 |
 

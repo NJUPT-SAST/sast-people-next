@@ -9,7 +9,7 @@ export const emailTemplateDefinitions = [
   {
     key: "recruitment.result.accepted",
     category: "result",
-    name: "招新通过结果通知",
+    name: "笔试招新通过结果通知",
     description: "向已通过招新流程的同学发送后续登记、群组和日历信息。",
     defaultSubject: "{flowName} 结果通知",
     variables: [
@@ -20,7 +20,7 @@ export const emailTemplateDefinitions = [
   {
     key: "recruitment.result.rejected",
     category: "result",
-    name: "招新不通过结果通知",
+    name: "笔试招新不通过结果通知",
     description: "向本轮未通过的同学发送结果通知和后续关注信息。",
     defaultSubject: "{flowName} 结果通知",
     variables: [
@@ -206,13 +206,13 @@ export const emailTemplateDefinitions = [
   {
     key: "interview.schedule.change.rejected",
     category: "interview",
-    name: "面试改期未通过通知",
-    description: "候选人申请修改面试时间被驳回后发送，说明驳回理由并确认原安排继续有效。",
-    defaultSubject: "{flowName} 面试改期未通过通知",
+    name: "面试暂不改期说明",
+    description: "候选人申请调整面试时间后发送：说明本次暂不调整的原因，并确认原安排继续有效。",
+    defaultSubject: "{flowName} 面试改期说明",
     variables: [
       { key: "candidateName", label: "候选人姓名", required: true, example: "张三" },
       { key: "flowName", label: "流程名称", required: true, example: "2026 免试招新" },
-      { key: "reason", label: "驳回理由", required: true, example: "该时段讲师已有其他安排" },
+      { key: "reason", label: "说明", required: true, example: "近期讲师时间已排满，请先按原时间参加" },
       {
         key: "requestedTimeText",
         label: "申请改到",

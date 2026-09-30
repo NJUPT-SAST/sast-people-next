@@ -173,7 +173,7 @@ describe("EmailTemplateManagementSection", () => {
     /* 只读浏览时连测试发送也隐藏：测试发送要按该部门写入投递记录 */
     expect(screen.queryByRole("button", { name: "测试发送" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "招新通过模板" }));
+    await user.click(screen.getByRole("button", { name: "笔试招新通过模板" }));
 
     expect(
       await screen.findByText(/只读浏览其他部门的覆盖，保存与恢复按钮已隐藏/),
@@ -211,7 +211,7 @@ describe("EmailTemplateManagementSection", () => {
       department: "software",
     });
 
-    await user.click(screen.getByRole("button", { name: "招新通过模板" }));
+    await user.click(screen.getByRole("button", { name: "笔试招新通过模板" }));
 
     expect(
       await screen.findByRole("button", { name: /保存到「软件研发部」/ }),
@@ -236,7 +236,7 @@ describe("EmailTemplateManagementSection", () => {
       department: "software",
     });
 
-    await user.click(screen.getByRole("button", { name: "招新不通过模板" }));
+    await user.click(screen.getByRole("button", { name: "笔试招新不通过模板" }));
     await user.click(
       await screen.findByRole("button", { name: /恢复为全局默认/ }),
     );
@@ -261,7 +261,7 @@ describe("EmailTemplateManagementSection", () => {
       department: null,
     });
 
-    await user.click(screen.getByRole("button", { name: "招新通过模板" }));
+    await user.click(screen.getByRole("button", { name: "笔试招新通过模板" }));
     await user.click(
       await screen.findByRole("button", { name: /恢复内置默认文案/ }),
     );
@@ -283,7 +283,7 @@ describe("EmailTemplateManagementSection", () => {
       department: null,
     });
 
-    await user.click(screen.getByRole("button", { name: "招新通过模板" }));
+    await user.click(screen.getByRole("button", { name: "笔试招新通过模板" }));
 
     expect(
       await screen.findByRole("button", { name: /保存到全局默认/ }),
@@ -357,5 +357,28 @@ describe("EmailTemplateManagementSection", () => {
     /* 选项按「结果通知 / 面试通知」分组，15 个模板里找起来不用翻列表 */
     expect(screen.getByRole("group", { name: "结果通知" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "面试通知" })).toBeInTheDocument();
+  });
+
+  it("不通过模板卡片用红色顶条，和通过模板一眼区分", () => {
+    renderSection({
+      templateSettings: {
+        rows: [
+          createResultRow("recruitment.result.accepted", null, true, false),
+          createResultRow("recruitment.result.rejected", null, true, false),
+        ],
+        departments: [],
+        scope: { kind: "all" },
+      },
+      department: null,
+    });
+
+    /* 通过 = 主色条，不通过 = 失败色条（同页还有其它模板卡片，逐卡断言） */
+    const rejectedCard = screen.getByText("招新结果·未通过").closest(".group") as HTMLElement;
+    expect(rejectedCard.querySelector(".bg-destructive\\/70")).not.toBeNull();
+    expect(rejectedCard.querySelector(".bg-primary\\/60")).toBeNull();
+
+    const acceptedCard = screen.getByText("招新结果·通过").closest(".group") as HTMLElement;
+    expect(acceptedCard.querySelector(".bg-primary\\/60")).not.toBeNull();
+    expect(acceptedCard.querySelector(".bg-destructive\\/70")).toBeNull();
   });
 });

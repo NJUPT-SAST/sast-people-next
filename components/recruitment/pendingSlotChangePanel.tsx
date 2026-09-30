@@ -38,9 +38,9 @@ const formatStartsAt = (value: Date | null) =>
   value ? dayjs(value).format("YYYY-MM-DD HH:mm") : "待定";
 
 /**
- * 面试时间变更待审批（技术部门）：预约讲师审批通过后同步飞书日程与改约邮件。
+ * 面试改约申请（技术部门）：只对预约该日程的讲师显示，同意后同步飞书日程与改约邮件。
  * 办公类时段调整已下线（由部长在面试管理页直接修改），不再出现在此列表。
- * 驳回必须填写理由，系统会邮件通知候选人。
+ * 暂不改期必须填写说明，系统会邮件告知候选人。
  */
 export function PendingSlotChangePanel({
   rows,
@@ -63,7 +63,7 @@ export function PendingSlotChangePanel({
     if (!target) return;
     const approved = target.decision === "approve";
     if (!approved && !note.trim()) {
-      toast.error("请填写驳回理由");
+      toast.error("请填写暂不改期的说明");
       return;
     }
     setSubmitting(true);
@@ -77,10 +77,10 @@ export function PendingSlotChangePanel({
       }
       toast.success(
         approved
-          ? `已通过，面试时间已改为 ${formatStartsAt(
+          ? `已同意，面试时间已改为 ${formatStartsAt(
               result.appliedStartsAt ?? target.row.requestedStartsAt,
             )}，飞书日程与通知已同步`
-          : "已驳回该改期申请，已邮件通知候选人",
+          : "已告知候选人暂不改期，面试仍按原时间进行",
       );
       setTarget(null);
       router.refresh();
@@ -100,11 +100,11 @@ export function PendingSlotChangePanel({
           className="size-4 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
-        <h2 className="text-sm font-medium">面试时间变更待审批</h2>
+        <h2 className="text-sm font-medium">面试改约申请</h2>
         <Badge variant="outline">{rows.length} 条</Badge>
       </div>
       <p className="text-xs leading-5 text-muted-foreground">
-        候选人提交的改期申请按流程显示。通过后同步调整飞书日程与留档会议，并发送改约邮件。驳回必须填写理由，系统会邮件通知候选人。
+        候选人提交的改约申请只对你（预约讲师）显示。同意后同步调整飞书日程与留档会议，并发送改约邮件；暂不改期时请填写说明，系统会邮件告知候选人。
       </p>
       <div className="overflow-x-auto rounded-md border">
         <Table>
@@ -153,7 +153,7 @@ export function PendingSlotChangePanel({
                       size="sm"
                       onClick={() => openDialog(row, "approve")}
                     >
-                      通过
+                      同意改约
                     </Button>
                     <Button
                       type="button"
@@ -161,7 +161,7 @@ export function PendingSlotChangePanel({
                       variant="outline"
                       onClick={() => openDialog(row, "reject")}
                     >
-                      驳回
+                      暂不改期
                     </Button>
                   </div>
                 </TableCell>
@@ -179,7 +179,7 @@ export function PendingSlotChangePanel({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {target?.decision === "approve" ? "通过改期申请" : "驳回改期申请"}
+              {target?.decision === "approve" ? "同意改约申请" : "暂不改期"}
             </DialogTitle>
             <DialogDescription>
               {target &&
@@ -190,12 +190,12 @@ export function PendingSlotChangePanel({
           </DialogHeader>
           {target?.decision === "approve" && (
             <p className="text-xs leading-5 text-muted-foreground">
-              通过后将按申请时间同步飞书日程与留档会议，并邮件通知候选人。
+              同意后将按申请时间同步飞书日程与留档会议，并邮件通知候选人。
             </p>
           )}
           <div className="space-y-2">
             <Label htmlFor="slot-review-note">
-              {target?.decision === "reject" ? "驳回理由（必填）" : "备注（选填）"}
+              {target?.decision === "reject" ? "说明（必填）" : "备注（选填）"}
             </Label>
             <Textarea
               id="slot-review-note"
@@ -204,12 +204,12 @@ export function PendingSlotChangePanel({
               placeholder={
                 target?.decision === "approve"
                   ? "如：已与候选人确认"
-                  : "如：该时间已有其他安排，请按原时间参加"
+                  : "如：这个时间讲师已有其他安排，请先按原时间参加，我们再帮你协调"
               }
             />
             {target?.decision === "reject" && (
               <p className="text-xs text-muted-foreground">
-                驳回理由会随邮件发送给候选人。
+                说明会随邮件发送给候选人，请写明本次暂不调整的原因。
               </p>
             )}
           </div>
@@ -224,12 +224,11 @@ export function PendingSlotChangePanel({
             </Button>
             <Button
               type="button"
-              variant={target?.decision === "reject" ? "destructive" : "default"}
               onClick={submit}
               disabled={submitting || (target?.decision === "reject" && !note.trim())}
               loading={submitting}
             >
-              {target?.decision === "approve" ? "确认通过" : "确认驳回"}
+              {target?.decision === "approve" ? "确认同意" : "确认暂不改期"}
             </Button>
           </DialogFooter>
         </DialogContent>

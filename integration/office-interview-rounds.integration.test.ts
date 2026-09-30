@@ -45,6 +45,7 @@ import {
   flowResultPublication,
   flowStep,
   interviewEvaluation,
+  interviewSchedule,
   interviewSlotChangeRequest,
   operationAudit,
   userFlow,
@@ -690,5 +691,109 @@ describe("办公类全部面试记录", () => {
           inArray(operationAudit.resourceId, flowIds),
         ),
       );
+  });
+});
+
+/* 改约申请只对「预约该日程的讲师」可见、可处理：管理员与其他讲师都看不到 */
+describe("技术部门改约申请只对预约讲师可见", () => {
+  const OTHER_LECTURER_ID = 900994;
+  const TECH_CANDIDATE_ID = CANDIDATE_ID + 30;
+  let techFlowId = 0;
+  let techUserFlowId = 0;
+  let requestId = 0;
+
+  const otherLecturerSession = {
+    uid: OTHER_LECTURER_ID,
+    role: 2,
+    name: "其他讲师",
+    department: "publicity",
+    scope: { kind: "department" as const, department: "publicity" },
+  };
+
+  beforeAll(async () => {
+    const [techFlow] = await db
+      .insert(flow)
+      .values({
+        title: "SMOKE-技术改约流程",
+        type: "woc",
+        department: "publicity",
+        ownerId: VIEWER_ID,
+      })
+      .returning({ id: flow.id });
+    techFlowId = techFlow.id;
+
+    const [candidate] = await db
+      .insert(userFlow)
+      .values({
+        fkFlowId: techFlowId,
+        fkUserId: TECH_CANDIDATE_ID,
+        progressStatus: "ongoing",
+        department: "publicity",
+      })
+      .returning({ id: userFlow.id });
+    techUserFlowId = candidate.id;
+
+    /* 日程由 VIEWER_ID（本体 mock 会话）预约 */
+    const [schedule] = await db
+      .insert(interviewSchedule)
+      .values({
+        fkUserFlowId: techUserFlowId,
+        fkOrganizerId: VIEWER_ID,
+        startsAt: new Date(Date.now() + 60 * 60 * 1000),
+        endsAt: new Date(Date.now() + 90 * 60 * 1000),
+        summary: "SMOKE 改约申请日程",
+        meetingLink: "https://vc.feishu.cn/j/smoke-slot-change",
+        status: "created",
+      })
+      .returning({ id: interviewSchedule.id });
+
+    const [request] = await db
+      .insert(interviewSlotChangeRequest)
+      .values({
+        fkUserFlowId: techUserFlowId,
+        fkInterviewScheduleId: schedule.id,
+        requestedStartsAt: new Date(Date.now() + 26 * 60 * 60 * 1000),
+        requestedEndsAt: new Date(Date.now() + 26.5 * 60 * 60 * 1000),
+        reason: "课程冲突",
+        fkRequestedBy: TECH_CANDIDATE_ID,
+      })
+      .returning({ id: interviewSlotChangeRequest.id });
+    requestId = request.id;
+  });
+
+  it("其他讲师既看不到也无法处理", async () => {
+    const { verifyScopedRole } = jest.requireMock("@/lib/authz") as {
+      verifyScopedRole: jest.Mock;
+    };
+
+    verifyScopedRole.mockResolvedValueOnce(otherLecturerSession as never);
+    const rows = await listPendingSlotChangeRequests();
+    expect(rows.map((row) => row.id)).not.toContain(requestId);
+
+    verifyScopedRole.mockResolvedValueOnce(otherLecturerSession as never);
+    await expect(
+      reviewInterviewSlotChange(requestId, false, { reviewNote: "暂不调整" }),
+    ).rejects.toThrow("只能由预约的讲师处理该改约申请");
+  });
+
+  it("预约讲师可以看到并处理（暂不改期需填写说明）", async () => {
+    const rows = await listPendingSlotChangeRequests();
+    expect(rows.map((row) => row.id)).toContain(requestId);
+
+    const result = await reviewInterviewSlotChange(requestId, false, {
+      reviewNote: "近期时间已排满，请先按原时间参加",
+    });
+    expect(result.success).toBe(true);
+
+    const [updated] = await db
+      .select({
+        status: interviewSlotChangeRequest.status,
+        reviewNote: interviewSlotChangeRequest.reviewNote,
+      })
+      .from(interviewSlotChangeRequest)
+      .where(eq(interviewSlotChangeRequest.id, requestId))
+      .limit(1);
+    expect(updated.status).toBe("rejected");
+    expect(updated.reviewNote).toBe("近期时间已排满，请先按原时间参加");
   });
 });

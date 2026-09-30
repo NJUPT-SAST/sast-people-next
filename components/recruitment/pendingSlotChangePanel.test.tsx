@@ -68,13 +68,13 @@ describe("PendingSlotChangePanel", () => {
     expect(screen.getByText("2026-06-06 16:00")).toBeInTheDocument();
     expect(screen.getByText("2026-06-07 16:00")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "通过" }));
+    await user.click(screen.getByRole("button", { name: "同意改约" }));
     expect(screen.getByText(/同步飞书日程与留档会议/)).toBeInTheDocument();
     await user.type(
       screen.getByLabelText("备注（选填）"),
       "已与候选人确认",
     );
-    await user.click(screen.getByRole("button", { name: "确认通过" }));
+    await user.click(screen.getByRole("button", { name: "确认同意" }));
 
     await waitFor(() =>
       expect(mockReviewInterviewSlotChange).toHaveBeenCalledWith(
@@ -97,14 +97,14 @@ describe("PendingSlotChangePanel", () => {
 
     render(<PendingSlotChangePanel rows={[pendingRow]} />);
 
-    await user.click(screen.getByRole("button", { name: "驳回" }));
-    expect(screen.getByRole("button", { name: "确认驳回" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "暂不改期" }));
+    expect(screen.getByRole("button", { name: "确认暂不改期" })).toBeDisabled();
 
     await user.type(
-      screen.getByLabelText("驳回理由（必填）"),
+      screen.getByLabelText("说明（必填）"),
       "该时间已有其他安排",
     );
-    await user.click(screen.getByRole("button", { name: "确认驳回" }));
+    await user.click(screen.getByRole("button", { name: "确认暂不改期" }));
 
     await waitFor(() =>
       expect(mockReviewInterviewSlotChange).toHaveBeenCalledWith(
@@ -122,8 +122,8 @@ describe("PendingSlotChangePanel", () => {
 
     render(<PendingSlotChangePanel rows={[pendingRow]} />);
 
-    await user.click(screen.getByRole("button", { name: "通过" }));
-    await user.click(screen.getByRole("button", { name: "确认通过" }));
+    await user.click(screen.getByRole("button", { name: "同意改约" }));
+    await user.click(screen.getByRole("button", { name: "确认同意" }));
 
     await waitFor(() =>
       expect(

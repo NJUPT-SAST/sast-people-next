@@ -61,7 +61,7 @@ describe("SlotChangeRequest", () => {
     );
 
     expect(
-      screen.getByText("改时间申请待审批：2026-06-07 16:00"),
+      screen.getByText("改约申请处理中：2026-06-07 16:00"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "申请修改面试时间" }),
@@ -75,7 +75,7 @@ describe("SlotChangeRequest", () => {
     render(<SlotChangeRequest {...techProps} pending={null} editable />);
 
     expect(
-      screen.getByText(/面试时间不合适？提交申请，由预约讲师审批/),
+      screen.getByText(/面试时间不合适？提交申请，由预约讲师处理/),
     ).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "申请修改面试时间" }),
@@ -99,7 +99,7 @@ describe("SlotChangeRequest", () => {
         reason: "课程冲突",
       }),
     );
-    expect(mockToastSuccess).toHaveBeenCalledWith("申请已提交，等待讲师审批");
+    expect(mockToastSuccess).toHaveBeenCalledWith("申请已提交，等待预约讲师处理");
     expect(mockRefresh).toHaveBeenCalled();
   });
 

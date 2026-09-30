@@ -90,7 +90,7 @@ test.describe("email center prelaunch", () => {
     await signInAsLocalAdmin(context);
     await page.goto("/dashboard/emails?tab=tasks");
 
-    const demoFlow = /2026\s*春季笔试招新\s*Demo/;
+    const demoFlow = /2026\s*校科协软件研发部\s*春季笔试招新/;
     const demoFlowButton = page.getByRole("button", { name: demoFlow });
     await expect(demoFlowButton.first()).toBeVisible({ timeout: 20_000 });
     await demoFlowButton.first().click();

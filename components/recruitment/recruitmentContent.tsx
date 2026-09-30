@@ -430,10 +430,13 @@ export const RecruitmentContent = ({
         <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           {isEvaluationWorkspace && interviewFlowGroups.length > 0 && (
             <Tabs
+              /* 语义化页签可能有很多（12 个部门×阶段），必须允许在行内收缩并横滚，
+                 否则整页会被撑出横向滚动条（min-w-0 才能让 flex 子项真的缩下去） */
+              className="min-w-0 max-w-full"
               value={activeGroupValue ?? undefined}
               onValueChange={handleFlowGroupChange}
             >
-              <TabsList className="h-9 max-w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-fit">
+              <TabsList className="h-9 w-full max-w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-fit">
                 {interviewFlowGroups.map((group) => (
                   <TabsTrigger
                     key={group.value}

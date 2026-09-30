@@ -218,7 +218,7 @@ export type InterviewSlotChangeRequestCardInput = {
   uuidSuffix?: string | number;
 };
 
-/** 候选人提交改期申请后提醒预约讲师：同意则按新时间改飞书日程，不同意需填写驳回理由 */
+/** 候选人提交改约申请后提醒预约讲师：同意则按新时间改飞书日程，暂不改期需填写说明 */
 export async function sendInterviewSlotChangeRequestCard({
   openId,
   receiveIdType = "open_id",
@@ -250,7 +250,7 @@ export async function sendInterviewSlotChangeRequestCard({
         line("当前时间", currentTimeText),
         line("申请改到", requestedTimeText),
         line("申请理由", reason),
-        "同意后请回到 People 处理，飞书日程与留档会议会一并改期；不同意需要填写驳回理由并邮件通知候选人。",
+        "同意后请回到 People 处理，飞书日程与留档会议会一并改期；如本次暂不能调整，请填写说明，我们会邮件告知候选人。",
       ],
       actions: [button("去处理", peopleUrl, "primary")],
     }),

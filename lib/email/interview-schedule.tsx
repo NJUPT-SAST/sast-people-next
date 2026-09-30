@@ -138,7 +138,7 @@ export async function renderInterviewScheduleEmailPreview(
   return renderInterviewScheduleEmail({
     kind,
     candidateName: "张三",
-    flowName: "2026 免试招新 Demo",
+    flowName: "2026 校科协软件研发部 免试招新",
     organizerName: "李四",
     startsAt: new Date("2026-06-05T11:00:00+08:00"),
     endsAt: new Date("2026-06-05T11:30:00+08:00"),

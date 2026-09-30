@@ -8,7 +8,7 @@ import {
   userFlow,
 } from "@/db/schema";
 import { createInterviewSchedule } from "@/action/user-flow/interviewSchedule";
-import { ADMIN_ROLE, LECTURER_ROLE } from "@/lib/link/role";
+import { LECTURER_ROLE } from "@/lib/link/role";
 import { verifyScopedRole } from "@/lib/authz";
 import { verifySession } from "@/lib/dal";
 import { isTechInterviewFlow } from "@/const/flow";
@@ -27,10 +27,10 @@ import { revalidatePath } from "next/cache";
 
 /**
  * 技术部门面试改期申请：
- * 候选人给出希望改到的新时间（时长沿用原日程），由预约讲师审批；
- * 同意后同步飞书日程与留档会议并发改约邮件，不同意需填写驳回理由并邮件通知候选人。
+ * 候选人给出希望改到的新时间（时长沿用原日程），由**预约该日程的讲师**处理；
+ * 同意后同步飞书日程与留档会议并发改约邮件；暂不改期时需填写说明并邮件告知候选人。
  * 办公类部门面试的时段调整已下线，改由部长在面试管理页直接修改，不在此申请审批。
- * 申请理由与驳回理由均必填。
+ * 申请理由与暂不改期的说明均必填。
  */
 
 const editableStatuses = new Set(["not_started", "ongoing"]);
@@ -107,10 +107,8 @@ export const listPendingSlotChangeRequests = async (
   if (typeof flowId === "number" && Number.isFinite(flowId)) {
     conditions.push(eq(flow.id, flowId));
   }
-  if (session.scope.kind !== "all") {
-    /* 讲师处理自己预约日程的改期申请 */
-    conditions.push(eq(interviewSchedule.fkOrganizerId, session.uid));
-  }
+  /* 改约申请只对「预约该日程的讲师」可见：管理员也只看自己预约的日程 */
+  conditions.push(eq(interviewSchedule.fkOrganizerId, session.uid));
 
   const rows = await db
     .select({
@@ -399,8 +397,8 @@ type SlotChangeRejectedEmailInput = {
 };
 
 /**
- * 驳回邮件：告知候选人改期未通过，并附驳回理由。
- * （审批通过由飞书日程改约流程统一发通知，不在这里发。）
+ * 暂不改期的说明邮件：告知候选人本次暂不调整面试时间，并附说明。
+ * （同意改期由飞书日程改约流程统一发通知，不在这里发。）
  */
 async function sendSlotChangeRejectedEmail({
   candidateId,
@@ -461,8 +459,8 @@ async function sendSlotChangeRejectedEmail({
 }
 
 /**
- * 审批改期申请：技术部门由预约讲师审批（审批通过同步飞书日程/留档会议并发改约邮件）。
- * 驳回必须填写理由，并邮件通知候选人。
+ * 处理改约申请：技术部门由**预约该日程的讲师**处理（同意后同步飞书日程/留档会议并发改约邮件）。
+ * 暂不改期必须填写说明，并邮件告知候选人。
  */
 export const reviewInterviewSlotChange = async (
   requestId: number,
@@ -511,12 +509,13 @@ export const reviewInterviewSlotChange = async (
     if (!isTechInterviewFlow(record.flowType)) {
       throw new Error("该流程不支持修改面试时间");
     }
-    if (!schedule) throw new Error("该改期申请没有关联的面试日程");
-    if (schedule.fkOrganizerId !== session.uid && session.role < ADMIN_ROLE) {
-      throw new Error("只能由预约讲师处理该改期申请");
+    if (!schedule) throw new Error("该改约申请没有关联的面试日程");
+    /* 改约申请只由预约该日程的讲师处理（管理员也不例外） */
+    if (schedule.fkOrganizerId !== session.uid) {
+      throw new Error("只能由预约的讲师处理该改约申请");
     }
     if (schedule.status !== "created") {
-      throw new Error("该面试日程已取消或结束，请驳回该申请");
+      throw new Error("该面试日程已取消或结束，请告知候选人暂不改期");
     }
 
     const userMap = await safeUserMap([record.candidateId]);
@@ -526,7 +525,7 @@ export const reviewInterviewSlotChange = async (
 
     if (!approved) {
       if (!reviewNote) {
-        return { success: false, error: { message: "请填写驳回理由" } };
+        return { success: false, error: { message: "请填写暂不改期的说明" } };
       }
       const updated = await db
         .update(interviewSlotChangeRequest)

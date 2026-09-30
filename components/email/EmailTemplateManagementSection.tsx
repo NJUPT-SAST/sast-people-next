@@ -770,6 +770,13 @@ export function EmailTemplateManagementSection({
   );
   const templateCardClassName =
     "group relative flex min-h-0 flex-col overflow-hidden border bg-card p-4 transition-colors hover:bg-muted";
+  /* 顶部色条区分语义：通过 = 主色（绿），不通过 = 失败色（红），避免整页绿条时看错 */
+  const templateAccentClass = (templateKey: string) =>
+    templateKey.endsWith(".rejected")
+      ? "bg-destructive/70"
+      : templateKey.endsWith(".accepted")
+        ? "bg-primary/60"
+        : "bg-muted-foreground/40";
 
   const resultDefinitionsMissing = templateDefinitions.filter(
     (definition) =>
@@ -825,7 +832,9 @@ export function EmailTemplateManagementSection({
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {resultGroups.map((group) => (
                 <div key={group.templateKey} className={templateCardClassName}>
-                  <div className="absolute inset-x-0 top-0 h-1 bg-primary/60" />
+                  <div
+                    className={`absolute inset-x-0 top-0 h-1 ${templateAccentClass(group.templateKey)}`}
+                  />
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="break-words text-sm font-semibold leading-5">
@@ -877,7 +886,9 @@ export function EmailTemplateManagementSection({
               ))}
               {resultDefinitionsMissing.map((definition) => (
                 <div key={definition.key} className={templateCardClassName}>
-                  <div className="absolute inset-x-0 top-0 h-1 bg-muted-foreground/30" />
+                  <div
+                    className={`absolute inset-x-0 top-0 h-1 ${templateAccentClass(definition.key)}`}
+                  />
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="break-words text-sm font-semibold leading-5">

@@ -130,10 +130,10 @@ export const defaultInterviewScheduleTemplateSettings: Record<
   },
   "interview.schedule.change.rejected": {
     templateKey: "interview.schedule.change.rejected",
-    subjectTemplate: "{flowName} 面试改期未通过通知",
-    titleTemplate: "改期申请未通过",
+    subjectTemplate: "{flowName} 面试改期说明",
+    titleTemplate: "关于面试时间调整的说明",
     bodyTemplate:
-      "{candidateName} 同学，你好。你申请的 {flowName} 面试时间修改未通过，面试仍按原安排进行。",
+      "{candidateName} 同学，你好。你申请的 {flowName} 面试时间调整，本次暂不调整，面试仍按原安排进行；后续如有变化我们会另行通知。",
     footerText: "南京邮电大学大学生科学技术协会",
   },
 };

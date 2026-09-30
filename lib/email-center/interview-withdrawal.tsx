@@ -85,7 +85,7 @@ export async function renderInterviewWithdrawalEmailPreview(
 ) {
   return renderInterviewWithdrawalEmail({
     candidateName: "张三",
-    flowName: "2026 免试招新 Demo",
+    flowName: "2026 校科协软件研发部 免试招新",
     reason: "请补充作品集后重新报名。",
     operatorName: "李四",
     operatorRole: 2,

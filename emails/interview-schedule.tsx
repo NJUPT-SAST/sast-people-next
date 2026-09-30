@@ -79,7 +79,7 @@ const statusLabel = {
   rescheduled: "已改约",
   cancelled: "已取消",
   withdrawn: "已退回",
-  change_rejected: "未通过",
+  change_rejected: "暂不改期",
 } as const;
 
 type MetaItem = {
@@ -126,7 +126,7 @@ export const InterviewScheduleEmail = ({
     kind === "withdrawn"
       ? `${candidateName} 同学，你好。你的 ${flowName} 面试报名已被退回，请根据退回理由补充或调整报名信息后重新报名。`
       : kind === "change_rejected"
-        ? `${candidateName} 同学，你好。你申请的 ${flowName} 面试时间修改未通过，面试仍按原安排进行。`
+        ? `${candidateName} 同学，你好。你申请的 ${flowName} 面试时间调整，本次暂不调整，面试仍按原安排进行；后续如有变化我们会另行通知。`
         : kind === "cancelled"
           ? `${candidateName} 同学，你好。你的 ${flowName} 面试预约已取消，后续安排请关注新的通知。`
           : kind === "rescheduled"
@@ -135,7 +135,7 @@ export const InterviewScheduleEmail = ({
   const timeCardLabel = kind === "withdrawn"
     ? "退回理由"
     : isRejected
-      ? "驳回理由"
+      ? "说明"
       : (timeLabel ?? "面试时间");
   const scheduleValue = kind === "withdrawn" || isRejected ? reason : startsAtText;
 
