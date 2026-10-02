@@ -61,6 +61,8 @@ People 侧的归属字段：
 
 约定：读路径用过滤（返回空集），写路径用断言（抛中文错误）；每个 server action / route handler 自行校验，不依赖 layout。
 
+**API 路由的错误码**（`lib/api-error.ts` + `lib/access-error.ts`）：未登录（`verifySession` 的登录跳转）→ 401「未登录或会话已失效」；角色/部门不足（`ForbiddenError`，`DepartmentAccessError` 是其子类）→ 403 且只回显权限文案；其他内部错误 → 500 统一文案，不回显内部 `error.message`。`/api/test/session` 的 Playwright 后门额外要求 `NODE_ENV !== "production"`。
+
 ## 3. 上线步骤
 
 1. `pnpm db:migrate` 应用 `0060_department_scoped_access.sql`（部门列与索引）与 `0061_email_template_departments.sql`（模板部门覆盖），以及办公类部门面试的 `0062`–`0067`。
@@ -77,7 +79,7 @@ pnpm test -- lib/authz.test.ts lib/flow-access.test.ts hooks/useUserInfoById.tes
 DATABASE_URL=... pnpm test:integration
 ```
 
-集成测试覆盖：部门流程与共享流程的可见性矩阵、候选人按部门过滤、归属分配（`integration/department-scope.integration.test.ts`、`integration/department-manage.integration.test.ts`）。
+集成测试覆盖：部门流程与共享流程的可见性矩阵、候选人按部门过滤、归属分配（`integration/department-scope.integration.test.ts`、`integration/department-manage.integration.test.ts`）、阅卷入口的部门隔离与角色门槛（`integration/review-access.integration.test.ts`）、办公类名单确认与最终去向/改时段护栏（`integration/office-interview-rounds.integration.test.ts`）。
 
 **成员目录不受部门隔离**：讲师及以上都能查看全部成员（Link 的用户目录本身也不限部门），只有敏感字段按角色收敛——手机号 role ≥ 3（部长/管理员），QQ role ≥ 2。部门隔离作用于业务数据（流程/报名/评分/面评/排期/邮件/审计），不作用于成员目录与成员详情。
 
