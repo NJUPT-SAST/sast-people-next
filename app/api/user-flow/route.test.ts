@@ -21,6 +21,8 @@ jest.mock('@/lib/dal', () => ({
 
 jest.mock('@/lib/server-error-log', () => ({
   logServerError: jest.fn(),
+  isNextControlFlowError: (error: unknown) =>
+    error instanceof Error && error.message === 'NEXT_REDIRECT',
 }));
 
 const requestFor = (studentId = '2026001', flowId = '1') =>

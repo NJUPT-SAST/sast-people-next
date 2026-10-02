@@ -17,6 +17,9 @@ const requestWithBody = (body: unknown) =>
 
 describe("Playwright test session route", () => {
   const originalTestMode = process.env.PLAYWRIGHT_TEST_MODE;
+  /* NODE_ENV 在类型上是只读的，测试里需要临时改写 */
+  const nodeEnv = process.env as Record<string, string | undefined>;
+  const originalNodeEnv = nodeEnv.NODE_ENV;
 
   afterEach(() => {
     mockCreateSession.mockReset();
@@ -25,12 +28,27 @@ describe("Playwright test session route", () => {
     } else {
       process.env.PLAYWRIGHT_TEST_MODE = originalTestMode;
     }
+    if (originalNodeEnv === undefined) {
+      delete nodeEnv.NODE_ENV;
+    } else {
+      nodeEnv.NODE_ENV = originalNodeEnv;
+    }
   });
 
   it("is unavailable unless Playwright test mode is enabled", async () => {
     delete process.env.PLAYWRIGHT_TEST_MODE;
 
     const response = await POST(requestWithBody({ uid: 1, role: 3, name: "Admin" }) as never);
+
+    expect(response.status).toBe(404);
+    expect(mockCreateSession).not.toHaveBeenCalled();
+  });
+
+  it("stays unreachable in production even with test mode enabled", async () => {
+    process.env.PLAYWRIGHT_TEST_MODE = "1";
+    nodeEnv.NODE_ENV = "production";
+
+    const response = await POST(requestWithBody({ uid: 1, role: 4, name: "Admin" }) as never);
 
     expect(response.status).toBe(404);
     expect(mockCreateSession).not.toHaveBeenCalled();

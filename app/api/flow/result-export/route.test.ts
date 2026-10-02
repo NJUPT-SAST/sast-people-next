@@ -26,6 +26,11 @@ jest.mock("@/db/drizzle", () => ({
 import { NextRequest } from "next/server";
 import { GET } from "./route";
 
+/* 路由测试 mock 了 @/lib/authz，错误类型必须取真实实现 */
+const { DepartmentAccessError } = jest.requireActual<
+  typeof import("@/lib/authz")
+>("@/lib/authz");
+
 /* 流程归属查询：select().from(flow).where().limit(1) */
 const flowQuery = (rows: unknown[]) => ({
   from: () => ({ where: () => ({ limit: async () => rows }) }),
@@ -145,12 +150,45 @@ describe("办公类结果导出", () => {
     expect(response.status).toBe(400);
   });
 
+  it("未登录时返回 401（不把登录跳转吞成 500/403）", async () => {
+    mockVerifyManager.mockRejectedValue(
+      Object.assign(new Error("NEXT_REDIRECT"), {
+        digest: "NEXT_REDIRECT;replace;/login;307;",
+      }),
+    );
+
+    const response = await GET(request("7"));
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      success: false,
+      message: "未登录或会话已失效",
+    });
+  });
+
   it("无权导出时返回 403", async () => {
-    mockVerifyManager.mockRejectedValue(new Error("无权访问该部门"));
+    mockVerifyManager.mockRejectedValue(
+      new DepartmentAccessError("无权访问该部门"),
+    );
 
     const response = await GET(request("7"));
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({ message: "无权访问该部门" });
+    expect(await response.json()).toEqual({
+      success: false,
+      message: "无权访问该部门",
+    });
+  });
+
+  it("内部错误返回 500 且不回显内部信息", async () => {
+    mockVerifyManager.mockRejectedValue(new Error("数据库连接串不可用"));
+
+    const response = await GET(request("7"));
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      success: false,
+      message: "导出流程结果失败",
+    });
   });
 });

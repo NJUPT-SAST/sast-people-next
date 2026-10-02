@@ -65,6 +65,7 @@ import {
 } from "@/action/user-flow/interview-slot-change";
 import { closeOfficeRoundOne, closeOfficeRoundTwo } from "@/action/user-flow/office-rounds";
 import { setOfficeFinalDestination } from "@/action/user-flow/office-final-destination";
+import { updateCandidateInterviewSlot } from "@/action/user-flow/interview-slot";
 import { getOfficeInterviewRecord } from "@/action/user-flow/office-record";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import type * as OperationAuditModule from "@/lib/operation-audit";
@@ -921,5 +922,113 @@ describe("最终去向只能写入未落选的志愿部门", () => {
       "publicity",
       "publicity",
     ]);
+  });
+});
+
+/* 部长行内改时段：只对有面试流程的候选人开放，且不能因为脏入参把时段清空 */
+describe("办公类改时段的参数与状态护栏", () => {
+  const SLOT_CANDIDATE_ID = CANDIDATE_ID + 80;
+  let slotFlowId = 0;
+  let ongoingUserFlowId = 0;
+  let finishedUserFlowId = 0;
+
+  beforeAll(async () => {
+    const owned = await createOfficeFlow("SMOKE-改时段-科宣部", "publicity");
+    slotFlowId = owned.flowId;
+    const roundOneStepId = owned.steps.find((step) => step.order === 2)?.id ?? null;
+
+    ongoingUserFlowId = await insertCandidate(
+      SLOT_CANDIDATE_ID,
+      1,
+      slotFlowId,
+      roundOneStepId,
+      1,
+      "publicity",
+    );
+    finishedUserFlowId = await insertCandidate(
+      SLOT_CANDIDATE_ID + 1,
+      1,
+      slotFlowId,
+      roundOneStepId,
+      2,
+      "publicity",
+    );
+    await db
+      .update(userFlow)
+      .set({ progressStatus: "failed" })
+      .where(eq(userFlow.id, finishedUserFlowId));
+  });
+
+  afterAll(async () => {
+    await db
+      .delete(operationAudit)
+      .where(
+        and(
+          eq(operationAudit.resourceType, "user_flow"),
+          inArray(operationAudit.resourceId, [
+            ongoingUserFlowId,
+            finishedUserFlowId,
+          ]),
+        ),
+      );
+    await db
+      .delete(userFlow)
+      .where(inArray(userFlow.id, [ongoingUserFlowId, finishedUserFlowId]));
+    await db.delete(flowStep).where(eq(flowStep.fkFlowId, slotFlowId));
+    await db.delete(flow).where(eq(flow.id, slotFlowId));
+  });
+
+  it("非字符串入参被拒绝，不会静默清空候选人的时段", async () => {
+    await expect(
+      updateCandidateInterviewSlot(
+        ongoingUserFlowId,
+        undefined as unknown as string,
+      ),
+    ).resolves.toEqual({
+      success: false,
+      error: { message: "面试时段参数无效" },
+    });
+
+    const [row] = await db
+      .select({ slot: userFlow.interviewSlot })
+      .from(userFlow)
+      .where(eq(userFlow.id, ongoingUserFlowId))
+      .limit(1);
+    expect(row.slot).toBe("13:00-14:00");
+  });
+
+  it("报名已结束的候选人不能再改时段", async () => {
+    await expect(
+      updateCandidateInterviewSlot(finishedUserFlowId, "15:00-16:00"),
+    ).resolves.toEqual({
+      success: false,
+      error: { message: "该候选人的报名已结束，不能再调整面试时段" },
+    });
+  });
+
+  it("进行中的候选人可以改到流程配置内的时段并留档", async () => {
+    await expect(
+      updateCandidateInterviewSlot(ongoingUserFlowId, "15:00-16:00"),
+    ).resolves.toEqual({ success: true, slot: "15:00-16:00" });
+
+    const [row] = await db
+      .select({ slot: userFlow.interviewSlot })
+      .from(userFlow)
+      .where(eq(userFlow.id, ongoingUserFlowId))
+      .limit(1);
+    expect(row.slot).toBe("15:00-16:00");
+
+    const audits = await db
+      .select({ action: operationAudit.action })
+      .from(operationAudit)
+      .where(
+        and(
+          eq(operationAudit.resourceType, "user_flow"),
+          eq(operationAudit.resourceId, ongoingUserFlowId),
+        ),
+      );
+    expect(audits.map((audit) => audit.action)).toContain(
+      "user_flow.interview_slot.update",
+    );
   });
 });

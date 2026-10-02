@@ -5,6 +5,7 @@ import {
   upsertPoint,
 } from '@/action/user-flow/user-point/upsert';
 import { logServerError } from '@/lib/server-error-log';
+import { apiErrorResponse } from '@/lib/api-error';
 import { z } from 'zod';
 
 const pointValueSchema = z.object({
@@ -107,9 +108,6 @@ export async function POST(request: NextRequest) {
         itemCount: Array.isArray(data) ? data.length : data ? 1 : 0,
       },
     });
-    return NextResponse.json(
-      { success: false, message: error instanceof Error ? error.message : '操作失败' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, '操作失败');
   }
 }

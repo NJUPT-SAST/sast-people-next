@@ -10,7 +10,11 @@ type TestSessionRequest = {
 };
 
 export async function POST(request: NextRequest) {
-  if (process.env.PLAYWRIGHT_TEST_MODE !== "1") {
+  /* Playwright 专用后门：只在开发/测试环境且显式开启时可用，生产环境绝不可达 */
+  if (
+    process.env.PLAYWRIGHT_TEST_MODE !== "1" ||
+    process.env.NODE_ENV === "production"
+  ) {
     return NextResponse.json({ message: "not found" }, { status: 404 });
   }
 

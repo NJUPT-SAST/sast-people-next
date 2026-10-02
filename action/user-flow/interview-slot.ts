@@ -27,6 +27,7 @@ type SlotContext = {
   uid: number;
   flowId: number;
   flowType: string | null;
+  progressStatus: string | null;
   slotOptions: unknown;
   department: string | null;
   flowDepartment: string | null;
@@ -42,6 +43,7 @@ const loadSlotContext = async (
       uid: userFlow.fkUserId,
       flowId: flow.id,
       flowType: flow.type,
+      progressStatus: userFlow.progressStatus,
       slotOptions: flow.slotOptions,
       department: userFlow.department,
       flowDepartment: flow.department,
@@ -68,7 +70,11 @@ export const updateCandidateInterviewSlot = async (
   slot: string | null,
 ): Promise<UpdateCandidateSlotResult> => {
   let session: FlowScopedSession | null = null;
-  const normalized = typeof slot === "string" ? slot.trim() : "";
+  if (slot !== null && typeof slot !== "string") {
+    /* 非字符串（含 undefined）会静默清空候选人的时段，一律拒绝 */
+    return { success: false, error: { message: "面试时段参数无效" } };
+  }
+  const normalized = slot === null ? "" : slot.trim();
 
   try {
     session = await verifyManager();
@@ -83,6 +89,16 @@ export const updateCandidateInterviewSlot = async (
       return {
         success: false,
         error: { message: "只有办公类部门面试可以在这里调整时段" },
+      };
+    }
+    if (
+      context.progressStatus === "passed" ||
+      context.progressStatus === "failed" ||
+      context.progressStatus === "withdrawn"
+    ) {
+      return {
+        success: false,
+        error: { message: "该候选人的报名已结束，不能再调整面试时段" },
       };
     }
     await assertFlowResultsEditable(context.flowId);

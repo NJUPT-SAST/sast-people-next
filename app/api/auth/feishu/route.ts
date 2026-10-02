@@ -9,7 +9,7 @@ import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
 import { getLinkAccessTokenFromSession } from "@/lib/link/session";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import { getPublicBaseUrl } from "@/lib/app-url";
-import { logServerError } from "@/lib/server-error-log";
+import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
@@ -53,6 +53,8 @@ export async function GET(request: NextRequest) {
     await notifyFeishuOAuthBound(token.openId, request);
     cookieStore.delete(FEISHU_OAUTH_STATE);
   } catch (error) {
+    /* 未登录：让 verifySession 的 /login 跳转照常生效，别吞成绑定失败提示 */
+    if (isNextControlFlowError(error)) throw error;
     logServerError("api:auth:feishu", error, {
       path: request.nextUrl.pathname,
       method: request.method,

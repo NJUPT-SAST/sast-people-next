@@ -93,6 +93,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **办公类「最终去向」只能指向未落选的志愿部门**：写入侧拒绝已落选/已撤回的部门（`action/user-flow/office-final-destination.ts`），名单弹窗也不再列出这些志愿（`action/flow/result-publication.ts`）；解析侧再加一道防线——评议值只有在候选人确有该部门已通过记录时才生效（`lib/flow-result-department.ts`），避免预设后该部门落选仍把成员归到未通过的部门。没有第一志愿通过时改为取「最后一次通过」的办公部门（原先按查询返回顺序取第一条）。
 - **「全部面试记录」的名单确认结论不再被后一次确认清空**（`action/user-flow/office-record.ts`）：撤回后重新报名会再次结束同一轮，新审计快照只含新候选人；现按最新优先逐条审计查找该候选人的快照，早前确认结论仍能带出。
 - **邮件中心模板覆盖状态提示随 UI 重做更新**（`e2e/email-center.spec.ts`）：卡片徽章已从「尚未覆盖/已有独立覆盖」改为生效来源口径（本部门覆盖 / 全局默认），写入目标提示移入编辑弹窗，E2E 断言同步更新。
+- **API 路由错误码与错误信息**（`lib/api-error.ts`、`lib/access-error.ts`、`lib/dal.ts`、`lib/authz.ts`）：`app/api/**` 过去把未登录（`verifySession` 的登录跳转）与角色/部门不足一律吞成 500，`result-export` 更是把所有错误都映成 403 并回显内部 `error.message`。现在未登录 → 401「未登录或会话已失效」，角色/部门不足（`ForbiddenError` / `DepartmentAccessError`）→ 403 且只回显权限文案，其他内部错误 → 500 统一文案（不回显内部信息）；飞书绑定回调改为把登录跳转原样抛出，不再变成「绑定失败」提示。
+- **Playwright 测试会话在生产环境不可达**（`app/api/test/session/route.ts`）：`PLAYWRIGHT_TEST_MODE=1` 时任意匿名者可铸造任意 uid/role 的会话；现在同时要求 `NODE_ENV !== "production"`。
+- **Inngest 生产环境强制签名校验**（`queue/client.ts`）：签名校验只在 cloud 模式生效，部署时误设 `INNGEST_DEV` 会让队列端点（可发邮件、改数据）对匿名请求开放；生产固定 `isDev: false`，缺签名 key 时请求被拒（fail-closed）。
+- **名单确认留档与名单写入同事务**（`action/user-flow/office-rounds.ts`、`lib/operation-audit.ts`）：留档原写在事务外且 `writeOperationAudit` 吞异常，留档失败时名单已提交、重试又因「无待确认候选人」跳过留档，导致「全部面试记录」永久缺快照。现在留档在同一事务内写入（`writeOperationAudit(input, { executor: tx })` 会向上抛错），任何一步失败整体回滚，重试可补齐。
+- **办公类改时段护栏**（`action/user-flow/interview-slot.ts`、`components/recruitment/evaluationTable.tsx`）：非字符串入参（含 `undefined`）过去被强转成空串静默清空候选人的时段，现在直接拒绝；报名已结束（通过/未通过/已退回）的候选人不能再改时段，行内下拉对这些行也改为只读展示。
+- **最终去向保存不再被 Link 同步失败连坐**（`action/user-flow/office-final-destination.ts`、`components/recruitment/ResultPublicationPanel.tsx`）：写入成功后立即同步成员身份，Link 不可用时过去会抛错让部长以为没保存；现在返回 `syncWarning`，界面提示「已保存但同步失败」，重试同步幂等。
 - `docs/department-access-control.md` 加入 `.gitignore` 例外（此前被 `docs/*` 忽略却已被 README/CHANGELOG 链接），并修正其中过期的迁移清单与 `hooks/useFlowList.ts` 说明。
 
 ### Documentation

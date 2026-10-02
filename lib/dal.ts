@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ForbiddenError } from "@/lib/access-error";
 import { getSession } from "@/lib/session";
 import { refreshSessionIdentityIfStale } from "@/lib/identity-refresh";
 import { cache } from "react";
@@ -55,7 +56,7 @@ export const verifySession = cache(async () => {
 export const verifyRole = cache(async (role: number) => {
   const session = await verifySession();
   if (session.role < role) {
-    throw new Error("Unauthorized operation");
+    throw new ForbiddenError("Unauthorized operation");
   }
   return session;
 });

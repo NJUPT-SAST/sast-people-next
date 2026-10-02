@@ -3,6 +3,8 @@ import { getPublishedFlowResult } from "@/action/flow/result-publication";
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
+import { apiErrorResponse } from "@/lib/api-error";
+import { logServerError } from "@/lib/server-error-log";
 import { assertFlowEditableRecord } from "@/lib/flow-access";
 import type { FlowScopedSession } from "@/action/flow/department-utils";
 import { departmentLabel } from "@/const/department";
@@ -39,13 +41,31 @@ export async function GET(request: NextRequest) {
     assertFlowEditableRecord(session.scope, flowRow);
     isOffice = isOfficeInterviewFlow(flowRow.type);
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "无权导出该流程的结果" },
-      { status: 403 },
-    );
+    logServerError("api:flow:result-export", error, {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "export-flow-result",
+      flowId,
+    });
+    return apiErrorResponse(error, "导出流程结果失败");
   }
 
-  const publication = await getPublishedFlowResult(flowId);
+  let publication;
+  try {
+    publication = await getPublishedFlowResult(flowId);
+  } catch (error) {
+    logServerError("api:flow:result-export:snapshot", error, {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      userId: session?.uid ?? null,
+      role: session?.role ?? null,
+      action: "read-published-flow-result",
+      flowId,
+    });
+    return apiErrorResponse(error, "导出流程结果失败");
+  }
   if (!publication) return NextResponse.json({ message: "该流程尚未发布结果" }, { status: 404 });
   const snapshot = publication.resultSnapshot as { flowTitle?: string; rows?: Array<Record<string, unknown>> };
   const rows = snapshot.rows ?? [];

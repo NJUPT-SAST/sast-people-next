@@ -650,8 +650,11 @@ const ScheduleInfo = ({
         </p>
       ) : null;
 
-    /* 部长在行内直接改时段：候选人私下联系部长后由部长调整，不再走改期审批 */
-    if (slotEditable && slotOptions.length > 0 && onSlotChange) {
+    /* 部长在行内直接改时段：候选人私下联系部长后由部长调整，不再走改期审批。
+       报名已结束（通过/未通过/已退回）的候选人不再需要调整时段，服务端也会拒绝。 */
+    const slotEditableForCandidate =
+      slotEditable && candidate.status === "ongoing";
+    if (slotEditableForCandidate && slotOptions.length > 0 && onSlotChange) {
       return (
         <div className="min-w-0 space-y-1">
           <Select

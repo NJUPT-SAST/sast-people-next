@@ -3,6 +3,7 @@ import { useFlowStepsInfo as getFlowStepsInfo } from '@/hooks/useFlowStepsInfo';
 import { db } from '@/db/drizzle';
 import { flow } from '@/db/schema';
 import { verifyManager } from '@/lib/authz';
+import { apiErrorResponse } from '@/lib/api-error';
 import type { FlowScopedSession } from '@/action/flow/department-utils';
 import { logServerError } from '@/lib/server-error-log';
 import { and, eq } from 'drizzle-orm';
@@ -42,10 +43,7 @@ export const GET = async (
       action: 'get-flow-steps',
       flowId,
     });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal error' },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "流程步骤加载失败");
   }
 };
 

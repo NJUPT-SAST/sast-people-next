@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findUserFlowId } from '@/action/user-flow/find';
-import { DepartmentAccessError } from '@/lib/authz';
+import { apiErrorResponse } from '@/lib/api-error';
 import { verifySession } from '@/lib/dal';
 import { logServerError } from '@/lib/server-error-log';
 
@@ -53,15 +53,6 @@ export async function GET(request: NextRequest) {
       studentId: searchParams.get('studentId'),
       flowId: Number(searchParams.get('flowId')) || null,
     });
-    if (error instanceof DepartmentAccessError) {
-      return NextResponse.json(
-        { success: false, message: error.message },
-        { status: 403 },
-      );
-    }
-    return NextResponse.json(
-      { success: false, message: error instanceof Error ? error.message : '查询失败' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "查询失败");
   }
 }

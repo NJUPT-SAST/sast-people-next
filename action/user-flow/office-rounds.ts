@@ -190,11 +190,19 @@ const commitRosterDecisions = async ({
   flowId,
   round,
   decisions,
+  audit,
   apply,
 }: {
   flowId: number;
   round: number;
   decisions: OfficeCandidateDecision[];
+  /** 留档写在与名单同一条事务里：任何一步失败都整体回滚，重试时可重新补齐 */
+  audit: {
+    actorId: number;
+    actorRole: number | null;
+    action: string;
+    department: string | null;
+  };
   apply: (
     tx: Executor,
     decided: Map<number, boolean>,
@@ -239,10 +247,34 @@ const commitRosterDecisions = async ({
 
       await apply(tx, validated.decided);
 
+      /* 留档：确认时刻的名单与分数快照，与名单写入同事务 */
+      const snapshot = await buildDecisionSnapshot(tx, round, validated.decided);
+      let passCount = 0;
+      for (const passed of validated.decided.values()) {
+        passCount += passed ? 1 : 0;
+      }
+      await writeOperationAudit(
+        {
+          actorId: audit.actorId,
+          actorRole: audit.actorRole,
+          action: audit.action,
+          resourceType: "flow",
+          resourceId: flowId,
+          department: audit.department,
+          metadata: {
+            passCount,
+            rejectCount: validated.decided.size - passCount,
+            /* 留档：确认时刻的名单与当时分数快照 */
+            decisions: snapshot,
+          },
+        },
+        { executor: tx },
+      );
+
       return {
         kind: "ok" as const,
         decided: validated.decided,
-        snapshot: await buildDecisionSnapshot(tx, round, validated.decided),
+        snapshot,
       };
     });
   } catch (error) {
@@ -283,6 +315,12 @@ export const closeOfficeRoundOne = async (
       flowId,
       round: 1,
       decisions,
+      audit: {
+        actorId: session.uid,
+        actorRole: session.realRole,
+        action: "flow.office_round_one.close",
+        department: loaded.flowRow.department,
+      },
       apply: async (tx, decided) => {
         const secondRoundStepId = await getStepIdByOrder(tx, flowId, 3);
         const resultStepId = await getStepIdByOrder(tx, flowId, 4);
@@ -332,20 +370,6 @@ export const closeOfficeRoundOne = async (
         passCount += passed ? 1 : 0;
         rejectCount += passed ? 0 : 1;
       }
-      await writeOperationAudit({
-        actorId: session.uid,
-        actorRole: session.realRole,
-        action: "flow.office_round_one.close",
-        resourceType: "flow",
-        resourceId: flowId,
-        department: loaded.flowRow.department,
-        metadata: {
-          passCount,
-          rejectCount,
-          /* 留档：确认时刻的名单与当时分数快照 */
-          decisions: outcome.snapshot,
-        },
-      });
     }
 
     /* 发送一面结果通知：已发送的不重复；邮件服务不可用时只提示，名单确认仍然生效 */
@@ -427,6 +451,12 @@ export const closeOfficeRoundTwo = async (
       flowId,
       round: 2,
       decisions,
+      audit: {
+        actorId: session.uid,
+        actorRole: session.realRole,
+        action: "flow.office_round_two.close",
+        department: loaded.flowRow.department,
+      },
       apply: async (tx, decided) => {
         const resultStepId = await getStepIdByOrder(tx, flowId, 4);
         let updated = 0;
@@ -456,23 +486,6 @@ export const closeOfficeRoundTwo = async (
     });
     if (outcome.kind === "error") {
       return { success: false, error: { message: outcome.message } };
-    }
-
-    if (outcome.kind === "ok") {
-      await writeOperationAudit({
-        actorId: session.uid,
-        actorRole: session.realRole,
-        action: "flow.office_round_two.close",
-        resourceType: "flow",
-        resourceId: flowId,
-        department: loaded.flowRow.department,
-        metadata: {
-          passCount: [...outcome.decided.values()].filter(Boolean).length,
-          rejectCount: [...outcome.decided.values()].filter((passed) => !passed).length,
-          /* 留档：最终名单与确认时刻的分数快照 */
-          decisions: outcome.snapshot,
-        },
-      });
     }
 
     try {

@@ -12,7 +12,12 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export type OfficeFinalDestinationResult =
-  | { success: true; department: string | null }
+  | {
+      success: true;
+      department: string | null;
+      /** Link 身份同步失败时的提示：写入已生效，稍后任意一次发布/同步会重试 */
+      syncWarning?: string;
+    }
   | { success: false; error: { message: string } };
 
 /**
@@ -94,8 +99,22 @@ export const setOfficeFinalDestination = async (
       .set({ finalDepartment: target, updatedAt: new Date() })
       .where(inArray(userFlow.id, registrations.map((item) => item.id)));
 
-    /* 已发布的通过记录：立即按新的最终去向重新同步身份（未发布时由发布流程应用） */
-    await syncUserIdentityFromAcceptedFlows([record.uid]);
+    /* 已发布的通过记录：立即按新的最终去向重新同步身份（未发布时由发布流程应用）。
+       Link 同步失败不影响写入结果，只提示部长——重试同步是幂等的。 */
+    let syncWarning: string | undefined;
+    try {
+      await syncUserIdentityFromAcceptedFlows([record.uid]);
+    } catch (error) {
+      syncWarning = "最终去向已保存，但成员部门同步失败，请稍后在成员管理或发布流程时重试";
+      logServerError("user-flow:office-final-destination:sync", error, {
+        path: "/dashboard/interviews",
+        userId: session.uid,
+        role: session.role,
+        action: "sync-office-final-destination",
+        userFlowId,
+        metadata: { finalDepartment: target },
+      });
+    }
 
     await writeOperationAudit({
       actorId: session.uid,
@@ -116,7 +135,7 @@ export const setOfficeFinalDestination = async (
     });
 
     revalidatePath("/dashboard/interviews");
-    return { success: true, department: target };
+    return { success: true, department: target, ...(syncWarning ? { syncWarning } : {}) };
   } catch (error) {
     logServerError("user-flow:office-final-destination", error, {
       path: "/dashboard/interviews",

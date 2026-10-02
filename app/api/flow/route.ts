@@ -3,6 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { flow, userFlow, flowStep, flowResultPublication } from "@/db/schema";
 import { departmentScopeFilter, verifyManager } from "@/lib/authz";
+import { apiErrorResponse } from "@/lib/api-error";
 import type { FlowScopedSession } from "@/action/flow/department-utils";
 import { logServerError } from "@/lib/server-error-log";
 import { displayUserFlow, computeStatus } from "@/types/userflow";
@@ -85,9 +86,6 @@ export const GET = async (req: NextRequest) => {
       action: "get-user-flows-for-manage",
       targetUserId: uid || null,
     });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal error" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "加载报名记录失败");
   }
 };

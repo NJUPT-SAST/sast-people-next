@@ -206,6 +206,10 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
           ? `最终去向已设为 ${departmentLabel(result.department)}`
           : "已恢复自动归属（第一志愿优先）",
       );
+      /* 写入已生效但 Link 同步失败：再给一条提示，避免部长以为身份也同步好了 */
+      if (result.syncWarning) {
+        toast.warning(result.syncWarning);
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "最终去向保存失败，请稍后重试",

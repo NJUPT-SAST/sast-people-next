@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ForbiddenError } from "@/lib/access-error";
 import { normalizeDepartmentKey } from "@/db/schema";
 import { verifyRole, verifySession } from "@/lib/dal";
 import { getSession } from "@/lib/session";
@@ -32,7 +33,7 @@ export const getDepartmentScope = cache(async (): Promise<DepartmentScope> => {
 });
 
 /** 部门越权：调用方（route handler / action）据此区分 403 与一般错误 */
-export class DepartmentAccessError extends Error {
+export class DepartmentAccessError extends ForbiddenError {
   constructor(message: string) {
     super(message);
     this.name = "DepartmentAccessError";
@@ -82,7 +83,7 @@ export const verifyScopedRole = cache(async (role: number) => {
   const scope = await getDepartmentScope();
 
   if (scope.kind === "none") {
-    throw new Error("当前账号未归属任何部门，请联系管理员分配部门。");
+    throw new ForbiddenError("当前账号未归属任何部门，请联系管理员分配部门。");
   }
 
   return { ...session, scope };
@@ -95,7 +96,7 @@ export const verifyManager = cache(async () => verifyScopedRole(MANAGER_ROLE));
 export const verifyAdmin = cache(async () => {
   const session = await verifySession();
   if (!isAdmin(session.role)) {
-    throw new Error("仅管理员可执行该操作");
+    throw new ForbiddenError("仅管理员可执行该操作");
   }
   return session;
 });
