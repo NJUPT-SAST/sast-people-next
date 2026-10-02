@@ -105,12 +105,14 @@ test.describe("email center", () => {
 
     await expect(page).toHaveURL(/department=software/, { timeout: 15_000 });
     await expect(page.getByLabel("模板归属")).toContainText("软件研发部");
-    /* 部门还没覆盖时卡片明确提示写入目标 */
+    /* 部门还没覆盖时卡片徽章标注内容来源；编辑弹窗写明写入目标与「保存会创建独立文案」 */
     await expect(
-      page
-        .getByText(/尚未覆盖|已有独立覆盖/)
-        .first(),
+      page.getByText(/^(本部门覆盖|全局默认|全局默认（回落）)$/).first(),
     ).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: "编辑模板" }).first().click();
+    await expect(
+      page.getByText("（尚未覆盖，保存会创建该部门的独立文案）"),
+    ).toBeVisible();
   });
 
   test("protects and accepts provider webhook events", async ({ request }) => {

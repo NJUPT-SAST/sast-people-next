@@ -64,6 +64,7 @@ import {
   reviewInterviewSlotChange,
 } from "@/action/user-flow/interview-slot-change";
 import { closeOfficeRoundOne, closeOfficeRoundTwo } from "@/action/user-flow/office-rounds";
+import { setOfficeFinalDestination } from "@/action/user-flow/office-final-destination";
 import { getOfficeInterviewRecord } from "@/action/user-flow/office-record";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import type * as OperationAuditModule from "@/lib/operation-audit";
@@ -641,6 +642,34 @@ describe("办公类全部面试记录", () => {
     });
   });
 
+  it("补充候选人再次结束同一轮后，早前候选人的名单确认结论仍可查看", async () => {
+    /* 撤回后重新报名会再次结束一面：新的审计快照只包含新候选人，
+       早前候选人的确认结论必须从更早的快照里继续带出，而不是被最新一条清空 */
+    const lateCandidateId = await insertCandidate(
+      RECORD_CANDIDATE_ID + 60,
+      1,
+      recordFlowId,
+      recordStepId,
+      1,
+      "publicity",
+    );
+
+    const closed = await closeOfficeRoundOne(
+      recordFlowId,
+      [{ userFlowId: lateCandidateId, passed: false }],
+      true,
+    );
+    expect(closed.success).toBe(true);
+
+    const record = await getOfficeInterviewRecord(recordUserFlowId);
+    expect(record.rounds[0].decision).toMatchObject({
+      passed: true,
+      decidedBy: "部长甲",
+      evaluationCount: 2,
+      averageScore: 89,
+    });
+  });
+
   it("非办公类流程没有全部面试记录", async () => {
     const [otherFlow] = await db
       .insert(flow)
@@ -795,5 +824,102 @@ describe("技术部门改约申请只对预约讲师可见", () => {
       .limit(1);
     expect(updated.status).toBe("rejected");
     expect(updated.reviewNote).toBe("近期时间已排满，请先按原时间参加");
+  });
+});
+
+/* 最终去向的写入护栏：只能指向该候选人仍在进行或已通过的志愿部门 */
+describe("最终去向只能写入未落选的志愿部门", () => {
+  const DESTINATION_CANDIDATE_ID = CANDIDATE_ID + 70;
+  let destinationFlowId = 0;
+  let destinationUserFlowId = 0;
+  let failedFlowId = 0;
+  let failedUserFlowId = 0;
+
+  beforeAll(async () => {
+    const owned = await createOfficeFlow("SMOKE-最终去向-科宣部", "publicity");
+    destinationFlowId = owned.flowId;
+    const other = await createOfficeFlow("SMOKE-最终去向-办公室", "office");
+    failedFlowId = other.flowId;
+
+    destinationUserFlowId = await insertCandidate(
+      DESTINATION_CANDIDATE_ID,
+      2,
+      destinationFlowId,
+      null,
+      1,
+      "publicity",
+    );
+    failedUserFlowId = await insertCandidate(
+      DESTINATION_CANDIDATE_ID,
+      1,
+      failedFlowId,
+      null,
+      2,
+      "office",
+    );
+    /* 第二志愿已落选 */
+    await db
+      .update(userFlow)
+      .set({ progressStatus: "failed" })
+      .where(eq(userFlow.id, failedUserFlowId));
+  });
+
+  afterAll(async () => {
+    /* 成功写入会留下审计（无外键），自行收尾 */
+    await db
+      .delete(operationAudit)
+      .where(
+        and(
+          eq(operationAudit.resourceType, "user_flow"),
+          inArray(operationAudit.resourceId, [destinationUserFlowId]),
+        ),
+      );
+    await db
+      .delete(userFlow)
+      .where(inArray(userFlow.id, [destinationUserFlowId, failedUserFlowId]));
+    await db
+      .delete(flowStep)
+      .where(inArray(flowStep.fkFlowId, [destinationFlowId, failedFlowId]));
+    await db
+      .delete(flow)
+      .where(inArray(flow.id, [destinationFlowId, failedFlowId]));
+  });
+
+  it("已落选的志愿部门不能被设为最终去向", async () => {
+    const result = await setOfficeFinalDestination(
+      destinationUserFlowId,
+      "office",
+    );
+    expect(result).toEqual({
+      success: false,
+      error: { message: "最终去向必须是该候选人仍在进行或已通过的志愿部门" },
+    });
+
+    const rows = await db
+      .select({ finalDepartment: userFlow.finalDepartment })
+      .from(userFlow)
+      .where(
+        inArray(userFlow.id, [destinationUserFlowId, failedUserFlowId]),
+      );
+    expect(rows.map((row) => row.finalDepartment)).toEqual([null, null]);
+  });
+
+  it("进行中的志愿部门可以设为最终去向并写到全部办公类报名", async () => {
+    const result = await setOfficeFinalDestination(
+      destinationUserFlowId,
+      "publicity",
+    );
+    expect(result).toEqual({ success: true, department: "publicity" });
+
+    const rows = await db
+      .select({ finalDepartment: userFlow.finalDepartment })
+      .from(userFlow)
+      .where(
+        inArray(userFlow.id, [destinationUserFlowId, failedUserFlowId]),
+      );
+    expect(rows.map((row) => row.finalDepartment)).toEqual([
+      "publicity",
+      "publicity",
+    ]);
   });
 });

@@ -146,12 +146,44 @@ describe("office department resolution reaches the Link sync", () => {
           rowDepartment: "publicity",
           publishedAt: new Date("2026-09-10T00:00:00Z"),
         }),
+        /* 评议把最终去向定在第三志愿：该部门也必须确实已通过，评议值才生效 */
+        passedRow({
+          choice: 2,
+          flowDepartment: "liaison",
+          rowDepartment: "liaison",
+          publishedAt: new Date("2026-09-12T00:00:00Z"),
+        }),
       ],
     });
 
     await syncUserIdentityFromAcceptedFlows([UID], 7);
 
     expect(departmentsSent()).toEqual(["liaison"]);
+  });
+
+  it("ignores a final destination the candidate did not pass", async () => {
+    mockState.selectQueue.push({
+      table: userFlow,
+      rows: [
+        passedRow({
+          choice: 1,
+          flowDepartment: "office",
+          rowDepartment: "office",
+          /* 评议预设到未通过的部门（落选后才写入/落选后仍未清除）：不能把成员归过去 */
+          finalDepartment: "liaison",
+        }),
+        passedRow({
+          choice: 2,
+          flowDepartment: "publicity",
+          rowDepartment: "publicity",
+          publishedAt: new Date("2026-09-10T00:00:00Z"),
+        }),
+      ],
+    });
+
+    await syncUserIdentityFromAcceptedFlows([UID], 7);
+
+    expect(departmentsSent()).toEqual(["office"]);
   });
 
   it("keeps a tech flow registration on its own department", async () => {

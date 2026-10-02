@@ -5,8 +5,9 @@
  * 不需要在 Link 手动改部门；如果先后通过多个部门，以「最后一次通过」的部门为准（可覆盖）。
  *
  * 办公类部门面试（每个办公部门一条流程，候选人在两个部门分别报名）：
- * 1) 部长团评议的「最终去向」优先（`user_flow.final_department`）；
- * 2) 没有评议结果时按「第一志愿优先」：同一人通过多个办公流程时归属第一志愿部门（choice=1）。
+ * 1) 部长团评议的「最终去向」优先（`user_flow.final_department`），但仅当该部门确有已通过的办公类记录；
+ * 2) 没有评议结果时按「第一志愿优先」：同一人通过多个办公流程时归属第一志愿部门（choice=1）；
+ *    没有第一志愿通过时取最后一次通过的办公部门。
  */
 
 export type PassedFlowDepartmentRow = {
@@ -54,18 +55,28 @@ export const resolveLatestPassedDepartments = (
   const resolved = new Map<number, string>();
 
   for (const [uid, userRows] of grouped) {
-    /* 1) 部长团评议的最终去向：直接采用 */
+    /* 2) 办公类：同一人通过多个办公流程时第一志愿优先；与其他部门流程比较时用办公类最近通过时间 */
+    const officeRows = userRows.filter(isOfficeRow);
+    const otherRows = userRows.filter((row) => !isOfficeRow(row));
+
+    /* 1) 部长团评议的最终去向：只有该部门确有已通过的办公类记录才生效。
+       预设后该部门落选（或写入时尚未通过）时忽略评议值，避免把成员归到未通过的部门。 */
+    const passedOfficeDepartments = new Set(
+      officeRows
+        .map((row) => normalize(row.flowDepartment ?? row.rowDepartment))
+        .filter((department): department is string => department !== null),
+    );
     const decided = userRows
       .map((row) => normalize(row.finalDepartment))
-      .find((department) => department !== null);
+      .find(
+        (department) =>
+          department !== null && passedOfficeDepartments.has(department),
+      );
     if (decided) {
       resolved.set(uid, decided);
       continue;
     }
 
-    /* 2) 办公类：同一人通过多个办公流程时第一志愿优先；与其他部门流程比较时用办公类最近通过时间 */
-    const officeRows = userRows.filter(isOfficeRow);
-    const otherRows = userRows.filter((row) => !isOfficeRow(row));
     const candidates: Array<{ department: string; passedAt: number }> = [];
 
     for (const row of otherRows) {
@@ -76,8 +87,12 @@ export const resolveLatestPassedDepartments = (
     }
 
     if (officeRows.length > 0) {
+      /* 没有第一志愿通过时按「最后一次通过」选部门（不是数组下标顺序） */
       const preferred =
-        officeRows.find((row) => row.choice === 1) ?? officeRows[0];
+        officeRows.find((row) => row.choice === 1) ??
+        officeRows.reduce((latest, row) =>
+          toMillis(row.passedAt) > toMillis(latest.passedAt) ? row : latest,
+        );
       const department = normalize(
         preferred.flowDepartment ?? preferred.rowDepartment,
       );

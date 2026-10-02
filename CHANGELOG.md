@@ -88,6 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **审计角色记录真实身份**：view-as 生效时各写路径的操作审计曾记录被模拟的角色（`actorRole: session.role`），与实际操作人（管理员 uid）自相矛盾；现统一记录 `realRole`（`action/**` 共 33 处），与 `session.view-as.*` 审计口径一致。
 - **列表状态与文案**：办公类按面试时段筛选在切换流程时重置（此前残留旧时段会让列表静默空掉）；切换流程类型不再复用上一类型保存的步骤文案（办公类第 2 步「一面」不再写进免试/WOC/SOC 的「讲师审核」步骤）；一面不通过邮件的批次名改回「一面不通过通知」。
 - **`pnpm dev:local` 只关闭本仓库进程**：`isRepoProcess` 去掉「命令行里出现 node/npm/next」的兜底（会 `taskkill` 掉占用 3001/3002/8288/8289 的无关进程），只认命令行指向本仓库目录或 `dev-all.mjs` 的进程。
+- **阅卷成绩列表不再跨部门下发题目**（`action/user-flow/user-point/calScore.ts`）：问题库查询只按 `flowId` 过滤，讲师用其他部门（或未归属全局）流程的 id 调用 `calScore` 就能拿到该流程的题目与分值；现先按 `isFlowVisibleToScope` 过滤，不在可见范围直接返回空列表，与 `useProblems` / `useStepWithProblem` 同一读路径口径（`integration/review-access.integration.test.ts` 覆盖）。
+- **阅卷入口要求讲师及以上**（`action/user-flow/find.ts`）：`/api/user-flow` 此前只校验登录，任何角色的部员都能用学号在本部门范围内定位候选人并读到报名状态；现改为 `verifyScopedRole(2)`，与阅卷页 `layout.tsx` 的角色门槛一致。
+- **办公类「最终去向」只能指向未落选的志愿部门**：写入侧拒绝已落选/已撤回的部门（`action/user-flow/office-final-destination.ts`），名单弹窗也不再列出这些志愿（`action/flow/result-publication.ts`）；解析侧再加一道防线——评议值只有在候选人确有该部门已通过记录时才生效（`lib/flow-result-department.ts`），避免预设后该部门落选仍把成员归到未通过的部门。没有第一志愿通过时改为取「最后一次通过」的办公部门（原先按查询返回顺序取第一条）。
+- **「全部面试记录」的名单确认结论不再被后一次确认清空**（`action/user-flow/office-record.ts`）：撤回后重新报名会再次结束同一轮，新审计快照只含新候选人；现按最新优先逐条审计查找该候选人的快照，早前确认结论仍能带出。
+- **邮件中心模板覆盖状态提示随 UI 重做更新**（`e2e/email-center.spec.ts`）：卡片徽章已从「尚未覆盖/已有独立覆盖」改为生效来源口径（本部门覆盖 / 全局默认），写入目标提示移入编辑弹窗，E2E 断言同步更新。
 - `docs/department-access-control.md` 加入 `.gitignore` 例外（此前被 `docs/*` 忽略却已被 README/CHANGELOG 链接），并修正其中过期的迁移清单与 `hooks/useFlowList.ts` 说明。
 
 ### Documentation

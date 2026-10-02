@@ -58,6 +58,7 @@ export const setOfficeFinalDestination = async (
       .select({
         id: userFlow.id,
         choice: userFlow.choice,
+        progressStatus: userFlow.progressStatus,
         rowDepartment: userFlow.department,
         flowDepartment: flow.department,
       })
@@ -73,13 +74,17 @@ export const setOfficeFinalDestination = async (
 
     const target = normalizeDepartmentKey(department);
     if (target) {
+      /* 最终去向只能指向仍在进行或已通过的志愿部门：已落选/已撤回的部门不能被评议写回 */
       const isChoiceDepartment = registrations.some(
-        (item) => (item.flowDepartment ?? item.rowDepartment) === target,
+        (item) =>
+          (item.flowDepartment ?? item.rowDepartment) === target &&
+          item.progressStatus !== "failed" &&
+          item.progressStatus !== "withdrawn",
       );
       if (!isChoiceDepartment) {
         return {
           success: false,
-          error: { message: "最终去向必须是该候选人报名的志愿部门" },
+          error: { message: "最终去向必须是该候选人仍在进行或已通过的志愿部门" },
         };
       }
     }

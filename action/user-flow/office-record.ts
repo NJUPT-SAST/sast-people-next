@@ -231,14 +231,21 @@ export const getOfficeInterviewRecord = async (
       const roundEvaluations = evaluations.filter(
         (evaluation) => evaluation.round === round,
       );
-      const audit = auditRows.find(
-        (row) => row.action === OFFICE_ROUND_CLOSE_ACTIONS[round],
-      );
-      const snapshot = audit
-        ? parseDecisionSnapshots(audit.metadata).find(
-            (entry) => entry.userFlowId === userFlowId,
-          )
-        : undefined;
+      /* 名单可能分多次确认（撤回后重新报名会再次关闭同一轮）：按最新优先逐条向前找，
+         直到某次关闭的快照里出现该候选人，避免用「最后一次全局快照」覆盖掉更早的确认结论 */
+      let audit: (typeof auditRows)[number] | undefined;
+      let snapshot: DecisionSnapshot | undefined;
+      for (const row of auditRows) {
+        if (row.action !== OFFICE_ROUND_CLOSE_ACTIONS[round]) continue;
+        const entry = parseDecisionSnapshots(row.metadata).find(
+          (item) => item.userFlowId === userFlowId,
+        );
+        if (entry) {
+          audit = row;
+          snapshot = entry;
+          break;
+        }
+      }
 
       return {
         round,

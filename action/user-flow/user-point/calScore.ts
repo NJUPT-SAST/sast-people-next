@@ -3,6 +3,7 @@ import { db } from '@/db/drizzle';
 import { flowStep, problem, userFlow } from '@/db/schema';
 import { userPoint } from '@/db/schema';
 import { verifyScopedRole, departmentScopeFilter } from '@/lib/authz';
+import { isFlowVisibleToScope } from '@/lib/flow-access';
 import type { FlowScopedSession } from '@/action/flow/department-utils';
 import { listPeopleUsersByLinkIds } from '@/lib/link/user-lookup';
 import { logServerError } from '@/lib/server-error-log';
@@ -13,6 +14,10 @@ export const calScore = async (flowId: number) => {
 
   try {
     session = await verifyScopedRole(2);
+    /* 读路径用过滤不用断言：流程不在本人可见范围（其他部门/未归属全局流程）时不返回任何题目与考生 */
+    if (!(await isFlowVisibleToScope(session.scope, flowId))) {
+      return [];
+    }
     /* 同一名考生在同一流程下的归属一致，聚合展示其一即可 */
     const departmentScope = departmentScopeFilter(userFlow.department, session.scope);
     const totalScore = sql<string>`coalesce(sum(${userPoint.points}), 0)`;

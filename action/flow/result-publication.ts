@@ -133,6 +133,7 @@ async function getFlowRows(flowId: number, flowType: string) {
         userFlowId: userFlow.id,
         userId: userFlow.fkUserId,
         choice: userFlow.choice,
+        progressStatus: userFlow.progressStatus,
         rowDepartment: userFlow.department,
         flowDepartment: flow.department,
         flowTitle: flow.title,
@@ -147,6 +148,13 @@ async function getFlowRows(flowId: number, flowType: string) {
         ),
       );
     for (const officeRow of officeRows) {
+      /* 已落选/已撤回的志愿不能作为最终去向（服务端写入也会拒绝），不进选择器 */
+      if (
+        officeRow.progressStatus === "failed" ||
+        officeRow.progressStatus === "withdrawn"
+      ) {
+        continue;
+      }
       const list = officeChoicesByUser.get(officeRow.userId) ?? [];
       list.push({
         userFlowId: officeRow.userFlowId,

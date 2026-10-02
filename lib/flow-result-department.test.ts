@@ -138,4 +138,44 @@ describe("resolveLatestPassedDepartments", () => {
 
     expect(result.get(5)).toBe("publicity");
   });
+
+  it("ignores the final destination when that department was not passed", () => {
+    const result = resolveLatestPassedDepartments([
+      {
+        uid: 5,
+        flowType: "office_interview",
+        choice: 1,
+        /* 评议把最终去向预设在第二志愿，但第二志愿落选：不能把成员归到未通过的部门 */
+        finalDepartment: "publicity",
+        flowDepartment: "office",
+        rowDepartment: "office",
+        passedAt: new Date("2026-10-01T00:00:00Z"),
+      },
+    ]);
+
+    expect(result.get(5)).toBe("office");
+  });
+
+  it("keeps the latest passed office department when no first choice passed", () => {
+    const result = resolveLatestPassedDepartments([
+      {
+        uid: 5,
+        flowType: "office_interview",
+        choice: 2,
+        flowDepartment: "liaison",
+        rowDepartment: "liaison",
+        passedAt: new Date("2026-10-05T00:00:00Z"),
+      },
+      {
+        uid: 5,
+        flowType: "office_interview",
+        choice: 2,
+        flowDepartment: "publicity",
+        rowDepartment: "publicity",
+        passedAt: new Date("2026-10-09T00:00:00Z"),
+      },
+    ]);
+
+    expect(result.get(5)).toBe("publicity");
+  });
 });

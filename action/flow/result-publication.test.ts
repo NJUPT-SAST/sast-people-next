@@ -289,6 +289,45 @@ describe("getFlowResultPublicationSummary 的分轮成绩", () => {
     expect(summary.rows[0].round2Count).toBe(0);
     expect(summary.rows[0].scores).toEqual([]);
   });
+
+  it("最终去向候选过滤掉已落选/已撤回的志愿部门", async () => {
+    dbState.selectQueue = [
+      { table: flow, rows: [officeFlowRow] },
+      { table: flowResultPublication, rows: [] },
+      { table: userFlow, rows: [candidateRow()] },
+      { table: interviewEvaluation, rows: [] },
+      {
+        table: userFlow,
+        rows: [
+          {
+            userFlowId: 21,
+            userId: 9,
+            choice: 1,
+            progressStatus: "ongoing",
+            rowDepartment: "office",
+            flowDepartment: "office",
+            flowTitle: "办公室面试",
+          },
+          /* 第二志愿已落选：不能作为最终去向，不进选择器 */
+          {
+            userFlowId: 22,
+            userId: 9,
+            choice: 2,
+            progressStatus: "failed",
+            rowDepartment: "publicity",
+            flowDepartment: "publicity",
+            flowTitle: "科宣部面试",
+          },
+        ],
+      },
+    ];
+
+    const summary = await getFlowResultPublicationSummary(7);
+
+    expect(summary.rows[0].officeChoices).toEqual([
+      expect.objectContaining({ department: "office", choice: 1 }),
+    ]);
+  });
 });
 
 describe("publishFlowResults 的结果快照", () => {
