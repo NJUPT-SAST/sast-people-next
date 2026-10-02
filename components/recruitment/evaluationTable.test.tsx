@@ -1986,6 +1986,50 @@ describe("EvaluationTable", () => {
     expect(screen.getAllByText("早场同学").length).toBeGreaterThan(0);
   });
 
+  it("resets the slot filter when switching to a flow with different slots", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "旧流程同学",
+          interviewSlot: "13:00-14:00",
+        }),
+      ],
+      { scoringEnabled: true, slotOptions: OFFICE_SLOT_OPTIONS },
+    );
+
+    await user.click(
+      openSlotFilter().getByRole("button", { name: "13:00-14:00" }),
+    );
+    expect(screen.getAllByText("旧流程同学").length).toBeGreaterThan(0);
+
+    /* 切到另一个办公部门流程：时段 label 完全换了 */
+    rerender(
+      <EvaluationTable
+        role={3}
+        groupOptions={[]}
+        onRefresh={jest.fn()}
+        scoringEnabled
+        slotOptions={["16:00-17:00"]}
+        candidates={[
+          makeCandidate({
+            userFlowId: 2,
+            name: "新流程同学",
+            studentId: "B002",
+            interviewSlot: "16:00-17:00",
+          }),
+        ]}
+      />,
+    );
+
+    /* 旧时段的筛选不能继续生效：否则列表静默为空，工具栏还写着「全部时段」 */
+    expect(
+      screen.queryAllByText("没有符合条件的候选人。"),
+    ).toHaveLength(0);
+    expect(screen.getAllByText("新流程同学").length).toBeGreaterThan(0);
+  });
+
   it("submits the chosen office opinion alongside the score", async () => {
     const user = userEvent.setup();
     const evaluationActionMock = jest.requireMock(

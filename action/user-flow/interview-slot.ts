@@ -122,7 +122,7 @@ export const updateCandidateInterviewSlot = async (
 
     await writeOperationAudit({
       actorId: actor.uid,
-      actorRole: actor.role,
+      actorRole: actor.realRole,
       action: "user_flow.interview_slot.update",
       resourceType: "user_flow",
       resourceId: userFlowId,

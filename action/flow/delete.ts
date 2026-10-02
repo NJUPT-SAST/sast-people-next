@@ -31,7 +31,7 @@ export async function deleteFlow(id: number) {
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "flow.delete",
       resourceType: "flow",
       resourceId: id,

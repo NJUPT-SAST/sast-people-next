@@ -39,6 +39,7 @@ docs/*
 !docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md
 !docs/email-center-design.md
 !docs/email-center-flow-redesign.md
+!docs/department-access-control.md
 !docs/RELEASE_CHECKLIST.md
 
 # debug

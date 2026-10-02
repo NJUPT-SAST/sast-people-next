@@ -399,6 +399,9 @@ export const createEvaluation = async (
       // 办公类面试：无需面试日程，多位部长各写一份带分数的面试记录。
       // 每位面评人只维护自己那一份，绝不改动他人的记录。
       if (isOfficeInterviewFlow(currentFlow.flowType)) {
+        /* 办公类：一位部长在一面、二面各留一份记录。
+           必须按轮次查找自己那一份，否则二面提交会覆盖掉一面记录。 */
+        const round = currentFlow.round ?? 1;
         const [own] = await tx
           .select({ id: interviewEvaluation.id })
           .from(interviewEvaluation)
@@ -406,6 +409,7 @@ export const createEvaluation = async (
             and(
               eq(interviewEvaluation.fkUserFlowId, userFlowId),
               eq(interviewEvaluation.fkUserId, session!.uid),
+              eq(interviewEvaluation.round, round),
               inArray(interviewEvaluation.status, ["submitted", "returned"]),
             ),
           )
@@ -430,7 +434,7 @@ export const createEvaluation = async (
               meetingLink: null,
               score: score ?? null,
               /* 办公类面试按候选人当前阶段记录轮次 */
-              round: currentFlow.round ?? 1,
+              round,
               status: "submitted",
               fkReviewedBy: null,
               returnReason: null,
@@ -456,7 +460,7 @@ export const createEvaluation = async (
             recommendation: normalizedRecommendation,
             score: score ?? null,
             /* 办公类面试按候选人当前阶段记录轮次 */
-            round: currentFlow.round ?? 1,
+            round,
             status: "submitted",
           })
           .returning();
@@ -615,7 +619,7 @@ export const createEvaluation = async (
     revalidatePath("/dashboard/approvals");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: result.auditAction,
       resourceType: "interview_evaluation",
       resourceId: result.evaluationId,
@@ -742,7 +746,7 @@ export const approveEvaluation = async (evaluationId: number) => {
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "evaluation.approve",
       resourceType: "interview_evaluation",
       resourceId: evaluationId,
@@ -841,7 +845,7 @@ export const rejectEvaluation = async (evaluationId: number) => {
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "evaluation.reject",
       resourceType: "interview_evaluation",
       resourceId: evaluationId,
@@ -931,7 +935,7 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
     }
     revalidatePath("/dashboard/approvals");
     revalidatePath("/dashboard/interviews");
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "evaluation.return", resourceType: "interview_evaluation", resourceId: evaluationId, department: targetDepartment, metadata: { reason: normalizedReason } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.realRole, action: "evaluation.return", resourceType: "interview_evaluation", resourceId: evaluationId, department: targetDepartment, metadata: { reason: normalizedReason } });
     return {
       success: true as const,
       notificationSent: notificationStatus === "sent",

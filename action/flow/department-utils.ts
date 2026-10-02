@@ -11,6 +11,8 @@ import type { DepartmentScope } from "@/lib/authz";
 export type FlowScopedSession = {
   uid: number;
   role: number;
+  /** 会话本身的真实角色（切换身份查看时仍是管理员本人），审计用 */
+  realRole: number;
   name: string;
   department: string | null;
   scope: DepartmentScope;

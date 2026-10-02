@@ -13,12 +13,12 @@ export const banUser = async (uid: number)=>{
     try {
         const session = await verifyAdmin()
         actorId = session.uid
-        actorRole = session.role
+        actorRole = session.realRole
         const accessToken = await getLinkAdminAccessTokenFromSession()
         await banLinkUser(accessToken, uid)
         await writeOperationAudit({
             actorId: session.uid,
-            actorRole: session.role,
+            actorRole: session.realRole,
             action: "user.ban",
             resourceType: "link_user",
             resourceId: uid,

@@ -150,7 +150,7 @@ export async function updateInterviewScheduleEmailTemplate(
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "email.template.update",
       resourceType: "email_template_content",
       resourceId: saved.id,
@@ -201,7 +201,7 @@ export async function resetInterviewScheduleEmailTemplate(
 
   await writeOperationAudit({
     actorId: session.uid,
-    actorRole: session.role,
+    actorRole: session.realRole,
     action: "email.template.reset",
     resourceType: "email_template_content",
     resourceId: null,

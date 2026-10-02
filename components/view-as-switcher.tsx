@@ -40,7 +40,7 @@ const ROLE_OPTIONS: Array<{ value: number; label: string; hint: string }> = [
   { value: 1, label: "部员", hint: "本部门只读视角" },
   { value: 2, label: "讲师", hint: "试卷批改 / 笔试 / 面试" },
   { value: 3, label: "部长", hint: "本部门全部功能（邮件、面评审批、流程）" },
-  { value: ADMIN_ROLE, label: "管理员", hint: "退出切换，回到管理员本人" },
+  { value: ADMIN_ROLE, label: "管理员", hint: "管理员可见全部部门，保存后退出临时视角" },
 ];
 
 /* 需要部门归属的身份：与 lib 侧 requiresDepartment 保持一致 */

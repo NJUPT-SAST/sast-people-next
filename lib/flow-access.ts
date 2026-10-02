@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/db/drizzle";
 import { flow, userFlow } from "@/db/schema";
 import { canAccessDepartment, DepartmentAccessError, type DepartmentScope } from "@/lib/authz";
-import { and, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 
 type FlowRecordRef = {
   type: string | null | undefined;
@@ -36,6 +36,38 @@ export const visibleFlowPredicate = (
           AND ${userFlow.department} = ${scope.department}
       )
     )`,
+  );
+};
+
+/**
+ * 严格部门归属流程：仅流程自身 department 匹配当前部门（管理员放行）。
+ * 与 visibleFlowPredicate 的宽松版不同：全局流程（department IS NULL）不会因本部门已有报名而放行。
+ * 邮件批次 / 投递等读写路径使用此口径，与 assertFlowEditable 的写权限判定保持一致。
+ */
+export const strictlyVisibleFlowPredicate = (
+  scope: DepartmentScope,
+): SQL<unknown> | undefined => {
+  if (scope.kind === "all") return undefined;
+  if (scope.kind === "none") return sql`false`;
+  return eq(flow.department, scope.department);
+};
+
+/**
+ * 以「解析后的流程 id」做严格部门隔离：
+ * 用于邮件投递（coalesce(投递流程, 批次流程)）等流程归属需回退解析的场景。
+ * 未归属部门（department IS NULL）与已删除流程对部门账号不可见，管理员不过滤。
+ */
+export const scopedResolvedFlowIdCondition = (
+  scope: DepartmentScope,
+  resolvedFlowId: SQL<number>,
+): SQL<unknown> | undefined => {
+  if (scope.kind === "all") return undefined;
+  return inArray(
+    resolvedFlowId,
+    db
+      .select({ id: flow.id })
+      .from(flow)
+      .where(and(eq(flow.isDeleted, false), strictlyVisibleFlowPredicate(scope))),
   );
 };
 

@@ -164,6 +164,7 @@ describe("office round one email batch", () => {
     const batchInsert = mockInsertValues[0] as Record<string, unknown>;
     expect(batchInsert.templateKey).toBe("office_round1.result.accepted");
     expect(batchInsert.accept).toBe(true);
+    expect(batchInsert.name).toBe("2026 办公类部门面试招新 一面通过通知");
     expect(batchInsert.metadata).toEqual({
       accept: true,
       flowId: 11,
@@ -233,6 +234,7 @@ describe("office round one email batch", () => {
 
     const batchInsert = mockInsertValues[0] as Record<string, unknown>;
     expect(batchInsert.templateKey).toBe("office_round1.result.rejected");
+    expect(batchInsert.name).toBe("2026 科宣部面试招新 一面不通过通知");
     expect(batchInsert.metadata).toEqual({
       accept: false,
       flowId: 12,

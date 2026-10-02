@@ -282,7 +282,7 @@ export async function assignFlowDepartment(
 
   await writeOperationAudit({
     actorId: session.uid,
-    actorRole: session.role,
+    actorRole: session.realRole,
     action: "department.flow.assign",
     resourceType: "flow",
     resourceId: targetFlowId,
@@ -326,7 +326,7 @@ export async function assignUserFlowDepartment(
 
   await writeOperationAudit({
     actorId: session.uid,
-    actorRole: session.role,
+    actorRole: session.realRole,
     action: "department.user_flow.assign",
     resourceType: "user_flow",
     resourceId: targetId,

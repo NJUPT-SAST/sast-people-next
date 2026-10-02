@@ -318,7 +318,7 @@ export const upsertPoint = async (
       if (rows.length > 0 && validated.changes.length > 0) {
         await writeAggregatedScoreAudit(tx, {
           actorId: actor.uid,
-          actorRole: actor.role,
+          actorRole: actor.realRole,
           userFlowId,
           targetUserId: validated.targetUserId,
           department: validated.department,
@@ -389,7 +389,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
       if (validated.changes.length > 0) {
         await writeAggregatedScoreAudit(tx, {
           actorId,
-          actorRole: actor.role,
+          actorRole: actor.realRole,
           userFlowId: normalized.userFlowId,
           targetUserId: validated.targetUserId,
           department: validated.department,

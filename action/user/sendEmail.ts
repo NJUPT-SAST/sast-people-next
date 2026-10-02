@@ -28,7 +28,7 @@ export const batchSendEmail = async (
   try {
     const session = await verifyManager();
     actorId = session.uid;
-    actorRole = session.role;
+    actorRole = session.realRole;
     targetUserIds = requirePositiveIntegerArrayInput(uidInput, "收件人用户 ID");
     flowId = requirePositiveIntegerInput(flowIdInput, "流程 ID");
     accept = requireBooleanInput(acceptInput, "结果通知类型");
@@ -57,7 +57,7 @@ export const batchSendEmail = async (
     if (result.batchId) {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "email.batch.create",
         resourceType: "email_batch",
         resourceId: result.batchId,

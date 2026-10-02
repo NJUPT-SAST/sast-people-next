@@ -11,7 +11,10 @@ import {
 } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
 import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
-import { visibleFlowPredicate } from "@/lib/flow-access";
+import {
+  scopedResolvedFlowIdCondition,
+  strictlyVisibleFlowPredicate,
+} from "@/lib/flow-access";
 import {
   findPeopleUserIdsByKeyword,
   listPeopleUsersByLinkIds,
@@ -43,18 +46,14 @@ const batchFlow = alias(flow, "batch_flow");
 
 /**
  * 邮件按批次 / 投递所属流程的部门隔离：
- * 投递自身未记录流程时回退到批次的流程；两者都不归属部门的历史数据仅管理员可见。
+ * 投递自身未记录流程时回退到批次的流程；严格按流程归属部门判定，
+ * 全局流程（department IS NULL）的历史数据仅管理员可见，与重试写路径口径一致。
  */
-const scopedDeliveryFlowCondition = (scope: DepartmentScope) => {
-  if (scope.kind === "all") return undefined;
-  return inArray(
+const scopedDeliveryFlowCondition = (scope: DepartmentScope) =>
+  scopedResolvedFlowIdCondition(
+    scope,
     sql`coalesce(${emailDelivery.fkFlowId}, ${emailBatch.fkFlowId})`,
-    db
-      .select({ id: flow.id })
-      .from(flow)
-      .where(visibleFlowPredicate(scope)),
   );
-};
 
 export type EmailDeliveryListParams = {
   page?: string | number;
@@ -237,7 +236,7 @@ export async function listEmailBatches() {
     })
     .from(emailBatch)
     .innerJoin(flow, eq(flow.id, emailBatch.fkFlowId))
-    .where(and(eq(emailBatch.category, "result"), visibleFlowPredicate(scope)))
+    .where(and(eq(emailBatch.category, "result"), strictlyVisibleFlowPredicate(scope)))
     .orderBy(desc(emailBatch.createdAt))
     .limit(20);
 

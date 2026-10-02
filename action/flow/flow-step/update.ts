@@ -75,7 +75,7 @@ export const updateFlowStep = async (
     revalidatePath("/dashboard/flow");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "flow.update_steps",
       resourceType: "flow",
       resourceId: id,

@@ -176,10 +176,10 @@ async function listResultTemplateDepartments(scope: DepartmentScope) {
 
 export async function listEmailTemplateSettings(
   department?: string | null,
-  scope?: DepartmentScope,
 ): Promise<ResultEmailTemplateSettingsPayload> {
   await verifyRole(3);
-  const effectiveScope = scope ?? (await getDepartmentScope());
+  /* 范围只能来自会话，绝不接受客户端传入，避免越权读取其他部门的模板覆盖 */
+  const effectiveScope = await getDepartmentScope();
   const readFilter = templateReadFilter(
     emailTemplateSetting.department,
     effectiveScope,
@@ -321,7 +321,7 @@ export async function updateEmailTemplateSetting(
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "email.template.update",
       resourceType: "email_template_setting",
       resourceId: templateSettingId,
@@ -405,7 +405,7 @@ export async function resetEmailTemplateSetting(
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "email.template.reset",
       resourceType: "email_template_setting",
       resourceId: deleted[0]?.id ?? existing.id,

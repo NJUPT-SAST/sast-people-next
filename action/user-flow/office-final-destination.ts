@@ -94,7 +94,7 @@ export const setOfficeFinalDestination = async (
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.office_final_destination.set",
       resourceType: "user_flow",
       resourceId: userFlowId,

@@ -116,7 +116,7 @@ export async function duplicateFlow(sourceFlowId: number) {
     if (copiedFlowId !== null) {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "flow.duplicate",
         resourceType: "flow",
         resourceId: copiedFlowId,

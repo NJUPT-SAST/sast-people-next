@@ -57,6 +57,7 @@ export async function saveFlowWorkspace(input: WorkspaceInput) {
     flowId: input.flowId,
     scope: session.scope,
     currentType: flowRow.type,
+    currentDepartment: flowRow.department,
     nextType: values.type,
     nextDepartment,
   });
@@ -122,7 +123,7 @@ export async function saveFlowWorkspace(input: WorkspaceInput) {
     }
   });
 
-  await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.update_workspace", resourceType: "flow", resourceId: input.flowId, department: patch.department !== undefined ? patch.department : flowRow.department, metadata: { stepCount: input.steps.length, problemCount: problemRows.length, department: flowRow.department, previousType: flowRow.type, newType: patch.type ?? flowRow.type } });
+  await writeOperationAudit({ actorId: session.uid, actorRole: session.realRole, action: "flow.update_workspace", resourceType: "flow", resourceId: input.flowId, department: patch.department !== undefined ? patch.department : flowRow.department, metadata: { stepCount: input.steps.length, problemCount: problemRows.length, department: flowRow.department, previousType: flowRow.type, newType: patch.type ?? flowRow.type } });
   revalidatePath("/dashboard/flow");
   revalidatePath(`/dashboard/flow/edit?id=${input.flowId}`);
 }

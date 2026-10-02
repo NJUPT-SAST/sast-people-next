@@ -815,7 +815,7 @@ export async function createInterviewSchedule(
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: existingSchedule ? "interview_schedule.update" : "interview_schedule.create",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
@@ -1055,7 +1055,7 @@ export async function cancelInterviewSchedule(
     try {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "interview_schedule.cancel",
         resourceType: "interview_schedule",
         resourceId: schedule.id,
@@ -1329,7 +1329,7 @@ export async function returnInterviewCandidate(
     );
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.withdraw",
       resourceType: "user_flow",
       resourceId: userFlowId,
@@ -1625,7 +1625,7 @@ export async function confirmInterviewScheduleEnded(
 
   await writeOperationAudit({
     actorId: session.uid,
-    actorRole: session.role,
+    actorRole: session.realRole,
     action: "interview_schedule.meeting.ended_manual",
     resourceType: "interview_schedule",
     resourceId: schedule.id,

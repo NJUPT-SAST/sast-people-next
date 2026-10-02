@@ -90,6 +90,9 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
   /* 办公类部门面试招新：每个办公部门一条流程，额外配置面试时段 */
   const isOfficeInterview = isOfficeInterviewFlow(currentType);
   const { data: savedSteps } = useFlowStepsInfoClient(data.id);
+  /* 类型改过以后，已存步骤属于上一个类型的模板：order+type 相同的旧行会带着
+     旧文案（如办公类 order 2 的「一面」）覆盖新模板，保存后就被持久化。 */
+  const typeChanged = currentType !== data.type;
   const defaults = useMemo(
     () =>
       isWrittenRecruitment
@@ -101,10 +104,12 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
   );
   const fixedStepList = useMemo(
     () => defaults.map((step) => {
-      const saved = savedSteps?.find((item) => item.order === step.order && item.type === step.type);
+      const saved = typeChanged
+        ? undefined
+        : savedSteps?.find((item) => item.order === step.order && item.type === step.type);
       return { ...step, id: saved?.id ?? step.id, title: saved?.title ?? step.title, description: saved?.description ?? step.description };
     }),
-    [defaults, savedSteps],
+    [defaults, savedSteps, typeChanged],
   );
   const [editableSteps, setEditableSteps] = useState<fullStepType[]>(fixedStepList);
   const [groupOptionsText, setGroupOptionsText] = useState((data.groupOptions ?? []).join('\n'));

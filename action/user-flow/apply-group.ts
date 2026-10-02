@@ -147,7 +147,7 @@ export const updateApplyGroup = async (
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.apply_group.update",
       resourceType: "user_flow",
       resourceId: userFlowId,
@@ -227,7 +227,7 @@ export const updateCandidateApplyGroup = async (
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.apply_group.mark",
       resourceType: "user_flow",
       resourceId: userFlowId,

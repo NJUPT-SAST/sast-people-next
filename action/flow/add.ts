@@ -68,7 +68,7 @@ export async function addFlow(values: z.infer<typeof addFlowSchema>) {
     if (createdFlowId !== null) {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: 'flow.create',
         resourceType: 'flow',
         resourceId: createdFlowId,

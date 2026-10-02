@@ -549,7 +549,7 @@ export async function createOfficeRoundOneEmailBatch({
           idempotencyKey: batchIdempotencyKey,
           templateKey,
           category: "result",
-          name: `${flowRow.title} 一面通过通知`,
+          name: `${flowRow.title} ${accept ? "一面通过通知" : "一面不通过通知"}`,
           subject,
           accept,
           status: "draft",

@@ -73,6 +73,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 导航与页面权限对齐：平台级入口「反馈记录」「错误日志」只对管理员展示（此前普通账号点进去会被重定向回我的资料页）；部门级入口（试卷批改/用户管理/笔试/面试/邮件中心/流程管理/面评审批/操作审计）对无部门归属的账号隐藏，避免进入后被重定向或看到空数据
 - 修复邮件模板部门化后 `pnpm db:seed:demo` 失败：模板表唯一键已改为 `(template_key, coalesce(department, ''))`，种子数据的冲突目标同步更新
 
+#### 代码评审（PR #250）修复
+
+- **办公类最终去向/第一志愿在发布同步里失效**：`syncUserIdentityFromAcceptedFlows` 组装的解析入参漏了 `flowType` / `choice` / `finalDepartment`，导致 `resolveLatestPassedDepartments` 的办公类分支从不生效——候选人通过多个办公部门时归属退化成「最后发布的部门」，部长团设置的 `final_department` 也传不到 Link。现已一并传入（`action/user-flow/roleTransition.test.ts` 覆盖）。
+- **同一部长二面打分覆盖一面记录**：办公类「自己那份面评」的查询未按 `round` 过滤，二面提交会改写一面那一行并把 `round` 改成 2，一面均分与「全部面试记录」随之丢失。现按候选人当前轮次查找（`action/user-flow/evaluation.ts`）。
+- **名单确认加锁并条件更新**（`action/user-flow/office-rounds.ts`）：结束一面/二面改为单事务「`pg_advisory_xact_lock(flow_id)` → 复查名单 → 带 `progress_status`/`round` 条件更新 → 留档快照」，两个部长同时确认或候选人恰好在撤回时不会再出现「后提交覆盖前提交」「撤回者被复活」；并调用 `assertFlowResultsEditable`，结果已发布/正在发布的流程不能再改名单与结果（错误以结构化消息返回，不炸到界面）。
+- **邮件模板列表不再接受客户端传入的 scope**：`listEmailTemplateSettings` 的 `scope` 参数是客户端可控的 server action 入参，role ≥ 3 可传 `{kind:"all"}` 读到任意部门模板行（含他部门的飞书群链接/QQ 群号/联系邮箱）与虚假的 `editable` 标记；现一律由会话推导（`action/email/template.ts`）。
+- **邮件批次/投递列表按行级部门严格收敛**：此前用 `visibleFlowPredicate`，只要本部门在某个「全局流程」（`department IS NULL`）里有一条报名，就能看到该流程**全部**投递的收件地址与邮件正文。现新增 `strictlyVisibleFlowPredicate` / `scopedResolvedFlowIdCondition`（`lib/flow-access.ts`），批次列表、投递列表与流程选择器都改为严格归属部门（`action/email/list.ts`、`action/email/workspace.ts`），与重试路径的 `assertFlowEditable` 口径一致。
+- **`action/user-flow/roleTransition.ts` 不再是 server action**：改为 `server-only` 内部模块，入口（`syncUserIdentityFromAcceptedFlows`）再做一次部长级校验，避免两个「批量改 Link 角色/部门」的函数被当作公开 action 调用。
+- **流程归属变更纳入同一护栏**（`action/flow/type-change.ts`）：语义类型里多个组合（如办公类四个部门）`type` 相同、只有部门不同，改归属不触发任何校验会让老候选人在新老部门两边都看不见；现在与改类型一样——仅管理员可改、已有报名记录则拒绝。
+- **迁移 `0066` 不再可能中断整批迁移**：派生的部门流程标题加 `left(...,100)` 截断（`flow.title` 是 `varchar(100)`，超长会让 INSERT 报错并回滚 0060–0067）；共享流程改为**仅在没有剩余报名记录时**才归档，部门为空/未生成流程的报名不再挂在已归档流程上消失；同时把历史办公类报名缺失的 `round` 补为 1（名单确认按「进行中 + 当前轮次」取待确认候选人，缺轮次会永远无法确认、也无法结束）。
+- **身份回源不再只靠 dashboard 渲染**（`lib/identity-refresh.ts` + `lib/dal.ts`）：`syncCurrentSessionIdentity` 过去只在 dashboard 根布局触发且被 5 分钟 TTL 挡住，只走 server action / API 的会话会一直持有旧角色与旧部门（被降权的管理员仍以 role 4 授权）。现在 `verifySession` 会在会话身份超过 5 分钟未同步时回源一次 Link 资料（失败只记日志，不把请求打成 500）。
+- **`view_as` cookie 随登出清理**（`lib/session.ts`、`app/api/auth/logout/route.ts`）：此前只删会话 cookie，管理员登出后 12 小时内换人登录会继承上一个管理员的临时视角。
+- **审计角色记录真实身份**：view-as 生效时各写路径的操作审计曾记录被模拟的角色（`actorRole: session.role`），与实际操作人（管理员 uid）自相矛盾；现统一记录 `realRole`（`action/**` 共 33 处），与 `session.view-as.*` 审计口径一致。
+- **列表状态与文案**：办公类按面试时段筛选在切换流程时重置（此前残留旧时段会让列表静默空掉）；切换流程类型不再复用上一类型保存的步骤文案（办公类第 2 步「一面」不再写进免试/WOC/SOC 的「讲师审核」步骤）；一面不通过邮件的批次名改回「一面不通过通知」。
+- **`pnpm dev:local` 只关闭本仓库进程**：`isRepoProcess` 去掉「命令行里出现 node/npm/next」的兜底（会 `taskkill` 掉占用 3001/3002/8288/8289 的无关进程），只认命令行指向本仓库目录或 `dev-all.mjs` 的进程。
+- `docs/department-access-control.md` 加入 `.gitignore` 例外（此前被 `docs/*` 忽略却已被 README/CHANGELOG 链接），并修正其中过期的迁移清单与 `hooks/useFlowList.ts` 说明。
+
 ### Documentation
 
 - Rewrite `README.md` to match the current v3 codebase: Link-owned identity, workflow model, Feishu interview scheduling, email center, dashboard routes, commands, and verification.

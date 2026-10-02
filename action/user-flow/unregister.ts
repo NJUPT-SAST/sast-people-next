@@ -30,7 +30,7 @@ export const unregister = async (userFlowId: number) => {
     await db.delete(userFlow).where(eq(userFlow.id, userFlowId));
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.unregister",
       resourceType: "user_flow",
       resourceId: userFlowId,

@@ -6,10 +6,11 @@ import { flow, flowStep, interviewEvaluation, userFlow } from "@/db/schema";
 import { verifyManager } from "@/lib/authz";
 import { createOfficeRoundOneEmailBatch } from "@/lib/email-center/batch";
 import { assertFlowEditableRecord } from "@/lib/flow-access";
+import { assertFlowResultsEditable } from "@/lib/flow-result-publication-guard";
 import { isOfficeInterviewFlow } from "@/const/flow";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -55,6 +56,13 @@ type EditableOfficeFlow =
       };
     };
 
+/* 事务或普通连接：名单确认必须整段跑在同一个事务里 */
+type Executor =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const ROSTER_CONFLICT_MESSAGE = "名单已变化，请刷新后重新确认";
+
 const loadEditableOfficeFlow = async (
   flowId: number,
   session: Awaited<ReturnType<typeof verifyManager>>,
@@ -77,8 +85,12 @@ const loadEditableOfficeFlow = async (
   return { kind: "ok", flowRow };
 };
 
-const getStepIdByOrder = async (flowId: number, order: number) => {
-  const rows = await db
+const getStepIdByOrder = async (
+  executor: Executor,
+  flowId: number,
+  order: number,
+) => {
+  const rows = await executor
     .select({ id: flowStep.id })
     .from(flowStep)
     .where(
@@ -97,12 +109,13 @@ const getStepIdByOrder = async (flowId: number, order: number) => {
  * 分数之后仍可能补录，所以确认时刻的快照是「部长团根据面评分数敲定名单」的凭据。
  */
 const buildDecisionSnapshot = async (
+  executor: Executor,
   round: number,
   decided: Map<number, boolean>,
 ) => {
   const ids = [...decided.keys()];
   if (ids.length === 0) return [];
-  const rows = await db
+  const rows = await executor
     .select({ userFlowId: interviewEvaluation.fkUserFlowId, score: interviewEvaluation.score })
     .from(interviewEvaluation)
     .where(
@@ -131,15 +144,17 @@ const buildDecisionSnapshot = async (
 };
 
 const validateRoundDecisions = async ({
+  executor,
   flowId,
   round,
   decisions,
 }: {
+  executor: Executor;
   flowId: number;
   round: number;
   decisions: OfficeCandidateDecision[];
 }) => {
-  const pending = await db
+  const pending = await executor
     .select({ id: userFlow.id })
     .from(userFlow)
     .where(
@@ -154,7 +169,7 @@ const validateRoundDecisions = async ({
     decisions.map((decision) => [decision.userFlowId, decision.passed]),
   );
   if ([...decided.keys()].some((id) => !pendingIds.has(id))) {
-    return { kind: "error" as const, message: "名单已变化，请刷新后重新确认" };
+    return { kind: "error" as const, message: ROSTER_CONFLICT_MESSAGE };
   }
   const missing = [...pendingIds].filter((id) => !decided.has(id));
   if (missing.length > 0) {
@@ -164,6 +179,78 @@ const validateRoundDecisions = async ({
     };
   }
   return { kind: "ok" as const, decided, pendingCount: pendingIds.size };
+};
+
+/**
+ * 名单确认事务：加流程级锁 → 复查名单 → 写入 → 留档快照。
+ * 锁 + 条件更新保证两个部长同时确认、或候选人恰好被撤回时，
+ * 不会出现「后提交覆盖前提交」与「撤回者被复活」。
+ */
+const commitRosterDecisions = async ({
+  flowId,
+  round,
+  decisions,
+  apply,
+}: {
+  flowId: number;
+  round: number;
+  decisions: OfficeCandidateDecision[];
+  apply: (
+    tx: Executor,
+    decided: Map<number, boolean>,
+  ) => Promise<void>;
+}): Promise<
+  | { kind: "error"; message: string }
+  | {
+      kind: "empty";
+    }
+  | {
+      kind: "ok";
+      decided: Map<number, boolean>;
+      snapshot: Awaited<ReturnType<typeof buildDecisionSnapshot>>;
+    }
+> => {
+  try {
+    return await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${flowId})`);
+      /* 结果一旦发布/正在发布，名单与结果都锁定（转成结构化错误，不炸到调用方） */
+      try {
+        await assertFlowResultsEditable(flowId);
+      } catch (error) {
+        return {
+          kind: "error" as const,
+          message:
+            error instanceof Error
+              ? error.message
+              : "该流程结果正在发布或已经发布，名单和结果已锁定",
+        };
+      }
+
+      const validated = await validateRoundDecisions({
+        executor: tx,
+        flowId,
+        round,
+        decisions,
+      });
+      if (validated.kind === "error") {
+        return { kind: "error" as const, message: validated.message };
+      }
+      if (validated.pendingCount === 0) return { kind: "empty" as const };
+
+      await apply(tx, validated.decided);
+
+      return {
+        kind: "ok" as const,
+        decided: validated.decided,
+        snapshot: await buildDecisionSnapshot(tx, round, validated.decided),
+      };
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === ROSTER_CONFLICT_MESSAGE) {
+      return { kind: "error" as const, message: error.message };
+    }
+    throw error;
+  }
 };
 
 /** 结束一面：按名单写入通过/不通过并发送一面结果通知（重复调用只补发未发送的邮件） */
@@ -192,23 +279,17 @@ export const closeOfficeRoundOne = async (
       };
     }
 
-    const validated = await validateRoundDecisions({ flowId, round: 1, decisions });
-    if (validated.kind === "error") {
-      return { success: false, error: { message: validated.message } };
-    }
-
-    let passCount = 0;
-    let rejectCount = 0;
-    if (validated.pendingCount > 0) {
-      const secondRoundStepId = await getStepIdByOrder(flowId, 3);
-      const resultStepId = await getStepIdByOrder(flowId, 4);
-      for (const passed of validated.decided.values()) {
-        passCount += passed ? 1 : 0;
-        rejectCount += passed ? 0 : 1;
-      }
-      await db.transaction(async (tx) => {
-        for (const [userFlowId, passed] of validated.decided) {
-          await tx
+    const outcome = await commitRosterDecisions({
+      flowId,
+      round: 1,
+      decisions,
+      apply: async (tx, decided) => {
+        const secondRoundStepId = await getStepIdByOrder(tx, flowId, 3);
+        const resultStepId = await getStepIdByOrder(tx, flowId, 4);
+        let updated = 0;
+        for (const [userFlowId, passed] of decided) {
+          /* 条件更新：候选人必须仍是「一面进行中」，撤回/已被别人确认的行不动 */
+          const rows = await tx
             .update(userFlow)
             .set(
               passed
@@ -225,12 +306,35 @@ export const closeOfficeRoundOne = async (
                     updatedAt: new Date(),
                   },
             )
-            .where(eq(userFlow.id, userFlowId));
+            .where(
+              and(
+                eq(userFlow.id, userFlowId),
+                eq(userFlow.progressStatus, "ongoing"),
+                eq(userFlow.round, 1),
+              ),
+            )
+            .returning({ id: userFlow.id });
+          updated += rows.length;
         }
-      });
+        if (updated !== decided.size) {
+          throw new Error(ROSTER_CONFLICT_MESSAGE);
+        }
+      },
+    });
+    if (outcome.kind === "error") {
+      return { success: false, error: { message: outcome.message } };
+    }
+
+    let passCount = 0;
+    let rejectCount = 0;
+    if (outcome.kind === "ok") {
+      for (const passed of outcome.decided.values()) {
+        passCount += passed ? 1 : 0;
+        rejectCount += passed ? 0 : 1;
+      }
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "flow.office_round_one.close",
         resourceType: "flow",
         resourceId: flowId,
@@ -239,7 +343,7 @@ export const closeOfficeRoundOne = async (
           passCount,
           rejectCount,
           /* 留档：确认时刻的名单与当时分数快照 */
-          decisions: await buildDecisionSnapshot(1, validated.decided),
+          decisions: outcome.snapshot,
         },
       });
     }
@@ -319,37 +423,54 @@ export const closeOfficeRoundTwo = async (
       };
     }
 
-    const validated = await validateRoundDecisions({ flowId, round: 2, decisions });
-    if (validated.kind === "error") {
-      return { success: false, error: { message: validated.message } };
-    }
-
-    if (validated.pendingCount > 0) {
-      const resultStepId = await getStepIdByOrder(flowId, 4);
-      await db.transaction(async (tx) => {
-        for (const [userFlowId, passed] of validated.decided) {
-          await tx
+    const outcome = await commitRosterDecisions({
+      flowId,
+      round: 2,
+      decisions,
+      apply: async (tx, decided) => {
+        const resultStepId = await getStepIdByOrder(tx, flowId, 4);
+        let updated = 0;
+        for (const [userFlowId, passed] of decided) {
+          /* 条件更新：候选人必须仍是「二面进行中」，撤回/已被别人确认的行不动 */
+          const rows = await tx
             .update(userFlow)
             .set({
               progressStatus: passed ? "passed" : "failed",
               fkCurrentStepId: resultStepId,
               updatedAt: new Date(),
             })
-            .where(eq(userFlow.id, userFlowId));
+            .where(
+              and(
+                eq(userFlow.id, userFlowId),
+                eq(userFlow.progressStatus, "ongoing"),
+                eq(userFlow.round, 2),
+              ),
+            )
+            .returning({ id: userFlow.id });
+          updated += rows.length;
         }
-      });
+        if (updated !== decided.size) {
+          throw new Error(ROSTER_CONFLICT_MESSAGE);
+        }
+      },
+    });
+    if (outcome.kind === "error") {
+      return { success: false, error: { message: outcome.message } };
+    }
+
+    if (outcome.kind === "ok") {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "flow.office_round_two.close",
         resourceType: "flow",
         resourceId: flowId,
         department: loaded.flowRow.department,
         metadata: {
-          passCount: [...validated.decided.values()].filter(Boolean).length,
-          rejectCount: [...validated.decided.values()].filter((passed) => !passed).length,
+          passCount: [...outcome.decided.values()].filter(Boolean).length,
+          rejectCount: [...outcome.decided.values()].filter((passed) => !passed).length,
           /* 留档：最终名单与确认时刻的分数快照 */
-          decisions: await buildDecisionSnapshot(2, validated.decided),
+          decisions: outcome.snapshot,
         },
       });
     }

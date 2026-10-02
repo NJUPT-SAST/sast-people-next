@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { verifySession } from "@/lib/dal";
 import { useUserInfo as getUserInfo } from "@/hooks/useUserInfo";
 import { shouldUseMockLink } from "@/lib/link/client";
-import { getSession, syncCurrentSessionIdentity } from "@/lib/session";
+import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Loading } from "@/components/loading";
@@ -23,14 +23,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await verifySession();
-  const userInfo = await getUserInfo();
-  /* 每次进入工作台回源 Link 资料，保证授权判定跟随 Link 的最新角色与部门。
-     注意写入的是会话的真实角色：切换身份查看时 session.role 是临时视角，不能回写。 */
-  await syncCurrentSessionIdentity({
-    role: userInfo.role ?? session.realRole,
-    department: userInfo.departments[0] ?? null,
-  });
-  /* verifySession 的请求缓存早于上面的同步，展示与判定都读回同步后的会话 */
+  /* 身份回源已挪到 verifySession 内按 TTL 执行；这里保留 useUserInfo 只为它的
+     Link token 缺失 / 失效跳转，返回值不再参与同步。 */
+  await getUserInfo();
+  /* verifySession 内部已按 TTL 回源 Link 身份；这里再读一次会话，
+     拿最新的部门与临时视角用于展示（verifySession 是请求级缓存，展示口径单独取） */
   const latestSession = await getSession();
   const role = latestSession?.role ?? session.role;
   const displayDepartment = latestSession?.department ?? null;

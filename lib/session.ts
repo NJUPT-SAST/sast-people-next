@@ -31,6 +31,8 @@ export type SessionData = {
   realRole: number;
   /* Link 部门标识；null 表示尚未同步或该用户没有部门 */
   department: string | null;
+  /* 上次从 Link 回源同步角色/部门的时刻；null = 从未同步 */
+  departmentSyncedAt: Date | null;
   /** 当前生效的临时视角；null = 未切换 */
   viewAs: SessionViewAs | null;
   expiresAt: Date;
@@ -76,6 +78,7 @@ const toSessionData = (
   role: viewAs ? viewAs.role : record.role,
   realRole: record.role,
   department: viewAs ? viewAs.department : record.department ?? null,
+  departmentSyncedAt: record.departmentSyncedAt,
   viewAs,
   expiresAt: record.expiresAt,
   linkAccessToken: includeLinkTokens && record.linkAccessToken
@@ -250,7 +253,11 @@ export async function updateLinkSessionTokens(
 /* Link 资料（角色 + 部门）回源的最小间隔：5 分钟内不重复打 Link，角色变化则立即写入 */
 const DEPARTMENT_SYNC_TTL_MS = 5 * 60 * 1000;
 
-/* dashboard 布局每次回源 Link profile 后调用；只在从未同步或超过最小间隔时回写（≤5 分钟跟上 Link 的角色/部门变化） */
+/* 会话身份（角色 + 部门）是否需要在本次请求里回源 Link */
+export const isIdentitySyncStale = (syncedAt: Date | null) =>
+  !syncedAt || syncedAt.getTime() < Date.now() - DEPARTMENT_SYNC_TTL_MS;
+
+/* 拿到 Link profile 后调用（verifySession 的身份回源按 TTL 触发）；只在从未同步或超过最小间隔时回写（≤5 分钟跟上 Link 的角色/部门变化） */
 export async function syncCurrentSessionIdentity(identity: {
   role: number;
   department: string | null;
@@ -288,6 +295,8 @@ export async function deleteSession() {
 
   const cookieStore = await cookies();
   cookieStore.delete(SESSION);
+  /* 临时视角 cookie 比会话活得久：退出登录时一并清掉，避免影响下一个登录者 */
+  cookieStore.delete(VIEW_AS);
 }
 export async function updateSession() {
   const session = await getSession();

@@ -27,9 +27,12 @@ const stableStepsData = [
   },
 ];
 
+/* 已存步骤可按用例替换；默认就是上面那份报名步骤 */
+let mockSavedSteps = stableStepsData;
+
 jest.mock("@/hooks/useFlowStepsInfoClient", () => ({
   useFlowStepsInfoClient: () => ({
-    data: stableStepsData,
+    data: mockSavedSteps,
   }),
 }));
 
@@ -120,6 +123,7 @@ describe("EditSteps", () => {
     mockUpdateFlow.mockClear();
     mockUpdateFlowStep.mockClear();
     mockToastPromise.mockClear();
+    mockSavedSteps = stableStepsData;
   });
 
   it("saves flow metadata and edited step labels", async () => {
@@ -257,5 +261,60 @@ describe("EditSteps", () => {
         }),
       );
     });
+  });
+
+  it("drops the previous type's step text after the flow type changes", async () => {
+    const user = userEvent.setup();
+    /* 已存的办公类步骤：order 2 是 checking「一面」，与免试模板的 order 2 撞型 */
+    mockSavedSteps = [
+      {
+        id: 11,
+        title: "报名",
+        type: "registering",
+        order: 1,
+        description: "填写个人信息",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isDeleted: false,
+        fkFlowId: 31,
+      },
+      {
+        id: 12,
+        title: "一面",
+        type: "checking",
+        order: 2,
+        description: "部门部长进行一对一面试并打分",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isDeleted: false,
+        fkFlowId: 31,
+      },
+    ];
+
+    render(
+      <EditSteps
+        canChooseDepartment
+        data={{
+          id: 31,
+          title: "办公室面试招新",
+          description: "办公类流程",
+          type: "office_interview",
+          department: "office",
+          startedAt: new Date("2026-03-22T08:00:00.000Z"),
+          endedAt: new Date("2026-03-22T18:00:00.000Z"),
+        } as never}
+      />,
+    );
+
+    expect(screen.getByDisplayValue("一面")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "软件研发部免试" }));
+
+    /* 免试模板的 order 2 是「讲师审核」，不能被旧类型的「一面」覆盖 */
+    expect(screen.queryByDisplayValue("一面")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("讲师审核")).toBeInTheDocument();
+    expect(
+      screen.queryByDisplayValue("部门部长进行一对一面试并打分"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -57,6 +57,7 @@ export const updateFlow = async (
       flowId: id,
       scope: session.scope,
       currentType: flowRow.type,
+      currentDepartment: flowRow.department,
       nextType: parsedValues.type,
       nextDepartment,
     });
@@ -77,7 +78,7 @@ export const updateFlow = async (
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "flow.update",
       resourceType: "flow",
       resourceId: id,

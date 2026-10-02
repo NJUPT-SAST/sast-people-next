@@ -46,7 +46,7 @@ export async function sendEmailTest(
 ) {
   const toAddress = input.toAddress;
   const flowName = input.flowName ?? "SAST 招新";
-  let session: { uid: number; role: number; name: string } | null = null;
+  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
   let targetDepartment: string | null = null;
 
   try {
@@ -101,7 +101,7 @@ export async function sendEmailTest(
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "email.test_send",
       resourceType: "email_delivery",
       resourceId: result.deliveryId,

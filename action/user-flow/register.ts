@@ -497,7 +497,7 @@ export const register = async (
     if (result.success && createdUserFlowIds.length > 0) {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "user_flow.register",
         resourceType: "user_flow",
         resourceId: createdUserFlowIds[0],

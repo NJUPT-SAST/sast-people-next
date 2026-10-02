@@ -37,7 +37,7 @@ export async function sendEmailBatch(batchIdInput: unknown) {
   try {
     const session = await verifyManager();
     actorId = session.uid;
-    actorRole = session.role;
+    actorRole = session.realRole;
     batchId = requirePositiveIntegerInput(batchIdInput, "邮件批次 ID");
     flowDepartment = await loadBatchFlowDepartment(batchId);
     assertFlowEditable(session.scope, flowDepartment, "无权操作其他部门的邮件批次");
@@ -45,7 +45,7 @@ export async function sendEmailBatch(batchIdInput: unknown) {
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "email.batch_send",
       resourceType: "email_batch",
       resourceId: batchId,
@@ -77,7 +77,7 @@ export async function recoverStaleEmailBatch(batchIdInput: unknown) {
   try {
     const session = await verifyManager();
     actorId = session.uid;
-    actorRole = session.role;
+    actorRole = session.realRole;
     batchId = requirePositiveIntegerInput(batchIdInput, "邮件批次 ID");
     flowDepartment = await loadBatchFlowDepartment(batchId);
     assertFlowEditable(session.scope, flowDepartment, "无权操作其他部门的邮件批次");
@@ -85,7 +85,7 @@ export async function recoverStaleEmailBatch(batchIdInput: unknown) {
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "email.recover_stale",
       resourceType: "email_batch",
       resourceId: batchId,

@@ -83,7 +83,8 @@ describe("DashboardLayout", () => {
       role: number;
     }>;
 
-    expect(mockSyncIdentity).toHaveBeenCalledWith({ role: 4, department: "software" });
+    /* 身份回源已挪到 verifySession 内按 TTL 执行，布局不再自己同步 */
+    expect(mockSyncIdentity).not.toHaveBeenCalled();
     expect(element.props.role).toBe(4);
     expect(element.props.department).toBe("software");
     /* 管理员标记已随本地管理员名单移除，导航外壳不再接收 isAdmin */

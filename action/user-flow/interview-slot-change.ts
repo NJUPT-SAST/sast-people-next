@@ -280,7 +280,7 @@ export const requestInterviewSlotChange = async ({
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.interview_slot.request",
       resourceType: "user_flow",
       resourceId: userFlowId,
@@ -566,7 +566,7 @@ export const reviewInterviewSlotChange = async (
 
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "user_flow.interview_slot.review",
         resourceType: "interview_slot_change_request",
         resourceId: requestId,
@@ -619,7 +619,7 @@ export const reviewInterviewSlotChange = async (
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.interview_slot.review",
       resourceType: "interview_slot_change_request",
       resourceId: requestId,

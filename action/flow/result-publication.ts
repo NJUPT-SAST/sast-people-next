@@ -336,7 +336,7 @@ export async function publishFlowResults(
       .where(and(eq(flowResultPublication.id, publication.id), eq(flowResultPublication.status, "publishing")))
       .returning({ id: flowResultPublication.id });
     if (!publishedPublication) throw new Error("流程发布状态已变更，请刷新后确认结果");
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "flow.result.publish", resourceType: "flow_result_publication", resourceId: publication.id, department: summary.flow.department, metadata: { flowId, counts: summary.counts, notifiedUserFlowIds: [...selectedUserFlowIds] } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.realRole, action: "flow.result.publish", resourceType: "flow_result_publication", resourceId: publication.id, department: summary.flow.department, metadata: { flowId, counts: summary.counts, notifiedUserFlowIds: [...selectedUserFlowIds] } });
     revalidatePath("/dashboard/exams");
     revalidatePath("/dashboard/interviews");
     revalidatePath("/dashboard/emails");

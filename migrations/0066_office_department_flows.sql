@@ -1,5 +1,7 @@
 -- 办公类部门面试招新改为「每个办公部门一条独立流程」：
--- * flow.department = 办公部门（不再有 department IS NULL 的共享办公流程），权限/邮件/发布各归本部门；
+-- * flow.department = 办公部门，权限/邮件/发布各归本部门；共享流程仅在搬迁后无剩余报名时归档
+--   （仍有部门为空的存量报名时保留该流程，这类全局流程按既有规则仅管理员可见），
+--   已归档的共享流程保留历史邮件批次/发布记录的外键；
 -- * user_flow.choice：1=第一志愿、2=第二志愿（候选人在两个部门流程分别报名）；
 -- * user_flow.final_department：部长团评议的最终去向部门（为空时按「第一志愿优先」自动归属）；
 -- * 取消办公部门互斥，改为「最多两条进行中的办公类报名，且一志愿/二志愿各最多一条」；
@@ -62,7 +64,7 @@ BEGIN
         INSERT INTO "flow"
           ("title", "description", "type", "owner_id", "started_at", "ended_at", "department", "slot_options")
         VALUES (
-          COALESCE(shared_flow."title", '办公类部门面试招新') || '（' || dept.label || '）',
+          left(COALESCE(shared_flow."title", '办公类部门面试招新') || '（' || dept.label || '）', 100),
           shared_flow."description",
           shared_flow."type",
           shared_flow."owner_id",
@@ -128,9 +130,23 @@ BEGIN
     END IF;
   END LOOP;
 
-  /* 4) 共享流程归档：保留历史邮件批次/发布记录的外键 */
+  /* 3.5) 历史办公类报名没有轮次：名单确认按「进行中 + 当前轮次」取待确认候选人，
+     缺轮次会永远找不到这些报名（既不能确认、也不会结束）。默认处于一面。 */
+  UPDATE "user_flow" uf
+    SET "round" = 1
+    FROM "flow" f
+    WHERE uf."fk_flow_id" = f."id"
+      AND f."type"::text = 'office_interview'
+      AND uf."round" IS NULL
+      AND uf."progress_status" IN ('not_started', 'ongoing');
+
+  /* 4) 共享流程归档：保留历史邮件批次/发布记录的外键；
+     仍有报名残留（部门为空或部门未生成流程）的共享流程不能归档，否则这些报名在所有非管理视图里消失 */
   UPDATE "flow" SET "is_deleted" = true
-    WHERE "type"::text = 'office_interview' AND "department" IS NULL;
+    WHERE "type"::text = 'office_interview' AND "department" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "user_flow" uf WHERE uf."fk_flow_id" = "flow"."id"
+      );
 END $$;
 
 ALTER TABLE "user_flow" DROP COLUMN IF EXISTS "second_choice_department";

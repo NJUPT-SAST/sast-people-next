@@ -12,8 +12,10 @@ jest.mock("@/action/flow/save-workspace", () => ({
     mockSaveFlowWorkspace(...args),
 }));
 
+let mockSavedSteps: unknown = undefined;
+
 jest.mock("@/hooks/useFlowStepsInfoClient", () => ({
-  useFlowStepsInfoClient: () => ({ data: undefined }),
+  useFlowStepsInfoClient: () => ({ data: mockSavedSteps }),
 }));
 
 jest.mock("sonner", () => ({
@@ -108,6 +110,7 @@ const officeFlowData = {
 describe("FlowEditor", () => {
   beforeEach(() => {
     mockSaveFlowWorkspace.mockClear();
+    mockSavedSteps = undefined;
   });
 
   it("keeps the office interview steps when saving", async () => {
@@ -166,5 +169,50 @@ describe("FlowEditor", () => {
         }),
       );
     });
+  });
+
+  it("drops the previous type's step text after the flow type changes", async () => {
+    const user = userEvent.setup();
+    /* 已存的办公类步骤：order 2 是 checking「一面」，与免试模板的 order 2 撞型 */
+    mockSavedSteps = [
+      {
+        id: 11,
+        title: "报名",
+        type: "registering",
+        order: 1,
+        description: "填写个人信息",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isDeleted: false,
+        fkFlowId: 21,
+      },
+      {
+        id: 12,
+        title: "一面",
+        type: "checking",
+        order: 2,
+        description: "部门部长进行一对一面试并打分",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isDeleted: false,
+        fkFlowId: 21,
+      },
+    ];
+
+    render(<FlowEditor data={officeFlowData as never} canChooseDepartment />);
+
+    expect(screen.getByDisplayValue("一面")).toBeInTheDocument();
+
+    /* 换成免试（技术面试）：order 2 的类型同为 checking，但不能沿用旧文案 */
+    await user.click(screen.getByRole("button", { name: "软件研发部免试" }));
+
+    expect(screen.queryByDisplayValue("一面")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("讲师审核")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue("讲师进行面评并提交同意或不同意"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByDisplayValue("部门部长进行一对一面试并打分"),
+    ).not.toBeInTheDocument();
   });
 });

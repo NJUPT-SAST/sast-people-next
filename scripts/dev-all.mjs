@@ -156,14 +156,13 @@ function listeningPidsFor(port) {
   return [...matches].map((match) => Number(match[1]));
 }
 
-/* 只关闭本仓库的开发进程：dev-all 自身、它记录的子进程，或命令行指向本仓库的其他进程 */
+/* 只关闭本仓库的开发进程：命令行指向本仓库（或 dev-all.mjs 本身）的进程。
+   仓库内启动的服务（next/email/docker）命令行都带 rootDir，因此 pid 文件里记录的
+   自身与子进程也能命中；不按进程名兜底，避免误杀占用端口的无关进程。 */
 function isRepoProcess(pid) {
   const command = commandLineOf(pid).toLowerCase();
   if (!command) return false;
-  if (command.includes("dev-all.mjs") || command.includes(rootDir.toLowerCase())) {
-    return true;
-  }
-  return /\b(node|cmd|pnpm|next|email|npm)\b/i.test(command);
+  return command.includes("dev-all.mjs") || command.includes(rootDir.toLowerCase());
 }
 
 async function waitForPortsReleased(ports, timeoutMs = 15_000) {

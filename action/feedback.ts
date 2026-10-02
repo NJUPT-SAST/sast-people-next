@@ -56,7 +56,7 @@ export async function updateFeedbackReport(
 
   await writeOperationAudit({
     actorId: session.uid,
-    actorRole: session.role,
+    actorRole: session.realRole,
     action: "feedback.status.update",
     resourceType: "feedback_report",
     resourceId: id,

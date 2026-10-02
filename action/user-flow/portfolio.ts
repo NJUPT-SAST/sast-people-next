@@ -77,7 +77,7 @@ export const updatePortfolioLink = async (
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.portfolio.update",
       resourceType: "user_flow",
       resourceId: userFlowId,

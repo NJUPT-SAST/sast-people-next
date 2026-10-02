@@ -1068,6 +1068,19 @@ export const EvaluationTable = ({
   }, [showScheduleColumn]);
 
   useEffect(() => {
+    // 切换流程后旧时段 label 可能已不在新流程的选项里：留着它会把列表筛空，
+    // 而 Radix Select 只显示占位符，工具栏仍写着「全部时段」，看不出原因。
+    // 与上面的组别筛选一致：按拼接后的取值判断，避免 revalidatePath 触发的
+    // 重渲染把筛选清掉；「未选择」是语义筛选，不依赖具体选项，予以保留。
+    const options = slotOptionsKey ? slotOptionsKey.split("\u0000") : [];
+    setSlotFilter((current) =>
+      current && current !== OFFICE_SLOT_NONE && !options.includes(current)
+        ? null
+        : current,
+    );
+  }, [slotOptionsKey]);
+
+  useEffect(() => {
     setNow(Date.now());
     // The "confirm the interview has ended" action unlocks with the clock, so a
     // page left open all afternoon has to keep ticking.

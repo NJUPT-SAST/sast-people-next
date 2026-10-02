@@ -23,7 +23,7 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
   try {
     const session = await verifyManager();
     actorId = session.uid;
-    actorRole = session.role;
+    actorRole = session.realRole;
     deliveryId = requirePositiveIntegerInput(deliveryIdInput, "邮件记录 ID");
 
     const [delivery] = await db
@@ -57,7 +57,7 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "email.delivery_retry",
       resourceType: "email_delivery",
       resourceId: delivery.id,

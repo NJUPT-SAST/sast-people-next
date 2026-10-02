@@ -6,7 +6,7 @@ import { readResultEmailTemplateSetting } from "@/lib/email-center/template-reso
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
 import { getDepartmentScope, type DepartmentScope, verifyManager } from "@/lib/authz";
-import { assertFlowEditableRecord, visibleFlowPredicate } from "@/lib/flow-access";
+import { assertFlowEditableRecord, strictlyVisibleFlowPredicate } from "@/lib/flow-access";
 import { verifyRole } from "@/lib/dal";
 import { isOfficeInterviewFlow, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 import { departmentLabel } from "@/const/department";
@@ -60,7 +60,7 @@ export async function listEmailFlowTargets() {
         inArray(flow.type, resultFlowTypes),
         /* 办公类部门面试招新的邮件在面试管理页单独发送，不混入通用发结果通道 */
         ne(flow.type, OFFICE_INTERVIEW_FLOW_TYPE),
-        visibleFlowPredicate(scope),
+        strictlyVisibleFlowPredicate(scope),
       ),
     )
     .orderBy(desc(flow.createdAt));
@@ -160,7 +160,7 @@ export async function listEmailFlowOptions() {
       department: flow.department,
     })
     .from(flow)
-    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes), visibleFlowPredicate(scope)))
+    .where(and(eq(flow.isDeleted, false), inArray(flow.type, resultFlowTypes), strictlyVisibleFlowPredicate(scope)))
     .orderBy(desc(flow.createdAt));
 }
 

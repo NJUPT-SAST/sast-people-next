@@ -22,6 +22,7 @@ jest.mock("@/lib/secret", () => ({
 import {
   createSession,
   deleteExpiredSessions,
+  deleteSession,
   getSessionById,
   updateLinkSessionTokens,
 } from "./session";
@@ -158,6 +159,18 @@ describe("server sessions", () => {
     }>;
     expect(deleteCondition[1]).toMatchObject({ name: "expires_at" });
     expect(deleteCondition[2]).toMatchObject({ value: [" < "] });
+  });
+
+  it("退出登录时同时清掉会话与临时视角 cookie", async () => {
+    mockCookieStore.get.mockImplementation((name: string) =>
+      name === SESSION ? { value: "a".repeat(43) } : undefined,
+    );
+
+    await deleteSession();
+
+    expect(mockDelete).toHaveBeenCalled();
+    expect(mockCookieStore.delete).toHaveBeenCalledWith(SESSION);
+    expect(mockCookieStore.delete).toHaveBeenCalledWith(VIEW_AS);
   });
 });
 

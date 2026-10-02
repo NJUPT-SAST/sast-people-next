@@ -1,9 +1,10 @@
-"use server";
+import "server-only";
 
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, normalizeDepartmentKey, userFlow } from "@/db/schema";
 import { updateLinkUserDepartments, updateLinkUserRoles } from "@/lib/link/admin";
 import { MANAGER_ROLE, peopleRoleToLinkRole } from "@/lib/link/role";
+import { verifyManager } from "@/lib/authz";
 import { OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 import { resolveLatestPassedDepartments } from "@/lib/flow-result-department";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
@@ -38,8 +39,12 @@ const chunk = <T,>(values: T[], size: number) =>
  * 1) 角色：通过技术部门流程即部员、SoC 通过为讲师、办公类流程两轮都过后为部员；
  * 2) 部门归属：通过某部门流程后自动归属到该部门，多次通过以最后一次通过的部门为准（可覆盖）。
  * 不会改动管理员/部长角色，也不会改动部长及以上账号的部门。
+ *
+ * 本模块不是 server action（`server-only`）：只允许服务端内部链路调用，
+ * 且入口再做一次部长级校验，避免被当作公开 action 直接调用。
  */
 export const syncUserIdentityFromAcceptedFlows = async (uids: number[], publishingFlowId?: number) => {
+  await verifyManager();
   const uniqueUids = Array.from(
     new Set(uids.filter((uid) => Number.isSafeInteger(uid) && uid > 0)),
   );
@@ -98,10 +103,15 @@ export const syncUserIdentityFromAcceptedFlows = async (uids: number[], publishi
     idsByRole.set(calculatedRole, ids);
   }
 
-  /* 部门归属：多次通过以最后一次为准；部长及以上账号不改动，已是目标部门的跳过 */
+  /* 部门归属：多次通过以最后一次为准；部长及以上账号不改动，已是目标部门的跳过。
+     办公类需要 flowType/choice/finalDepartment：部长团评议的「最终去向」优先，
+     否则按「第一志愿优先」——三者必须一并传给解析器，否则办公类分支不会生效。 */
   const latestDepartments = resolveLatestPassedDepartments(
     acceptedFlows.map((row) => ({
       uid: row.uid,
+      flowType: row.type,
+      choice: row.choice,
+      finalDepartment: row.finalDepartment,
       flowDepartment: row.flowDepartment,
       rowDepartment: row.rowDepartment,
       passedAt: row.publishedAt ?? row.updatedAt,
