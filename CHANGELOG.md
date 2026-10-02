@@ -66,6 +66,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### 邮件模板「填了不生效」修复
+
+- **测试发送 / 模板预览把 QQ 群号写死成示例值**：`action/email/test-send.ts` 与 `action/email/template.ts` 的 `getResultEmailPreviews` 都传 `groupNumber: "123456789"`，所以填了群号后在测试邮件和预览里永远看不到自己的值（真实发送路径取的是落库值，两个「预览」面彼此还不一致）。现在两处都取解析后的模板设置；「测试发送」的渲染请求构造抽到 `lib/email-center/test-render.ts`，与真实发送共用同一份解析结果并有单测守着。
+- **面试 / 退回通知的邮件标题渲染示例变量**：`renderInterviewScheduleEmailSubject` / `renderInterviewWithdrawalEmailSubject` 把 `{candidateName}` 固定成「同学」、`{organizerName}` 固定成「李四」、时间与理由为空，标题里写了这些变量的模板在真实邮件里永远是样例。现在标题与正文共用同一套真实变量（`lib/email/interview-schedule.tsx`、`lib/email-center/interview-withdrawal.tsx`、`lib/email-center/render.ts`）。
+- **「表单按钮文案」（`memberFormLabel`）是死字段**：可编辑、必填、会落库、也传给了邮件组件，但 `emails/offer.tsx` 把它解构成 `_memberFormLabel` 并忽略，按钮文案写死「点击填写信息表」，改了什么都不会变。现在按钮直接渲染该字段；内置默认同步改为「点击填写信息表」，迁移 `0068` 把仍是旧默认值「成员信息收集表」的行改写为新文案，已发出的邮件文案保持不变。
+- **重试邮件批次会篡改报名状态**（`lib/email-center/batch.ts`）：`sendEmailBatchById` 过去默认把收件人的 `progress_status` 写成 `passed` / `failed`，而邮件中心的「重试」按钮走的就是默认值——重试一个失败的**一面通过通知**批次时，仍在二面的候选人会被提前标成 `passed`，从此不出现在二面名单里、也无法在二面被拒绝（`closeOfficeRoundTwo` 只找 `ongoing` + `round 2`），最终结果发布还会把他们算成通过并同步身份。现在重发只处理投递状态，绝不写报名状态（最终结果批次的收件人建批次时就已经是最终状态，本就不需要再写）。
+- 模板编辑器补上准确的可用变量说明：结果模板的标题只支持 `{name}`/`{flowName}`/`{department}`/`{groupNumber}`，正文支持全部字段；面试模板的标题与正文都支持 `{candidateName}`/`{flowName}`/`{organizerName}` 等，避免再次出现「填了不生效」的误解。
+
 - 邮件中心「测试发送」默认模板：此前无论选中哪个流程，默认都会用**技术招新通过模板**（`recruitment.result.accepted`）发测试邮件，办公部门看起来像技术部门招新邮件；现在默认跟随当前流程类型（办公类 → 办公类一面通过模板、免试 → 免试模板、WOC/SOC 各自模板），模板下拉按「结果通知 / 面试通知」分组，弹窗同时显示当前流程名。
 - `pnpm dev:local` 现在会在启动前收掉上次留下的开发环境实例：运行态文件（`tmp/dev-all.pid`：父进程 + 已启动子进程）与端口占用双重检测，只关闭本仓库的进程（Windows `taskkill /T`，POSIX `SIGTERM`），并容忍本项目 `inngest-dev` 容器占用 8288/8289
 - `pnpm dev:local` 不再依赖 PATH 上的 `pnpm`：容器用 `docker compose` 直接管理，Next.js 与邮件预览用仓库内二进制（`node_modules/next/dist/bin/next`、`node_modules/react-email/dist/cli/index.mjs`）启动

@@ -10,14 +10,15 @@ jest.mock("@/lib/email/result-email", () => ({
 jest.mock("@/lib/email/interview-schedule", () => ({
   renderInterviewScheduleEmail: jest.fn(async () => "<html>interview</html>"),
   renderInterviewScheduleEmailSubject: jest.fn(
-    async (flowName: string, kind: string) => `${flowName} ${kind}`,
+    async (variables: { flowName: string; kind?: string }) =>
+      `${variables.flowName} ${variables.kind}`,
   ),
 }));
 
 jest.mock("@/lib/email-center/interview-withdrawal", () => ({
   renderInterviewWithdrawalEmail: jest.fn(async () => "<html>withdrawal</html>"),
   renderInterviewWithdrawalEmailSubject: jest.fn(
-    (flowName: string) => `${flowName} withdrawn`,
+    (variables: { flowName: string }) => `${variables.flowName} withdrawn`,
   ),
 }));
 
@@ -122,9 +123,11 @@ describe("renderEmailTemplate", () => {
       html: "<html>interview</html>",
     });
     expect(renderInterviewScheduleEmailSubject).toHaveBeenCalledWith(
-      "2026 免试招新",
-      "cancelled",
-      undefined,
+      expect.objectContaining({
+        flowName: "2026 免试招新",
+        candidateName: "李四",
+        kind: "cancelled",
+      }),
     );
     expect(renderInterviewScheduleEmail).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -150,8 +153,11 @@ describe("renderEmailTemplate", () => {
       html: "<html>withdrawal</html>",
     });
     expect(renderInterviewWithdrawalEmailSubject).toHaveBeenCalledWith(
-      "2026 免试招新",
-      undefined,
+      expect.objectContaining({
+        flowName: "2026 免试招新",
+        candidateName: "王五",
+        reason: "请补充作品集后重新报名。",
+      }),
     );
     expect(renderInterviewWithdrawalEmail).toHaveBeenCalledWith({
       candidateName: "王五",
@@ -184,16 +190,20 @@ describe("renderEmailTemplate", () => {
     });
 
     expect(renderInterviewScheduleEmailSubject).toHaveBeenCalledWith(
-      "2026 免试招新",
-      "created",
-      "software",
+      expect.objectContaining({
+        flowName: "2026 免试招新",
+        kind: "created",
+        department: "software",
+      }),
     );
     expect(renderInterviewScheduleEmail).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "created", department: "software" }),
     );
     expect(renderInterviewWithdrawalEmailSubject).toHaveBeenCalledWith(
-      "2026 免试招新",
-      "software",
+      expect.objectContaining({
+        flowName: "2026 免试招新",
+        department: "software",
+      }),
     );
     expect(renderInterviewWithdrawalEmail).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "请补充作品集后重新报名。", department: "software" }),

@@ -11,7 +11,8 @@ export const resultEmailLinks = {
 
 export const resultEmailCopy = {
   contactEmail: "recruitment@sast.fun",
-  memberFormLabel: "成员信息收集表",
+  /* 成员信息表按钮文案：邮件里就是这个字符串本身（不再拼「点击填写」前缀） */
+  memberFormLabel: "点击填写信息表",
   feishuGroupName: "SAST.2025 软多Family",
 };
 

@@ -320,6 +320,13 @@ describe("listInterviewScheduleTemplateSettings", () => {
 });
 
 describe("rendered subject", () => {
+  const scheduleVariables = (overrides: Record<string, unknown> = {}) => ({
+    candidateName: "张三",
+    flowName: "2026 免试招新",
+    organizerName: "李四",
+    ...overrides,
+  });
+
   it("uses the department override, then the global row, then the built-in copy", async () => {
     selectedRows = [
       contentRow("interview.schedule.created", null, "全局-预约"),
@@ -327,16 +334,44 @@ describe("rendered subject", () => {
     ];
 
     await expect(
-      renderInterviewScheduleEmailSubject("2026 免试招新", "created", "software"),
+      renderInterviewScheduleEmailSubject({
+        ...scheduleVariables(),
+        kind: "created",
+        department: "software",
+      }),
     ).resolves.toBe("2026 免试招新-软件-预约");
     await expect(
-      renderInterviewScheduleEmailSubject("2026 免试招新", "created", "media"),
+      renderInterviewScheduleEmailSubject({
+        ...scheduleVariables(),
+        kind: "created",
+        department: "media",
+      }),
     ).resolves.toBe("2026 免试招新-全局-预约");
 
     selectedRows = [];
     await expect(
-      renderInterviewScheduleEmailSubject("2026 免试招新", "created"),
+      renderInterviewScheduleEmailSubject({
+        ...scheduleVariables(),
+        kind: "created",
+      }),
     ).resolves.toBe("2026 免试招新 面试预约通知");
+  });
+
+  it("renders the real candidate and organiser in the subject, not sample values", async () => {
+    selectedRows = [
+      contentRow(
+        "interview.schedule.created",
+        null,
+        "{candidateName} 的面试预约通知（面试官 {organizerName}）",
+      ),
+    ];
+
+    await expect(
+      renderInterviewScheduleEmailSubject({
+        ...scheduleVariables({ candidateName: "王五", organizerName: "赵六" }),
+        kind: "created",
+      }),
+    ).resolves.toBe("2026 免试招新-王五 的面试预约通知（面试官 赵六）");
   });
 
   it("uses the department override for the withdrawal subject", async () => {
@@ -345,8 +380,32 @@ describe("rendered subject", () => {
     ];
 
     await expect(
-      renderInterviewWithdrawalEmailSubject("2026 免试招新", "software"),
+      renderInterviewWithdrawalEmailSubject({
+        candidateName: "张三",
+        flowName: "2026 免试招新",
+        reason: "请补充作品集后重新报名。",
+        department: "software",
+      }),
     ).resolves.toBe("2026 免试招新-软件-退回");
+  });
+
+  it("renders the real candidate and reason in the withdrawal subject", async () => {
+    selectedRows = [
+      contentRow(
+        "interview.application.withdrawn",
+        null,
+        "{candidateName}：{reason}",
+      ),
+    ];
+
+    await expect(
+      renderInterviewWithdrawalEmailSubject({
+        candidateName: "王五",
+        flowName: "2026 免试招新",
+        reason: "资料不全",
+        operatorName: "李四",
+      }),
+    ).resolves.toBe("2026 免试招新-王五：资料不全");
   });
 });
 

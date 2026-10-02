@@ -610,4 +610,24 @@ describe("email batch service", () => {
 
     expect(mockSyncUserRolesFromAcceptedFlows).not.toHaveBeenCalled();
   });
+
+  it("never rewrites candidate status when a failed batch is retried", async () => {
+    mockSelectResults.push(
+      [{ id: 11, category: "result", accept: true, status: "failed" }],
+      [],
+      [
+        { id: 301, userFlowId: 601, userId: 701, status: "failed" },
+        { id: 302, userFlowId: 602, userId: 702, status: "pending" },
+      ],
+    );
+    mockOffer.mockResolvedValue(undefined);
+
+    await expect(sendEmailBatchById(11)).resolves.toEqual({ queuedCount: 2 });
+
+    /* 一面通过通知重试时候选人仍在二面（ongoing + round 2）：
+       这里若写 progressStatus，候选人会被提前标成 passed 并跳过二面决定 */
+    expect(mockUpdateSetCalls).not.toContainEqual(
+      expect.objectContaining({ progressStatus: expect.anything() }),
+    );
+  });
 });

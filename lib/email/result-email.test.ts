@@ -125,4 +125,20 @@ describe("OfferEmail", () => {
     /* 未通过者保留授课日历入口 */
     expect(rejected).toContain(resultEmailLinks.calendar);
   });
+
+  it("renders the saved member-form button label", () => {
+    /* 「表单按钮文案」是可编辑字段：曾经被写死的「点击填写信息表」顶替，改了不生效 */
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 免试招新",
+        accept: true,
+        flowKind: "recruitment_exemption",
+        memberFormLabel: "点我填写成员表",
+      }),
+    );
+
+    expect(html).toContain("点我填写成员表");
+    expect(html).not.toContain("点击填写信息表");
+  });
 });
