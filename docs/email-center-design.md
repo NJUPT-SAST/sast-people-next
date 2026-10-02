@@ -82,14 +82,15 @@
 
 | category | templateKey | 触发场景 | 发送方式 |
 | --- | --- | --- | --- |
-| `result` | `recruitment.result.accepted` | 招新通过结果通知 | 批量 |
-| `result` | `recruitment.result.rejected` | 招新不通过结果通知 | 批量 |
+| `result` | `recruitment.result.accepted` | 笔试招新通过结果通知 | 批量 |
+| `result` | `recruitment.result.rejected` | 笔试招新不通过结果通知 | 批量 |
 | `interview` | `interview.schedule.created` | 面试预约创建 | 单封 |
 | `interview` | `interview.schedule.rescheduled` | 面试改约 | 单封 |
 | `interview` | `interview.schedule.cancelled` | 面试取消 | 单封 |
+| `interview` | `interview.schedule.change.rejected` | 面试暂不改期说明（含说明） | 单封 |
 | `test` | 任意模板 + `.test` 标记 | 管理员测试发送 | 单封 |
 
-面试预约、改约与取消已分别使用 `interview.schedule.created`、`interview.schedule.rescheduled` 和 `interview.schedule.cancelled` 三个模板 key。三种状态可以共享 React Email 组件，但模板注册层保留独立条目，以便预览、测试和管理文案。
+面试预约、改约与取消已分别使用 `interview.schedule.created`、`interview.schedule.rescheduled` 和 `interview.schedule.cancelled` 三个模板 key；改约申请暂不调整时另用 `interview.schedule.change.rejected`（变量含说明）。这些状态可以共享 React Email 组件，但模板注册层保留独立条目，以便预览、测试和管理文案。
 
 ## 5. UI 信息架构
 
@@ -209,12 +210,18 @@ UI：
 
 列表列：
 
-- 模板名称
+- 模板名称（按「部门 × 阶段」口径生成，见下）
 - 类型
 - 状态
 - 可用变量摘要
 - 最近修改时间
 - 操作
+
+模板展示名：
+
+- 统一由 `const/flow.ts` 的 `emailTemplateLabel(templateKey, { department, variant })` 生成，与流程页签共用同一套命名：归属到具体部门就写部门名——软件研发部WOC / 多媒体部WOD / 软件研发部SOC / 多媒体部SOD / 办公室一面；未指定部门（全局默认）才用通用阶段名（笔试招新、WOC/WOD、SOC/SOD、部门面试一面）。
+- 名称随「模板归属」与投递记录的 `flow_department` 变化：同一模板键在软件研发部读作 WOC、在多媒体部读作 WOD，不再出现「办公类一面通过通知」这类与部门脱节的模板名。模板板块只列出该部门真正会跑的阶段（技术部门 = 笔试/免试/WOC/SOC，办公部门 = 一面/二面），未知部门不过滤。
+- 排序按阶段：笔试 → 免试 → WOC/WOD → SOC/SOD → 一面 → 二面，通过排在不通过之前。
 
 模板操作：
 
@@ -222,6 +229,13 @@ UI：
 - 预览
 - 测试发送
 - 恢复默认
+
+模板归属（部门覆盖）：
+
+- 模板行按 `(template_key, department)` 存储，`department IS NULL` 为**全局默认**；渲染时优先取「业务归属部门」的覆盖，没有则回落全局默认，再没有则由内置默认文案兜底。
+- 管理员可编辑全局默认与任意部门覆盖；部长（role 3 + 部门 scope）只能编辑本部门覆盖，可只读浏览全局默认与其他部门的覆盖（徽章「其他部门覆盖」，无保存/恢复/测试发送按钮）。
+- 列表按“模板归属”切换：全局默认 / 任意部门（部长浏览他部门为只读）。归属下拉选项 = Link 部门目录（`const/department.ts`）∪ 库中已有覆盖行；管理员另可手填新部门标识。「恢复默认」在部门归属下删除该部门覆盖行、回落全局默认；管理员在全局默认归属下删除全局行、回落**内置默认文案**（按钮文案「恢复内置默认文案」）。
+- 归属链路：结果邮件取流程 `flow.department`；面试通知取候选人报名记录 `user_flow.department`；队列无会话场景由投递创建层（`lib/email-center/delivery.ts`）按 `user_flow_id` / `flow_id` 解析部门，保证发送时用的是同一份模板。
 
 模板编辑 UI 原则：
 
@@ -464,13 +478,14 @@ createTransport(...)
 
 | 功能 | 最低角色 |
 | --- | --- |
-| 查看邮件中心 | 管理员 role >= 3 |
-| 查看发送记录 | 管理员 role >= 3 |
-| 查看正文快照 | 管理员 role >= 3 |
-| 编辑模板 | 管理员 role >= 3 |
-| 测试发送 | 管理员 role >= 3 |
-| 创建结果通知任务 | 管理员 role >= 3 |
-| 重试失败邮件 | 管理员 role >= 3 |
+| 查看邮件中心 | 部长 role >= 3 |
+| 查看发送记录 | 部长 role >= 3 |
+| 查看正文快照 | 部长 role >= 3 |
+| 编辑模板（本部门覆盖） | 部长 role >= 3 |
+| 编辑全局默认模板 | 管理员 role 4 |
+| 测试发送 | 部长 role >= 3 |
+| 创建结果通知任务 | 部长 role >= 3 |
+| 重试失败邮件 | 部长 role >= 3 |
 
 讲师 role 2 不直接进入邮件中心。讲师触发面试预约时，邮件由业务 action 代为创建，但记录归邮件中心保存。
 

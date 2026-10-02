@@ -7,15 +7,22 @@ export type EmailCategory = "result" | "interview" | "test";
 export type ResultEmailTemplateKey =
   | "recruitment.result.accepted"
   | "recruitment.result.rejected"
+  | "recruitment_exemption.result.accepted"
+  | "recruitment_exemption.result.rejected"
   | "woc.result.accepted"
   | "woc.result.rejected"
   | "soc.result.accepted"
-  | "soc.result.rejected";
+  | "soc.result.rejected"
+  | "office_round1.result.accepted"
+  | "office_round1.result.rejected"
+  | "office_round2.result.accepted"
+  | "office_round2.result.rejected";
 
 export type InterviewScheduleEmailTemplateKey =
   | "interview.schedule.created"
   | "interview.schedule.rescheduled"
-  | "interview.schedule.cancelled";
+  | "interview.schedule.cancelled"
+  | "interview.schedule.change.rejected";
 
 export type InterviewWithdrawalEmailTemplateKey = "interview.application.withdrawn";
 
@@ -51,7 +58,19 @@ export type ResultEmailRenderVariables = {
   name: string;
   flowName: string;
   setting?: ResultEmailTemplateSetting;
-  flowKind?: "recruitment" | "woc" | "soc";
+  flowKind?:
+    | "recruitment"
+    | "recruitment_exemption"
+    | "woc"
+    | "soc"
+    | "office_round1"
+    | "office_round2";
+  /** 办公类部门面试轮次：1 = 一轮，2 = 二轮 */
+  round?: number | null;
+  /** 候选人所报部门展示名（{department} 变量） */
+  department?: string;
+  /** 后续 QQ 群号（{groupNumber} 变量） */
+  groupNumber?: string;
   genericGreeting?: boolean;
 };
 
@@ -64,7 +83,7 @@ export type InterviewEmailRenderVariables =
   | InterviewScheduleEmailRenderVariables
   | InterviewWithdrawalEmailVariables;
 
-export type EmailTemplateRenderRequest =
+export type EmailTemplateRenderRequest = (
   | {
       templateKey: ResultEmailTemplateKey;
       variables: ResultEmailRenderVariables;
@@ -76,7 +95,11 @@ export type EmailTemplateRenderRequest =
   | {
       templateKey: InterviewWithdrawalEmailTemplateKey;
       variables: InterviewWithdrawalEmailVariables;
-    };
+    }
+) & {
+  /* 部门模板覆盖：渲染时按该部门解析模板，缺省用全局默认 */
+  department?: string | null;
+};
 
 export type CreateRenderedEmailDeliveryInput = EmailTemplateRenderRequest & {
   toAddress: string;

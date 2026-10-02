@@ -1,7 +1,13 @@
-import { checkUserByStuID, findUserByUid } from "./checkUser";
+import { findUserByStuID, findUserByUid } from "./checkUser";
 
 const findPeopleUserByStudentId = jest.fn();
 const getPeopleUserByLinkId = jest.fn();
+const verifyScopedRole = jest.fn();
+
+jest.mock("@/lib/authz", () => ({
+  verifyScopedRole: (...args: Parameters<typeof verifyScopedRole>) =>
+    verifyScopedRole(...args),
+}));
 
 jest.mock("@/lib/link/user-lookup", () => ({
   findPeopleUserByStudentId: (...args: Parameters<typeof findPeopleUserByStudentId>) =>
@@ -14,13 +20,27 @@ describe("checkUser helpers", () => {
   beforeEach(() => {
     findPeopleUserByStudentId.mockReset();
     getPeopleUserByLinkId.mockReset();
+    verifyScopedRole.mockReset();
+    verifyScopedRole.mockResolvedValue({
+      uid: 1,
+      role: 2,
+      scope: { kind: "department", department: "software" },
+    });
   });
 
-  it("returns whether a student id exists", async () => {
-    findPeopleUserByStudentId.mockResolvedValueOnce({ id: 1 }).mockResolvedValueOnce(null);
+  it("requires a 讲师-level session before looking a candidate up", async () => {
+    findPeopleUserByStudentId.mockResolvedValueOnce(null);
 
-    await expect(checkUserByStuID("2026001")).resolves.toBe(true);
-    await expect(checkUserByStuID("2026999")).resolves.toBe(false);
+    await findUserByStuID("2026001");
+
+    expect(verifyScopedRole).toHaveBeenCalledWith(2);
+  });
+
+  it("does not reach Link when the caller lacks the role", async () => {
+    verifyScopedRole.mockRejectedValueOnce(new Error("Unauthorized operation"));
+
+    await expect(findUserByStuID("2026001")).rejects.toThrow("Unauthorized operation");
+    expect(findPeopleUserByStudentId).not.toHaveBeenCalled();
   });
 
   it("returns a single user or throws when the lookup is invalid", async () => {

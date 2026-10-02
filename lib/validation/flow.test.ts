@@ -36,3 +36,54 @@ describe("editFlowSchema", () => {
     ).toThrow();
   });
 });
+
+describe("editFlowSchema office interview", () => {
+  const officeFlow = {
+    ...validFlow,
+    type: "office_interview" as const,
+    department: "office" as const,
+  };
+
+  it("accepts an office flow with only a department and interview slots", () => {
+    const parsed = editFlowSchema.parse({
+      ...officeFlow,
+      slotOptions: [
+        { label: " 13:00-14:00 " },
+        { label: "时间冲突，约面时间QQ群中另行通知", isConflict: true },
+      ],
+    });
+
+    expect(parsed.slotOptions).toEqual([
+      { label: "13:00-14:00" },
+      { label: "时间冲突，约面时间QQ群中另行通知", isConflict: true },
+    ]);
+  });
+
+  it("does not require a group list or mapping for office flows", () => {
+    expect(() =>
+      editFlowSchema.parse({
+        ...validFlow,
+        type: "office_interview" as const,
+        department: "office" as const,
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects duplicate slot labels", () => {
+    expect(() =>
+      editFlowSchema.parse({
+        ...officeFlow,
+        slotOptions: [{ label: "13:00-14:00" }, { label: "13:00-14:00" }],
+      }),
+    ).toThrow("时段名称不能重复");
+  });
+
+  it("rejects interview slots on other flow types", () => {
+    expect(() =>
+      editFlowSchema.parse({
+        ...validFlow,
+        slotOptions: [{ label: "13:00-14:00" }],
+      }),
+    ).toThrow("只有办公类部门面试招新支持面试时段");
+  });
+});

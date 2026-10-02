@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search } from "lucide-react";
 import {
   getAllEvaluations,
   approveEvaluation,
@@ -25,6 +27,8 @@ import type { InferSelectModel } from "drizzle-orm";
 import type { interviewEvaluation } from "@/db/schema";
 import originalDayjs from "@/lib/dayjs";
 import { externalHref } from "@/lib/link";
+import { departmentLabel } from "@/const/department";
+import { isOfficeInterviewFlow } from "@/const/flow";
 import { ViewUserInfoSheet } from "@/components/manage/viewUserInfoSheet";
 
 export type EvaluationRow = {
@@ -35,6 +39,8 @@ export type EvaluationRow = {
   portfolioLink: string | null;
   portfolioDescription: string | null;
   applyGroup: string | null;
+  /* 候选人归属部门（Link 部门标识），审批列表已按可见范围收敛 */
+  department?: string | null;
   scheduleMeetingLink: string | null;
   meetingMinuteLink: string | null;
   authorName: string | null;
@@ -54,9 +60,13 @@ const statusLabel: Record<string, string> = {
   rejected: "不通过",
 };
 
-const recommendationLabel: Record<string, string> = {
-  passed: "讲师建议通过",
-  failed: "讲师建议不通过",
+/* 面评审批只处理技术面试流程：办公类面试记录只留档，结果由部长在名单确认时决定。
+   服务端 getAllEvaluations 已按流程类型排除；`initialEvaluations` 是组件的公开 prop，
+   这里同样挡一道，页面不会因为调用方传了旧数据而多出办公类审批入口。 */
+const recommendationLabel = (recommendation: string) => {
+  if (recommendation === "passed") return "讲师建议通过";
+  if (recommendation === "failed") return "讲师建议不通过";
+  return recommendation;
 };
 
 const InlineLink = ({ label, value }: { label: string; value: string }) => (
@@ -101,13 +111,18 @@ export const ApprovalsContent = ({
   initialEvaluations,
   initialLoadError = false,
   currentUserRole = 3,
+  canFilterDepartments = false,
 }: {
   initialEvaluations?: EvaluationRow[];
   initialLoadError?: boolean;
   currentUserRole?: number;
+  /** 管理员（role 4）可按部门筛选；部长只会看到本部门的数据 */
+  canFilterDepartments?: boolean;
 }) => {
   const [evaluations, setEvaluations] = useState<EvaluationRow[]>(
-    Array.isArray(initialEvaluations) ? initialEvaluations : [],
+    Array.isArray(initialEvaluations)
+      ? initialEvaluations.filter((row) => !isOfficeInterviewFlow(row.flowType ?? ""))
+      : [],
   );
   const [loading, setLoading] = useState(!initialEvaluations);
   const [loadError, setLoadError] = useState(initialLoadError);
@@ -117,6 +132,7 @@ export const ApprovalsContent = ({
   const [archiveFlowType, setArchiveFlowType] = useState("all");
   const [archiveFlowTitle, setArchiveFlowTitle] = useState("all");
   const [archiveDecision, setArchiveDecision] = useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
   const [returnTarget, setReturnTarget] = useState<number | null>(null);
   const [returnReason, setReturnReason] = useState("");
   const [returnError, setReturnError] = useState<string | null>(null);
@@ -126,7 +142,11 @@ export const ApprovalsContent = ({
     setLoadError(false);
     try {
       const data = await getAllEvaluations();
-      setEvaluations(Array.isArray(data) ? data : []);
+      setEvaluations(
+        Array.isArray(data)
+          ? data.filter((row) => !isOfficeInterviewFlow(row.flowType ?? ""))
+          : [],
+      );
     } catch {
       setLoadError(true);
       toast.error("加载审批列表失败");
@@ -224,8 +244,19 @@ export const ApprovalsContent = ({
     );
   }
 
-  const pending = evaluations.filter((e) => e.evaluation.status === "submitted");
-  const archived = evaluations.filter((e) => e.evaluation.status !== "submitted");
+  const departmentKeys = Array.from(
+    new Set(
+      evaluations
+        .map((row) => row.department)
+        .filter((department): department is string => Boolean(department)),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "zh-CN"));
+  const departmentScoped =
+    departmentFilter === "all"
+      ? evaluations
+      : evaluations.filter((row) => row.department === departmentFilter);
+  const pending = departmentScoped.filter((e) => e.evaluation.status === "submitted");
+  const archived = departmentScoped.filter((e) => e.evaluation.status !== "submitted");
   const normalizedArchiveQuery = archiveQuery.trim().toLocaleLowerCase();
   const filteredArchived = archived.filter((row) => {
     const matchesQuery = !normalizedArchiveQuery || [
@@ -256,75 +287,117 @@ export const ApprovalsContent = ({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
-        <p className="text-sm text-muted-foreground">
-          待审批 <span className="ml-1 text-lg font-semibold text-foreground tabular-nums">{pending.length}</span> 条
-        </p>
-        {(archived.length > 0 || showArchived) && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowArchived(!showArchived)}
+      {/* 工具条：视图切换固定在左、筛选跟着右移。原来把三个控件塞进一个卡片里 justify-between，
+          中间空出几百像素，光标还要横跨半个屏幕才能从计数走到操作。
+          窄屏下按「视图 → 部门 → 搜索 → 其余筛选」逐行铺满，控件不再被挤成一团。 */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-3 lg:gap-y-2">
+        <div className="flex items-center gap-2">
+          <Tabs
+            value={showArchived ? "archived" : "pending"}
+            onValueChange={(next) => setShowArchived(next === "archived")}
           >
-            {showArchived ? "返回待审批" : `已归档 (${archived.length})`}
-          </Button>
+            <TabsList>
+              <TabsTrigger value="pending">
+                待审批
+                <span className="tabular-nums text-muted-foreground">
+                  {pending.length}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="archived">
+                已归档
+                <span className="tabular-nums text-muted-foreground">
+                  {archived.length}
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {canFilterDepartments && departmentKeys.length > 1 && (
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger
+                aria-label="按部门筛选"
+                className="h-9 min-w-0 flex-1 lg:w-[9.5rem] lg:flex-none"
+              >
+                <SelectValue placeholder="全部部门" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部部门</SelectItem>
+                {departmentKeys.map((department) => (
+                  <SelectItem key={department} value={department}>
+                    {departmentLabel(department)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {showArchived && (
+          <>
+            <div className="relative w-full min-w-0 lg:w-auto lg:max-w-xs lg:flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={archiveQuery}
+                onChange={(event) => setArchiveQuery(event.target.value)}
+                placeholder="搜索姓名、学号、面评人或流程"
+                aria-label="搜索归档面评"
+                className="h-9 w-full pl-8"
+              />
+            </div>
+            {/* 窄屏两列网格：三个下拉各占半行，不再互相挤压 */}
+            <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center lg:gap-2">
+              <Select value={archiveFlowType} onValueChange={setArchiveFlowType}>
+                <SelectTrigger aria-label="筛选归档流程" className="h-9 w-full lg:w-32">
+                  <SelectValue placeholder="全部流程" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部流程</SelectItem>
+                  <SelectItem value="recruitment_exemption">免试招新</SelectItem>
+                  <SelectItem value="woc">WOC/WOD</SelectItem>
+                  <SelectItem value="soc">SOC/SOD</SelectItem>
+                  <SelectItem value="recruitment">笔试招新</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={archiveFlowTitle} onValueChange={setArchiveFlowTitle}>
+                <SelectTrigger
+                  aria-label="按流程名筛选归档面评"
+                  className="h-9 w-full lg:w-44"
+                >
+                  <SelectValue placeholder="全部流程名" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部流程名</SelectItem>
+                  {archiveFlowTitles.map((title) => (
+                    <SelectItem key={title} value={title}>{title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={archiveDecision}
+                onValueChange={setArchiveDecision}
+              >
+                <SelectTrigger
+                  aria-label="筛选最终结果"
+                  className="col-span-2 h-9 w-full lg:col-span-1 lg:w-28"
+                >
+                  <SelectValue placeholder="全部结果" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部结果</SelectItem>
+                  <SelectItem value="approved">通过</SelectItem>
+                  <SelectItem value="rejected">不通过</SelectItem>
+                  <SelectItem value="returned">退回重写</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
         )}
       </div>
 
       {showArchived && (
-        <div className="flex flex-col gap-3 border-y py-3">
-            <p className="text-xs text-muted-foreground">
-            已处理的面评会保留在这里；退回重写的记录会在讲师重新提交后回到待审批列表。
-          </p>
-          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,1fr)_10rem_10rem]">
-          <Input
-            value={archiveQuery}
-            onChange={(event) => setArchiveQuery(event.target.value)}
-            placeholder="搜索候选人、学号、面评人、审批人或流程"
-            aria-label="搜索归档面评"
-          />
-          <Select
-            value={archiveFlowType}
-            onValueChange={setArchiveFlowType}
-          >
-            <SelectTrigger aria-label="筛选归档流程">
-              <SelectValue placeholder="全部流程" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部流程</SelectItem>
-              <SelectItem value="recruitment_exemption">免试招新</SelectItem>
-              <SelectItem value="woc">WOC/WOD</SelectItem>
-              <SelectItem value="soc">SOC/SOD</SelectItem>
-              <SelectItem value="recruitment">笔试招新</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={archiveFlowTitle} onValueChange={setArchiveFlowTitle}>
-            <SelectTrigger aria-label="按流程名筛选归档面评">
-              <SelectValue placeholder="全部流程名" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部流程名</SelectItem>
-              {archiveFlowTitles.map((title) => (
-                <SelectItem key={title} value={title}>{title}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={archiveDecision}
-            onValueChange={setArchiveDecision}
-          >
-            <SelectTrigger aria-label="筛选最终结果">
-              <SelectValue placeholder="全部结果" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部结果</SelectItem>
-              <SelectItem value="approved">通过</SelectItem>
-              <SelectItem value="rejected">不通过</SelectItem>
-              <SelectItem value="returned">退回重写</SelectItem>
-            </SelectContent>
-          </Select>
-          </div>
-        </div>
+        <p className="text-xs leading-5 text-muted-foreground">
+          已处理的面评会保留在这里；退回重写的记录会在讲师重新提交后回到待审批列表。
+        </p>
       )}
 
       {displayed.length === 0 ? (
@@ -335,7 +408,8 @@ export const ApprovalsContent = ({
         </div>
       ) : (
         <div className="grid gap-3 sm:gap-4">
-          {displayed.map((row) => (
+          {displayed.map((row) => {
+            return (
             <Card key={row.evaluation.id}>
               <CardHeader className="flex flex-col gap-3 pb-3">
                 <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -375,7 +449,15 @@ export const ApprovalsContent = ({
                             : "border-rose-600/60 text-rose-700 dark:border-rose-400/60 dark:text-rose-300"
                         }`}
                       >
-                        {recommendationLabel[row.evaluation.recommendation]}
+                        {recommendationLabel(row.evaluation.recommendation)}
+                      </Badge>
+                    )}
+                    {row.evaluation.score !== null && (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 whitespace-nowrap text-xs"
+                      >
+                        面试打分 {row.evaluation.score}
                       </Badge>
                     )}
                     {row.evaluation.status !== "submitted" && (
@@ -411,6 +493,12 @@ export const ApprovalsContent = ({
                     ) : (
                       <span className="text-muted-foreground/70">未提供</span>
                     )}
+                  </span>
+                  <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+                    <span className="text-muted-foreground">投递部门</span>
+                    <span className="min-w-0 break-words font-medium text-foreground">
+                      {departmentLabel(row.department)}
+                    </span>
                   </span>
                 </div>
               </CardHeader>
@@ -506,14 +594,17 @@ export const ApprovalsContent = ({
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
       <Dialog open={returnTarget !== null} onOpenChange={(open) => !open && setReturnTarget(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>退回面评重写</DialogTitle>
-            <DialogDescription>请填写具体原因，讲师会收到飞书机器人提醒。</DialogDescription>
+            <DialogDescription>
+              {"请填写具体原因，讲师会收到飞书机器人提醒。"}
+            </DialogDescription>
           </DialogHeader>
           <Textarea
             value={returnReason}

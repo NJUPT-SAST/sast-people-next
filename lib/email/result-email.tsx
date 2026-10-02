@@ -2,6 +2,7 @@ import "server-only";
 
 import { render } from "@react-email/render";
 import OfferEmail from "@/emails/offer";
+import { isOfficeInterviewFlow } from "@/const/flow";
 import {
   defaultResultEmailTemplateSettings,
   renderTemplateText,
@@ -9,13 +10,25 @@ import {
 } from "@/lib/email/template-settings";
 
 export type ResultEmailKind = "accepted" | "rejected";
-export type ResultEmailFlowKind = "recruitment" | "woc" | "soc";
+export type ResultEmailFlowKind =
+  | "recruitment"
+  | "recruitment_exemption"
+  | "woc"
+  | "soc"
+  | "office_round1"
+  | "office_round2";
 
 export type ResultEmailVariables = {
   name: string;
   flowName: string;
   accept: boolean;
   flowKind?: ResultEmailFlowKind;
+  /** 办公类部门面试轮次：1 = 一轮，2 = 二轮（其他流程为空） */
+  round?: number | null;
+  /** 候选人所报部门展示名：办公类部门面试通知的 {department} 变量 */
+  department?: string;
+  /** 后续 QQ 群号：办公类部门面试通知的 {groupNumber} 变量 */
+  groupNumber?: string;
   setting?: ResultEmailTemplateSetting;
   genericGreeting?: boolean;
 };
@@ -24,18 +37,30 @@ export function getResultEmailKind(accept: boolean): ResultEmailKind {
   return accept ? "accepted" : "rejected";
 }
 
+/** 结果模板键统一按「流程类型 + 轮次 + 通过与否」解析；办公类按轮次拆成两套模板 */
 export function getResultEmailTemplateKey(
-  flowTypeOrAccept: string | boolean,
-  acceptArg?: boolean,
+  flowType: string,
+  accept: boolean,
+  round?: number | null,
 ): `${ResultEmailFlowKind}.result.${ResultEmailKind}` {
-  const flowType = typeof flowTypeOrAccept === "string" ? flowTypeOrAccept : "recruitment";
-  const accept = typeof flowTypeOrAccept === "boolean" ? flowTypeOrAccept : Boolean(acceptArg);
-  return `${getResultEmailFlowKind(flowType)}.result.${getResultEmailKind(accept)}`;
+  return `${getResultEmailFlowKind(flowType, round)}.result.${getResultEmailKind(accept)}`;
 }
 
-export function getResultEmailFlowKind(flowType: string): ResultEmailFlowKind {
+export function getResultEmailFlowKind(
+  flowType: string,
+  round?: number | null,
+): ResultEmailFlowKind {
+  if (isOfficeInterviewFlow(flowType)) {
+    return round === 2 ? "office_round2" : "office_round1";
+  }
+  /* 已解析过的 kind 原样返回，调用方重复带入也不会降级成默认值 */
+  if (flowType === "office_round1" || flowType === "office_round2") {
+    return flowType;
+  }
   if (flowType === "woc") return "woc";
   if (flowType === "soc") return "soc";
+  /* 免试招新单独成一套模板（免试 vs 笔试），不再折叠成 recruitment */
+  if (flowType === "recruitment_exemption") return "recruitment_exemption";
   return "recruitment";
 }
 
@@ -48,13 +73,16 @@ export async function renderResultEmail({
   flowName,
   accept,
   flowKind = "recruitment",
+  round = null,
+  department = "",
+  groupNumber = "",
   setting,
   genericGreeting = false,
 }: ResultEmailVariables) {
   const resolvedSetting =
     setting ??
     defaultResultEmailTemplateSettings.find(
-      (item) => item.templateKey === getResultEmailTemplateKey(flowKind, accept),
+      (item) => item.templateKey === getResultEmailTemplateKey(flowKind, accept, round),
     )!;
 
   return render(
@@ -63,6 +91,8 @@ export async function renderResultEmail({
       flowName={flowName}
       accept={accept}
       flowKind={flowKind}
+      department={department}
+      groupNumber={groupNumber}
       bodyTemplate={resolvedSetting.bodyTemplate}
       titleTemplate={resolvedSetting.titleTemplate}
       subtitleTemplate={resolvedSetting.subtitleTemplate}
@@ -81,11 +111,22 @@ export async function renderResultEmail({
   );
 }
 
+/** 结果邮件标题变量：与 registry 的结果模板变量保持一致，未知占位符渲染为空 */
+export type ResultEmailSubjectVariables = {
+  name?: string;
+  flowName: string;
+  department?: string;
+  groupNumber?: string;
+};
+
 export function renderResultEmailSubject(
-  flowName: string,
+  variables: ResultEmailSubjectVariables,
   setting?: ResultEmailTemplateSetting,
 ) {
   return renderTemplateText(setting?.subjectTemplate ?? "{flowName} 结果通知", {
-    flowName,
+    name: variables.name ?? "",
+    flowName: variables.flowName,
+    department: variables.department ?? "",
+    groupNumber: variables.groupNumber ?? "",
   });
 }

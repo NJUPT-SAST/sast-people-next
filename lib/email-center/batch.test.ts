@@ -75,13 +75,13 @@ jest.mock("@/db/drizzle", () => ({
   },
 }));
 
-jest.mock("@/action/email/template", () => ({
-  getEmailTemplateSetting: mockGetEmailTemplateSetting,
+jest.mock("@/lib/email-center/template-resolution", () => ({
+  readResultEmailTemplateSetting: mockGetEmailTemplateSetting,
 }));
 
 jest.mock("@/action/user-flow/roleTransition", () => ({
-  syncUserRoleFromAcceptedFlows: mockSyncUserRoleFromAcceptedFlows,
-  syncUserRolesFromAcceptedFlows: mockSyncUserRolesFromAcceptedFlows,
+  syncUserIdentityFromAcceptedFlow: mockSyncUserRoleFromAcceptedFlows,
+  syncUserIdentityFromAcceptedFlows: mockSyncUserRolesFromAcceptedFlows,
 }));
 
 jest.mock("@/event", () => ({
@@ -192,14 +192,84 @@ describe("email batch service", () => {
         name: "Carol",
         flowName: "2026 春季招新",
         flowKind: "recruitment",
+        round: null,
+        department: "未归属部门",
+        groupNumber: undefined,
         setting: {
           templateKey: "recruitment.result.accepted",
           subjectTemplate: "{flowName} 结果通知",
         },
       },
+      department: null,
     });
     expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(mockDb.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("resolves the batch template by the flow department", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 205,
+        userId: 305,
+        flowName: "2026 春季招新",
+        flowDepartment: "software",
+      },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[305, { id: 305, name: "Eve", studentId: "B005" }]]),
+    );
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [305],
+        flowId: 9,
+        accept: true,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "recruitment.result.accepted",
+      "software",
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ department: "software" }),
+    );
+  });
+
+  it("prefers the explicit department over the flow department", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 206,
+        userId: 306,
+        flowName: "2026 春季招新",
+        flowDepartment: "software",
+      },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[306, { id: 306, name: "Frank", studentId: "B006" }]]),
+    );
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [306],
+        flowId: 10,
+        accept: false,
+        createdBy: 99,
+        department: "media",
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "recruitment.result.rejected",
+      "media",
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: "recruitment.result.rejected",
+        department: "media",
+      }),
+    );
   });
 
   it("selects the WoC result template for WoC flows", async () => {
@@ -228,6 +298,132 @@ describe("email batch service", () => {
       expect.objectContaining({
         templateKey: "woc.result.accepted",
         variables: expect.objectContaining({ flowKind: "woc" }),
+      }),
+    );
+  });
+
+  it("selects the exemption result template for exemption flows", async () => {
+    mockSelectResults.push([
+      { userFlowId: 209, userId: 309, flowName: "2026 免试招新" },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[309, { id: 309, name: "Ivy", studentId: "B009" }]]),
+    );
+    mockGetEmailTemplateSetting.mockResolvedValue({
+      templateKey: "recruitment_exemption.result.accepted",
+      subjectTemplate: "{flowName} 结果通知",
+    });
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [309],
+        flowId: 13,
+        flowType: "recruitment_exemption",
+        accept: true,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "recruitment_exemption.result.accepted",
+      null,
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: "recruitment_exemption.result.accepted",
+        variables: expect.objectContaining({ flowKind: "recruitment_exemption" }),
+      }),
+    );
+  });
+
+  it("selects the office round-1 template with department label and group number when round 1 is explicit", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 207,
+        userId: 307,
+        flowName: "2026 办公类部门面试招新",
+        flowDepartment: "office",
+      },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[307, { id: 307, name: "Grace", studentId: "B007" }]]),
+    );
+    mockGetEmailTemplateSetting.mockResolvedValue({
+      templateKey: "office_round1.result.accepted",
+      subjectTemplate: "{name}{department}一轮面试结果通知",
+      groupNumber: "123456789",
+    });
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [307],
+        flowId: 11,
+        flowType: "office_interview",
+        flowRound: 1,
+        accept: true,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    /* 办公类模板按流程归属部门解析：命中办公室的部门覆盖 */
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "office_round1.result.accepted",
+      "office",
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: "office_round1.result.accepted",
+        department: "office",
+        variables: expect.objectContaining({
+          flowKind: "office_round1",
+          round: 1,
+          department: "办公室",
+          groupNumber: "123456789",
+        }),
+      }),
+    );
+  });
+
+  it("defaults office flows to the round-2 (final) template", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 208,
+        userId: 308,
+        flowName: "2026 办公类部门面试招新",
+        flowDepartment: "liaison",
+      },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[308, { id: 308, name: "Heidi", studentId: "B008" }]]),
+    );
+    mockGetEmailTemplateSetting.mockResolvedValue({
+      templateKey: "office_round2.result.rejected",
+      subjectTemplate: "{name}{department}面试结果通知",
+      groupNumber: "",
+    });
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [308],
+        flowId: 12,
+        flowType: "office_interview",
+        accept: false,
+        createdBy: 99,
+      }),
+    ).resolves.toEqual({ batchId: 1, deliveryCount: 1 });
+
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "office_round2.result.rejected",
+      "liaison",
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        department: "liaison",
+        variables: expect.objectContaining({
+          flowKind: "office_round2",
+          round: 2,
+          department: "外联部",
+        }),
       }),
     );
   });

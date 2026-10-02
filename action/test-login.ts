@@ -2,6 +2,7 @@
 
 import { listLinkUsers } from "@/lib/link/admin";
 import { shouldUseMockLink } from "@/lib/link/client";
+import { mockAccessTokenFor } from "@/lib/link/mock";
 import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { createSession } from "@/lib/session";
 
@@ -25,5 +26,24 @@ export async function loginWithMockLinkUser(formData: FormData) {
     throw new Error("未找到可登录的测试账号。");
   }
 
-  await createSession(user.id, user.name, linkRoleToPeopleRole(user.role));
+  const role = linkRoleToPeopleRole(user.role);
+  const linkTokens = {
+    accessToken: mockAccessTokenFor(user.id),
+    refreshToken: mockAccessTokenFor(user.id),
+    accessTokenExpiresAt: Date.now() + 8 * 60 * 60 * 1000,
+  };
+
+  await createSession(
+    user.id,
+    user.name,
+    role,
+    linkTokens,
+    role >= 2
+      ? {
+          accessToken: linkTokens.accessToken,
+          accessTokenExpiresAt: linkTokens.accessTokenExpiresAt,
+        }
+      : undefined,
+    user.department ?? null,
+  );
 }

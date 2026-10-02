@@ -1,29 +1,25 @@
 "use server";
 
-import { db } from "@/db/drizzle";
-import { emailTemplateContent } from "@/db/schema";
+import { normalizeDepartmentKey } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
 import {
-  getInterviewNotificationTemplateDefault,
+  deleteInterviewScheduleTemplateSetting,
+  getInterviewNotificationTemplateSetting,
   getInterviewScheduleEmailKindByTemplateKey,
-  getInterviewScheduleTemplateSetting,
   INTERVIEW_WITHDRAWAL_TEMPLATE_KEY,
   interviewScheduleTemplateKeys,
   listInterviewScheduleTemplateSettings,
+  upsertInterviewScheduleTemplateSetting,
   type InterviewNotificationTemplateKey,
-  type InterviewScheduleTemplateSetting,
+  type InterviewScheduleTemplateValues,
 } from "@/lib/email/interview-template-settings";
 import { renderInterviewScheduleEmailPreview } from "@/lib/email/interview-schedule";
 import { renderInterviewWithdrawalEmailPreview } from "@/lib/email-center/interview-withdrawal";
+import { resolveTemplateEditTarget } from "@/lib/email-center/template-access";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-
-type InterviewScheduleTemplateValues = Omit<
-  InterviewScheduleTemplateSetting,
-  "templateKey"
->;
 
 const hasRequiredVariables = (value: string, variables: readonly string[]) =>
   variables.every((variable) => value.includes(`{${variable}}`));
@@ -40,30 +36,58 @@ function normalizeInterviewTemplateKey(
     : interviewScheduleTemplateKeys.created;
 }
 
-export async function getInterviewScheduleEmailTemplate() {
-  await verifyRole(3);
-  return getInterviewScheduleTemplateSetting();
+/** 模板入口统一校验：角色 + 部门范围（不在 lib 层做会话校验） */
+async function getInterviewTemplateSession() {
+  const session = await verifyRole(3);
+  const scope = await getDepartmentScope();
+  return { ...session, scope };
 }
 
-export async function listInterviewScheduleEmailTemplates() {
-  await verifyRole(3);
-  return listInterviewScheduleTemplateSettings();
+/**
+ * 读取目标部门：管理员按传入值（缺省 = 全局默认）；部门账号缺省本部门，
+ * 但允许跨部门只读浏览（写权限在 update/reset 里另行校验，仍拒绝跨部门）；
+ * 无部门账号只读全局默认。
+ */
+function resolveTemplateReadDepartment(
+  scope: DepartmentScope,
+  requested: unknown,
+): string | null {
+  const target = normalizeDepartmentKey(requested);
+  if (scope.kind === "all") return target;
+  if (scope.kind === "department") return target ?? scope.department;
+  return null;
 }
 
-export async function getInterviewScheduleEmailPreview() {
-  await verifyRole(3);
-  return renderInterviewScheduleEmailPreview();
+export async function getInterviewScheduleEmailTemplate(department?: string | null) {
+  const { scope } = await getInterviewTemplateSession();
+  return getInterviewNotificationTemplateSetting(
+    interviewScheduleTemplateKeys.created,
+    resolveTemplateReadDepartment(scope, department),
+  );
 }
 
-export async function getInterviewScheduleEmailPreviews() {
-  await verifyRole(3);
+export async function listInterviewScheduleEmailTemplates(
+  department?: string | null,
+) {
+  const { scope } = await getInterviewTemplateSession();
+  return listInterviewScheduleTemplateSettings(department, scope);
+}
+
+export async function getInterviewScheduleEmailPreviews(
+  department?: string | null,
+) {
+  const { scope } = await getInterviewTemplateSession();
+  const target = resolveTemplateReadDepartment(scope, department);
   const scheduleEntries = await Promise.all(
     Object.values(interviewScheduleTemplateKeys).map(async (templateKey) => {
       const kind = getInterviewScheduleEmailKindByTemplateKey(templateKey);
-      return [templateKey, await renderInterviewScheduleEmailPreview(kind)] as const;
+      return [
+        templateKey,
+        await renderInterviewScheduleEmailPreview(kind, target),
+      ] as const;
     }),
   );
-  const withdrawalPreview = await renderInterviewWithdrawalEmailPreview();
+  const withdrawalPreview = await renderInterviewWithdrawalEmailPreview(target);
   return Object.fromEntries([
     ...scheduleEntries,
     [INTERVIEW_WITHDRAWAL_TEMPLATE_KEY, withdrawalPreview],
@@ -73,9 +97,13 @@ export async function getInterviewScheduleEmailPreviews() {
 export async function updateInterviewScheduleEmailTemplate(
   templateKey: string,
   values: InterviewScheduleTemplateValues,
+  department?: string | null,
 ) {
-  const session = await verifyRole(3);
+  const session = await getInterviewTemplateSession();
   const normalizedTemplateKey = normalizeInterviewTemplateKey(templateKey);
+  // 部门账号落到本部门覆盖行，管理员按传入归属（缺省 = 全局默认）；越权在此抛出
+  const target = resolveTemplateEditTarget(session.scope, department);
+  const targetDepartment = target.kind === "department" ? target.department : null;
 
   const normalized = {
     subjectTemplate: values.subjectTemplate.trim(),
@@ -114,38 +142,23 @@ export async function updateInterviewScheduleEmailTemplate(
   }
 
   try {
-    const [existing] = await db
-      .select({ id: emailTemplateContent.id })
-      .from(emailTemplateContent)
-      .where(eq(emailTemplateContent.templateKey, normalizedTemplateKey))
-      .limit(1);
-    let templateContentId = existing?.id ?? null;
-
-    if (existing) {
-      await db
-        .update(emailTemplateContent)
-        .set(normalized)
-        .where(eq(emailTemplateContent.templateKey, normalizedTemplateKey));
-    } else {
-      const [created] = await db
-        .insert(emailTemplateContent)
-        .values({
-          templateKey: normalizedTemplateKey,
-          ...normalized,
-        })
-        .returning({ id: emailTemplateContent.id });
-      templateContentId = created?.id ?? null;
-    }
+    const saved = await upsertInterviewScheduleTemplateSetting(
+      normalizedTemplateKey,
+      normalized,
+      targetDepartment,
+    );
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "email.template.update",
       resourceType: "email_template_content",
-      resourceId: templateContentId,
+      resourceId: saved.id,
+      department: saved.department,
       metadata: {
         templateKey: normalizedTemplateKey,
-        mode: existing ? "update" : "create",
+        department: saved.department,
+        mode: saved.mode,
         changedFields: Object.keys(normalized),
       },
     });
@@ -158,29 +171,49 @@ export async function updateInterviewScheduleEmailTemplate(
       userId: session.uid,
       role: session.role,
       action: "update-interview-email-template",
-      metadata: { templateKey: normalizedTemplateKey },
+      metadata: {
+        templateKey: normalizedTemplateKey,
+        department: targetDepartment,
+      },
     });
     return { ok: false, message: "面试通知模板保存失败，请查看错误日志。" };
   }
 }
 
-export async function resetInterviewScheduleEmailTemplate(templateKey: string) {
-  const session = await verifyRole(3);
+export async function resetInterviewScheduleEmailTemplate(
+  templateKey: string,
+  department?: string | null,
+) {
+  const session = await getInterviewTemplateSession();
   const normalizedTemplateKey = normalizeInterviewTemplateKey(templateKey);
+  // 部门账号落到本部门覆盖行，管理员按传入归属（缺省 = 全局默认）；无部门账号在此抛出
+  const target = resolveTemplateEditTarget(session.scope, department);
+  const targetDepartment = target.kind === "department" ? target.department : null;
 
-  await db
-    .delete(emailTemplateContent)
-    .where(eq(emailTemplateContent.templateKey, normalizedTemplateKey));
+  // 删除后回落到下一档：部门行 → 全局默认 → 内置默认
+  const deleted = await deleteInterviewScheduleTemplateSetting(
+    normalizedTemplateKey,
+    targetDepartment,
+  );
+  if (!deleted) {
+    throw new Error("模板未覆盖，无需重置");
+  }
+
   await writeOperationAudit({
     actorId: session.uid,
-    actorRole: session.role,
+    actorRole: session.realRole,
     action: "email.template.reset",
     resourceType: "email_template_content",
     resourceId: null,
+    department: targetDepartment,
     metadata: {
       templateKey: normalizedTemplateKey,
+      department: targetDepartment,
     },
   });
   revalidatePath("/dashboard/emails");
-  return getInterviewNotificationTemplateDefault(normalizedTemplateKey);
+  return getInterviewNotificationTemplateSetting(
+    normalizedTemplateKey,
+    targetDepartment,
+  );
 }

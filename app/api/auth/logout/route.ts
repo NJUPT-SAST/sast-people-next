@@ -1,5 +1,5 @@
 import { deleteSession } from '@/lib/session';
-import { SESSION } from '@/const/cookie';
+import { SESSION, VIEW_AS } from '@/const/cookie';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -13,5 +13,6 @@ export async function GET(request: NextRequest) {
   }
   const response = NextResponse.redirect(loginUrl);
   response.cookies.delete(SESSION);
+  response.cookies.delete(VIEW_AS);
   return response;
 }

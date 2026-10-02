@@ -17,7 +17,9 @@ import {
   evaluationStepTypeForAction,
   type EvaluationFlowStepType,
 } from "@/lib/evaluation-state";
-import { verifyRole } from "@/lib/dal";
+import { departmentScopeFilter, verifyManager, verifyScopedRole } from "@/lib/authz";
+import type { FlowScopedSession } from "@/action/flow/department-utils";
+import { assertUserFlowAccess } from "@/lib/flow-access";
 import {
   loadFeishuApprovalNotificationRecord,
   sendFeishuApprovalCard,
@@ -30,14 +32,39 @@ import { revalidatePath } from "next/cache";
 import { getFeishuOAuthAccountStatus } from "@/lib/feishu/oauth-account";
 import { sendInterviewEvaluationReturnedCard } from "@/lib/feishu/interview-message";
 import { MIN_PASSED_EVALUATION_LENGTH } from "@/lib/evaluation-constants";
+import { isOfficeInterviewFlow, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
+import { MANAGER_ROLE } from "@/lib/link/role";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type EvaluationRecommendation = "passed" | "failed";
+
+/* 办公类面试必须打分，管理员终审驳回同样沿用这条文案 */
+const INVALID_SCORE_MESSAGE = "请填写 0-100 的面试分数";
+const RESULT_LOCKED_MESSAGE = "该候选人结果已确认，不能再修改";
+/* 办公类部门没有讲师这一级：候选人列表与面评提交都只对部长开放 */
+const OFFICE_MANAGER_ONLY_MESSAGE = "办公类部门面试由部长操作，讲师账号无法评分";
+/* 办公类部门没有面评审批：结果由部长在名单确认时直接决定 */
+const OFFICE_APPROVAL_UNSUPPORTED_MESSAGE =
+  "办公类部门面试由部长在名单确认时决定，无需面评审批";
+
+/* 办公类流程的固定步骤 order：一面面试=2、二轮面试=3（两个 checking 步骤无法按
+   type 区分，只能按 order 精确定位）；二面之后候选人由名单确认（closeOfficeRound*）推进 */
 
 function isEvaluationRecommendation(
   value: string,
 ): value is EvaluationRecommendation {
   return value === "passed" || value === "failed";
+}
+
+/**
+ * 面评操作的访问判定依据：报名归属部门（技术部门共享流程依赖组别映射到部门；
+ * 办公类流程每条流程归属一个办公部门，同样按报名归属部门收敛）。
+ */
+function userFlowAccessTarget(ref: {
+  department: string | null | undefined;
+  flowType: string | null | undefined;
+}) {
+  return { type: ref.flowType, department: ref.department };
 }
 
 /** Prefer step type; fall back to historical order for older customized flows. */
@@ -75,6 +102,21 @@ async function findEvaluationStepIdInTx(
   return byOrder?.id ?? null;
 }
 
+/** 按 order 精确定位流程步骤：办公类流程有两个 checking 步骤，只能按 order 区分 */
+async function findFlowStepIdByOrderInTx(
+  tx: Tx,
+  flowId: number,
+  order: number,
+): Promise<number | null> {
+  const [step] = await tx
+    .select({ id: flowStep.id })
+    .from(flowStep)
+    .where(and(eq(flowStep.fkFlowId, flowId), eq(flowStep.order, order)))
+    .limit(1);
+
+  return step?.id ?? null;
+}
+
 async function findActiveEvaluationInTx(tx: Tx, userFlowId: number) {
   const selectByStatus = (status: "approved" | "submitted" | "returned") =>
     tx
@@ -103,11 +145,17 @@ async function findActiveEvaluationInTx(tx: Tx, userFlowId: number) {
   return returned ?? null;
 }
 
+/** 步骤定位：按类型（其他流程）或按 order（办公类流程，两个 checking 步骤） */
+type EvaluationStepTarget =
+  | { type: EvaluationFlowStepType }
+  | { order: number };
+
 async function moveUserFlowInTx(
   tx: Tx,
   userFlowId: number,
   progressStatus: "ongoing" | "passed" | "failed",
-  stepType: EvaluationFlowStepType,
+  step: EvaluationStepTarget,
+  round?: number,
 ) {
   const [uf] = await tx
     .select({ flowId: userFlow.fkFlowId })
@@ -127,7 +175,9 @@ async function moveUserFlowInTx(
   }
 
   const stepId = uf
-    ? await findEvaluationStepIdInTx(tx, uf.flowId, stepType)
+    ? "order" in step
+      ? await findFlowStepIdByOrderInTx(tx, uf.flowId, step.order)
+      : await findEvaluationStepIdInTx(tx, uf.flowId, step.type)
     : null;
 
   await tx
@@ -135,6 +185,8 @@ async function moveUserFlowInTx(
     .set({
       progressStatus,
       fkCurrentStepId: stepId,
+      /* 办公类面试推进候选人当前轮次；其他流程保持原值（NULL） */
+      ...(round === undefined ? {} : { round }),
       updatedAt: new Date(),
     })
     .where(eq(userFlow.id, userFlowId));
@@ -181,6 +233,7 @@ async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
       candidateStudentId: candidate?.studentId ?? null,
       authorName: author?.name ?? "讲师",
       flowTitle: record.flowTitle,
+      flowType: record.flowType,
       recommendation: record.recommendation,
       content: record.content,
       portfolioDescription: record.portfolioDescription,
@@ -201,7 +254,7 @@ async function notifyFeishuApprovalGroup(evaluationId: number): Promise<void> {
 
 async function safeNotifyFeishuApprovalGroup(
   evaluationId: number,
-  session: NonNullable<Awaited<ReturnType<typeof verifyRole>>>,
+  session: Pick<FlowScopedSession, "uid" | "role">,
 ) {
   try {
     return await notifyFeishuApprovalGroup(evaluationId);
@@ -220,35 +273,92 @@ async function safeNotifyFeishuApprovalGroup(
 export const createEvaluation = async (
   userFlowId: number,
   content: string,
-  recommendation: EvaluationRecommendation,
+  /* 讲师建议（技术流程必填）；办公类面试可选填「面试意见」，仅供参考，不参与结果判定 */
+  recommendation?: EvaluationRecommendation | null,
   meetingLink?: string,
+  score?: number,
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
+
+    // 面评只能写给有权限的候选人：报名归属部门与当前 scope 一致（管理员放行）。
+    // 必填项随流程类型不同，所以流程类型必须先读出来。
+    const [scopeTarget] = await db
+      .select({
+        department: userFlow.department,
+        flowType: flow.type,
+      })
+      .from(userFlow)
+      .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+      .where(eq(userFlow.id, userFlowId))
+      .limit(1);
+    if (scopeTarget) {
+      assertUserFlowAccess(session.scope, userFlowAccessTarget(scopeTarget));
+    }
+    const isOfficeFlow = isOfficeInterviewFlow(scopeTarget?.flowType ?? "");
+    /* 办公类部门没有讲师这一级：面评只能由部长提交（技术部门仍由预约讲师填写） */
+    if (isOfficeFlow && session.role < MANAGER_ROLE) {
+      throw new Error(OFFICE_MANAGER_ONLY_MESSAGE);
+    }
 
     if (!content.trim()) {
-      return { success: false, error: { message: "面评内容不能为空" } };
-    }
-    if (!isEvaluationRecommendation(recommendation)) {
-      return { success: false, error: { message: "请选择讲师建议" } };
-    }
-    if (recommendation === "passed" && content.trim().length < MIN_PASSED_EVALUATION_LENGTH) {
       return {
         success: false,
-        error: { message: `建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。` },
+        error: {
+          message: isOfficeFlow ? "面试记录内容不能为空" : "面评内容不能为空",
+        },
       };
     }
 
-    const hasMeetingLinkArg = meetingLink !== undefined;
-    const link = hasMeetingLinkArg ? meetingLink.trim() || null : undefined;
+    /* 办公类面试：内容 + 分数是结果判定依据，建议通过/建议不通过只作留档意见（可选） */
+    const normalizedRecommendation: EvaluationRecommendation | null =
+      recommendation && isEvaluationRecommendation(recommendation)
+        ? recommendation
+        : null;
+    if (!isOfficeFlow) {
+      if (!normalizedRecommendation) {
+        return { success: false, error: { message: "请选择讲师建议" } };
+      }
+      if (
+        normalizedRecommendation === "passed" &&
+        content.trim().length < MIN_PASSED_EVALUATION_LENGTH
+      ) {
+        return {
+          success: false,
+          error: {
+            message: `建议通过时，面评内容至少需要 ${MIN_PASSED_EVALUATION_LENGTH} 个字。`,
+          },
+        };
+      }
+    }
+
+    /* 办公类分数必填（均分是名单确认的唯一依据）；技术流程分数可选，但给了就得合法 */
+    const hasScoreArg = score !== undefined;
+    const scoreIsValid =
+      score !== undefined &&
+      Number.isInteger(score) &&
+      score >= 0 &&
+      score <= 100;
+    if ((isOfficeFlow || hasScoreArg) && !scoreIsValid) {
+      return { success: false, error: { message: INVALID_SCORE_MESSAGE } };
+    }
+
+    /* 办公类不使用会议/妙记链接 */
+    const hasMeetingLinkArg = !isOfficeFlow && meetingLink !== undefined;
+    const link = meetingLink !== undefined ? meetingLink.trim() || null : undefined;
 
     const result = await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(${userFlowId})`);
       const [currentFlow] = await tx
-        .select({ progressStatus: userFlow.progressStatus })
+        .select({
+          progressStatus: userFlow.progressStatus,
+          round: userFlow.round,
+          flowType: flow.type,
+        })
         .from(userFlow)
+        .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
         .where(eq(userFlow.id, userFlowId))
         .limit(1);
 
@@ -283,6 +393,83 @@ export const createEvaluation = async (
           error: {
             message: "该候选人面评已归档；如需调整成员权限，请在成员管理中操作",
           },
+        };
+      }
+
+      // 办公类面试：无需面试日程，多位部长各写一份带分数的面试记录。
+      // 每位面评人只维护自己那一份，绝不改动他人的记录。
+      if (isOfficeInterviewFlow(currentFlow.flowType)) {
+        /* 办公类：一位部长在一面、二面各留一份记录。
+           必须按轮次查找自己那一份，否则二面提交会覆盖掉一面记录。 */
+        const round = currentFlow.round ?? 1;
+        const [own] = await tx
+          .select({ id: interviewEvaluation.id })
+          .from(interviewEvaluation)
+          .where(
+            and(
+              eq(interviewEvaluation.fkUserFlowId, userFlowId),
+              eq(interviewEvaluation.fkUserId, session!.uid),
+              eq(interviewEvaluation.round, round),
+              inArray(interviewEvaluation.status, ["submitted", "returned"]),
+            ),
+          )
+          .orderBy(desc(interviewEvaluation.id))
+          .limit(1);
+
+        await moveUserFlowInTx(
+          tx,
+          userFlowId,
+          "ongoing",
+          /* 办公类面试：提交记录只回到候选人当前阶段（一面/二轮面试），等待名单确认 */
+          { order: (currentFlow.round ?? 1) >= 2 ? 3 : 2 },
+        );
+
+        if (own) {
+          await tx
+            .update(interviewEvaluation)
+            .set({
+              content: content.trim(),
+              /* 办公类留档：分数 + 记录内容 + 可选意见（不含会议/妙记链接） */
+              recommendation: normalizedRecommendation,
+              meetingLink: null,
+              score: score ?? null,
+              /* 办公类面试按候选人当前阶段记录轮次 */
+              round,
+              status: "submitted",
+              fkReviewedBy: null,
+              returnReason: null,
+              updatedAt: new Date(),
+            })
+            .where(eq(interviewEvaluation.id, own.id));
+
+          return {
+            success: true as const,
+            data: { id: own.id },
+            auditAction: "evaluation.update_pending" as const,
+            evaluationId: own.id,
+          };
+        }
+
+        const [evaluation] = await tx
+          .insert(interviewEvaluation)
+          .values({
+            fkUserFlowId: userFlowId,
+            fkUserId: session!.uid,
+            content: content.trim(),
+            meetingLink: null,
+            recommendation: normalizedRecommendation,
+            score: score ?? null,
+            /* 办公类面试按候选人当前阶段记录轮次 */
+            round,
+            status: "submitted",
+          })
+          .returning();
+
+        return {
+          success: true as const,
+          data: evaluation,
+          auditAction: "evaluation.create" as const,
+          evaluationId: evaluation.id,
         };
       }
 
@@ -373,7 +560,7 @@ export const createEvaluation = async (
         tx,
         userFlowId,
         "ongoing",
-        evaluationStepTypeForAction("submit_for_review"),
+        { type: evaluationStepTypeForAction("submit_for_review") },
       );
 
       if (active?.status === "submitted" || active?.status === "returned") {
@@ -381,7 +568,8 @@ export const createEvaluation = async (
           .update(interviewEvaluation)
           .set({
             content: content.trim(),
-            recommendation,
+            recommendation: normalizedRecommendation,
+            ...(hasScoreArg ? { score } : {}),
             status: "submitted",
             fkReviewedBy: null,
             returnReason: null,
@@ -407,7 +595,8 @@ export const createEvaluation = async (
           fkUserId: session!.uid,
           content: content.trim(),
           meetingLink: link ?? null,
-          recommendation,
+          recommendation: normalizedRecommendation,
+          score: score ?? null,
           status: "submitted",
         })
         .returning();
@@ -430,23 +619,23 @@ export const createEvaluation = async (
     revalidatePath("/dashboard/approvals");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: result.auditAction,
       resourceType: "interview_evaluation",
       resourceId: result.evaluationId,
+      department: scopeTarget?.department ?? null,
       metadata: {
         userFlowId,
-        hasMeetingLink: hasMeetingLinkArg
-          ? Boolean(link)
-          : undefined,
-        recommendation,
+        hasMeetingLink: hasMeetingLinkArg ? Boolean(link) : undefined,
+        recommendation: normalizedRecommendation,
+        ...(hasScoreArg ? { score } : {}),
       },
     });
 
-    await safeNotifyFeishuApprovalGroup(
-      result.evaluationId,
-      session,
-    );
+    /* 办公类面试没有面评审批：提交即留档，不推审批飞书卡片 */
+    if (!isOfficeFlow) {
+      await safeNotifyFeishuApprovalGroup(result.evaluationId, session);
+    }
 
     return { success: true, data: result.data };
   } catch (error) {
@@ -463,11 +652,12 @@ export const createEvaluation = async (
 };
 
 export const approveEvaluation = async (evaluationId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   let affectedUserId: number | null = null;
+  let targetDepartment: string | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
 
     await db.transaction(async (tx) => {
       const [evalRecord] = await tx
@@ -483,6 +673,43 @@ export const approveEvaluation = async (evaluationId: number) => {
         .limit(1);
 
       if (!evalRecord) throw new Error("面评不存在");
+
+      const [uf] = await tx
+        .select({
+          fkUserId: userFlow.fkUserId,
+          department: userFlow.department,
+          progressStatus: userFlow.progressStatus,
+          flowType: flow.type,
+        })
+        .from(userFlow)
+        .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
+        .limit(1);
+
+      // 只能审批本部门候选人的面评
+      assertUserFlowAccess(
+        session!.scope,
+        userFlowAccessTarget({
+          department: uf?.department,
+          flowType: uf?.flowType,
+        }),
+      );
+      targetDepartment = uf?.department ?? null;
+
+      /* 办公类部门面试没有面评审批：结果由部长在名单确认时直接决定 */
+      if (isOfficeInterviewFlow(uf?.flowType ?? "")) {
+        throw new Error(OFFICE_APPROVAL_UNSUPPORTED_MESSAGE);
+      }
+
+      // 候选人的结果已经落定，任何面评都不再改动其状态
+      if (
+        uf?.progressStatus === "passed" ||
+        uf?.progressStatus === "failed" ||
+        uf?.progressStatus === "withdrawn"
+      ) {
+        throw new Error(RESULT_LOCKED_MESSAGE);
+      }
+
       if (!canApproveEvaluation(evalRecord.status)) {
         throw new Error("只能通过待终审的面评");
       }
@@ -504,19 +731,13 @@ export const approveEvaluation = async (evaluationId: number) => {
         })
         .where(eq(interviewEvaluation.id, evaluationId));
 
-      const [uf] = await tx
-        .select({ fkUserId: userFlow.fkUserId })
-        .from(userFlow)
-        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
-        .limit(1);
-
       if (uf) {
         affectedUserId = uf.fkUserId;
         await moveUserFlowInTx(
           tx,
           evalRecord.fkUserFlowId,
           "passed",
-          evaluationStepTypeForAction("admin_decision"),
+          { type: evaluationStepTypeForAction("admin_decision") },
         );
       }
     });
@@ -525,10 +746,11 @@ export const approveEvaluation = async (evaluationId: number) => {
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "evaluation.approve",
       resourceType: "interview_evaluation",
       resourceId: evaluationId,
+      department: targetDepartment,
       metadata: { affectedUserId },
     });
   } catch (error) {
@@ -544,10 +766,11 @@ export const approveEvaluation = async (evaluationId: number) => {
 };
 
 export const rejectEvaluation = async (evaluationId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
+  let targetDepartment: string | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
 
     await db.transaction(async (tx) => {
       const [evalRecord] = await tx
@@ -561,6 +784,42 @@ export const rejectEvaluation = async (evaluationId: number) => {
         .limit(1);
 
       if (!evalRecord) throw new Error("面评不存在");
+
+      const [uf] = await tx
+        .select({
+          department: userFlow.department,
+          progressStatus: userFlow.progressStatus,
+          flowType: flow.type,
+        })
+        .from(userFlow)
+        .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+        .where(eq(userFlow.id, evalRecord.fkUserFlowId))
+        .limit(1);
+
+      // 只能判定本部门候选人的面评
+      assertUserFlowAccess(
+        session!.scope,
+        userFlowAccessTarget({
+          department: uf?.department,
+          flowType: uf?.flowType,
+        }),
+      );
+      targetDepartment = uf?.department ?? null;
+
+      /* 办公类部门面试没有面评审批：结果由部长在名单确认时直接决定 */
+      if (isOfficeInterviewFlow(uf?.flowType ?? "")) {
+        throw new Error(OFFICE_APPROVAL_UNSUPPORTED_MESSAGE);
+      }
+
+      // 候选人的结果已经落定，任何面评都不再改动其状态
+      if (
+        uf?.progressStatus === "passed" ||
+        uf?.progressStatus === "failed" ||
+        uf?.progressStatus === "withdrawn"
+      ) {
+        throw new Error(RESULT_LOCKED_MESSAGE);
+      }
+
       if (!canRejectEvaluation(evalRecord.status)) {
         throw new Error("只能判定待终审的面评为不通过");
       }
@@ -578,7 +837,7 @@ export const rejectEvaluation = async (evaluationId: number) => {
         tx,
         evalRecord.fkUserFlowId,
         "failed",
-        evaluationStepTypeForAction("admin_decision"),
+        { type: evaluationStepTypeForAction("admin_decision") },
       );
     });
 
@@ -586,10 +845,11 @@ export const rejectEvaluation = async (evaluationId: number) => {
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "evaluation.reject",
       resourceType: "interview_evaluation",
       resourceId: evaluationId,
+      department: targetDepartment,
     });
   } catch (error) {
     logServerError("evaluation:reject", error, {
@@ -604,9 +864,10 @@ export const rejectEvaluation = async (evaluationId: number) => {
 };
 
 export const returnEvaluation = async (evaluationId: number, reason: string) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
+  let targetDepartment: string | null = null;
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
     const normalizedReason = reason.trim();
     if (!normalizedReason) throw new Error("请填写退回理由");
 
@@ -623,6 +884,32 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
         .for("update")
         .limit(1);
       if (!evaluation) throw new Error("面评不存在");
+
+      const [uf] = await tx
+        .select({
+          department: userFlow.department,
+          flowType: flow.type,
+        })
+        .from(userFlow)
+        .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+        .where(eq(userFlow.id, evaluation.userFlowId))
+        .limit(1);
+
+      // 只能退回本部门候选人的面评
+      assertUserFlowAccess(
+        session!.scope,
+        userFlowAccessTarget({
+          department: uf?.department,
+          flowType: uf?.flowType,
+        }),
+      );
+      targetDepartment = uf?.department ?? null;
+
+      /* 办公类部门面试没有面评审批：结果由部长在名单确认时直接决定 */
+      if (isOfficeInterviewFlow(uf?.flowType ?? "")) {
+        throw new Error(OFFICE_APPROVAL_UNSUPPORTED_MESSAGE);
+      }
+
       if (!canReturnEvaluation(evaluation.status)) throw new Error("只能退回待终审的面评");
       await tx.update(interviewEvaluation).set({
         status: "returned",
@@ -630,7 +917,7 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
         fkReviewedBy: session!.uid,
         updatedAt: new Date(),
       }).where(eq(interviewEvaluation.id, evaluationId));
-      await moveUserFlowInTx(tx, evaluation.userFlowId, "ongoing", evaluationStepTypeForAction("submit_for_review"));
+      await moveUserFlowInTx(tx, evaluation.userFlowId, "ongoing", { type: evaluationStepTypeForAction("submit_for_review") });
       return evaluation;
     });
 
@@ -648,7 +935,7 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
     }
     revalidatePath("/dashboard/approvals");
     revalidatePath("/dashboard/interviews");
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.role, action: "evaluation.return", resourceType: "interview_evaluation", resourceId: evaluationId, metadata: { reason: normalizedReason } });
+    await writeOperationAudit({ actorId: session.uid, actorRole: session.realRole, action: "evaluation.return", resourceType: "interview_evaluation", resourceId: evaluationId, department: targetDepartment, metadata: { reason: normalizedReason } });
     return {
       success: true as const,
       notificationSent: notificationStatus === "sent",
@@ -662,11 +949,15 @@ export const returnEvaluation = async (evaluationId: number, reason: string) => 
 
 
 export const getAllEvaluations = async () => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
 
+    /* 审批列表按部门可见性收敛：不在范围内直接查不到 */
+    const scopeFilter = departmentScopeFilter(userFlow.department, session.scope);
+
+    /* 办公类面试没有面评审批：结果由部长在名单确认时决定，这类记录不进审批列表 */
     const rows = await db
       .select({
         evaluation: interviewEvaluation,
@@ -674,6 +965,7 @@ export const getAllEvaluations = async () => {
         portfolioLink: userFlow.portfolioLink,
         portfolioDescription: userFlow.portfolioDescription,
         applyGroup: userFlow.applyGroup,
+        department: userFlow.department,
         authorId: interviewEvaluation.fkUserId,
         candidateId: userFlow.fkUserId,
         flowTitle: flow.title,
@@ -684,6 +976,7 @@ export const getAllEvaluations = async () => {
       .leftJoin(userFlow, eq(interviewEvaluation.fkUserFlowId, userFlow.id))
       .leftJoin(flow, eq(userFlow.fkFlowId, flow.id))
       .leftJoin(flowResultPublication, eq(flowResultPublication.fkFlowId, flow.id))
+      .where(and(scopeFilter, ne(flow.type, OFFICE_INTERVIEW_FLOW_TYPE)))
       .orderBy(desc(interviewEvaluation.createdAt));
 
     const userFlowIds = rows
@@ -775,10 +1068,22 @@ export const getAllEvaluations = async () => {
 };
 
 export const getEvaluationCandidates = async (flowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
+
+    /* 办公类面试无需面试日程，面评带分数且允许多人各写一份 */
+    const [flowRecord] = await db
+      .select({ type: flow.type })
+      .from(flow)
+      .where(eq(flow.id, flowId))
+      .limit(1);
+    const isOfficeFlow = isOfficeInterviewFlow(flowRecord?.type ?? "");
+    /* 办公类部门没有讲师这一级：候选人列表同样只对部长开放 */
+    if (isOfficeFlow && session.role < MANAGER_ROLE) {
+      throw new Error(OFFICE_MANAGER_ONLY_MESSAGE);
+    }
 
     const candidates = await db
       .select({
@@ -789,8 +1094,16 @@ export const getEvaluationCandidates = async (flowId: number) => {
         portfolioLink: userFlow.portfolioLink,
         portfolioDescription: userFlow.portfolioDescription,
         applyGroup: userFlow.applyGroup,
+        department: userFlow.department,
+        /* 志愿顺序：1=第一志愿，2=第二志愿（技术流程不收集，恒为 NULL） */
+        choice: userFlow.choice,
+        /* 候选人当前所处轮次：1=一面，2=二面（其他流程为 NULL） */
+        round: userFlow.round,
+        /* 办公类面试不排日程，列表直接展示所选面谈时段 */
+        interviewSlot: userFlow.interviewSlot,
         evalId: interviewEvaluation.id,
         evalContent: interviewEvaluation.content,
+        evalScore: interviewEvaluation.score,
         evalMeetingLink: interviewEvaluation.meetingLink,
         evalRecommendation: interviewEvaluation.recommendation,
         evalStatus: interviewEvaluation.status,
@@ -806,10 +1119,49 @@ export const getEvaluationCandidates = async (flowId: number) => {
         and(
           eq(userFlow.fkFlowId, flowId),
           ne(userFlow.progressStatus, "withdrawn"),
+          // 候选人列表按报名归属部门收敛（办公类流程每条流程归属一个办公部门）
+          departmentScopeFilter(userFlow.department, session.scope),
         ),
       );
 
-    const dedupedCandidates = dedupeEvaluationCandidateRows(candidates);
+    const dedupedCandidates = dedupeEvaluationCandidateRows(
+      candidates,
+      isOfficeFlow,
+    );
+
+    /* 办公类：同一用户可能同时投递两条办公类流程（第一志愿/第二志愿各一条），
+       列表展示该候选人的另一条办公类报名所在部门；技术流程不涉及，恒为空。 */
+    const candidateUids = [
+      ...new Set(dedupedCandidates.map((candidate) => candidate.uid)),
+    ];
+    const officeSiblingRows =
+      isOfficeFlow && candidateUids.length > 0
+        ? await db
+            .select({
+              uid: userFlow.fkUserId,
+              department: userFlow.department,
+            })
+            .from(userFlow)
+            .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
+            .where(
+              and(
+                inArray(userFlow.fkUserId, candidateUids),
+                eq(flow.type, OFFICE_INTERVIEW_FLOW_TYPE),
+                eq(flow.isDeleted, false),
+                ne(userFlow.progressStatus, "withdrawn"),
+              ),
+            )
+        : [];
+    const siblingDepartmentsByUid = new Map<number, string[]>();
+    for (const row of officeSiblingRows) {
+      if (!row.department) continue;
+      const departments = siblingDepartmentsByUid.get(row.uid);
+      if (departments) {
+        if (!departments.includes(row.department)) departments.push(row.department);
+      } else {
+        siblingDepartmentsByUid.set(row.uid, [row.department]);
+      }
+    }
 
     const userFlowIds = dedupedCandidates.map(
       (candidate) => candidate.userFlowId,
@@ -849,9 +1201,40 @@ export const getEvaluationCandidates = async (flowId: number) => {
       }
     }
 
+    /* 办公类面试需要展示每位部长的面评与均分，其他流程保持单份面评的数据形状 */
+    const candidateEvaluations =
+      isOfficeFlow && userFlowIds.length > 0
+        ? await db
+            .select({
+              id: interviewEvaluation.id,
+              userFlowId: interviewEvaluation.fkUserFlowId,
+              authorId: interviewEvaluation.fkUserId,
+              content: interviewEvaluation.content,
+              score: interviewEvaluation.score,
+              recommendation: interviewEvaluation.recommendation,
+              status: interviewEvaluation.status,
+              /* 面评归属轮次：1=一面，2=二面（其他流程为 NULL） */
+              round: interviewEvaluation.round,
+            })
+            .from(interviewEvaluation)
+            .where(inArray(interviewEvaluation.fkUserFlowId, userFlowIds))
+            .orderBy(desc(interviewEvaluation.id))
+        : [];
+
+    const evaluationsByUserFlow = new Map<number, typeof candidateEvaluations>();
+    for (const evaluation of candidateEvaluations) {
+      const list = evaluationsByUserFlow.get(evaluation.userFlowId);
+      if (list) {
+        list.push(evaluation);
+      } else {
+        evaluationsByUserFlow.set(evaluation.userFlowId, [evaluation]);
+      }
+    }
+
     const userIds = [
       ...dedupedCandidates.map((candidate) => candidate.uid),
       ...scheduleRows.map((schedule) => schedule.organizerId),
+      ...candidateEvaluations.map((evaluation) => evaluation.authorId),
     ].filter((id): id is number => id !== null);
     const userMap = await listPeopleUsersByLinkIds(userIds, {
       canViewSensitiveInfo: true,
@@ -860,11 +1243,53 @@ export const getEvaluationCandidates = async (flowId: number) => {
     return dedupedCandidates
       .map((candidate) => {
         const schedule = latestScheduleMap.get(candidate.userFlowId);
+        const evaluations = evaluationsByUserFlow.get(candidate.userFlowId) ?? [];
+        /* 均分与份数只统计候选人当前轮次的面评（其他轮次的历史面评仍返回给界面展示） */
+        const roundEvaluations = evaluations.filter(
+          (evaluation) => evaluation.round === candidate.round,
+        );
+        /* 只有已提交/已通过的面评参与均分，退回重写与历史不通过不计入 */
+        const scoredEvaluations = roundEvaluations.filter(
+          (evaluation) =>
+            (evaluation.status === "submitted" ||
+              evaluation.status === "approved") &&
+            evaluation.score !== null,
+        );
+        const averageScore =
+          scoredEvaluations.length === 0
+            ? null
+            : scoredEvaluations.reduce(
+                (sum, evaluation) => sum + (evaluation.score ?? 0),
+                0,
+              ) / scoredEvaluations.length;
+        const evaluationCount = roundEvaluations.filter(
+          (evaluation) =>
+            evaluation.status === "submitted" || evaluation.status === "approved",
+        ).length;
+
         return {
           ...candidate,
+          /* 同一用户另一条办公类报名的部门；技术流程与只投递一条的候选人恒为 null */
+          siblingDepartment:
+            siblingDepartmentsByUid
+              .get(candidate.uid)
+              ?.find((department) => department !== candidate.department) ?? null,
           name: userMap.get(candidate.uid)?.name ?? "未知用户",
           studentId: userMap.get(candidate.uid)?.studentId ?? null,
           qq: userMap.get(candidate.uid)?.qq ?? null,
+          averageScore,
+          evaluationCount,
+          evaluations: evaluations.map((evaluation) => ({
+            id: evaluation.id,
+            score: evaluation.score,
+            content: evaluation.content,
+            recommendation: evaluation.recommendation,
+            status: evaluation.status,
+            round: evaluation.round,
+            authorId: evaluation.authorId,
+            authorName: userMap.get(evaluation.authorId)?.name ?? null,
+            isMine: evaluation.authorId === session!.uid,
+          })),
           scheduleId: schedule?.id ?? null,
           scheduleOrganizerId: schedule?.organizerId ?? null,
           scheduleOrganizerName: schedule?.organizerId
@@ -873,8 +1298,9 @@ export const getEvaluationCandidates = async (flowId: number) => {
           canManageSchedule:
             !schedule ||
             schedule.organizerId === session!.uid,
-          canEditEvaluation:
-            candidate.evalId === null
+          canEditEvaluation: isOfficeFlow
+            ? true
+            : candidate.evalId === null
               ? !schedule || schedule.organizerId === session!.uid
               : schedule?.organizerId === session!.uid &&
                 candidate.evalAuthorId === session!.uid,

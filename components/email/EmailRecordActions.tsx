@@ -342,8 +342,10 @@ export function EmailRecordActions({
   return (
     <div
       className={
+        /* 紧凑模式（记录列表）窄屏排成两列而不是三个整行按钮：每条记录少一行高度。
+           宽屏回落到原来的右对齐一行。 */
         compact
-          ? "grid gap-2 min-[560px]:flex min-[560px]:justify-end"
+          ? "flex flex-wrap gap-2 [&>*]:min-w-[7.5rem] [&>*]:flex-1 min-[560px]:flex-nowrap min-[560px]:justify-end min-[560px]:[&>*]:flex-none"
           : "flex flex-wrap justify-end gap-2"
       }
     >

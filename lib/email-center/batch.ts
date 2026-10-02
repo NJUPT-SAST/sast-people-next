@@ -1,8 +1,10 @@
 import "server-only";
 
-import { getEmailTemplateSetting } from "@/action/email/template";
+import { readResultEmailTemplateSetting } from "@/lib/email-center/template-resolution";
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow, userFlow } from "@/db/schema";
+import { emailBatch, emailDelivery, flow, normalizeDepartmentKey, userFlow } from "@/db/schema";
+import { departmentLabel } from "@/const/department";
+import { isOfficeInterviewFlow, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 import event from "@/event";
 import { getEducationEmail } from "@/lib/email/address";
 import {
@@ -34,6 +36,10 @@ export type CreateResultEmailBatchInput = {
   accept: boolean;
   createdBy: number;
   flowType?: string;
+  /** 办公类部门面试轮次：1 = 一轮，2 = 二轮；缺省时办公类流程按二轮（最终结果）处理 */
+  flowRound?: number | null;
+  /** 模板归属部门；缺省时按流程归属部门解析 */
+  department?: string | null;
   templateSetting?: ResultEmailTemplateSetting;
 };
 
@@ -63,6 +69,8 @@ export async function createResultEmailBatch({
   accept,
   createdBy,
   flowType = "recruitment",
+  flowRound: requestedFlowRound,
+  department: requestedDepartment,
   templateSetting: confirmedTemplateSetting,
 }: CreateResultEmailBatchInput) {
   const sourceStatus = accept ? "passed" : "failed";
@@ -74,6 +82,7 @@ export async function createResultEmailBatch({
       userFlowId: userFlow.id,
       userId: userFlow.fkUserId,
       flowName: flow.title,
+      flowDepartment: flow.department,
     })
     .from(userFlow)
     .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
@@ -83,6 +92,9 @@ export async function createResultEmailBatch({
         inArray(userFlow.fkUserId, userIds),
         userFlowIds ? inArray(userFlow.id, userFlowIds) : undefined,
         eq(userFlow.progressStatus, sourceStatus),
+        /* 办公类流程的最终（二面）结果只发给进入二面阶段的候选人：
+           一面未通过者已在「一面结果通知」中单独通知，避免重复收到不通过邮件 */
+        isOfficeInterviewFlow(flowType) ? eq(userFlow.round, 2) : undefined,
       ),
     );
 
@@ -242,10 +254,21 @@ export async function createResultEmailBatch({
     );
   }
 
-  const flowKind = getResultEmailFlowKind(flowType);
-  const templateKey = getResultEmailTemplateKey(flowKind, accept);
-  const templateSetting = confirmedTemplateSetting ?? await getEmailTemplateSetting(templateKey);
-  const subject = renderResultEmailSubject(targets[0].flowName, templateSetting);
+  /* 办公类部门面试招新是所有办公部门共用的一条流程，邮件只用于发布二轮（最终）结果 */
+  const flowRound = requestedFlowRound ?? (isOfficeInterviewFlow(flowType) ? 2 : null);
+  const flowKind = getResultEmailFlowKind(flowType, flowRound);
+  const templateKey = getResultEmailTemplateKey(flowType, accept, flowRound);
+  /* 模板归属：显式入参优先，否则回落流程归属部门；未归属部门的流程用全局默认模板。
+     办公类流程同样是 flow.department = 该办公部门，因此与其它部门走同一条解析路径。 */
+  const department =
+    requestedDepartment !== undefined
+      ? normalizeDepartmentKey(requestedDepartment)
+      : normalizeDepartmentKey(targets[0].flowDepartment);
+  const templateSetting =
+    confirmedTemplateSetting ??
+    (await readResultEmailTemplateSetting(templateKey, department));
+  /* {department} 用流程归属部门的展示名渲染：候选人邮件里出现的是「办公室」而不是 Link 标识 */
+  const departmentDisplay = departmentLabel(targets[0].flowDepartment);
   const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
     flowId,
     accept,
@@ -262,8 +285,12 @@ export async function createResultEmailBatch({
           name: targetUser?.name ?? "同学",
           flowName: item.flowName,
           flowKind,
+          round: flowRound,
+          department: departmentDisplay,
+          groupNumber: templateSetting.groupNumber,
           setting: templateSetting,
         },
+        department,
       });
 
       return {
@@ -273,6 +300,17 @@ export async function createResultEmailBatch({
       };
     }),
   );
+  const batchSubject =
+    deliveryDrafts[0]?.rendered.subject ??
+    renderResultEmailSubject(
+      {
+        name: userMap.get(missingTargets[0].userId)?.name ?? "同学",
+        flowName: targets[0].flowName,
+        department: departmentDisplay,
+        groupNumber: templateSetting.groupNumber,
+      },
+      templateSetting,
+    );
 
   return db.transaction(async (tx) => {
     const [batch] = await tx
@@ -282,7 +320,7 @@ export async function createResultEmailBatch({
         templateKey,
         category: "result",
         name: `${targets[0].flowName} ${accept ? "通过" : "不通过"}通知`,
-        subject,
+        subject: batchSubject,
         accept,
         status: "draft",
         totalCount: missingTargets.length,
@@ -330,7 +368,253 @@ export async function createResultEmailBatch({
   });
 }
 
-export async function sendEmailBatchById(batchId: number) {
+/**
+ * 办公类部门面试招新的一面结果通知：
+ * - accept=true：发给「一面已通过、正在二面阶段」的候选人；
+ * - accept=false：发给「一面未通过、停在第一阶段」的候选人。
+ * 模板与 `{groupNumber}` 按本流程归属部门解析（部门覆盖 → 全局默认 → 内置默认）。
+ * 与最终结果发布解耦（一面结果不改变报名状态），单独成批、单独入队，
+ * 并通过独立的去重作用域避免与最终结果批次互相覆盖。返回 null 表示当前没有可发送的候选人。
+ */
+export async function createOfficeRoundOneEmailBatch({
+  flowId,
+  createdBy,
+  accept,
+}: {
+  flowId: number;
+  createdBy: number;
+  accept: boolean;
+}): Promise<{ batchId: number; recipientCount: number } | null> {
+  assertEmailConfigured();
+  const [flowRow] = await db
+    .select({ id: flow.id, title: flow.title, department: flow.department })
+    .from(flow)
+    .where(eq(flow.id, flowId))
+    .limit(1);
+  if (!flowRow) throw new Error("流程不存在");
+  /* 每个办公部门一条独立流程：模板归属 = 流程归属部门 */
+  const flowDepartment = normalizeDepartmentKey(flowRow.department);
+  const departmentDisplay = departmentLabel(flowRow.department);
+
+  const round = 1;
+  /* 通过 / 未通过各自独立的去重作用域，避免互相覆盖 */
+  const scope = accept ? "office_round1" : "office_round1_rejected";
+  const templateKey = getResultEmailTemplateKey(
+    OFFICE_INTERVIEW_FLOW_TYPE,
+    accept,
+    round,
+  );
+
+  const recipientRows = await db
+    .select({
+      userFlowId: userFlow.id,
+      userId: userFlow.fkUserId,
+    })
+    .from(userFlow)
+    .where(
+      and(
+        eq(userFlow.fkFlowId, flowId),
+        /* 通过：一面通过后已进入二面阶段；未通过：停在第一阶段且已判定不通过 */
+        accept
+          ? and(
+              eq(userFlow.progressStatus, "ongoing"),
+              eq(userFlow.round, 2),
+            )
+          : and(eq(userFlow.progressStatus, "failed"), eq(userFlow.round, 1)),
+      ),
+    );
+  if (recipientRows.length === 0) return null;
+
+  const recipients = recipientRows.map((row) => ({
+    ...row,
+    idempotencyKey: getResultEmailDeliveryIdempotencyKey({
+      flowId,
+      accept,
+      userFlowId: row.userFlowId,
+      scope,
+    }),
+  }));
+
+  /* 已发送 / 发送中的不再重复发送；pending / failed / dead 保留可重试 */
+  const existingDeliveries = await db
+    .select({
+      batchId: emailDelivery.fkEmailBatchId,
+      userFlowId: emailDelivery.fkUserFlowId,
+      status: emailDelivery.status,
+    })
+    .from(emailDelivery)
+    .where(
+      inArray(
+        emailDelivery.idempotencyKey,
+        recipients.map((item) => item.idempotencyKey),
+      ),
+    );
+  const existingByUserFlowId = new Map(
+    existingDeliveries
+      .filter(
+        (item): item is typeof item & { userFlowId: number } =>
+          item.userFlowId !== null,
+      )
+      .map((item) => [item.userFlowId, item]),
+  );
+  const queueableRecipients = recipients.filter((item) => {
+    const existing = existingByUserFlowId.get(item.userFlowId);
+    return !existing || (existing.status !== "sent" && existing.status !== "sending");
+  });
+  if (queueableRecipients.length === 0) return null;
+
+  const queueableBatchIds = [
+    ...new Set(
+      queueableRecipients
+        .map((item) => existingByUserFlowId.get(item.userFlowId)?.batchId)
+        .filter((id): id is number => typeof id === "number"),
+    ),
+  ];
+  const newRecipients = queueableRecipients.filter(
+    (item) => !existingByUserFlowId.has(item.userFlowId),
+  );
+
+  let batchId: number | null = null;
+
+  if (newRecipients.length > 0) {
+    const userMap = await listPeopleUsersByLinkIds(
+      newRecipients.map((item) => item.userId),
+    );
+    const missingStudentIdRecipients = newRecipients
+      .map((item) => {
+        const targetUser = userMap.get(item.userId);
+        return {
+          name: targetUser?.name ?? `Link 用户 #${item.userId}`,
+          studentId: targetUser?.studentId ?? null,
+        };
+      })
+      .filter((item) => !item.studentId?.trim());
+    if (missingStudentIdRecipients.length > 0) {
+      throw new Error(
+        `以下同学缺少学号，无法生成教育邮箱：${missingStudentIdRecipients
+          .map((item) => item.name)
+          .join("、")}`,
+      );
+    }
+
+    /* 模板按本流程归属部门解析：部门覆盖 → 全局默认 → 内置默认 */
+    const setting = await readResultEmailTemplateSetting(templateKey, flowDepartment);
+
+    const deliveryDrafts = await Promise.all(
+      newRecipients.map(async (item) => {
+        const targetUser = userMap.get(item.userId);
+        const rendered = await renderEmailTemplate({
+          templateKey,
+          variables: {
+            name: targetUser?.name ?? "同学",
+            flowName: flowRow.title,
+            flowKind: getResultEmailFlowKind(OFFICE_INTERVIEW_FLOW_TYPE, round),
+            round,
+            department: departmentDisplay,
+            groupNumber: setting.groupNumber,
+            setting,
+            genericGreeting: true,
+          },
+          department: flowDepartment,
+        });
+        return {
+          item,
+          toAddress: getEducationEmail(targetUser?.studentId),
+          rendered,
+        };
+      }),
+    );
+
+    const [firstDraft] = deliveryDrafts;
+    const subject = renderResultEmailSubject(
+      {
+        name: userMap.get(firstDraft.item.userId)?.name ?? "同学",
+        flowName: flowRow.title,
+        department: departmentDisplay,
+        groupNumber: setting.groupNumber,
+      },
+      setting,
+    );
+    const batchIdempotencyKey = getResultEmailBatchIdempotencyKey({
+      flowId,
+      accept,
+      userFlowIds: newRecipients.map((item) => item.userFlowId),
+      scope,
+    });
+
+    batchId = await db.transaction(async (tx) => {
+      const [batch] = await tx
+        .insert(emailBatch)
+        .values({
+          idempotencyKey: batchIdempotencyKey,
+          templateKey,
+          category: "result",
+          name: `${flowRow.title} ${accept ? "一面通过通知" : "一面不通过通知"}`,
+          subject,
+          accept,
+          status: "draft",
+          totalCount: newRecipients.length,
+          fkFlowId: flowId,
+          fkCreatedBy: createdBy,
+          metadata: { accept, flowId, round, scope },
+        })
+        .onConflictDoNothing({ target: emailBatch.idempotencyKey })
+        .returning({ id: emailBatch.id });
+
+      if (!batch) {
+        const [existingBatch] = await tx
+          .select({ id: emailBatch.id })
+          .from(emailBatch)
+          .where(eq(emailBatch.idempotencyKey, batchIdempotencyKey))
+          .limit(1);
+        return existingBatch?.id ?? null;
+      }
+
+      for (const { item, rendered, toAddress } of deliveryDrafts) {
+        await tx
+          .insert(emailDelivery)
+          .values({
+            idempotencyKey: item.idempotencyKey,
+            category: "result",
+            templateKey,
+            toAddress,
+            subject: rendered.subject,
+            htmlSnapshot: rendered.html,
+            fkEmailBatchId: batch.id,
+            fkFlowId: flowId,
+            fkUserFlowId: item.userFlowId,
+            fkUserId: item.userId,
+            createdBy,
+            metadata: { accept, flowId, round, scope },
+          })
+          .onConflictDoNothing({ target: emailDelivery.idempotencyKey });
+      }
+
+      return batch.id;
+    });
+  }
+
+  /* 入队只把投递置为待发送并触发事件，绝不改动候选人的报名状态 */
+  const batchIdsToQueue = [
+    ...new Set([
+      ...(batchId === null ? [] : [batchId]),
+      ...queueableBatchIds,
+    ]),
+  ];
+  for (const id of batchIdsToQueue) {
+    await sendEmailBatchById(id, { markUserFlowStatus: false });
+  }
+
+  const resultBatchId = batchId ?? queueableBatchIds[0] ?? null;
+  if (resultBatchId === null) return null;
+
+  return { batchId: resultBatchId, recipientCount: queueableRecipients.length };
+}
+
+export async function sendEmailBatchById(
+  batchId: number,
+  { markUserFlowStatus = true }: { markUserFlowStatus?: boolean } = {},
+) {
   const [batch] = await db
     .select()
     .from(emailBatch)
@@ -397,7 +681,8 @@ export async function sendEmailBatchById(batchId: number) {
     .map((item) => item.userFlowId)
     .filter((id): id is number => id !== null);
 
-  if (userFlowIds.length > 0) {
+  /* 一面通过通知不改变报名状态：候选人仍在二面流程中，不能提前标记为通过 */
+  if (markUserFlowStatus && userFlowIds.length > 0) {
     await db
       .update(userFlow)
       .set({ progressStatus: finalStatus, updatedAt: new Date() })

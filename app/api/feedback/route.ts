@@ -6,6 +6,7 @@ import { verifySession } from "@/lib/dal";
 import { getPeopleUrl } from "@/lib/app-url";
 import { sendFeishuCardMessage } from "@/lib/feishu/message";
 import { logServerError } from "@/lib/server-error-log";
+import { apiErrorResponse } from "@/lib/api-error";
 
 const feedbackSchema = z.object({
   category: z.enum(["bug", "suggestion", "content", "other"]),
@@ -151,6 +152,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     logServerError("feedback:create", error, { path: "/api/feedback", userId: session?.uid ?? null, action: "create-feedback" });
-    return NextResponse.json({ message: "反馈提交失败，请稍后重试" }, { status: 500 });
+    return apiErrorResponse(error, "反馈提交失败，请稍后重试");
   }
 }

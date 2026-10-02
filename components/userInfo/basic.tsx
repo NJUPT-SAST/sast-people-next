@@ -1,5 +1,6 @@
 "use client";
 import type { userType } from "@/types/user";
+import { departmentLabel } from "@/const/department";
 import { z } from "zod/v4";
 import { Button } from "../ui/button";
 import {
@@ -52,6 +53,12 @@ export const BasicInfo = ({
     ["QQ", initialInfo.qq],
     ["学院", initialInfo.college],
     ["专业", initialInfo.major],
+    [
+      "所属部门",
+      initialInfo.departments.length > 0
+        ? initialInfo.departments.map((item) => departmentLabel(item)).join("、")
+        : departmentLabel(null, "未设置部门"),
+    ],
   ] as const;
   const header = (
     <div className="space-y-1">

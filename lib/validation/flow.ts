@@ -1,5 +1,12 @@
 import { createInsertSchema } from "drizzle-zod";
-import { flow, flowGroupOptionsSchema } from "@/db/schema";
+import {
+  departmentKeySchema,
+  flow,
+  flowGroupDepartmentsSchema,
+  flowGroupOptionsSchema,
+  flowSlotOptionsSchema,
+  type FlowSlotOption,
+} from "@/db/schema";
 import { z } from "zod/v4";
 
 export const fullFlowSchema = createInsertSchema(flow, {
@@ -9,6 +16,36 @@ export const fullFlowSchema = createInsertSchema(flow, {
   endedAt: z.date({ error: "请选择结束时间" }),
 });
 
+/* 归属部门：null 表示全局流程，仅管理员可指定；办公类流程的归属部门由服务端解析 */
+const flowDepartmentSchema = {
+  department: departmentKeySchema.nullable().optional(),
+  groupOptions: flowGroupOptionsSchema.optional(),
+  groupDepartments: flowGroupDepartmentsSchema.optional(),
+};
+
+/* 办公类部门面试招新：每个办公部门一条流程，仅额外支持面试时段 */
+const flowOfficeInterviewSchema = {
+  slotOptions: flowSlotOptionsSchema.nullable().optional(),
+};
+
+type FlowConfigInput = {
+  type?: string | null;
+  slotOptions?: FlowSlotOption[] | null;
+};
+
+const refineFlowConfig = (data: FlowConfigInput, ctx: z.RefinementCtx) => {
+  const flowType = data.type ?? "recruitment";
+  if (flowType === "office_interview") return;
+
+  if (data.slotOptions && data.slotOptions.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "只有办公类部门面试招新支持面试时段",
+      path: ["slotOptions"],
+    });
+  }
+};
+
 export const addFlowSchema = fullFlowSchema
   .pick({
     title: true,
@@ -17,6 +54,7 @@ export const addFlowSchema = fullFlowSchema
     startedAt: true,
     endedAt: true,
   })
+  .extend({ ...flowDepartmentSchema, ...flowOfficeInterviewSchema })
   .superRefine((data, ctx) => {
     if (!data.startedAt) {
       ctx.addIssue({
@@ -37,6 +75,8 @@ export const addFlowSchema = fullFlowSchema
         path: ["endedAt"],
       });
     }
+
+    refineFlowConfig(data, ctx);
   });
 
 export const editFlowSchema = fullFlowSchema
@@ -50,7 +90,8 @@ export const editFlowSchema = fullFlowSchema
   })
   .extend({
     endedAt: z.date().nullable().optional(),
-    groupOptions: flowGroupOptionsSchema.optional(),
+    ...flowDepartmentSchema,
+    ...flowOfficeInterviewSchema,
   })
   .superRefine((data, ctx) => {
     if (!data.startedAt) {
@@ -72,4 +113,6 @@ export const editFlowSchema = fullFlowSchema
         path: ["endedAt"],
       });
     }
+
+    refineFlowConfig(data, ctx);
   });

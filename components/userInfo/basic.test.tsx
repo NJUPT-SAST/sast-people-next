@@ -12,7 +12,8 @@ describe("BasicInfo", () => {
     college: "计算机学院",
     major: "软件工程",
     qq: "123456",
-  } as const;
+    departments: [] as string[],
+  };
 
   it("renders the initial readonly values", () => {
     render(<BasicInfo initialInfo={initialInfo as never} />);
@@ -26,6 +27,19 @@ describe("BasicInfo", () => {
     expect(
       screen.getByRole("link", { name: "前往 Link 修改" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the account's own department and falls back when unset", () => {
+    const { rerender } = render(
+      <BasicInfo initialInfo={{ ...initialInfo, departments: ["software"] } as never} />,
+    );
+
+    expect(screen.getByText("所属部门")).toBeInTheDocument();
+    expect(screen.getByText("软件研发部")).toBeInTheDocument();
+
+    rerender(<BasicInfo initialInfo={initialInfo as never} />);
+
+    expect(screen.getByText("未设置部门")).toBeInTheDocument();
   });
 
   it("links to Link for edits", () => {

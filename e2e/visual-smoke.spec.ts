@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import { signInAs } from "./session";
 
 const users = {
-  admin: { uid: 1, role: 3, name: "管理员" },
-  lecturer: { uid: 2, role: 2, name: "讲师" },
+  admin: { uid: 1, role: 4, name: "管理员", department: "software" },
+  lecturer: { uid: 2, role: 2, name: "讲师", department: "software" },
   candidate: { uid: 8, role: 0, name: "吴承宇" },
 } as const;
 
@@ -70,7 +70,7 @@ const keyRoutes: Array<{
   },
   {
     path: "/dashboard/flow",
-    marker: "管理招新、WOC/WOD、SOC/SOD 等流程",
+    marker: "管理招新、免试、WOC/WOD、SOC/SOD",
     user: "admin",
   },
 ];

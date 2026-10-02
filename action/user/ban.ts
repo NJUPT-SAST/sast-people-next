@@ -1,21 +1,24 @@
 "use server"
 
-import { verifyRole } from "@/lib/dal"
+import { verifyAdmin } from "@/lib/authz"
 import { banLinkUser } from "@/lib/link/admin"
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session"
 import { writeOperationAudit } from "@/lib/operation-audit"
 import { logServerError } from "@/lib/server-error-log"
 
 export const banUser = async (uid: number)=>{
-    let session: Awaited<ReturnType<typeof verifyRole>> | null = null
+    let actorId: number | null = null
+    let actorRole: number | null = null
 
     try {
-        session = await verifyRole(3)
+        const session = await verifyAdmin()
+        actorId = session.uid
+        actorRole = session.realRole
         const accessToken = await getLinkAdminAccessTokenFromSession()
         await banLinkUser(accessToken, uid)
         await writeOperationAudit({
             actorId: session.uid,
-            actorRole: session.role,
+            actorRole: session.realRole,
             action: "user.ban",
             resourceType: "link_user",
             resourceId: uid,
@@ -24,8 +27,8 @@ export const banUser = async (uid: number)=>{
     } catch (error) {
         logServerError("user:ban", error, {
             path: "/dashboard/manage",
-            userId: session?.uid ?? null,
-            role: session?.role ?? null,
+            userId: actorId,
+            role: actorRole,
             action: "ban-user",
             targetUserId: uid,
         })

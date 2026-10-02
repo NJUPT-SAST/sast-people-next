@@ -11,6 +11,7 @@ import {
 import {
   renderResultEmail,
   renderResultEmailSubject,
+  type ResultEmailFlowKind,
 } from "@/lib/email/result-email";
 import { getEmailTemplateDefinition } from "@/lib/email-center/registry";
 import type {
@@ -23,6 +24,9 @@ import type {
 function getInterviewEmailKind(templateKey: InterviewEmailTemplateKey) {
   if (templateKey === "interview.schedule.rescheduled") return "rescheduled";
   if (templateKey === "interview.schedule.cancelled") return "cancelled";
+  if (templateKey === "interview.schedule.change.rejected") {
+    return "change_rejected";
+  }
   return "created";
 }
 
@@ -65,35 +69,49 @@ export async function renderEmailTemplate(
   switch (request.templateKey) {
     case "recruitment.result.accepted":
     case "recruitment.result.rejected":
+    case "recruitment_exemption.result.accepted":
+    case "recruitment_exemption.result.rejected":
     case "woc.result.accepted":
     case "woc.result.rejected":
     case "soc.result.accepted":
-    case "soc.result.rejected": {
+    case "soc.result.rejected":
+    case "office_round1.result.accepted":
+    case "office_round1.result.rejected":
+    case "office_round2.result.accepted":
+    case "office_round2.result.rejected": {
       const [flowKind, , resultKind] = request.templateKey.split(".");
       return {
         subject: renderResultEmailSubject(
-          request.variables.flowName,
+          {
+            name: request.variables.name,
+            flowName: request.variables.flowName,
+            department: request.variables.department,
+            groupNumber: request.variables.groupNumber,
+          },
           request.variables.setting,
         ),
         html: await renderResultEmail({
           ...request.variables,
           accept: resultKind === "accepted",
-          flowKind: flowKind === "woc" || flowKind === "soc" ? flowKind : "recruitment",
+          flowKind: flowKind as ResultEmailFlowKind,
         }),
       };
     }
     case "interview.schedule.created":
     case "interview.schedule.rescheduled":
-    case "interview.schedule.cancelled": {
+    case "interview.schedule.cancelled":
+    case "interview.schedule.change.rejected": {
       const kind = getInterviewEmailKind(request.templateKey);
       return {
         subject: await renderInterviewScheduleEmailSubject(
           request.variables.flowName,
           kind,
+          request.department,
         ),
         html: await renderInterviewScheduleEmail({
           ...request.variables,
           kind,
+          department: request.department,
         }),
       };
     }
@@ -101,8 +119,12 @@ export async function renderEmailTemplate(
       return {
         subject: await renderInterviewWithdrawalEmailSubject(
           request.variables.flowName,
+          request.department,
         ),
-        html: await renderInterviewWithdrawalEmail(request.variables),
+        html: await renderInterviewWithdrawalEmail({
+          ...request.variables,
+          department: request.department,
+        }),
       };
   }
 }

@@ -23,7 +23,8 @@ export type InterviewWithdrawalEmailVariables = {
 
 const operatorRoleLabels: Record<number, string> = {
   2: "讲师",
-  3: "管理员",
+  3: "部长",
+  4: "管理员",
 };
 
 /** Falls back to 讲师, since returning a candidate is an interviewer action. */
@@ -31,8 +32,11 @@ export function getWithdrawalOperatorLabel(role?: number) {
   return (role !== undefined && operatorRoleLabels[role]) || "讲师";
 }
 
-export async function renderInterviewWithdrawalEmailSubject(flowName: string) {
-  const setting = await getInterviewWithdrawalTemplateSetting();
+export async function renderInterviewWithdrawalEmailSubject(
+  flowName: string,
+  department?: string | null,
+) {
+  const setting = await getInterviewWithdrawalTemplateSetting(department);
   return renderInterviewWithdrawalTemplateText(setting.subjectTemplate, {
     candidateName: "同学",
     flowName,
@@ -47,8 +51,9 @@ export async function renderInterviewWithdrawalEmail({
   operatorName,
   operatorRole,
   flowUrl = getPeopleUrl("/dashboard/user-flow"),
-}: InterviewWithdrawalEmailVariables) {
-  const setting = await getInterviewWithdrawalTemplateSetting();
+  department,
+}: InterviewWithdrawalEmailVariables & { department?: string | null }) {
+  const setting = await getInterviewWithdrawalTemplateSetting(department);
   // `organizerName` is part of the shared variable list, so a template saved
   // before this change may already reference it. Supply it so the placeholder
   // resolves instead of rendering blank.
@@ -75,12 +80,15 @@ export async function renderInterviewWithdrawalEmail({
   );
 }
 
-export async function renderInterviewWithdrawalEmailPreview() {
+export async function renderInterviewWithdrawalEmailPreview(
+  department?: string | null,
+) {
   return renderInterviewWithdrawalEmail({
     candidateName: "张三",
-    flowName: "2026 免试招新 Demo",
+    flowName: "2026 校科协软件研发部 免试招新",
     reason: "请补充作品集后重新报名。",
     operatorName: "李四",
     operatorRole: 2,
+    department,
   });
 }

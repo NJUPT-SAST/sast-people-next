@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { Client } from "pg";
 import { signInAs } from "./session";
 
 /**
@@ -13,7 +14,46 @@ import { signInAs } from "./session";
  * is only observable here.
  */
 
-const admin = { uid: 1, role: 3, name: "管理员" } as const;
+const admin = { uid: 1, role: 4, name: "管理员", department: "software" } as const;
+
+/* 自建固定流程 + 候选人作为夹具：工作台默认展示「最新创建的面试流程」，
+   依赖种子数据或其它用例的流程时，任意一条最新流程没有候选人就会失败。 */
+let flowId = 0;
+let database: Client | null = null;
+
+test.beforeAll(async () => {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is required for interview row menu E2E tests");
+  }
+  database = new Client({ connectionString: databaseUrl });
+  await database.connect();
+  const inserted = await database.query<{ id: number }>(
+    `insert into flow (title, description, type, owner_id, started_at, is_deleted, department)
+     values ('E2E 行操作菜单夹具', 'E2E fixture flow for the row action menu', 'woc', 1, now(), false, 'software')
+     returning id`,
+  );
+  flowId = inserted.rows[0].id;
+  await database.query(
+    `insert into user_flow (progress_status, fk_flow_id, fk_user_id, department)
+     values ('ongoing', $1, 11, 'software')`,
+    [flowId],
+  );
+});
+
+test.afterAll(async () => {
+  if (!database) return;
+  try {
+    if (flowId) {
+      await database.query("delete from user_flow where fk_flow_id = $1", [flowId]);
+      await database.query("delete from flow where id = $1", [flowId]);
+    }
+  } finally {
+    await database.end();
+  }
+});
+
+const interviewsUrl = () => `/dashboard/interviews?flowId=${flowId}`;
 
 // The route compiles on first request in a dev server, which can outlast the
 // suite's default budget.
@@ -43,7 +83,7 @@ test.describe("on a phone", () => {
     context,
   }) => {
     await signInAs(context, admin);
-    await page.goto("/dashboard/interviews");
+    await page.goto(interviewsUrl());
 
     const { x, y } = await visibleActionTrigger(page);
     const cdp = await context.newCDPSession(page);
@@ -70,7 +110,7 @@ test.describe("on a phone", () => {
     context,
   }) => {
     await signInAs(context, admin);
-    await page.goto("/dashboard/interviews");
+    await page.goto(interviewsUrl());
 
     const first = await visibleActionTrigger(page);
     await page.touchscreen.tap(first.x, first.y);
@@ -90,7 +130,7 @@ test.describe("with a mouse", () => {
     context,
   }) => {
     await signInAs(context, admin);
-    await page.goto("/dashboard/interviews");
+    await page.goto(interviewsUrl());
 
     const { trigger, x, y } = await visibleActionTrigger(page);
     await trigger.click();
@@ -113,7 +153,7 @@ test.describe("from a screen reader", () => {
     context,
   }) => {
     await signInAs(context, admin);
-    await page.goto("/dashboard/interviews");
+    await page.goto(interviewsUrl());
 
     const { trigger } = await visibleActionTrigger(page);
     // How a screen reader activates the button: a click with `detail` 0 and no

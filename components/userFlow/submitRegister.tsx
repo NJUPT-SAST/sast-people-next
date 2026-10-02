@@ -27,14 +27,25 @@ import { toast } from 'sonner';
 import { displayFlow } from '@/types/flow';
 import originalDayjs from '@/lib/dayjs';
 import { isValidExternalUrl } from '@/lib/link';
+import {
+  flowNeedsPortfolio,
+  isOfficeInterviewFlow,
+  SLOT_CONFLICT_LABEL,
+} from '@/const/flow';
 
 const isFlowActive = (flow: displayFlow, now: Date) =>
   now >= flow.startedAt && (!flow.endedAt || now <= flow.endedAt);
 
+/* 冲突时段的补充提示；选项标签已包含默认冲突文案时不再重复展示 */
+const SLOT_CONFLICT_HINT = "（约面时间QQ群中另行通知）";
+
 const SubmitRegister = ({
   flowList,
   uid,
-}: { flowList: displayFlow[]; uid: number }) => {
+}: {
+  flowList: displayFlow[];
+  uid: number;
+}) => {
   const safeFlowList = Array.isArray(flowList) ? flowList : [];
   const hasFlows = safeFlowList.length > 0;
   const now = new Date();
@@ -51,11 +62,27 @@ const SubmitRegister = ({
   >({});
   const [applyGroupError, setApplyGroupError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [slot, setSlot] = useState("");
+  const [slotError, setSlotError] = useState<string | null>(null);
+  /* 志愿类型：1=第一志愿、2=第二志愿（办公类部门面试，每个办公部门一条流程） */
+  const [choice, setChoice] = useState<"" | "1" | "2">("");
+  const [choiceError, setChoiceError] = useState<string | null>(null);
   const currentFlow = safeFlowList.find((flow) => flow.id === selectedFlow);
-  const needsPortfolioLink = currentFlow?.type !== "recruitment" && !!currentFlow;
+  /* 作品链接/作品简介只属于技术部门面试流程（免试/WOC/SOC），办公类与笔试都不收集 */
+  const needsPortfolioLink =
+    !!currentFlow && flowNeedsPortfolio(currentFlow.type);
+  const isOfficeFlow = !!currentFlow && isOfficeInterviewFlow(currentFlow.type);
   const flowGroupOptions = currentFlow?.groupOptions ?? [];
-  const needsApplyGroup =
-    needsPortfolioLink && flowGroupOptions.length > 0;
+  const needsApplyGroup = needsPortfolioLink && flowGroupOptions.length > 0;
+  const rawSlotOptions = currentFlow?.slotOptions;
+  const slotOptions =
+    isOfficeFlow && Array.isArray(rawSlotOptions)
+      ? rawSlotOptions.filter((option) => {
+          const label: unknown = option?.label;
+          return typeof label === "string" && label.trim().length > 0;
+        })
+      : [];
+  const needsSlot = isOfficeFlow && slotOptions.length > 0;
 
   const resetForm = () => {
     setSelectedFlow(null);
@@ -65,16 +92,37 @@ const SubmitRegister = ({
     setGroupRows([null]);
     setGroupPortfolios({});
     setApplyGroupError(null);
+    setSlot("");
+    setSlotError(null);
+    setChoice("");
+    setChoiceError(null);
   };
 
   const handleRegister = async () => {
     if (selectedFlow) {
       let submissions: Array<{
         group?: string;
+        slot?: string;
+        choice?: 1 | 2;
         portfolioLink?: string;
         portfolioDescription?: string;
       }> = [];
-      if (needsApplyGroup) {
+      if (isOfficeFlow) {
+        if (!choice) {
+          setChoiceError("请选择志愿类型");
+          return;
+        }
+        if (needsSlot && !slot) {
+          setSlotError("请选择面试时段");
+          return;
+        }
+        submissions = [
+          {
+            choice: choice === "1" ? 1 : 2,
+            slot: needsSlot ? slot : undefined,
+          },
+        ];
+      } else if (needsApplyGroup) {
         const groups = groupRows.filter((g): g is string => Boolean(g));
         if (groups.length === 0) {
           setApplyGroupError("请至少选择一个投递组别");
@@ -108,6 +156,8 @@ const SubmitRegister = ({
       }
       setPortfolioLinkError(null);
       setApplyGroupError(null);
+      setSlotError(null);
+      setChoiceError(null);
       setIsSubmitting(true);
       toast.promise(
         (async () => {
@@ -189,6 +239,10 @@ const SubmitRegister = ({
             setGroupRows([null]);
             setGroupPortfolios({});
             setApplyGroupError(null);
+            setSlot("");
+            setSlotError(null);
+            setChoice("");
+            setChoiceError(null);
           }}
         >
           <SelectTrigger className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left">
@@ -224,8 +278,75 @@ const SubmitRegister = ({
             </SelectContent>
           )}
         </Select>
-        {needsPortfolioLink && (
+        {(isOfficeFlow || needsPortfolioLink) && (
           <div className="space-y-3">
+            {isOfficeFlow && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="volunteer-choice">志愿类型</Label>
+                  <Select
+                    value={choice}
+                    onValueChange={(value) => {
+                      setChoice(value === "1" ? "1" : "2");
+                      if (choiceError) setChoiceError(null);
+                    }}
+                  >
+                    <SelectTrigger
+                      id="volunteer-choice"
+                      className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
+                    >
+                      <SelectValue placeholder="选择志愿类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">第一志愿</SelectItem>
+                      <SelectItem value="2">第二志愿</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {choiceError && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {choiceError}
+                    </p>
+                  )}
+                </div>
+                {needsSlot && (
+                  <div className="space-y-2">
+                    <Label htmlFor="interview-slot">面试时段</Label>
+                    <Select
+                      value={slot}
+                      onValueChange={(value) => {
+                        setSlot(value);
+                        if (slotError) setSlotError(null);
+                      }}
+                    >
+                      <SelectTrigger
+                        id="interview-slot"
+                        className="w-full text-left [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:justify-start [&_[data-slot=select-value]]:text-left"
+                      >
+                        <SelectValue placeholder="选择面试时段" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {slotOptions.map((option) => (
+                          <SelectItem key={option.label} value={option.label}>
+                            {option.label}
+                            {option.isConflict &&
+                              !option.label.includes(SLOT_CONFLICT_LABEL) && (
+                                <span className="text-xs text-muted-foreground">
+                                  {SLOT_CONFLICT_HINT}
+                                </span>
+                              )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {slotError && (
+                      <p role="alert" className="text-sm text-destructive">
+                        {slotError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
             {needsApplyGroup ? (
               <div className="space-y-3">
                 <div className="space-y-2">
@@ -353,7 +474,7 @@ const SubmitRegister = ({
                   )}
                 </div>
               </div>
-            ) : (
+            ) : needsPortfolioLink ? (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="portfolio-link">作品链接</Label>
@@ -388,7 +509,7 @@ const SubmitRegister = ({
                   </p>
                 </div>
               </>
-            )}
+            ) : null}
           </div>
         )}
         <DialogFooter>

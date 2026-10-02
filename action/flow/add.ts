@@ -1,19 +1,42 @@
 'use server';
-import { verifyRole } from '@/lib/dal';
+import { verifyManager } from '@/lib/authz';
 import { db } from '@/db/drizzle';
 import { flow, flowStep } from '@/db/schema';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod/v4';
-import { addFlowSchema } from '@/components/flow/add';
-import { evaluationFlowSteps, isWrittenRecruitmentFlow, writtenRecruitmentSteps } from './defaultSteps';
+import { addFlowSchema } from '@/lib/validation/flow';
+import { stepsForFlowType } from './defaultSteps';
+import { resolveFlowDepartment, resolveGroupDepartments, type FlowScopedSession } from './department-utils';
+import { isOfficeInterviewFlow } from '@/const/flow';
 import { logServerError } from '@/lib/server-error-log';
 import { writeOperationAudit } from '@/lib/operation-audit';
 
 export async function addFlow(values: z.infer<typeof addFlowSchema>) {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
+    const parsedValues = addFlowSchema.parse(values);
+
+    /* 部长固定写入自己的部门；管理员可指定归属部门，留空则为全局流程 */
+    const flowType = parsedValues.type ?? 'recruitment';
+    /* 办公类部门面试招新同样是「每个办公部门一条流程」，归属部门与其它流程一起解析 */
+    const department = resolveFlowDepartment(session.scope, parsedValues.department);
+    if (isOfficeInterviewFlow(flowType) && !department) {
+      throw new Error('办公类部门面试招新必须归属一个办公部门');
+    }
+    const groupOptions =
+      parsedValues.groupOptions && parsedValues.groupOptions.length > 0
+        ? parsedValues.groupOptions
+        : null;
+    const groupDepartments = resolveGroupDepartments(
+      groupOptions,
+      parsedValues.groupDepartments,
+    );
+    const slotOptions =
+      parsedValues.slotOptions && parsedValues.slotOptions.length > 0
+        ? parsedValues.slotOptions
+        : null;
 
     let createdFlowId: number | null = null;
 
@@ -21,12 +44,16 @@ export async function addFlow(values: z.infer<typeof addFlowSchema>) {
       const [newFlow] = await tx
         .insert(flow)
         .values({
-          title: values.title,
-          description: values.description,
-          type: values.type ?? 'recruitment',
+          title: parsedValues.title,
+          description: parsedValues.description,
+          type: parsedValues.type ?? 'recruitment',
           ownerId: session!.uid,
-          startedAt: values.startedAt,
-          endedAt: values.endedAt,
+          startedAt: parsedValues.startedAt,
+          endedAt: parsedValues.endedAt,
+          department,
+          groupOptions,
+          groupDepartments,
+          slotOptions,
         })
         .returning({ id: flow.id, type: flow.type });
       createdFlowId = newFlow.id;
@@ -34,24 +61,22 @@ export async function addFlow(values: z.infer<typeof addFlowSchema>) {
       if (newFlow) {
         await tx
           .insert(flowStep)
-          .values(
-            isWrittenRecruitmentFlow(newFlow.type)
-              ? writtenRecruitmentSteps(newFlow.id)
-              : evaluationFlowSteps(newFlow.id),
-          );
+          .values(stepsForFlowType(newFlow.type, newFlow.id));
       }
     });
 
     if (createdFlowId !== null) {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: 'flow.create',
         resourceType: 'flow',
         resourceId: createdFlowId,
+        department,
         metadata: {
-          flowType: values.type ?? 'recruitment',
-          title: values.title,
+          flowType: parsedValues.type ?? 'recruitment',
+          title: parsedValues.title,
+          department,
         },
       });
     }

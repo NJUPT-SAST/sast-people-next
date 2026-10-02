@@ -43,19 +43,19 @@ const demoDeliveries = [
   {
     id: 501,
     name: "欧阳文博",
-    flowName: "2026 春季笔试招新 Demo",
+    flowName: "2026 校科协软件研发部 春季笔试招新",
     accept: true,
   },
   {
     id: 502,
     name: "张昊然",
-    flowName: "2026 春季笔试招新 Demo",
+    flowName: "2026 校科协软件研发部 春季笔试招新",
     accept: false,
   },
   {
     id: 503,
     name: "吴承宇",
-    flowName: "2026 春季笔试招新 Demo",
+    flowName: "2026 校科协软件研发部 春季笔试招新",
     accept: false,
   },
 ];

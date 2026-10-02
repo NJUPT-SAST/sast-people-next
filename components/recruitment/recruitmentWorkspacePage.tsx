@@ -2,12 +2,18 @@ import { getEvaluationCandidates } from "@/action/user-flow/evaluation";
 import { calScore } from "@/action/user-flow/user-point/calScore";
 import { RecruitmentContent } from "@/components/recruitment/recruitmentContent";
 import { PageTitle } from "@/components/route";
+import { isDepartmentEnabled } from "@/const/department";
 import { db } from "@/db/drizzle";
 import { flow } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
+import { getDepartmentScope } from "@/lib/authz";
+import { visibleFlowPredicate } from "@/lib/flow-access";
+import { MANAGER_ROLE } from "@/lib/link/role";
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { INTERVIEW_FLOW_TYPES, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 
-const interviewFlowTypes = ["woc", "soc", "recruitment_exemption"] as const;
+/* 面试类流程：免试 / WOC-WOD / SOC-SOD / 办公类部门面试 */
+const interviewFlowTypes = [...INTERVIEW_FLOW_TYPES];
 
 export type RecruitmentWorkspaceMode = "written" | "interview";
 
@@ -42,6 +48,7 @@ export async function RecruitmentWorkspacePage({
   searchParams: WorkspaceSearchParams;
 }) {
   const session = await verifySession();
+  const scope = await getDepartmentScope();
   const params = await searchParams;
   const isInterviewWorkspace = mode === "interview";
   const flowTypes = await db
@@ -50,6 +57,9 @@ export async function RecruitmentWorkspacePage({
       title: flow.title,
       type: flow.type,
       groupOptions: flow.groupOptions,
+      department: flow.department,
+      /* 办公类面试时段选项：工作台的面评表要据此做行内改时段与时段筛选 */
+      slotOptions: flow.slotOptions,
     })
     .from(flow)
     .where(
@@ -58,18 +68,32 @@ export async function RecruitmentWorkspacePage({
         isInterviewWorkspace
           ? inArray(flow.type, interviewFlowTypes)
           : eq(flow.type, "recruitment"),
+        /* 流程选择器只展示与本部门相关的流程（管理员不过滤） */
+        visibleFlowPredicate(scope),
       ),
     )
     .orderBy(desc(flow.createdAt));
+  /* 暂不启用的部门（电子部）不出现在流程选择器与页签里；数据与流程本身保留 */
+  const selectableFlows = flowTypes.filter((item) =>
+    isDepartmentEnabled(item.department),
+  );
   const requestedFlowId = parsePositiveInteger(params.flowId);
   const defaultFlow =
-    flowTypes.find((item) => item.id === requestedFlowId) ?? flowTypes[0];
+    selectableFlows.find((item) => item.id === requestedFlowId) ??
+    selectableFlows[0];
   const defaultFlowId = defaultFlow?.id.toString();
+  /* 办公类流程由部长操作：讲师账号不加载该流程的候选人（action 也会再次拒绝） */
+  const canLoadDefaultCandidates =
+    isInterviewWorkspace &&
+    !(
+      defaultFlow?.type === OFFICE_INTERVIEW_FLOW_TYPE &&
+      session.role < MANAGER_ROLE
+    );
   const [initialData, initialEvalData] = await Promise.all([
     defaultFlowId && !isInterviewWorkspace
       ? calScore(Number(defaultFlowId))
       : Promise.resolve([]),
-    defaultFlowId && isInterviewWorkspace
+    defaultFlowId && canLoadDefaultCandidates
       ? getEvaluationCandidates(Number(defaultFlowId))
       : Promise.resolve([]),
   ]);
@@ -85,7 +109,7 @@ export async function RecruitmentWorkspacePage({
       <div className="mt-5">
         <RecruitmentContent
           mode={mode}
-          flowTypes={flowTypes}
+          flowTypes={selectableFlows}
           initialData={initialData}
           initialEvalData={initialEvalData}
           defaultFlowId={defaultFlowId}

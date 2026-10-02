@@ -46,10 +46,25 @@ export function EmailOverviewSection({
         ? "发送中"
         : "正常";
   const HealthIcon = todayFailedCount > 0 ? AlertTriangle : CheckCircle2;
+  const stats: Array<{ label: string; value: number; tone?: string }> = [
+    { label: "今日成功", value: todaySentCount },
+    {
+      label: "今日失败",
+      value: todayFailedCount,
+      tone:
+        todayFailedCount > 0 ? "text-destructive" : "text-muted-foreground",
+    },
+    {
+      label: "进行中",
+      value: pendingOrSendingCount,
+      tone:
+        pendingOrSendingCount > 0 ? "text-chart-3" : "text-muted-foreground",
+    },
+  ];
 
   return (
     <section className="overflow-hidden rounded-lg border bg-card">
-      <div className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-2.5">
           <HealthIcon
             className={cn(
@@ -60,11 +75,9 @@ export function EmailOverviewSection({
           <div>
             <p className="text-sm font-semibold">{healthLabel}</p>
             <p className="text-xs text-muted-foreground">
-              今日成功 {todaySentCount}
-              {todayFailedCount > 0 ? ` · 失败 ${todayFailedCount}` : ""}
-              {pendingOrSendingCount > 0 ? ` · 进行中 ${pendingOrSendingCount}` : ""}
-              {" · "}
               {emailCenterConfig.realRecipientMode ? "正式发送" : "测试模式"}
+              {" · "}
+              发信服务{emailCenterConfig.smtpConfigured ? "已就绪" : "未配置"}
             </p>
           </div>
         </div>
@@ -75,6 +88,24 @@ export function EmailOverviewSection({
             </Link>
           </Button>
         )}
+      </div>
+
+      {/* 三个计数各自成块：原来挤在一行里做「今日成功 0 · 测试模式」的句子，
+          扫一眼拿不到量级。 */}
+      <div className="grid grid-cols-3 divide-x border-b">
+        {stats.map((stat) => (
+          <div key={stat.label} className="px-4 py-3 sm:px-5">
+            <p className="text-xs text-muted-foreground">{stat.label}</p>
+            <p
+              className={cn(
+                "mt-0.5 text-xl font-semibold tabular-nums",
+                stat.tone ?? "text-foreground",
+              )}
+            >
+              {stat.value}
+            </p>
+          </div>
+        ))}
       </div>
 
       <div className="px-4 py-3 sm:px-5">
@@ -93,7 +124,7 @@ export function EmailOverviewSection({
             {recentFailures.map((delivery) => (
               <div
                 key={delivery.id}
-                className="flex items-start justify-between gap-3 px-3 py-2.5"
+                className="flex items-start justify-between gap-3 py-2.5"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">

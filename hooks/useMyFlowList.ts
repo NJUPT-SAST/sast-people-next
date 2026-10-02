@@ -1,5 +1,12 @@
 import { db } from "@/db/drizzle";
-import { flow, flowResultPublication, flowStep, userFlow } from "@/db/schema";
+import {
+  flow,
+  flowResultPublication,
+  flowStep,
+  interviewSchedule,
+  interviewSlotChangeRequest,
+  userFlow,
+} from "@/db/schema";
 import { verifySession } from "@/lib/dal";
 import { fullStepType } from "@/types/step";
 import { displayUserFlow, computeStatus } from "@/types/userflow";
@@ -16,6 +23,20 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
       eq(flowResultPublication.fkFlowId, flow.id),
     )
     .leftJoin(flowStep, eq(flowStep.fkFlowId, userFlow.fkFlowId))
+    .leftJoin(
+      interviewSlotChangeRequest,
+      and(
+        eq(interviewSlotChangeRequest.fkUserFlowId, userFlow.id),
+        eq(interviewSlotChangeRequest.status, "pending"),
+      ),
+    )
+    .leftJoin(
+      interviewSchedule,
+      and(
+        eq(interviewSchedule.fkUserFlowId, userFlow.id),
+        eq(interviewSchedule.status, "created"),
+      ),
+    )
     .where(and(eq(userFlow.fkUserId, session.uid), eq(flow.isDeleted, false)))
     .orderBy(flowStep.order);
 
@@ -51,6 +72,26 @@ export const useMyFlowList = async (): Promise<displayUserFlow[]> => {
         flowType: item.flow.type,
         publicationStatus: item.flow_result_publication?.status ?? null,
         groupOptions: item.flow.groupOptions,
+        slotOptions: item.flow.slotOptions,
+        flowDepartment: item.flow.department,
+        /* 改期申请只剩技术部门会产生；办公类时段调整由部长在面试管理页直接修改 */
+        pendingSlotChange: item.interview_slot_change_request
+          ? {
+              id: item.interview_slot_change_request.id,
+              requestedStartsAt:
+                item.interview_slot_change_request.requestedStartsAt,
+              requestedEndsAt:
+                item.interview_slot_change_request.requestedEndsAt,
+            }
+          : null,
+        interviewSchedule: item.interview_schedule
+          ? {
+              id: item.interview_schedule.id,
+              startsAt: item.interview_schedule.startsAt,
+              endsAt: item.interview_schedule.endsAt,
+              location: item.interview_schedule.location,
+            }
+          : null,
         steps: [] as fullStepType[],
       });
     }

@@ -2,6 +2,8 @@ jest.mock("server-only", () => ({}));
 
 export {};
 
+import type * as DeliveryModule from "@/lib/email-center/delivery";
+
 const mockSendMail = jest.fn();
 const mockAssertEmailSendRateLimit = jest.fn();
 const mockSelectResults: unknown[][] = [];
@@ -280,5 +282,76 @@ describe("sendEmailDelivery", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("createRenderedEmailDelivery 部门解析", () => {
+  let createRenderedEmailDelivery: typeof DeliveryModule.createRenderedEmailDelivery;
+  let mockRenderEmailTemplate: jest.Mock;
+
+  const renderInput = {
+    templateKey: "recruitment.result.accepted" as const,
+    toAddress: "candidate@njupt.edu.cn",
+    variables: { name: "同学", flowName: "2026 招新" },
+  };
+
+  beforeAll(async () => {
+    ({ createRenderedEmailDelivery } = await import("@/lib/email-center/delivery"));
+    const renderModule = await import("@/lib/email-center/render");
+    mockRenderEmailTemplate = renderModule.renderEmailTemplate as unknown as jest.Mock;
+  });
+
+  beforeEach(() => {
+    mockSelectResults.length = 0;
+    mockInsertValueCalls.length = 0;
+    (mockRenderEmailTemplate as jest.Mock).mockClear();
+    mockRenderEmailTemplate.mockResolvedValue({
+      subject: "结果通知",
+      html: "<p>正文</p>",
+    });
+    mockDb.select.mockClear();
+    mockDb.insert.mockClear();
+  });
+
+  it("takes the department from the user flow when none is given", async () => {
+    mockSelectResults.push([{ department: "software" }]);
+
+    await createRenderedEmailDelivery({ ...renderInput, userFlowId: 11 });
+
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ department: "software" }),
+    );
+    expect(mockInsertValueCalls[0]).toEqual(
+      expect.objectContaining({
+        subject: "结果通知",
+        htmlSnapshot: "<p>正文</p>",
+        fkUserFlowId: 11,
+      }),
+    );
+  });
+
+  it("falls back to the flow department when the user flow has none", async () => {
+    mockSelectResults.push([{ department: null }], [{ department: "media" }]);
+
+    await createRenderedEmailDelivery({ ...renderInput, userFlowId: 11, flowId: 7 });
+
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ department: "media" }),
+    );
+    expect(mockDb.select).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an explicit department and skips the lookup", async () => {
+    await createRenderedEmailDelivery({
+      ...renderInput,
+      department: "media",
+      userFlowId: 11,
+      flowId: 7,
+    });
+
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ department: "media" }),
+    );
+    expect(mockDb.select).not.toHaveBeenCalled();
   });
 });

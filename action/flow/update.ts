@@ -2,8 +2,11 @@
 
 import { editFlowSchema } from "@/lib/validation/flow";
 import { db } from "@/db/drizzle";
-import { flow } from "@/db/schema";
-import { verifyRole } from "@/lib/dal";
+import { flow, normalizeDepartmentKey } from "@/db/schema";
+import { verifyManager } from "@/lib/authz";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
+import { resolveGroupDepartments, type FlowScopedSession } from "./department-utils";
+import { resolveFlowTypeChange } from "./type-change";
 import { logServerError } from "@/lib/server-error-log";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { eq } from "drizzle-orm";
@@ -14,35 +17,78 @@ export const updateFlow = async (
   id: number,
   values: z.infer<typeof editFlowSchema>
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   let parsedValues: z.infer<typeof editFlowSchema> | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
     parsedValues = editFlowSchema.parse(values);
 
-    await db
-      .update(flow)
-      .set({
-        title: parsedValues.title,
-        description: parsedValues.description,
-        startedAt: parsedValues.startedAt,
-        endedAt: parsedValues.endedAt,
-        groupOptions:
-          parsedValues.groupOptions && parsedValues.groupOptions.length > 0
-            ? parsedValues.groupOptions
-            : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(flow.id, id));
+    const [flowRow] = await db
+      .select({ department: flow.department, type: flow.type })
+      .from(flow)
+      .where(eq(flow.id, id))
+      .limit(1);
+    if (!flowRow) throw new Error("流程不存在");
+    assertFlowEditableRecord(session.scope, flowRow);
+
+    const groupOptions = parsedValues.groupOptions?.length
+      ? parsedValues.groupOptions
+      : null;
+    const patch: Partial<typeof flow.$inferInsert> = {
+      title: parsedValues.title,
+      description: parsedValues.description,
+      startedAt: parsedValues.startedAt,
+      endedAt: parsedValues.endedAt,
+      groupOptions,
+      updatedAt: new Date(),
+    };
+
+    /* 只有管理员能改归属部门；部长保持原部门不变 */
+    const nextDepartment =
+      session.scope.kind === "all" && parsedValues.department !== undefined
+        ? normalizeDepartmentKey(parsedValues.department)
+        : flowRow.department;
+    if (session.scope.kind === "all" && parsedValues.department !== undefined) {
+      patch.department = nextDepartment;
+    }
+    /* 类型变更：仅管理员可改、有报名记录则拒绝；办公类必须有归属部门（共享 helper 校验） */
+    const typeChange = await resolveFlowTypeChange({
+      flowId: id,
+      scope: session.scope,
+      currentType: flowRow.type,
+      currentDepartment: flowRow.department,
+      nextType: parsedValues.type,
+      nextDepartment,
+    });
+    if (typeChange) Object.assign(patch, typeChange);
+    if (parsedValues.groupDepartments !== undefined) {
+      patch.groupDepartments = resolveGroupDepartments(
+        groupOptions,
+        parsedValues.groupDepartments,
+      );
+    }
+    if (parsedValues.slotOptions !== undefined) {
+      patch.slotOptions = parsedValues.slotOptions?.length
+        ? parsedValues.slotOptions
+        : null;
+    }
+
+    await db.update(flow).set(patch).where(eq(flow.id, id));
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "flow.update",
       resourceType: "flow",
       resourceId: id,
-      metadata: { title: parsedValues.title },
+      department: patch.department !== undefined ? patch.department : flowRow.department,
+      metadata: {
+        title: parsedValues.title,
+        department: flowRow.department,
+        previousType: flowRow.type,
+        newType: patch.type ?? flowRow.type,
+      },
     });
 
     revalidatePath("/dashboard/flow");

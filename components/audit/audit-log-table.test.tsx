@@ -23,7 +23,7 @@ describe('AuditLogTable', () => {
         logs={[{
           id: 3,
           actorId: 10,
-          actorRole: 3,
+          actorRole: 4,
           actorType: 'user',
           actorName: '管理员',
           actorStudentId: null,
@@ -31,6 +31,7 @@ describe('AuditLogTable', () => {
           resourceType: 'interview_evaluation',
           resourceId: 7,
           resourceLabel: '面评：张三',
+          department: null,
           createdAt: new Date('2026-08-19T12:00:00Z'),
           metadata: {},
           targetUser: null,
@@ -62,6 +63,7 @@ describe('AuditLogTable', () => {
             resourceType: 'user_flow',
             resourceId: 8,
             resourceLabel: '考生流程：2026 春招',
+            department: null,
             createdAt: new Date('2026-08-19T12:00:00Z'),
             metadata: {
               targetUserId: 20,
@@ -93,6 +95,8 @@ describe('AuditLogTable', () => {
   });
 
   it('keeps rows compact and opens full details on demand', async () => {
+    const user = userEvent.setup();
+
     render(
       <AuditLogTable
         totalCount={1}
@@ -101,7 +105,7 @@ describe('AuditLogTable', () => {
           {
             id: 2,
             actorId: 10,
-            actorRole: 3,
+            actorRole: 4,
             actorType: 'user',
             actorName: '管理员',
             actorStudentId: 'T001',
@@ -109,6 +113,7 @@ describe('AuditLogTable', () => {
             resourceType: 'flow',
             resourceId: 101,
             resourceLabel: '流程：春招笔试',
+            department: 'software',
             createdAt: new Date('2026-08-19T12:00:00Z'),
             metadata: { title: '春招笔试', changedFields: ['title'] },
             targetUser: null,
@@ -119,6 +124,11 @@ describe('AuditLogTable', () => {
     );
 
     expect(screen.getAllByText('流程名称：春招笔试').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/#101 · 软件研发部/).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: '查看详情' }).length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole('button', { name: '查看详情' })[0]);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('软件研发部')).toBeInTheDocument();
   });
 });

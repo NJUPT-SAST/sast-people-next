@@ -49,4 +49,19 @@ describe("evaluation-state", () => {
     expect(evaluationStepTypeForAction("submit_for_review")).toBe("finished");
     expect(evaluationStepTypeForAction("admin_decision")).toBe("finished");
   });
+
+  it("prefers the approved office evaluation over a newer submission", () => {
+    const rows = [
+      { userFlowId: 1, evalId: 9, evalStatus: "submitted" },
+      { userFlowId: 1, evalId: 4, evalStatus: "approved" },
+      { userFlowId: 1, evalId: 2, evalStatus: "returned" },
+      { userFlowId: 2, evalId: 3, evalStatus: "submitted" },
+      { userFlowId: 2, evalId: 1, evalStatus: "submitted" },
+    ];
+
+    expect(dedupeEvaluationCandidateRows(rows, true)).toEqual([
+      { userFlowId: 1, evalId: 4, evalStatus: "approved" },
+      { userFlowId: 2, evalId: 3, evalStatus: "submitted" },
+    ]);
+  });
 });

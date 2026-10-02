@@ -3,7 +3,7 @@ import { Client } from "pg";
 import { signInAs } from "./session";
 
 const users = {
-  admin: { uid: 1, role: 3, name: "管理员" },
+  admin: { uid: 1, role: 4, name: "管理员", department: "software" },
   candidate: { uid: 8, role: 0, name: "吴承宇" },
   outcomeCandidate: { uid: 4, role: 0, name: "王思远" },
 } as const;
@@ -52,8 +52,8 @@ test.describe("recruitment registration", () => {
     flowTitle = `E2E 招新报名 ${Date.now()}`;
     const now = Date.now();
     const flowResult = await database.query<{ id: number }>(
-      `insert into flow (title, description, type, owner_id, started_at, ended_at)
-       values ($1, $2, 'recruitment', $3, $4, $5)
+      `insert into flow (title, description, type, owner_id, started_at, ended_at, department)
+       values ($1, $2, 'recruitment', $3, $4, $5, 'software')
        returning id`,
       [
         flowTitle,
@@ -133,8 +133,8 @@ test.describe("recruitment written outcome", () => {
     flowTitle = `E2E 成绩管理 ${Date.now()}`;
     const now = Date.now();
     const flowResult = await database.query<{ id: number }>(
-      `insert into flow (title, description, type, owner_id, started_at, ended_at)
-       values ($1, $2, 'recruitment', $3, $4, $5)
+      `insert into flow (title, description, type, owner_id, started_at, ended_at, department)
+       values ($1, $2, 'recruitment', $3, $4, $5, 'software')
        returning id`,
       [
         flowTitle,
@@ -186,9 +186,10 @@ test.describe("recruitment written outcome", () => {
          fk_current_step_id,
          portfolio_link,
          fk_flow_id,
-         fk_user_id
+         fk_user_id,
+         department
        )
-       values ('ongoing', $1, null, $2, $3)
+       values ('ongoing', $1, null, $2, $3, 'software')
        returning id`,
       [judgingStepId, flowId, users.outcomeCandidate.uid],
     );
@@ -265,8 +266,8 @@ test.describe("recruitment evaluation approval", () => {
     flowTitle = `E2E 面评终审 ${Date.now()}`;
     const now = Date.now();
     const flowResult = await database.query<{ id: number }>(
-      `insert into flow (title, description, type, owner_id, started_at, ended_at)
-       values ($1, $2, 'recruitment_exemption', $3, $4, $5)
+      `insert into flow (title, description, type, owner_id, started_at, ended_at, department)
+       values ($1, $2, 'recruitment_exemption', $3, $4, $5, 'software')
        returning id`,
       [
         flowTitle,
@@ -302,9 +303,10 @@ test.describe("recruitment evaluation approval", () => {
          fk_current_step_id,
          portfolio_link,
          fk_flow_id,
-         fk_user_id
+         fk_user_id,
+         department
        )
-       values ('ongoing', $1, $2, $3, $4)
+       values ('ongoing', $1, $2, $3, $4, 'software')
        returning id`,
       [
         checkingStepId,

@@ -1,4 +1,5 @@
-export type LinkRole = "freshman" | "member" | "lecturer" | "admin";
+/* SAST Link 的 user_role_enum：freshman / member / manager(部长) / lecturer / admin */
+export type LinkRole = "freshman" | "member" | "manager" | "lecturer" | "admin";
 
 export type LinkUserState =
   | "njupter"
@@ -6,7 +7,11 @@ export type LinkUserState =
   | "retired-sast"
   | "is_deleted";
 
-export type LinkDepartment = "software" | "media";
+/**
+ * Link 部门标识由 SAST Link 维护（当前 software / media，扩展中的部门沿用 Link 原样返回的标识）。
+ * People 不维护部门目录，因此这里按不透明字符串处理，避免 Link 扩展部门时被判为非法值。
+ */
+export type LinkDepartment = string;
 export type LinkEmailType = "sast_email" | "njupt_email";
 export type LinkLoginMethod = "github" | "lark" | "other_mail";
 
@@ -85,6 +90,17 @@ export type LinkBatchRoleUpdateResult = {
 
 export type LinkBatchRoleUpdateResponse = {
   results: LinkBatchRoleUpdateResult[];
+};
+
+export type LinkBatchDepartmentUpdateResult = {
+  id: number;
+  success: boolean;
+  department?: LinkDepartment | null;
+  reason?: string;
+};
+
+export type LinkBatchDepartmentUpdateResponse = {
+  results: LinkBatchDepartmentUpdateResult[];
 };
 
 export type LinkListUsersParams = {

@@ -14,21 +14,30 @@ describe("email template registry", () => {
       expect.arrayContaining([
         "recruitment.result.accepted",
         "recruitment.result.rejected",
+        "recruitment_exemption.result.accepted",
+        "recruitment_exemption.result.rejected",
         "woc.result.accepted",
         "woc.result.rejected",
         "soc.result.accepted",
         "soc.result.rejected",
+        "office_round1.result.accepted",
+        "office_round1.result.rejected",
+        "office_round2.result.accepted",
+        "office_round2.result.rejected",
         "interview.schedule.created",
         "interview.schedule.rescheduled",
         "interview.schedule.cancelled",
+        "interview.schedule.change.rejected",
         "interview.application.withdrawn",
       ]),
     );
   });
 
-  it("requires schedule details for schedule templates", () => {
+  it("requires schedule details for created/rescheduled/cancelled templates", () => {
     const scheduleDefinitions = emailTemplateDefinitions.filter((definition) =>
-      definition.key.startsWith("interview.schedule."),
+      ["interview.schedule.created", "interview.schedule.rescheduled", "interview.schedule.cancelled"].includes(
+        definition.key,
+      ),
     );
 
     expect(scheduleDefinitions).toHaveLength(3);
@@ -43,9 +52,36 @@ describe("email template registry", () => {
           "flowName",
           "organizerName",
           "startsAt",
-          "endsAt",
         ]),
       );
+    }
+  });
+
+  it("requires a rejection reason for the reschedule rejection template", () => {
+    const definition = emailTemplateDefinitions.find(
+      (item) => item.key === "interview.schedule.change.rejected",
+    );
+
+    expect(
+      definition?.variables
+        .filter((variable) => variable.required)
+        .map((variable) => variable.key),
+    ).toEqual(["candidateName", "flowName", "reason"]);
+  });
+
+  it("requires name, flowName and department for office interview results", () => {
+    const officeDefinitions = emailTemplateDefinitions.filter((definition) =>
+      definition.key.startsWith("office_round"),
+    );
+
+    expect(officeDefinitions).toHaveLength(4);
+    for (const definition of officeDefinitions) {
+      expect(
+        definition.variables.filter((variable) => variable.required).map((variable) => variable.key),
+      ).toEqual(["name", "flowName", "department"]);
+      expect(
+        definition.variables.find((variable) => variable.key === "groupNumber")?.required,
+      ).toBe(false);
     }
   });
 

@@ -13,6 +13,7 @@ import {
   getBatchStatusBadgeClass,
 } from "./emailDashboardConstants";
 import type { EmailBatch } from "./emailDashboardTypes";
+import { departmentLabel } from "@/const/department";
 
 function RecoverStaleBatchButton({ batchId }: { batchId: number }) {
   const router = useRouter();
@@ -118,7 +119,11 @@ export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
                       {batchStatusText[batch.status] ?? batch.status}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {batch.accept ? "通过" : "不通过"} · {formatDate(batch.createdAt)}
+                      {batch.accept ? "通过" : "不通过"}
+                      {" · "}
+                      {batch.department ? departmentLabel(batch.department) : "全局流程"}
+                      {" · "}
+                      {formatDate(batch.createdAt)}
                     </span>
                   </div>
                   <p className="mt-1 truncate text-sm font-medium">

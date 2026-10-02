@@ -54,7 +54,8 @@ describe("ManageTable", () => {
         totalPages={2}
         search="张"
         currentPage={1}
-        role={3}
+        role={4}
+        isAdmin
       />,
     );
 
@@ -64,6 +65,30 @@ describe("ManageTable", () => {
     expect(screen.getAllByText("remove-1")[0]).toBeInTheDocument();
     expect(screen.getByText(/显示 1 - 10 共 15 条结果/)).toBeInTheDocument();
     expect(screen.getByText("pagination-1")).toBeInTheDocument();
+  });
+
+  it("hides the ban entry from 部长", () => {
+    render(
+      <ManageTable
+        users={[
+          {
+            id: 9,
+            name: "王五",
+            studentId: "2026009",
+            email: "ww@example.com",
+            createdAt: new Date("2026-03-22T00:00:00.000Z"),
+          },
+        ] as never}
+        totalCount={1}
+        totalPages={1}
+        search=""
+        currentPage={1}
+        role={3}
+      />,
+    );
+
+    expect(screen.getAllByText("王五")[0]).toBeInTheDocument();
+    expect(screen.queryByText("remove-9")).not.toBeInTheDocument();
   });
 
   it("shows the empty state when no users are present", () => {

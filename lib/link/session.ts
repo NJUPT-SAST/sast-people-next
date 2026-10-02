@@ -1,6 +1,7 @@
 import "server-only";
 
 import { shouldUseMockLink } from "@/lib/link/client";
+import { mockAccessTokenFor } from "@/lib/link/mock";
 import { refreshLinkOAuthToken } from "@/lib/link/oauth";
 import { getSession, updateLinkSessionTokens } from "@/lib/session";
 
@@ -32,7 +33,11 @@ export const getLinkAdminAccessTokenFromSession = async (): Promise<string> =>
 const getLinkTokenFromSession = async (
   purpose: "session" | "admin",
 ): Promise<string> => {
-  if (shouldUseMockLink()) return "mock-link-access-token";
+  if (shouldUseMockLink()) {
+    /* 本地 mock 用 token 标记登录用户，保证多账号演示时资料与部门不串号 */
+    const mockSession = await getSession();
+    return mockSession ? mockAccessTokenFor(mockSession.uid) : "mock-link-access-token";
+  }
 
   const session = await getSession({ includeLinkTokens: true });
   if (!session) return throwMissingTokenError(purpose);

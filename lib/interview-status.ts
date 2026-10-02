@@ -12,6 +12,9 @@ export type InterviewStatusKey =
   | "unscheduled"
   | "scheduled"
   | "ready"
+  /* 办公类面试只留档：没有面评审批，行状态只有「待记录 / 已记录」 */
+  | "toRecord"
+  | "recorded"
   | "returned"
   | "pending"
   | "accepted"
@@ -23,6 +26,8 @@ export const INTERVIEW_STATUS_ORDER: InterviewStatusKey[] = [
   "unscheduled",
   "scheduled",
   "ready",
+  "toRecord",
+  "recorded",
   "returned",
   "pending",
   "accepted",
@@ -66,6 +71,9 @@ const TINT = {
   emerald:
     "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
   rose: "border-rose-500/30 bg-rose-500/10 text-rose-800 dark:text-rose-300",
+  /* 办公类的两个留档态：待记录更冷（等着人动手），已记录更绿但避开了终审的祖母绿 */
+  cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300",
+  teal: "border-teal-500/30 bg-teal-500/10 text-teal-800 dark:text-teal-300",
 } as const;
 
 export type InterviewStatusMeta = {
@@ -96,6 +104,18 @@ export const interviewStatusMeta: Record<
     tone: "neutral",
     badgeClassName: TINT.amber,
     description: "面试已结束，等待提交面评。",
+  },
+  toRecord: {
+    label: "待记录",
+    tone: "attention",
+    badgeClassName: TINT.cyan,
+    description: "办公类面试：还没有部长提交面试记录。",
+  },
+  recorded: {
+    label: "已记录",
+    tone: "neutral",
+    badgeClassName: TINT.teal,
+    description: "面试记录已留档，结果由部长在名单确认时决定。",
   },
   returned: {
     label: "退回重写",
@@ -144,18 +164,30 @@ export type InterviewCandidateLike = {
   canManageSchedule: boolean;
   /* whether the current user may write/edit this row's evaluation */
   canEditEvaluation: boolean;
+  /* 办公类面试：无需预约日程，直接提交带分数的面评 */
+  scoringEnabled?: boolean;
+  /* 办公类面试：候选人当前阶段已提交的面试记录份数（服务端统计） */
+  evaluationCount?: number | null;
 };
 
 /**
  * Resolve the row's status. The branch order is the priority order and must not
  * be reordered: a withdrawn candidate that was also approved still reads as
  * withdrawn, and an explicit evaluation status outranks the flow status.
+ *
+ * 办公类面试不走审批：记录只做留档，所以行状态只看「当前阶段有没有记录」，
+ * 流程结果（passed/failed）才是通过与否的唯一来源。
  */
 export function getInterviewStatus(
   candidate: InterviewCandidateLike,
 ): InterviewStatusKey {
   const { evalStatus, status } = candidate;
   if (status === "withdrawn") return "withdrawn";
+  if (candidate.scoringEnabled) {
+    if (status === "passed") return "accepted";
+    if (status === "failed") return "rejected";
+    return (candidate.evaluationCount ?? 0) > 0 ? "recorded" : "toRecord";
+  }
   if (evalStatus === "approved" || status === "passed") return "accepted";
   if (evalStatus === "rejected") return "rejected";
   if (evalStatus === "submitted") return "pending";
@@ -164,6 +196,20 @@ export function getInterviewStatus(
   if (!candidate.scheduleMeetingLink) return "unscheduled";
   if (candidate.scheduleMeetingStatus !== "ended") return "scheduled";
   return "ready";
+}
+
+/**
+ * The badge copy for a row. Only 已记录 carries a number (how many records are
+ * on file), so the label cannot simply be read off `interviewStatusMeta`.
+ */
+export function interviewStatusLabel(
+  candidate: InterviewCandidateLike,
+): string {
+  const status = getInterviewStatus(candidate);
+  if (status === "recorded") {
+    return `${interviewStatusMeta.recorded.label} ${candidate.evaluationCount ?? 0} 份`;
+  }
+  return interviewStatusMeta[status].label;
 }
 
 export type InterviewStatusCounts = Record<InterviewStatusKey, number> & {
@@ -181,6 +227,8 @@ export function countInterviewStatuses(
     unscheduled: 0,
     scheduled: 0,
     ready: 0,
+    toRecord: 0,
+    recorded: 0,
     returned: 0,
     pending: 0,
     accepted: 0,
@@ -257,7 +305,11 @@ export function deriveInterviewActions(
   const startsAt = toTime(candidate.scheduleStartsAt);
   const canConfirmEnded =
     now !== null && hasSchedule && !scheduleEnded && (startsAt ?? Infinity) <= now;
-  const canEvaluate = scheduleEnded || candidate.evalStatus !== null || isDecided;
+  const canEvaluate =
+    candidate.scoringEnabled === true ||
+    scheduleEnded ||
+    candidate.evalStatus !== null ||
+    isDecided;
   const canManageSchedule =
     !isWithdrawn && (!hasSchedule || candidate.canManageSchedule);
   const canReturn = !isWithdrawn && (!hasSchedule || candidate.canManageSchedule || role >= 3);
@@ -304,7 +356,12 @@ export function deriveInterviewActions(
         status,
         primary: {
           id: "evaluation",
-          label: candidate.evalStatus === "returned" ? "重写面评" : "修改",
+          /* 办公类只留档：退回重写这一级不存在，有记录就是「修改记录」 */
+          label: candidate.scoringEnabled
+            ? "修改记录"
+            : candidate.evalStatus === "returned"
+              ? "重写面评"
+              : "修改",
         },
         overflow: [],
         lockedReason: null,
@@ -336,9 +393,15 @@ export function deriveInterviewActions(
   return {
     status,
     primary: canSubmitEvaluation
-      ? { id: "evaluation", label: "填写面评" }
+      ? {
+          id: "evaluation",
+          label: candidate.scoringEnabled ? "填写面试记录" : "填写面评",
+        }
       : null,
-    overflow: canManageSchedule ? [{ id: "schedule", label: "改约" }] : [],
+    overflow:
+      canManageSchedule && !candidate.scoringEnabled
+        ? [{ id: "schedule", label: "改约" }]
+        : [],
     lockedReason: canSubmitEvaluation
       ? null
       : candidate.scheduleOrganizerName

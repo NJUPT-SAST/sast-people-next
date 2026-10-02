@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { isValidExternalUrl } from "@/lib/link";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { assertFlowResultsEditable } from "@/lib/flow-result-publication-guard";
+import { flowNeedsPortfolio } from "@/const/flow";
 
 const editableStatuses = new Set(["not_started", "ongoing"]);
 
@@ -28,6 +29,7 @@ export const updatePortfolioLink = async (
         flowId: userFlow.fkFlowId,
         flowType: flow.type,
         progressStatus: userFlow.progressStatus,
+        department: userFlow.department,
       })
       .from(userFlow)
       .innerJoin(flow, eq(userFlow.fkFlowId, flow.id))
@@ -44,7 +46,8 @@ export const updatePortfolioLink = async (
       return { success: false, error: { message: "报名记录不存在" } };
     }
 
-    if (record.flowType === "recruitment") {
+    /* 作品链接只属于技术部门面试流程，笔试与办公类部门面试都不可修改 */
+    if (!flowNeedsPortfolio(record.flowType)) {
       return { success: false, error: { message: "当前流程不需要作品链接" } };
     }
 
@@ -74,10 +77,11 @@ export const updatePortfolioLink = async (
 
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.portfolio.update",
       resourceType: "user_flow",
       resourceId: userFlowId,
+      department: record.department,
       metadata: {
         flowId: record.flowId,
         targetUserId: session.uid,

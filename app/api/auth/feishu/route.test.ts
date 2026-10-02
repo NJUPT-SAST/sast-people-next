@@ -42,6 +42,8 @@ jest.mock("@/lib/feishu/interview-message", () => ({
 }));
 jest.mock("@/lib/server-error-log", () => ({
   logServerError: (...args: unknown[]) => mockLogServerError(...args),
+  isNextControlFlowError: (error: unknown) =>
+    error instanceof Error && error.message === "NEXT_REDIRECT",
 }));
 jest.mock("next/navigation", () => ({
   redirect: (path: string) => mockRedirect(path),
@@ -99,5 +101,24 @@ describe("Feishu OAuth callback", () => {
 
     expect(mockRedirect).toHaveBeenCalledWith("/dashboard/interviews?flowId=12");
     expect(mockCookieStore.delete).toHaveBeenCalledWith("feishu_oauth_return_to");
+  });
+
+  it("lets an unauthenticated request follow the login redirect", async () => {
+    mockVerifySession.mockRejectedValue(
+      Object.assign(new Error("NEXT_REDIRECT"), {
+        digest: "NEXT_REDIRECT;replace;/login;307;",
+      }),
+    );
+
+    await expect(
+      GET(
+        new NextRequest(
+          "https://people.sast.fun/api/auth/feishu?code=authorization-code&state=expected-state",
+        ),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    /* 不再把登录跳转吞成「绑定失败」的提示 */
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(mockLogServerError).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,9 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
+  getSortedRowModel,
   RowSelectionState,
+  SortingState,
   useReactTable,
 } from '@tanstack/react-table';
 
@@ -66,6 +68,10 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  /* 总分默认从高到低（先看高分才有意义），其余列默认升序 */
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "totalScore", desc: true },
+  ]);
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
   const safeColumns = useMemo(() => (Array.isArray(columns) ? columns : []), [columns]);
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
@@ -119,6 +125,9 @@ export function DataTable<TData, TValue>({
     data: tableData,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
+    /* 表头点击排序：总分默认从高到低，其余列表默认升序 */
+    onSortingChange: setSorting,
+    getSortedRowModel: getSortedRowModel(),
     enableRowSelection: () => !resultsLocked,
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
@@ -137,6 +146,7 @@ export function DataTable<TData, TValue>({
       rowSelection,
       columnFilters,
       globalFilter,
+      sorting,
     },
     onGlobalFilterChange: setGlobalFilter,
   });
@@ -153,6 +163,7 @@ export function DataTable<TData, TValue>({
     select: 'w-12',
     studentId: 'w-[5.5rem]',
     name: 'w-[9rem]',
+    department: 'w-[7rem]',
     qq: 'w-[7rem]',
     status: 'w-[6rem]',
     problemScores: 'w-[6.5rem]',
@@ -402,6 +413,7 @@ export function DataTable<TData, TValue>({
             const totalScoreCell = cellById.get('totalScore');
             const problemScoresCell = cells.find((cell) => cell.column.id === 'problemScores');
             const qqCell = cellById.get('qq');
+            const departmentCell = cellById.get('department');
             const qqText = qqCell
               ? String(toRecruitmentRow(row).qq ?? '').trim()
               : '';
@@ -440,6 +452,15 @@ export function DataTable<TData, TValue>({
                       </span>
                       {qqText && (
                         <span className="min-w-0 truncate">· QQ {qqText}</span>
+                      )}
+                      {departmentCell && (
+                        <span className="min-w-0 truncate" title="投递部门">
+                          ·{' '}
+                          {flexRender(
+                            departmentCell.column.columnDef.cell,
+                            departmentCell.getContext(),
+                          )}
+                        </span>
                       )}
                     </div>
                     {role >= 2 && problemScoresCell && (

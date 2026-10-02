@@ -1,4 +1,5 @@
 import { getBeijingDayRange, formatBeijingDateTime } from "@/lib/timezone";
+import { emailTemplateLabel } from "@/const/flow";
 export const batchStatusText: Record<string, string> = {
   draft: "待发送",
   queued: "发送中",
@@ -88,13 +89,21 @@ export function formatDate(value: Date | string | null) {
   return formatted === "-" ? formatted : formatted.slice(0, 16);
 }
 
-export function getSettingLabel(templateKey: string) {
-  const accepted = templateKey.endsWith("accepted");
-  if (templateKey.startsWith("woc.")) {
-    return accepted ? "WoC/WoD 通过模板" : "WoC/WoD 不通过模板";
-  }
-  if (templateKey.startsWith("soc.")) {
-    return accepted ? "SoC/SoD 通过模板" : "SoC/SoD 不通过模板";
-  }
-  return accepted ? "招新通过模板" : "招新不通过模板";
+/**
+ * 模板按钮 / 弹窗标题：「…模板」。
+ * 口径统一由 const/flow 的部门 × 阶段命名给出（软件研发部WOC / 多媒体部WOD / 办公室一面），
+ * 认不出的模板键（面试通知类，与流程无关）回落到模板自带的名称。
+ */
+export function getSettingLabel(
+  templateKey: string,
+  options: { department?: string | null; fallback?: string } = {},
+) {
+  return (
+    emailTemplateLabel(templateKey, {
+      department: options.department,
+      variant: "template",
+    }) ??
+    options.fallback ??
+    templateKey
+  );
 }

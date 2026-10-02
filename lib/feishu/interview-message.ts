@@ -201,6 +201,64 @@ export async function sendInterviewCancelledCard({
   });
 }
 
+export type InterviewSlotChangeRequestCardInput = {
+  openId: string;
+  receiveIdType?: "open_id" | "chat_id";
+  flowName: string;
+  candidateName: string;
+  candidateStudentId?: string | null;
+  /** 候选人当前的面试时间/时段 */
+  currentTimeText: string;
+  /** 候选人申请改到的时间/时段 */
+  requestedTimeText: string;
+  /** 候选人填写的申请理由（必填） */
+  reason: string;
+  flowId: number;
+  userFlowId: number;
+  uuidSuffix?: string | number;
+};
+
+/** 候选人提交改约申请后提醒预约讲师：同意则按新时间改飞书日程，暂不改期需填写说明 */
+export async function sendInterviewSlotChangeRequestCard({
+  openId,
+  receiveIdType = "open_id",
+  flowName,
+  candidateName,
+  candidateStudentId,
+  currentTimeText,
+  requestedTimeText,
+  reason,
+  flowId,
+  userFlowId,
+  uuidSuffix = Date.now(),
+}: InterviewSlotChangeRequestCardInput) {
+  const peopleUrl = getPeopleUrl(
+    `/dashboard/interviews?flowId=${flowId}&userFlowId=${userFlowId}`,
+  );
+  await sendFeishuCardMessage({
+    receiveId: openId,
+    receiveIdType,
+    uuid: `people-interview-slot-change-${userFlowId}-${uuidSuffix}`,
+    card: createCard({
+      title: "有人申请修改面试时间",
+      subtitle: "People 面试改期申请",
+      template: "orange",
+      lines: [
+        line("流程", flowName),
+        line("面试同学", candidateName),
+        line("学号", candidateStudentId),
+        line("当前时间", currentTimeText),
+        line("申请改到", requestedTimeText),
+        line("申请理由", reason),
+        "同意后请回到 People 处理，飞书日程与留档会议会一并改期；如本次暂不能调整，请填写说明，我们会邮件告知候选人。",
+      ],
+      actions: [button("去处理", peopleUrl, "primary")],
+    }),
+  });
+
+  return { peopleUrl, userFlowId };
+}
+
 export async function sendInterviewMinuteCard({
   openId,
   scheduleId,

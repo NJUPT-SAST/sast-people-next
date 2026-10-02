@@ -2,33 +2,37 @@
 
 import { db } from "@/db/drizzle";
 import { flow, flowStep } from "@/db/schema";
-import { verifyRole } from "@/lib/dal";
+import { verifyManager } from "@/lib/authz";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { fullStepType } from "@/types/step";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { evaluationFlowSteps, isWrittenRecruitmentFlow, writtenRecruitmentSteps } from "../defaultSteps";
+import { officeInterviewSteps, stepsForFlowType } from "../defaultSteps";
+import type { FlowScopedSession } from "../department-utils";
 
 type FlowStepInsert = typeof flowStep.$inferInsert;
-type FlowStepTypeValue = FlowStepInsert["type"];
 
 export const updateFlowStep = async (
   id: number,
   stepList: fullStepType[]
 ) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
     const [flowRecord] = await db
-      .select({ type: flow.type })
+      .select({ type: flow.type, department: flow.department })
       .from(flow)
       .where(eq(flow.id, id))
       .limit(1);
 
+    if (!flowRecord) throw new Error("流程不存在");
+    assertFlowEditableRecord(session.scope, flowRecord);
+
     const stepsWithAdminText = (
-      fixedSteps: ReturnType<typeof writtenRecruitmentSteps>,
+      fixedSteps: ReturnType<typeof officeInterviewSteps>,
     ) => {
       const customStepByOrder = new Map(
         stepList.map((step) => [step.order, step]),
@@ -47,23 +51,9 @@ export const updateFlowStep = async (
     };
 
     await db.transaction(async (tx) => {
-      let nextSteps: Array<Omit<FlowStepInsert, "id">>;
-      if (flowRecord) {
-        nextSteps = isWrittenRecruitmentFlow(flowRecord.type)
-          ? stepsWithAdminText(writtenRecruitmentSteps(id))
-          : stepsWithAdminText(evaluationFlowSteps(id));
-      } else {
-        nextSteps = stepList.map((step) => ({
-          title: step.title,
-          description: step.description,
-          type: step.type as FlowStepTypeValue,
-          order: step.order,
-          fkFlowId: id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isDeleted: false,
-        }));
-      }
+      const nextSteps: Array<Omit<FlowStepInsert, "id">> = stepsWithAdminText(
+        stepsForFlowType(flowRecord.type, id),
+      );
 
       for (const step of nextSteps) {
         await tx
@@ -85,10 +75,11 @@ export const updateFlowStep = async (
     revalidatePath("/dashboard/flow");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "flow.update_steps",
       resourceType: "flow",
       resourceId: id,
+      department: flowRecord.department,
       metadata: {
         stepCount: stepList.length,
         stepOrders: stepList.map((step) => step.order),

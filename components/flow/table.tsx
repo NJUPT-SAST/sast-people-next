@@ -16,14 +16,8 @@ import {
   TableCell,
 } from '../ui/table';
 import originalDayjs from '@/lib/dayjs';
+import { flowTypeLabel } from '@/const/flow';
 import { Operations } from './operations';
-
-const flowTypeLabel: Record<string, string> = {
-  recruitment: '笔试招新',
-  recruitment_exemption: '免试招新',
-  woc: 'WOC/WOD',
-  soc: 'SOC/SOD',
-};
 
 export const FlowTableColumns: ColumnDef<displayFlow>[] = [
   {
@@ -49,7 +43,7 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
       const type = row.getValue('type') as string;
       return (
         <span className="inline-flex rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80">
-          {flowTypeLabel[type] ?? type}
+          {flowTypeLabel(type, row.original.department)}
         </span>
       );
     },
@@ -87,10 +81,6 @@ export const FlowTableColumns: ColumnDef<displayFlow>[] = [
         <span className="col-span-4 text-right">操作</span>
       </div>
     ),
-    cell({ row }) {
-      const data = row.original;
-      return <Operations data={data} />;
-    },
   },
 ];
 
@@ -98,12 +88,17 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   initialEditFlowId?: number;
+  /* 当前账号可编辑的流程 id；未列出的流程只读 */
+  editableFlowIds?: number[];
+  canChooseDepartment?: boolean;
 }
 
 export function FlowTable<TData extends displayFlow, TValue>({
   columns,
   data,
   initialEditFlowId,
+  editableFlowIds = [],
+  canChooseDepartment = false,
 }: DataTableProps<TData, TValue>) {
   const tableData = Array.isArray(data) ? data : [];
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -121,9 +116,9 @@ export function FlowTable<TData extends displayFlow, TValue>({
           <colgroup>
             <col className="w-[34%]" />
             <col className="w-[14%]" />
-            <col className="w-[16%]" />
-            <col className="w-[16%]" />
-            <col className="w-[20%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
+            <col className="w-[24%]" />
           </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -168,7 +163,14 @@ export function FlowTable<TData extends displayFlow, TValue>({
                       }
                     >
                       {cell.column.id === 'operations'
-                        ? <Operations data={row.original} initialEditFlowId={initialEditFlowId} />
+                        ? (
+                          <Operations
+                            data={row.original}
+                            initialEditFlowId={initialEditFlowId}
+                            canEdit={editableFlowIds.includes(row.original.id)}
+                            canChooseDepartment={canChooseDepartment}
+                          />
+                        )
                         : flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -195,7 +197,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
                   <span className="font-semibold text-base">{row.original.title}</span>
                   <div>
                     <span className="text-sm text-muted-foreground">
-                      {flowTypeLabel[row.original.type] ?? row.original.type}
+                      {flowTypeLabel(row.original.type, row.original.department)}
                     </span>
                   </div>
                 </div>
@@ -212,7 +214,12 @@ export function FlowTable<TData extends displayFlow, TValue>({
                 </div>
               </div>
               <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-                <Operations data={row.original} initialEditFlowId={initialEditFlowId} />
+                <Operations
+                  data={row.original}
+                  initialEditFlowId={initialEditFlowId}
+                  canEdit={editableFlowIds.includes(row.original.id)}
+                  canChooseDepartment={canChooseDepartment}
+                />
               </div>
             </div>
           ))
@@ -223,5 +230,3 @@ export function FlowTable<TData extends displayFlow, TValue>({
     </div>
   );
 }
-
-

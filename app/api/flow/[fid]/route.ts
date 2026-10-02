@@ -1,7 +1,12 @@
 // import { backward, forward } from '@/action/user-flow/edit';
 import { useFlowStepsInfo as getFlowStepsInfo } from '@/hooks/useFlowStepsInfo';
-import { verifyRole } from '@/lib/dal';
+import { db } from '@/db/drizzle';
+import { flow } from '@/db/schema';
+import { verifyManager } from '@/lib/authz';
+import { apiErrorResponse } from '@/lib/api-error';
+import type { FlowScopedSession } from '@/action/flow/department-utils';
 import { logServerError } from '@/lib/server-error-log';
+import { and, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const GET = async (
@@ -9,11 +14,26 @@ export const GET = async (
   context: { params: Promise<{ fid: string }> },
 ) => {
   const { fid } = await context.params;
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  const flowId = Number(fid);
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(3);
-    return NextResponse.json(await getFlowStepsInfo(Number(fid)));
+    session = await verifyManager();
+    if (!Number.isInteger(flowId) || flowId <= 0) {
+      return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
+    }
+
+    /* 流程列表对部长及以上全局可见；编辑权限由写路径的 assertFlowEditable 控制 */
+    const [existingFlow] = await db
+      .select({ id: flow.id })
+      .from(flow)
+      .where(and(eq(flow.id, flowId), eq(flow.isDeleted, false)))
+      .limit(1);
+    if (!existingFlow) {
+      return NextResponse.json({ error: '流程不存在' }, { status: 404 });
+    }
+
+    return NextResponse.json(await getFlowStepsInfo(flowId));
   } catch (error) {
     logServerError('api:flow:fId:get', error, {
       path: req.nextUrl.pathname,
@@ -21,12 +41,9 @@ export const GET = async (
       userId: session?.uid ?? null,
       role: session?.role ?? null,
       action: 'get-flow-steps',
-      flowId: Number(fid),
+      flowId,
     });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal error' },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "流程步骤加载失败");
   }
 };
 

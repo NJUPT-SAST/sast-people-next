@@ -421,6 +421,62 @@
       "when": 1789250000004,
       "tag": "0059_feedback_status",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1789250000005,
+      "tag": "0060_department_scoped_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1789250000006,
+      "tag": "0061_email_template_departments",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1789250000007,
+      "tag": "0062_office_interview",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1789250000008,
+      "tag": "0063_interview_slot_change_request",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1789250000009,
+      "tag": "0064_office_interview_single_flow",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1789250000010,
+      "tag": "0065_interview_slot_change_tech",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1789250000011,
+      "tag": "0066_office_department_flows",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1789250000012,
+      "tag": "0067_office_slot_change_cleanup",
+      "breakpoints": true
     }
   ]
 }

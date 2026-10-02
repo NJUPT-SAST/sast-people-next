@@ -1,10 +1,14 @@
 /** @jest-environment node */
 
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 
+jest.mock("server-only", () => ({}));
 jest.mock("@/lib/dal", () => ({ verifySession: jest.fn() }));
 jest.mock("@/hooks/useUserInfo", () => ({ useUserInfo: jest.fn() }));
-jest.mock("@/lib/session", () => ({ getSession: jest.fn() }));
+jest.mock("@/lib/session", () => ({
+  getSession: jest.fn(),
+  syncCurrentSessionIdentity: jest.fn(),
+}));
 jest.mock("@/lib/link/client", () => ({
   shouldUseMockLink: jest.fn(),
   isLinkAuthorizationError: jest.fn(() => false),
@@ -21,9 +25,11 @@ import DashboardLayout from "./layout";
 const { verifySession: mockVerifySession } = jest.requireMock("@/lib/dal") as {
   verifySession: jest.Mock;
 };
-const { getSession: mockGetSession } = jest.requireMock("@/lib/session") as {
-  getSession: jest.Mock;
-};
+const { getSession: mockGetSession, syncCurrentSessionIdentity: mockSyncIdentity } =
+  jest.requireMock("@/lib/session") as {
+    getSession: jest.Mock;
+    syncCurrentSessionIdentity: jest.Mock;
+  };
 const { shouldUseMockLink: mockShouldUseMockLink } = jest.requireMock(
   "@/lib/link/client",
 ) as { shouldUseMockLink: jest.Mock };
@@ -38,12 +44,13 @@ describe("DashboardLayout", () => {
   beforeEach(() => {
     mockVerifySession.mockReset();
     mockGetSession.mockReset();
+    mockSyncIdentity.mockReset();
     mockRedirect.mockReset();
     mockShouldUseMockLink.mockReset();
     mockGetUserInfo.mockReset();
-    mockVerifySession.mockResolvedValue({ uid: 1, role: 3, name: "Admin" });
-    mockGetSession.mockResolvedValue({ linkAdminAccessToken: null });
-    mockGetUserInfo.mockResolvedValue({ id: 1 });
+    mockVerifySession.mockResolvedValue({ uid: 1, role: 4, name: "Admin" });
+    mockGetSession.mockResolvedValue({ role: 4, linkAdminAccessToken: null });
+    mockGetUserInfo.mockResolvedValue({ id: 1, role: 4, departments: [] });
   });
 
   it("does not start real Link OAuth for a local mock administrator", async () => {
@@ -60,5 +67,27 @@ describe("DashboardLayout", () => {
     await DashboardLayout({ children: "content" });
 
     expect(mockRedirect).toHaveBeenCalledWith("/api/auth/link/start");
+  });
+
+  it("把回源同步后的角色与部门传给导航外壳", async () => {
+    mockShouldUseMockLink.mockReturnValue(true);
+    mockGetUserInfo.mockResolvedValue({ id: 1, role: 4, departments: ["software"] });
+    mockGetSession.mockResolvedValue({
+      role: 4,
+      department: "software",
+      linkAdminAccessToken: null,
+    });
+
+    const element = (await DashboardLayout({ children: "content" })) as ReactElement<{
+      department: string | null;
+      role: number;
+    }>;
+
+    /* 身份回源已挪到 verifySession 内按 TTL 执行，布局不再自己同步 */
+    expect(mockSyncIdentity).not.toHaveBeenCalled();
+    expect(element.props.role).toBe(4);
+    expect(element.props.department).toBe("software");
+    /* 管理员标记已随本地管理员名单移除，导航外壳不再接收 isAdmin */
+    expect("isAdmin" in element.props).toBe(false);
   });
 });

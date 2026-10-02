@@ -18,6 +18,13 @@ import { displayUserFlow } from "@/types/userflow";
 import { cn } from "@/lib/utils";
 import { CancelRegistration } from "./cancelRegistration";
 import { PortfolioLinkEditor } from "./portfolioLinkEditor";
+import { SlotChangeRequest } from "./slotChangeRequest";
+import {
+  flowNeedsPortfolio,
+  isOfficeInterviewFlow,
+  isTechInterviewFlow,
+} from "@/const/flow";
+import dayjs from "@/lib/dayjs";
 
 const statusIcons = {
   pending: CircleDashed,
@@ -52,6 +59,22 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
     steps.find((step) => step.order === safeFlow.currentStepOrder) ?? steps[0];
   const activeStepOrder = activeStep?.order ?? 0;
   const resultPublished = safeFlow.publicationStatus === "published";
+  const isOfficeFlow = isOfficeInterviewFlow(safeFlow.flowType ?? "");
+  const isTechFlow = isTechInterviewFlow(safeFlow.flowType ?? "");
+  const needsPortfolio = flowNeedsPortfolio(safeFlow.flowType ?? "");
+  /* user_flow.round 表示候选人当前所处的面试阶段：1=一面，2=二面 */
+  const stageLabel =
+    safeFlow.round === 1 ? "一面" : safeFlow.round === 2 ? "二面" : "";
+  const pendingSlotChange = safeFlow.pendingSlotChange ?? null;
+  const interviewSchedule = safeFlow.interviewSchedule ?? null;
+  const registrationEditable =
+    safeFlow.status === "not_started" || safeFlow.status === "ongoing";
+  /* 技术部门按已预约的飞书日程申请改时间；办公类时段调整由部长直接修改，候选人不再有申请入口 */
+  const canRequestSlotChange =
+    typeof safeFlow.id === "number" &&
+    isTechFlow &&
+    !!interviewSchedule &&
+    (registrationEditable || !!pendingSlotChange);
   const visibleStatus = resultPublished
     ? safeFlow.status
     : safeFlow.status === "passed" || safeFlow.status === "failed"
@@ -93,6 +116,45 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
         </div>
       </CardHeader>
       <CardContent>
+        {(isOfficeFlow || isTechFlow) && (
+          <div className="mt-1 space-y-1 text-sm text-muted-foreground">
+            {isOfficeFlow && stageLabel && <p>当前阶段：{stageLabel}</p>}
+            {isOfficeFlow &&
+              (safeFlow.choice === 1 || safeFlow.choice === 2) && (
+                <p>
+                  志愿：{safeFlow.choice === 1 ? "第一志愿" : "第二志愿"}
+                </p>
+              )}
+            {isOfficeFlow && safeFlow.interviewSlot && (
+              <>
+                <p>面试时段：{safeFlow.interviewSlot}</p>
+                {/* 办公类改期申请→部长审批已下线：改时段请直接联系部长 */}
+                <p className="text-xs">
+                  如需调整面试时段，请联系本部门部长
+                </p>
+              </>
+            )}
+            {isTechFlow && interviewSchedule && (
+              <p>
+                面试时间：
+                {dayjs(interviewSchedule.startsAt).format("YYYY-MM-DD HH:mm")} -{" "}
+                {dayjs(interviewSchedule.endsAt).format("HH:mm")}
+                {interviewSchedule.location
+                  ? ` · ${interviewSchedule.location}`
+                  : ""}
+              </p>
+            )}
+          </div>
+        )}
+        {canRequestSlotChange && typeof safeFlow.id === "number" && (
+          <SlotChangeRequest
+            userFlowId={safeFlow.id}
+            currentStartsAt={interviewSchedule?.startsAt ?? null}
+            currentEndsAt={interviewSchedule?.endsAt ?? null}
+            pending={pendingSlotChange}
+            editable={registrationEditable}
+          />
+        )}
         {steps.length > 0 ? (
           <div className="-mx-1 overflow-x-auto px-1">
             <div className="flex min-w-[16rem] items-center my-4">
@@ -196,23 +258,21 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
               </div>
             )}
         </div>
-        {typeof safeFlow.id === "number" &&
-          safeFlow.flowType &&
-          safeFlow.flowType !== "recruitment" && (
-            <div className="mt-4">
-              <PortfolioLinkEditor
-                userFlowId={safeFlow.id}
-                initialValue={safeFlow.portfolioLink}
-                initialDescription={safeFlow.portfolioDescription}
-                applyGroup={safeFlow.applyGroup}
-                applyGroupOptions={safeFlow.groupOptions}
-                editable={
-                  safeFlow.status === "not_started" ||
-                  safeFlow.status === "ongoing"
-                }
-              />
-            </div>
-          )}
+        {typeof safeFlow.id === "number" && needsPortfolio && (
+          <div className="mt-4">
+            <PortfolioLinkEditor
+              userFlowId={safeFlow.id}
+              initialValue={safeFlow.portfolioLink}
+              initialDescription={safeFlow.portfolioDescription}
+              applyGroup={safeFlow.applyGroup}
+              applyGroupOptions={safeFlow.groupOptions}
+              editable={
+                safeFlow.status === "not_started" ||
+                safeFlow.status === "ongoing"
+              }
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

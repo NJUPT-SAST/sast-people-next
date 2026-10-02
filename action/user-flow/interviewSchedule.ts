@@ -31,7 +31,9 @@ import { getValidFeishuUserCredential } from "@/lib/feishu/oauth-account";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
-import { verifyRole } from "@/lib/dal";
+import { verifyScopedRole } from "@/lib/authz";
+import type { FlowScopedSession } from "@/action/flow/department-utils";
+import { assertUserFlowInScope } from "@/lib/flow-access";
 import { normalizeWithdrawalReason } from "@/lib/validation/user-flow";
 import { mqClient } from "@/queue/client";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -167,6 +169,7 @@ async function sendInterviewEmailDelivery({
   flowId,
   scheduleId,
   createdBy,
+  department,
   variables,
 }: {
   kind: keyof typeof interviewEmailTemplateKey;
@@ -176,6 +179,8 @@ async function sendInterviewEmailDelivery({
   flowId?: number | null;
   scheduleId: number;
   createdBy: number;
+  /** 候选人所属部门：队列 / 服务端无会话，模板必须按该部门解析 */
+  department: string | null;
   variables: {
     candidateName: string;
     flowName: string;
@@ -195,10 +200,12 @@ async function sendInterviewEmailDelivery({
       userFlowId,
       relatedScheduleId: scheduleId,
       createdBy,
+      department,
       variables,
       metadata: {
         kind,
         flowId: flowId ?? null,
+        department,
       },
       sendImmediately: true,
     });
@@ -213,6 +220,7 @@ async function sendInterviewEmailDelivery({
         kind,
         flowId: flowId ?? null,
         scheduleId,
+        department,
       },
     });
     return { ok: false, message };
@@ -231,6 +239,7 @@ async function sendInterviewWithdrawalEmailDelivery({
   reason,
   operatorName,
   operatorRole,
+  department,
 }: {
   toAddress: string;
   recipientUserId: number;
@@ -243,6 +252,8 @@ async function sendInterviewWithdrawalEmailDelivery({
   reason: string;
   operatorName: string;
   operatorRole: number;
+  /** 候选人所属部门：服务端无会话，模板必须按该部门解析 */
+  department: string | null;
 }): Promise<
   | { ok: true; deliveryId: number }
   | { ok: false; message: string }
@@ -256,6 +267,7 @@ async function sendInterviewWithdrawalEmailDelivery({
       flowId,
       relatedScheduleId,
       createdBy,
+      department,
       variables: {
         candidateName,
         flowName,
@@ -400,7 +412,7 @@ async function notifyInterviewGroupByFeishu({
 export async function previewInterviewScheduleEmail(
   input: CreateInterviewScheduleInput,
 ): Promise<PreviewInterviewScheduleEmailResult> {
-  const session = await verifyRole(2);
+  const session = await verifyScopedRole(2);
   const startsAt = parseDate(input.startsAt, "开始");
   const endsAt = parseDate(input.endsAt, "结束");
   if (endsAt <= startsAt) {
@@ -412,6 +424,7 @@ export async function previewInterviewScheduleEmail(
       userFlowId: userFlow.id,
       candidateId: userFlow.fkUserId,
       flowTitle: flow.title,
+      department: userFlow.department,
     })
     .from(userFlow)
     .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
@@ -421,6 +434,8 @@ export async function previewInterviewScheduleEmail(
   if (!target) {
     return { success: false, error: { message: "面试同学流程不存在" } };
   }
+  // 只能为本部门候选人预览面试邮件
+  assertUserFlowInScope(session.scope, target.department);
 
   const userMap = await listPeopleUsersByLinkIds([target.candidateId, session.uid], {
     canViewSensitiveInfo: true,
@@ -447,6 +462,7 @@ export async function previewInterviewScheduleEmail(
   const kind = existingSchedule ? "rescheduled" : "created";
   const rendered = await renderEmailTemplate({
     templateKey: interviewEmailTemplateKey[kind],
+    department: target.department,
     variables: {
       candidateName,
       flowName: target.flowTitle,
@@ -471,7 +487,7 @@ export async function previewInterviewScheduleEmail(
 export async function createInterviewSchedule(
   input: CreateInterviewScheduleInput,
 ): Promise<CreateInterviewScheduleResult> {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   let persistedSchedule: {
     id: number;
     meetingLink: string;
@@ -479,7 +495,7 @@ export async function createInterviewSchedule(
   } | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
     const organizerId = session.uid;
 
     const startsAt = parseDate(input.startsAt, "开始");
@@ -496,6 +512,7 @@ export async function createInterviewSchedule(
         flowTitle: flow.title,
         flowType: flow.type,
         progressStatus: userFlow.progressStatus,
+        department: userFlow.department,
       })
       .from(userFlow)
       .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
@@ -505,6 +522,8 @@ export async function createInterviewSchedule(
     if (!target) {
       return { success: false, error: { message: "面试同学流程不存在" } };
     }
+    // 只能为本部门候选人预约面试
+    assertUserFlowInScope(session.scope, target.department);
     if (target.flowType === "recruitment") {
       return { success: false, error: { message: "笔试流程不支持发起面试日程" } };
     }
@@ -746,6 +765,7 @@ export async function createInterviewSchedule(
       flowId: target.flowId,
       scheduleId: schedule.id,
       createdBy: session.uid,
+      department: target.department,
       variables: {
         candidateName,
         flowName: target.flowTitle,
@@ -795,10 +815,11 @@ export async function createInterviewSchedule(
     revalidatePath("/dashboard/interviews");
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: existingSchedule ? "interview_schedule.update" : "interview_schedule.create",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
+      department: target.department,
       metadata: {
         userFlowId: input.userFlowId,
         flowId: target.flowId,
@@ -873,11 +894,11 @@ export async function cancelInterviewSchedule(
   scheduleId: number,
   options?: { allowAdmin?: boolean; notifyCandidate?: boolean; tx?: Tx },
 ): Promise<CancelInterviewScheduleResult> {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
   const client = options?.tx ?? db;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
 
     const [schedule] = await client
       .select({
@@ -915,6 +936,16 @@ export async function cancelInterviewSchedule(
       return { success: false, error: { message: "只能由原预约讲师取消该面试。" } };
     }
 
+    // 只能取消本部门候选人的面试日程
+    const [scopeTarget] = await client
+      .select({ department: userFlow.department })
+      .from(userFlow)
+      .where(eq(userFlow.id, schedule.userFlowId))
+      .limit(1);
+    if (scopeTarget) {
+      assertUserFlowInScope(session.scope, scopeTarget.department);
+    }
+
     const credential = await getValidFeishuUserCredential(schedule.organizerId);
     await cancelFeishuInterviewSchedule({
       accessToken: credential.accessToken,
@@ -937,6 +968,7 @@ export async function cancelInterviewSchedule(
         candidateId: userFlow.fkUserId,
         flowId: flow.id,
         flowTitle: flow.title,
+        department: userFlow.department,
       })
       .from(userFlow)
       .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
@@ -965,6 +997,7 @@ export async function cancelInterviewSchedule(
         flowId: target.flowId,
         scheduleId: schedule.id,
         createdBy: session.uid,
+        department: target.department,
         variables: {
           candidateName,
           flowName,
@@ -1022,10 +1055,11 @@ export async function cancelInterviewSchedule(
     try {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "interview_schedule.cancel",
         resourceType: "interview_schedule",
         resourceId: schedule.id,
+        department: scopeTarget?.department ?? null,
         metadata: {
           userFlowId: schedule.userFlowId,
           provider: "feishu",
@@ -1058,10 +1092,10 @@ export async function returnInterviewCandidate(
   userFlowId: number,
   reason: string,
 ): Promise<ReturnInterviewCandidateResult> {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
     const validatedReason = normalizeWithdrawalReason(reason);
     if (!validatedReason.success) {
       return { success: false, error: { message: validatedReason.error } };
@@ -1076,6 +1110,7 @@ export async function returnInterviewCandidate(
         flowTitle: flow.title,
         progressStatus: userFlow.progressStatus,
         flowType: flow.type,
+        department: userFlow.department,
         evaluationStatus: interviewEvaluation.status,
         scheduleId: interviewSchedule.id,
         scheduleOrganizerId: interviewSchedule.fkOrganizerId,
@@ -1104,6 +1139,8 @@ export async function returnInterviewCandidate(
     if (!candidate) {
       return { success: false, error: { message: "找不到该面试报名。" } };
     }
+    // 只能退回本部门候选人的面试报名
+    assertUserFlowInScope(session.scope, candidate.department);
     if (candidate.flowType === "recruitment") {
       return { success: false, error: { message: "笔试流程不支持退回面试报名。" } };
     }
@@ -1270,6 +1307,7 @@ export async function returnInterviewCandidate(
           // Whoever pressed 退回, so the candidate knows who to go back to.
           operatorName: session.name,
           operatorRole: session.role,
+          department: candidate.department,
         });
         if (emailResult.ok) {
           emailDeliveryId = emailResult.deliveryId;
@@ -1291,10 +1329,11 @@ export async function returnInterviewCandidate(
     );
     await writeOperationAudit({
       actorId: session.uid,
-      actorRole: session.role,
+      actorRole: session.realRole,
       action: "user_flow.withdraw",
       resourceType: "user_flow",
       resourceId: userFlowId,
+      department: candidate.department,
       metadata: {
         scheduleId: candidate.scheduleId ?? null,
         cancellationOutboxId: withdrawalResult.cancellationOutboxId ?? null,
@@ -1367,6 +1406,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
       candidateId: userFlow.fkUserId,
       flowId: flow.id,
       flowTitle: flow.title,
+      department: userFlow.department,
     })
     .from(userFlow)
     .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
@@ -1398,6 +1438,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
       flowId: target.flowId,
       scheduleId: schedule.id,
       createdBy: schedule.organizerId,
+      department: target.department,
       variables: {
         candidateName,
         flowName,
@@ -1444,6 +1485,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
       action: "interview_schedule.sync.cancelled",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
+      department: target?.department ?? null,
       metadata: { provider: "feishu", providerEventId: eventId, reason: "event_not_found" },
     });
     return { synced: true as const, status: "cancelled" as const };
@@ -1469,6 +1511,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
       action: "interview_schedule.sync.cancelled",
       resourceType: "interview_schedule",
       resourceId: schedule.id,
+      department: target?.department ?? null,
       metadata: { provider: "feishu", providerEventId: eventId, changeType: input.change_type },
     });
     return { synced: true as const, status: "cancelled" as const };
@@ -1508,6 +1551,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
     action: "interview_schedule.sync.updated",
     resourceType: "interview_schedule",
     resourceId: schedule.id,
+    department: target?.department ?? null,
     metadata: {
       provider: "feishu",
       providerEventId: eventId,
@@ -1525,7 +1569,7 @@ async function _syncInterviewScheduleFromFeishuEvent(
 export async function confirmInterviewScheduleEnded(
   scheduleId: number,
 ): Promise<ConfirmInterviewScheduleEndedResult> {
-  const session = await verifyRole(2);
+  const session = await verifyScopedRole(2);
   const [schedule] = await db
     .select({
       id: interviewSchedule.id,
@@ -1545,6 +1589,17 @@ export async function confirmInterviewScheduleEnded(
   if (schedule.organizerId !== session.uid) {
     return { success: false, error: { message: "只能由原预约讲师确认面试结束。" } };
   }
+
+  // 只能确认本部门候选人的面试结束
+  const [scopeTarget] = await db
+    .select({ department: userFlow.department })
+    .from(userFlow)
+    .where(eq(userFlow.id, schedule.userFlowId))
+    .limit(1);
+  if (scopeTarget) {
+    assertUserFlowInScope(session.scope, scopeTarget.department);
+  }
+
   if (schedule.startsAt.getTime() > Date.now()) {
     return { success: false, error: { message: "面试尚未开始，不能确认结束。" } };
   }
@@ -1570,10 +1625,11 @@ export async function confirmInterviewScheduleEnded(
 
   await writeOperationAudit({
     actorId: session.uid,
-    actorRole: session.role,
+    actorRole: session.realRole,
     action: "interview_schedule.meeting.ended_manual",
     resourceType: "interview_schedule",
     resourceId: schedule.id,
+    department: scopeTarget?.department ?? null,
     metadata: { userFlowId: schedule.userFlowId, provider: "feishu" },
   });
   revalidatePath("/dashboard/interviews");

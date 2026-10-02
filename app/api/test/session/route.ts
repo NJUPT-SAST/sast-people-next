@@ -1,3 +1,4 @@
+import { normalizeDepartmentKey } from "@/db/schema";
 import { createSession } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -5,10 +6,15 @@ type TestSessionRequest = {
   uid?: unknown;
   role?: unknown;
   name?: unknown;
+  department?: unknown;
 };
 
 export async function POST(request: NextRequest) {
-  if (process.env.PLAYWRIGHT_TEST_MODE !== "1") {
+  /* Playwright 专用后门：只在开发/测试环境且显式开启时可用，生产环境绝不可达 */
+  if (
+    process.env.PLAYWRIGHT_TEST_MODE !== "1" ||
+    process.env.NODE_ENV === "production"
+  ) {
     return NextResponse.json({ message: "not found" }, { status: 404 });
   }
 
@@ -36,6 +42,7 @@ export async function POST(request: NextRequest) {
     role,
     linkAdminTokenMarker,
     linkAdminTokenMarker,
+    normalizeDepartmentKey(body.department),
   );
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

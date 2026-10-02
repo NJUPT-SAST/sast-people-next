@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Activity,
@@ -10,8 +9,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EmailRecordsSection } from "./EmailRecordsSection";
 import { EmailSendingTasksSection } from "./EmailSendingTasksSection";
@@ -37,10 +36,10 @@ import type {
   EmailTemplateDefinition,
   FlowTarget,
   InterviewSchedulePreviews,
-  InterviewScheduleTemplates,
+  InterviewTemplateSettingsResult,
   ResultEmailPreviews,
   ResultEmailDeliveryState,
-  TemplateSetting,
+  TemplateSettingsResult,
 } from "./emailDashboardTypes";
 
 const tabIcons: Record<EmailCenterTab, LucideIcon> = {
@@ -50,37 +49,47 @@ const tabIcons: Record<EmailCenterTab, LucideIcon> = {
   status: Activity,
 };
 
-function EmailCenterTabNav({ activeTab }: { activeTab: EmailCenterTab }) {
+function EmailCenterTabNav({
+  activeTab,
+  canManageTemplates,
+}: {
+  activeTab: EmailCenterTab;
+  canManageTemplates: boolean;
+}) {
   return (
+    /* 下划线式页签：邮件中心各页是并列的整页视图，按钮盒子看起来像「工具」
+       而不是「导航」，切换后也没有位置感。 */
     <nav
       aria-label="邮件中心导航"
-      className={cn("overflow-x-auto", hiddenScrollbar)}
+      className={cn("overflow-x-auto border-b", hiddenScrollbar)}
     >
-      <div className="inline-flex min-w-max gap-1 rounded-lg border bg-card p-1">
-        {emailCenterTabs.map((tab) => {
-          const Icon = tabIcons[tab.value];
-          const active = activeTab === tab.value;
+      <div className="inline-flex min-w-max items-stretch gap-5">
+        {emailCenterTabs
+          .filter((tab) => canManageTemplates || tab.value !== "templates")
+          .map((tab) => {
+            const Icon = tabIcons[tab.value];
+            const active = activeTab === tab.value;
 
-          return (
-            <Button
-              key={tab.value}
-              asChild
-              variant={active ? "secondary" : "ghost"}
-              size="sm"
-              className={cn(
-                "h-9 px-3",
-                active
-                  ? "bg-muted text-foreground shadow-none hover:bg-muted"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              <Link href={`/dashboard/emails?tab=${tab.value}`}>
-                <Icon data-icon="inline-start" />
-                <span className="text-sm font-medium">{tab.label}</span>
+            return (
+              <Link
+                key={tab.value}
+                href={`/dashboard/emails?tab=${tab.value}`}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative inline-flex items-center gap-1.5 pb-2.5 pt-1 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  active
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4" aria-hidden="true" />
+                {tab.label}
+                {active && (
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-foreground" />
+                )}
               </Link>
-            </Button>
-          );
-        })}
+            );
+          })}
       </div>
     </nav>
   );
@@ -118,6 +127,19 @@ const emptyDeliveryPage: EmailDeliveryPage = {
   totalPages: 0,
 };
 
+/* 模板数据只会在模板 Tab 加载；其它 Tab 用空载荷占位 */
+const emptyTemplateSettings: TemplateSettingsResult = {
+  rows: [],
+  departments: [],
+  scope: { kind: "none" },
+};
+
+const emptyInterviewTemplateSettings: InterviewTemplateSettingsResult = {
+  rows: [],
+  departments: [],
+  scope: { kind: "none" },
+};
+
 export function EmailDashboardClient({
   batches = [],
   recordDeliveryPage = emptyDeliveryPage,
@@ -125,13 +147,15 @@ export function EmailDashboardClient({
   flowOptions = [],
   resultDeliveryStates = [],
   statusOverview,
-  templateSettings = [],
+  templateSettings = emptyTemplateSettings,
   resultEmailPreviews = {} as ResultEmailPreviews,
-  interviewScheduleTemplates = [],
+  interviewScheduleTemplates = emptyInterviewTemplateSettings,
   interviewSchedulePreviews = {} as InterviewSchedulePreviews,
   emailCenterConfig,
   templateDefinitions,
   activeTab,
+  canManageTemplates = false,
+  department = null,
   initialFlowId,
 }: {
   batches?: EmailBatch[];
@@ -140,16 +164,21 @@ export function EmailDashboardClient({
   flowOptions?: EmailFlowOption[];
   resultDeliveryStates?: ResultEmailDeliveryState[];
   statusOverview?: EmailStatusOverview;
-  templateSettings?: TemplateSetting[];
+  templateSettings?: TemplateSettingsResult;
   resultEmailPreviews?: ResultEmailPreviews;
-  interviewScheduleTemplates?: InterviewScheduleTemplates;
+  interviewScheduleTemplates?: InterviewTemplateSettingsResult;
   interviewSchedulePreviews?: InterviewSchedulePreviews;
   emailCenterConfig: EmailCenterConfig;
   templateDefinitions: EmailTemplateDefinition[];
   activeTab?: string;
+  canManageTemplates?: boolean;
+  /** 当前模板归属：null = 全局默认 */
+  department?: string | null;
   initialFlowId?: number;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const safeBatches = useMemo(() => (Array.isArray(batches) ? batches : []), [batches]);
   const safeDeliveries = useMemo(
     () =>
@@ -172,8 +201,32 @@ export function EmailDashboardClient({
     [resultDeliveryStates],
   );
   const safeTemplateSettings = useMemo(
-    () => (Array.isArray(templateSettings) ? templateSettings : []),
+    () =>
+      Array.isArray(templateSettings?.rows)
+        ? templateSettings
+        : emptyTemplateSettings,
     [templateSettings],
+  );
+  const safeInterviewTemplateSettings = useMemo(
+    () =>
+      Array.isArray(interviewScheduleTemplates?.rows)
+        ? interviewScheduleTemplates
+        : emptyInterviewTemplateSettings,
+    [interviewScheduleTemplates],
+  );
+  /* 切换模板归属 = 改 URL query，重新走服务端按归属解析模板与预览 */
+  const handleDepartmentChange = useCallback(
+    (next: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "templates");
+      if (next) {
+        params.set("department", next);
+      } else {
+        params.delete("department");
+      }
+      router.push(`${pathname}?${params.toString()}`);
+    },
+    [pathname, router, searchParams],
   );
   const [selectedFlowId, setSelectedFlowId] = useState(() =>
     resolveInitialFlowId(safeFlowTargets, initialFlowId),
@@ -283,12 +336,17 @@ export function EmailDashboardClient({
       <EmailTemplateManagementSection
         templateSettings={safeTemplateSettings}
         resultEmailPreviews={resultEmailPreviews}
-        interviewScheduleTemplates={interviewScheduleTemplates}
+        interviewScheduleTemplates={safeInterviewTemplateSettings}
         interviewSchedulePreviews={interviewSchedulePreviews}
         selectedFlowTitle={
           selectedFlow?.title ?? safeFlowOptions[0]?.title
         }
+        selectedFlowType={
+          selectedFlow?.type ?? safeFlowOptions[0]?.type ?? null
+        }
         templateDefinitions={templateDefinitions}
+        department={department}
+        onDepartmentChange={handleDepartmentChange}
       />
     );
   } else if (resolvedActiveTab === "status") {
@@ -320,7 +378,10 @@ export function EmailDashboardClient({
 
   return (
     <div className="flex flex-col gap-4 pb-[max(5rem,calc(env(safe-area-inset-bottom)+4rem))] md:pb-0">
-      <EmailCenterTabNav activeTab={resolvedActiveTab} />
+      <EmailCenterTabNav
+        activeTab={resolvedActiveTab}
+        canManageTemplates={canManageTemplates}
+      />
       {content}
     </div>
   );

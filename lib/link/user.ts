@@ -6,7 +6,7 @@ import type { LinkUserProfile } from "@/lib/link/types";
 
 export const getCurrentUserProfile = async (accessToken: string) => {
   if (shouldUseMockLink()) {
-    return getMockCurrentUserProfile();
+    return getMockCurrentUserProfile(accessToken);
   }
 
   return linkFetch<LinkUserProfile>("/user/profile", { accessToken });

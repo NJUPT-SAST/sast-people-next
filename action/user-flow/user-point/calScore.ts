@@ -2,16 +2,24 @@
 import { db } from '@/db/drizzle';
 import { flowStep, problem, userFlow } from '@/db/schema';
 import { userPoint } from '@/db/schema';
-import { verifyRole } from '@/lib/dal';
+import { verifyScopedRole, departmentScopeFilter } from '@/lib/authz';
+import { isFlowVisibleToScope } from '@/lib/flow-access';
+import type { FlowScopedSession } from '@/action/flow/department-utils';
 import { listPeopleUsersByLinkIds } from '@/lib/link/user-lookup';
 import { logServerError } from '@/lib/server-error-log';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 
 export const calScore = async (flowId: number) => {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(2);
+    session = await verifyScopedRole(2);
+    /* 读路径用过滤不用断言：流程不在本人可见范围（其他部门/未归属全局流程）时不返回任何题目与考生 */
+    if (!(await isFlowVisibleToScope(session.scope, flowId))) {
+      return [];
+    }
+    /* 同一名考生在同一流程下的归属一致，聚合展示其一即可 */
+    const departmentScope = departmentScopeFilter(userFlow.department, session.scope);
     const totalScore = sql<string>`coalesce(sum(${userPoint.points}), 0)`;
     const [examResult, problems, pointRows] = await Promise.all([
       db.select({
@@ -19,11 +27,12 @@ export const calScore = async (flowId: number) => {
           stepId: flowStep.order,
           status: userFlow.progressStatus,
           totalScore,
+          department: sql<string | null>`min(${userFlow.department})`,
         })
         .from(userFlow)
         .leftJoin(flowStep, eq(userFlow.fkCurrentStepId, flowStep.id))
         .leftJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
-        .where(eq(userFlow.fkFlowId, flowId))
+        .where(and(eq(userFlow.fkFlowId, flowId), departmentScope))
         .groupBy(userFlow.fkUserId, flowStep.order, userFlow.progressStatus)
         .orderBy(desc(totalScore)),
       db
@@ -46,7 +55,7 @@ export const calScore = async (flowId: number) => {
         })
         .from(userFlow)
         .innerJoin(userPoint, eq(userPoint.fkUserFlowId, userFlow.id))
-        .where(eq(userFlow.fkFlowId, flowId)),
+        .where(and(eq(userFlow.fkFlowId, flowId), departmentScope)),
     ]);
 
     const userMap = await listPeopleUsersByLinkIds(

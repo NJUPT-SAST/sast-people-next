@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { updateFeedbackReport, updateFeedbackResolutionNote } from "@/action/feedback";
+import { departmentLabel } from "@/const/department";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,8 +104,9 @@ export function FeedbackReports({ initialReports }: { initialReports: Report[] }
             <p className="whitespace-pre-wrap leading-6">{report.description}</p>
             <div className="grid gap-2 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground sm:grid-cols-2">
               <span>邮箱：{report.contact ?? "未提供"}</span><span>提交时间：{formatDate(report.createdAt)}</span>
-              <span>学号：{report.studentId ?? "未提供"}</span><span>设备：{report.deviceName ?? "未提供"}</span>
-              <span>环境：{report.environment ?? "未提供"}</span><span>视口：{report.viewport ?? "未提供"}</span>
+              <span>所属部门：{departmentLabel(report.department, '未设置部门')}</span><span>学号：{report.studentId ?? "未提供"}</span>
+              <span>设备：{report.deviceName ?? "未提供"}</span><span>环境：{report.environment ?? "未提供"}</span>
+              <span>视口：{report.viewport ?? "未提供"}</span>
               <span className="break-all sm:col-span-2">页面：{report.pageUrl ? <a className="text-primary underline-offset-4 hover:underline" href={report.pageUrl} target="_blank" rel="noreferrer">{report.pageUrl}</a> : "未提供"}</span>
             </div>
             <details className="rounded-md border border-border/70 px-3 py-2 text-xs">

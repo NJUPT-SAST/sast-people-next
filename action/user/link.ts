@@ -4,7 +4,7 @@ import {
   createLinkOAuthAuthorizationUrl,
   getLinkOAuthRedirectUri,
 } from "@/lib/link/oauth-flow";
-import { verifyRole } from "@/lib/dal";
+import { verifyAdmin } from "@/lib/authz";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import {
   exchangeLinkOAuthCode,
@@ -44,11 +44,11 @@ export async function createCodeChallenge(isBinding: boolean) {
 export const getCurrentRedirectUri = getLinkOAuthRedirectUri;
 
 export async function bindingLinkAccount(studentId: string) {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: { uid: number; role: number } | null = null;
 
   try {
     void studentId;
-    session = await verifyRole(3);
+    session = await verifyAdmin();
     return {
       success: false,
       error: {

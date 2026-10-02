@@ -1,13 +1,27 @@
 import { LinkLogin } from "@/components/linkLogin";
 import BlurIn from "@/components/magicui/blur-in";
 import FlickeringGrid from "@/components/magicui/flickering-grid";
-import { TestLogin } from "@/components/testLogin";
+import { TestLogin, type MockLoginAccount } from "@/components/testLogin";
+import { listMockLoginAccounts } from "@/lib/link/mock";
+import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 import "./login-font.css";
 
 const sloganFontFamily =
   '"Ma Shan Zheng", "STXingkai", "华文行楷", "FZYaoti", cursive';
+
+const useMockLink =
+  process.env.NODE_ENV !== "production" && process.env.LINK_USE_MOCK === "true";
+
+const mockLoginAccounts: MockLoginAccount[] = useMockLink
+  ? listMockLoginAccounts().map((account) => ({
+      studentId: account.studentId,
+      name: account.name,
+      role: linkRoleToPeopleRole(account.role),
+      department: account.department,
+    }))
+  : [];
 
 const Login = async ({
   searchParams,
@@ -119,9 +133,7 @@ const Login = async ({
                 </div>
 
                 <LinkLogin isBinding={false} />
-                {process.env.NODE_ENV !== "production" && process.env.LINK_USE_MOCK === "true" && (
-                  <TestLogin />
-                )}
+                {useMockLink && <TestLogin accounts={mockLoginAccounts} />}
               </CardContent>
             </Card>
 

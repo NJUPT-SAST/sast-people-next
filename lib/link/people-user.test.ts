@@ -18,7 +18,7 @@ const linkAdminUser: LinkAdminUserItem = {
 };
 
 describe("Link user mapping", () => {
-  it("maps v3.1 admin list fields into the People user model", () => {
+  it("maps Link admin list fields into the People user model", () => {
     const user = toPeopleUserFromLinkAdminItem(linkAdminUser, true);
 
     expect(user).toMatchObject({

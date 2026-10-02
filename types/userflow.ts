@@ -1,5 +1,5 @@
 import type { InferSelectModel } from 'drizzle-orm';
-import { userFlow } from '@/db/schema';
+import { flow, userFlow } from '@/db/schema';
 import { fullStepType } from '@/types/step';
 
 export type UserFlowRow = InferSelectModel<typeof userFlow>;
@@ -22,5 +22,23 @@ export type displayUserFlow = UserFlowRow & {
   publicationStatus?: string | null;
   /** 当前流程配置的投递组别选项 */
   groupOptions?: string[] | null;
+  /** 当前流程配置的面试时段选项（办公类部门面试招新） */
+  slotOptions?: InferSelectModel<typeof flow>["slotOptions"];
+  /** 当前流程的归属部门（Link 部门标识） */
+  flowDepartment?: string | null;
+  /** 待审批的面试改期申请（技术部门） */
+  pendingSlotChange?: {
+    id: number;
+    /** 申请改到的新时间 */
+    requestedStartsAt: Date | null;
+    requestedEndsAt: Date | null;
+  } | null;
+  /** 技术部门面试：当前生效的飞书面试日程 */
+  interviewSchedule?: {
+    id: number;
+    startsAt: Date;
+    endsAt: Date;
+    location: string | null;
+  } | null;
   steps: fullStepType[];
 };

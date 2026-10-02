@@ -3,13 +3,13 @@
 | 项目 | 内容 |
 | --- | --- |
 | 文档状态 | Draft |
-| 适用分支 | `v3.1` |
+| 适用分支 | `v3` |
 | 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql` 至 `migrations/0026_email_center_production_hardening.sql` |
 | 最后更新 | 2026-06-10 |
 
 ## 1. 边界
 
-People v3.1 数据库只维护招新、流程、评分、面评、邮件和审计等业务数据。
+People v3 数据库只维护招新、流程、评分、面评、邮件和审计等业务数据。
 
 用户基础资料、账号状态、角色和第三方身份绑定由 SAST Link 维护。People 业务表中的用户字段保存 Link 用户 ID，不再对旧 People `public.user.id` 建外键。
 
@@ -19,7 +19,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | 枚举 | 值 | 用途 |
 | --- | --- | --- |
 | `flow_step_type_enum` | `registering`、`checking`、`judging`、`email`、`finished` | 流程步骤类型 |
-| `flow_type_enum` | `recruitment`、`recruitment_exemption`、`woc`、`soc` | 流程类型 |
+| `flow_type_enum` | `recruitment`、`recruitment_exemption`、`woc`、`soc`、`office_interview` | 流程类型；界面按「部门 + 阶段」语义化展示（软件研发部笔试/WOC、多媒体部WOD、办公室面试…），因此不需要单独的「归属部门」展示列 |
 | `progress_status_enum` | `not_started`、`ongoing`、`passed`、`failed` | 流程进行状态（报名即进流程，无需审核） |
 | `evaluation_status_enum` | `submitted`、`returned`、`approved`、`rejected` | 面评状态（讲师提交 → 管理员可退回重写或终审） |
 | `email_batch_status_enum` | `draft`、`queued`、`completed`、`failed` | 邮件批次状态 |
@@ -46,6 +46,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `email_send_rate_limit` | 邮件发送全局限速 bucket | 无用户字段 |
 | `user_oauth_account` | People 私有第三方 OAuth token 绑定 | `fk_user_id` 保存 Link 用户 ID |
 | `interview_schedule` | 非笔试流程面试日程和飞书会议记录 | `fk_organizer_id` 保存 Link 用户 ID |
+| `interview_slot_change_request` | 面试时间/时段变更申请与审批 | `fk_requested_by` / `fk_reviewed_by` 保存 Link 用户 ID |
 | `operation_audit` | 管理操作审计 | `actor_id` 保存 Link 用户 ID |
 
 ## 4. 流程表
@@ -61,6 +62,10 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | `description` | `varchar(1000)` | 描述 |
 | `type` | `flow_type_enum` | 流程类型，默认 `recruitment` |
 | `owner_id` | `integer` | 创建者 Link 用户 ID |
+| `department` | `varchar(64)` | 流程归属部门（Link 部门标识）；办公类流程必填（每个办公部门一条流程），`NULL` = 全局流程 |
+| `group_options` | `jsonb` | 技术部门面试流程的投递组别选项（办公类不使用） |
+| `group_departments` | `jsonb` | 组别 → 部门 映射（技术部门共享流程据此给候选人定部门） |
+| `slot_options` | `jsonb` | 面试时段选项（办公类部门面试，如 `[{"label":"13:00-14:00"}]`）；`isConflict: true` 的项是「时间冲突，约面时间QQ群中另行通知」特殊选项 |
 | `created_at` | `timestamp` | 创建时间 |
 | `started_at` | `timestamp` | 开始时间 |
 | `ended_at` | `timestamp` | 结束时间（NULL = 未结束） |
@@ -89,14 +94,22 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 
 ### `user_flow`
 
-用户报名和流程状态表。`(fk_flow_id, fk_user_id)` 组合唯一，一人对同一流程只能有一条报名记录。
+用户报名和流程状态表。`(fk_flow_id, fk_user_id)` 组合唯一（按投递组别拆分的部分唯一索引），一人对同一流程只能有一条报名记录。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `serial` | 用户流程 ID |
-| `progress_status` | `progress_status_enum` | 流程进度：`not_started` → `ongoing` → `passed` / `failed` |
+| `progress_status` | `progress_status_enum` | 流程进度：`not_started` → `ongoing` → `passed` / `failed` / `withdrawn` |
 | `fk_current_step_id` | `integer` | 当前步骤，关联 `flow_step.id`（SET NULL on delete） |
-| `portfolio_link` | `text` | 作品集或报名补充链接 |
+| `apply_group` | `varchar(100)` | 技术部门面试流程的投递组别（办公类流程为 NULL） |
+| `round` | `smallint` | 办公类部门面试当前阶段：1=一面，2=二面 |
+| `interview_slot` | `varchar(100)` | 办公类部门面试选择的时段（`flow.slot_options` 的 label，含「时间冲突」选项）；改时段由部长在面试管理页直接修改 |
+| `choice` | `smallint` | 办公类部门面试志愿类型：1=第一志愿、2=第二志愿 |
+| `final_department` | `varchar(64)` | 部长团评议的最终去向部门（Link 部门标识）；为空时按「第一志愿优先」自动归属 |
+| `department` | `varchar(64)` | 报名记录归属部门（Link 部门标识）：报名时按组别映射 → 流程归属解析后固化 |
+| `withdraw_reason` | `text` | 退回面试时填写的理由 |
+| `portfolio_link` | `text` | 作品集或报名补充链接（仅技术部门面试流程） |
+| `portfolio_description` | `text` | 作品简介（仅技术部门面试流程） |
 | `fk_flow_id` | `integer` | 关联 `flow.id`（CASCADE） |
 | `fk_user_id` | `integer` | 报名用户 Link 用户 ID |
 | `created_at` | `timestamp` | 报名时间 |
@@ -104,6 +117,8 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 
 > 报名无需审核，报名后直接进入流程。典型生命周期：
 > `not_started` → `ongoing` → `passed` / `failed`
+>
+> 办公类部门面试改为**每个办公部门一条独立流程**（`flow.department` = 部门）：候选人在两个部门流程分别报名并选择志愿类型（`choice`），进行中的办公类报名最多两条、且一志愿/二志愿各最多一条；互斥规则已取消。
 
 ## 6. 笔试评分表
 
@@ -190,6 +205,32 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 - `interview_schedule_organizer_idx` on `fk_organizer_id`
 - `interview_schedule_provider_event_uidx` unique on `provider, provider_event_id`
 
+### `interview_slot_change_request`
+
+面试改期申请表（**仅技术部门面试**：免试/WOC/SOC）。候选人绑定飞书日程提交新时间，由预约讲师审批（通过后同步日程与留档会议并发改约邮件）。办公类部门面试的时段调整不走本表：改由部长在面试管理页直接修改 `user_flow.interview_slot`，存量办公类 pending 申请由迁移 0067 关闭。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 申请 ID |
+| `fk_user_flow_id` | `integer` | 关联 `user_flow.id`（CASCADE） |
+| `fk_interview_schedule_id` | `integer` | 关联 `interview_schedule.id`（CASCADE，可空）；改期申请绑定当前生效日程 |
+| `requested_slot` | `varchar(100)` | 历史字段：办公类改期申请已下线，仅保留存量记录 |
+| `requested_starts_at` | `timestamp` | 申请改到的新开始时间（可空，时长沿用原日程） |
+| `requested_ends_at` | `timestamp` | 申请改到的新结束时间（可空） |
+| `reason` | `text` | 候选人填写的申请理由（必填） |
+| `status` | `varchar(16)` | `pending` / `approved` / `rejected`，默认 `pending` |
+| `fk_requested_by` | `integer` | 申请人 Link 用户 ID（候选人本人） |
+| `fk_reviewed_by` | `integer` | 审批人 Link 用户 ID（预约讲师） |
+| `review_note` | `text` | 处理备注；暂不改期时必填（随邮件发送给候选人） |
+| `reviewed_at` | `timestamp` | 审批时间 |
+| `created_at` / `updated_at` | `timestamp` | 创建 / 更新时间 |
+
+索引：
+
+- `interview_slot_change_pending_uidx` unique on `fk_user_flow_id` where `status = 'pending'`（同一报名最多一条待审批）
+- `interview_slot_change_status_idx` on `status`
+- `interview_slot_change_schedule_idx` on `fk_interview_schedule_id`
+
 ## 8. 邮件表
 
 ### `email_template_setting`
@@ -217,7 +258,7 @@ People v3.1 数据库只维护招新、流程、评分、面评、邮件和审�
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `serial` | 模板配置 ID |
-| `template_key` | `varchar(80)` | 模板 key，当前支持 `interview.schedule.created`、`interview.schedule.rescheduled`、`interview.schedule.cancelled`；历史 `interview.schedule` 仅作为创建通知 fallback |
+| `template_key` | `varchar(80)` | 模板 key，当前支持 `interview.schedule.created`、`interview.schedule.rescheduled`、`interview.schedule.cancelled`、`interview.schedule.change.rejected`；历史 `interview.schedule` 仅作为创建通知 fallback |
 | `subject_template` | `varchar(255)` | 邮件标题模板 |
 | `title_template` | `varchar(255)` | 邮件正文主标题模板 |
 | `body_template` | `text` | 邮件正文说明模板 |
@@ -391,7 +432,7 @@ flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
 | `user_flow.fk_current_step_id` → `flow_step` | SET NULL | step 被物理删除后不阻断用户流程 |
 | `interview_schedule.fk_evaluation_id` → `interview_evaluation` | SET NULL | 删除或重建面评时保留已创建日程记录 |
 
-## 11. v3.1 用户 ID 迁移口径
+## 11. v3 用户 ID 迁移口径
 
 `migrations/0011_link_user_ids.sql` 会移除以下业务表到旧 `public.user` 的外键约束：
 

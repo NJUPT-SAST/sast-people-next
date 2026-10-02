@@ -62,8 +62,15 @@ Playwright specs live under `e2e/`:
 ```text
 e2e/
   recruitment-flow.spec.ts
+  office-interview.spec.ts
+  office-flow-create.spec.ts
+  office-final-destination.spec.ts
+  interview-reschedule.spec.ts
+  interview-row-menu.spec.ts
+  flow-result-department.spec.ts
   email-center.spec.ts
   email-prelaunch.spec.ts
+  mock-login.spec.ts
   visual-smoke.spec.ts
 ```
 
@@ -148,6 +155,17 @@ pnpm test:integration
 
 Each test runs inside a transaction that is rolled back. In CI these tests use
 an isolated `sastpeople_test` database that is destroyed with the job.
+
+When running locally, export `DATABASE_URL` explicitly (Jest's test environment
+does not load `.env.local`):
+
+```bash
+DATABASE_URL="$(node -p "require('fs').readFileSync('.env.local','utf8').match(/^DATABASE_URL=(.*)$/m)[1]")" pnpm test:integration
+```
+
+Department-scoped access control has its own coverage: `integration/department-scope.integration.test.ts`
+(visibility matrix for department flows, shared flows, and candidate filtering) and
+`integration/department-manage.integration.test.ts` (department overview and ownership assignment).
 
 ## Coverage Reports
 

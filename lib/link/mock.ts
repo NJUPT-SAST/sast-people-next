@@ -1,5 +1,6 @@
 import type {
   LinkAdminUserItem,
+  LinkDepartment,
   LinkListUsersParams,
   LinkRole,
   LinkUserProfile,
@@ -15,7 +16,7 @@ import type {
  * fictional; earlier versions used "Demo Freshman A" and six-digit ids, which
  * made every candidate column render wider than it does for real users.
  */
-const mockUsers: LinkUserProfile[] = [
+const mockBaseUsers: LinkUserProfile[] = [
   {
     id: 1,
     name: "管理员",
@@ -261,6 +262,96 @@ const mockUsers: LinkUserProfile[] = [
   },
 ];
 
+/**
+ * 本地 mock 的部门演示账号：管理员 `B00000000`、各部门部长 `B<d>1111111`、
+ * 讲师 `B<d>0000001`、成员 `B<d>0000002` / `B<d>0000003`（d = 部门序号 1-7）。
+ * 部门标识与 Link 保持同一风格（software / media 为 Link 现有值，其余为本地演示标识）。
+ */
+const mockDepartmentSeeds = [
+  { index: 1, department: "software", label: "软件研发部", college: "计算机学院、软件学院、网络空间安全学院", major: "软件工程", names: ["陈屹", "周礼", "方雨桐", "何书宁"] },
+  { index: 2, department: "media", label: "多媒体部", college: "传媒与艺术学院", major: "数字媒体艺术", names: ["江之南", "秦朗", "叶知秋", "唐棠"] },
+  { index: 3, department: "electronics", label: "电子部", college: "电子与光学工程学院", major: "电子科学与技术", names: ["顾岩", "范晓", "卢星野", "段沐"] },
+  { index: 4, department: "office", label: "办公室", college: "管理学院", major: "工商管理", names: ["邵晨", "邹文", "崔宁", "万清"] },
+  { index: 5, department: "liaison", label: "外联部", college: "经济学院", major: "国际经济与贸易", names: ["傅斯白", "石川", "龙映", "洪奕"] },
+  { index: 6, department: "publicity", label: "科宣部", college: "传媒与艺术学院", major: "广告学", names: ["白予安", "舒亦", "纪云舒", "高子期"] },
+  { index: 7, department: "competition", label: "赛事部", college: "计算机学院、软件学院、网络空间安全学院", major: "计算机科学与技术", names: ["蒋澜", "尹茉", "程叙", "温言"] },
+] as const;
+
+/* 学号 = B + 部门序号 + 7 位后缀（部长为重复序号，讲师/成员为顺序编号） */
+const mockStudentId = (index: number, suffix: string) => `B${index}${suffix}`;
+
+const mockDepartmentAccounts: LinkUserProfile[] = [
+  {
+    id: 101,
+    name: "管理员",
+    login_email: "root@sast.fun",
+    role: "admin",
+    state: "on-sast",
+    phone_number: "13800000000",
+    qq_number: "100000",
+    student_id: "B00000000",
+    college: "计算机学院、软件学院、网络空间安全学院",
+    major: "软件工程",
+    profile: {
+      nickname: "Admin",
+      department: null,
+      intro: "本地管理员账号（跨部门）",
+      email: "root@sast.fun",
+    },
+    created_at: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+  },
+  ...mockDepartmentSeeds.flatMap(({ index, department, label, college, major, names }) => {
+    const [managerName, lecturerName, ...memberNames] = names;
+    const accounts: Array<{
+      suffix: string;
+      role: LinkRole;
+      name: string;
+      intro: string;
+    }> = [
+      {
+        suffix: String(index).repeat(7),
+        role: "manager",
+        name: managerName,
+        intro: `${label}部长账号`,
+      },
+      { suffix: "0000001", role: "lecturer", name: lecturerName, intro: `${label}讲师账号` },
+      ...memberNames.map((name, position) => ({
+        suffix: `000000${position + 2}`,
+        role: "member" as LinkRole,
+        name,
+        intro: `${label}成员账号`,
+      })),
+    ];
+
+    return accounts.map(({ suffix, role, name, intro }, position) => {
+      const id = 200 + (index - 1) * accounts.length + position + 1;
+      const studentId = mockStudentId(index, suffix);
+
+      return {
+        id,
+        name,
+        login_email: `${studentId}@njupt.edu.cn`,
+        role,
+        state: "on-sast",
+        phone_number: `138${String(10000000 + id).slice(-8)}`,
+        qq_number: String(200000 + id * 7),
+        student_id: studentId,
+        college,
+        major,
+        profile: {
+          nickname: role === "manager" ? "DeptManager" : undefined,
+          department,
+          intro,
+          email: `${studentId}@njupt.edu.cn`,
+        },
+        created_at: new Date(`2026-02-${String((index % 27) + 1).padStart(2, "0")}T00:00:00.000Z`).toISOString(),
+      } satisfies LinkUserProfile;
+    });
+  }),
+];
+
+const mockUsers: LinkUserProfile[] = [...mockBaseUsers, ...mockDepartmentAccounts];
+
 const toAdminItem = (user: LinkUserProfile): LinkAdminUserItem => ({
   id: user.id,
   name: user.name,
@@ -276,7 +367,15 @@ const toAdminItem = (user: LinkUserProfile): LinkAdminUserItem => ({
   created_at: user.created_at,
 });
 
-export const getMockCurrentUserProfile = async () => mockUsers[0];
+/* 本地 mock 会话里用 access token 标记当前用户：mock-access-token:<Link 用户 ID> */
+export const mockAccessTokenFor = (userId: number) => `mock-access-token:${userId}`;
+
+export const getMockCurrentUserProfile = async (
+  accessToken?: string | null,
+): Promise<LinkUserProfile> => {
+  const userId = Number(accessToken?.split(":").pop());
+  return mockUsers.find((user) => user.id === userId) ?? mockBaseUsers[0];
+};
 
 export const listMockUsers = async ({
   page = 1,
@@ -309,6 +408,18 @@ export const listMockUsers = async ({
     page_size: pageSize,
   };
 };
+
+/* 本地登录页的测试账号清单（管理员、部长、讲师、成员） */
+export const listMockLoginAccounts = () =>
+  mockUsers
+    .filter((user) => user.student_id)
+    .map((user) => ({
+      studentId: user.student_id as string,
+      name: user.name,
+      role: user.role,
+      department: user.profile?.department ?? null,
+    }))
+    .sort((a, b) => a.studentId.localeCompare(b.studentId));
 
 export const getMockUserDetail = async (id: number) => {
   const user = mockUsers.find((item) => item.id === id);
@@ -343,6 +454,30 @@ export const updateMockUserRoles = async (ids: number[], role: LinkRole) => {
     }
     user.role = role;
     results.push({ id, success: true, role });
+  }
+
+  return { results };
+};
+
+export const updateMockUserDepartments = async (
+  ids: number[],
+  department: LinkDepartment | null,
+) => {
+  const results = [] as Array<{
+    id: number;
+    success: boolean;
+    department?: LinkDepartment | null;
+    reason?: string;
+  }>;
+
+  for (const id of new Set(ids)) {
+    const user = mockUsers.find((item) => item.id === id);
+    if (!user) {
+      results.push({ id, success: false, reason: "用户不存在" });
+      continue;
+    }
+    user.profile = { ...(user.profile ?? {}), department };
+    results.push({ id, success: true, department });
   }
 
   return { results };

@@ -2,20 +2,24 @@
 
 import { db } from "@/db/drizzle";
 import { flow, flowStep, problem } from "@/db/schema";
-import { verifyRole } from "@/lib/dal";
+import { verifyManager } from "@/lib/authz";
+import { assertFlowEditableRecord } from "@/lib/flow-access";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { createCopiedFlowTitle } from "./duplicate-utils";
+import type { FlowScopedSession } from "./department-utils";
 
 export async function duplicateFlow(sourceFlowId: number) {
-  let session: Awaited<ReturnType<typeof verifyRole>> | null = null;
+  let session: FlowScopedSession | null = null;
 
   try {
-    session = await verifyRole(3);
+    session = await verifyManager();
 
     let copiedFlowId: number | null = null;
+    /* 复制继承源流程归属，审计沿用同一部门 */
+    let sourceDepartment: string | null = null;
 
     await db.transaction(async (tx) => {
       const [sourceFlow] = await tx
@@ -28,6 +32,9 @@ export async function duplicateFlow(sourceFlowId: number) {
         throw new Error("Flow not found");
       }
 
+      assertFlowEditableRecord(session!.scope, sourceFlow);
+      sourceDepartment = sourceFlow.department;
+
       const [newFlow] = await tx
         .insert(flow)
         .values({
@@ -37,6 +44,11 @@ export async function duplicateFlow(sourceFlowId: number) {
           ownerId: session!.uid,
           startedAt: sourceFlow.startedAt,
           endedAt: sourceFlow.endedAt,
+          /* 复制继承源流程的归属部门与组别映射 */
+          department: sourceFlow.department,
+          groupOptions: sourceFlow.groupOptions,
+          groupDepartments: sourceFlow.groupDepartments,
+          slotOptions: sourceFlow.slotOptions,
         })
         .returning({ id: flow.id });
       copiedFlowId = newFlow.id;
@@ -104,11 +116,12 @@ export async function duplicateFlow(sourceFlowId: number) {
     if (copiedFlowId !== null) {
       await writeOperationAudit({
         actorId: session.uid,
-        actorRole: session.role,
+        actorRole: session.realRole,
         action: "flow.duplicate",
         resourceType: "flow",
         resourceId: copiedFlowId,
-        metadata: { sourceFlowId },
+        department: sourceDepartment,
+        metadata: { sourceFlowId, department: sourceDepartment },
       });
     }
 

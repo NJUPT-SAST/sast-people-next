@@ -4,6 +4,7 @@ import { db } from "@/db/drizzle";
 import { flow, interviewEvaluation, interviewSchedule, userFlow } from "@/db/schema";
 import { getPeopleUrl } from "@/lib/app-url";
 import { sendFeishuCardMessage } from "@/lib/feishu/message";
+import { isOfficeInterviewFlow } from "@/const/flow";
 import { desc, eq } from "drizzle-orm";
 
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
@@ -25,6 +26,8 @@ export type FeishuApprovalNotificationContext = {
   candidateStudentId?: string | null;
   authorName: string;
   flowTitle: string;
+  /* 流程类型：办公类流程没有讲师这一级，面评人显示为部长 */
+  flowType?: string | null;
   recommendation: "passed" | "failed" | null;
   content: string;
   portfolioDescription?: string | null;
@@ -76,6 +79,7 @@ export async function loadFeishuApprovalNotificationRecord(evaluationId: number)
       candidateId: userFlow.fkUserId,
       authorId: interviewEvaluation.fkUserId,
       flowTitle: flow.title,
+      flowType: flow.type,
       recommendation: interviewEvaluation.recommendation,
       content: interviewEvaluation.content,
       submittedAt: interviewEvaluation.createdAt,
@@ -111,11 +115,15 @@ export async function loadFeishuApprovalNotificationRecord(evaluationId: number)
 
 export function buildFeishuApprovalCard(context: FeishuApprovalNotificationContext) {
   const updated = context.updatedAt.getTime() > context.submittedAt.getTime();
+  /* 办公类流程没有讲师这一级：面评人与建议文案都改成部长 */
+  const reviewerTitle = isOfficeInterviewFlow(context.flowType ?? "")
+    ? "部长"
+    : "讲师";
   const recommendation = context.recommendation === "passed"
-    ? "讲师建议：通过"
+    ? `${reviewerTitle}建议：通过`
     : context.recommendation === "failed"
-      ? "讲师建议：不通过"
-      : "讲师建议：未填写";
+      ? `${reviewerTitle}建议：不通过`
+      : `${reviewerTitle}建议：未填写`;
 
   return {
     schema: "2.0",
@@ -161,7 +169,7 @@ export function buildFeishuApprovalCard(context: FeishuApprovalNotificationConte
             },
             {
               is_short: true,
-              text: { tag: "lark_md", content: `**面评讲师**\n${escapeCardMarkdown(context.authorName)}` },
+              text: { tag: "lark_md", content: `**面评${reviewerTitle}**\n${escapeCardMarkdown(context.authorName)}` },
             },
             {
               is_short: true,

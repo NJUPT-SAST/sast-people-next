@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,6 +16,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateTimeInput } from '@/components/ui/datetime-input';
 import { editFlowSchema } from '@/components/flow/add';
+import { departmentLabel } from '@/const/department';
+import {
+  flowTypeLabel,
+  flowTypeOptionOf,
+  flowTypeOptionsForDepartment,
+  isOfficeInterviewFlow,
+  parseFlowTypeOptionValue,
+} from '@/const/flow';
+import { DepartmentSelect, GroupDepartmentMapping, pickGroupDepartments } from '@/components/flow/departmentFields';
+import { SlotOptionsField } from '@/components/flow/officeInterviewFields';
+import { CURRENT_FLOW_TYPE_VALUE, FlowTypeReadonly, FlowTypeSelect } from '@/components/flow/flowTypeField';
 import { saveFlowWorkspace } from '@/action/flow/save-workspace';
 import { displayFlow } from '@/types/flow';
 import { fullStepType } from '@/types/step';
@@ -25,6 +36,14 @@ const writtenRecruitmentSteps = (flowId: number): fullStepType[] => [
   { title: '报名', type: 'registering', order: 1, description: '新同学提交报名信息，报名后直接进入批卷环节', id: -1, createdAt: new Date(), updatedAt: new Date(), isDeleted: false, fkFlowId: flowId },
   { title: '批卷', type: 'judging', order: 2, description: '讲师为该流程内报名同学批改试卷', id: -2, createdAt: new Date(), updatedAt: new Date(), isDeleted: false, fkFlowId: flowId },
   { title: '录取确认', type: 'finished', order: 3, description: '按分数线筛选并确认最终通过名单', id: -3, createdAt: new Date(), updatedAt: new Date(), isDeleted: false, fkFlowId: flowId },
+];
+
+/* 办公类部门面试招新的客户端默认步骤，必须与服务端 action/flow/defaultSteps.ts 的 officeInterviewSteps 一致 */
+const officeInterviewSteps = (flowId: number): fullStepType[] => [
+  { title: '报名', type: 'registering', order: 1, description: '填写个人信息，选择第一志愿与第二志愿办公部门及面试时段', id: -1, createdAt: new Date(), updatedAt: new Date(), isDeleted: false, fkFlowId: flowId },
+  { title: '一面', type: 'checking', order: 2, description: '部门部长进行一对一面试并打分', id: -2, createdAt: new Date(), updatedAt: new Date(), isDeleted: false, fkFlowId: flowId },
+  { title: '二面', type: 'checking', order: 3, description: '无领导小组面试，多位部长共同打分（一面通过后进入）', id: -3, createdAt: new Date(), updatedAt: new Date(), isDeleted: false, fkFlowId: flowId },
+  { title: '结果确认', type: 'finished', order: 4, description: '确认最终通过名单并发送结果通知', id: -4, createdAt: new Date(), updatedAt: new Date(), isDeleted: false, fkFlowId: flowId },
 ];
 
 const evaluationSteps = (flowId: number): fullStepType[] => [
@@ -46,8 +65,8 @@ export type FlowEditorHandle = {
   getDraft: () => { values: z.infer<typeof editFlowSchema>; steps: fullStepType[] };
 };
 
-export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embedded?: boolean; hideSaveButton?: boolean }>(function FlowEditor(
-  { data, embedded = false, hideSaveButton = false },
+export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embedded?: boolean; hideSaveButton?: boolean; canChooseDepartment?: boolean }>(function FlowEditor(
+  { data, embedded = false, hideSaveButton = false, canChooseDepartment = false },
   ref,
 ) {
   const form = useForm<z.infer<typeof editFlowSchema>>({
@@ -55,41 +74,87 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
     defaultValues: {
       title: data.title || '',
       description: data.description || '',
+      type: data.type,
       startedAt: data.startedAt,
       endedAt: data.endedAt ?? null,
       groupOptions: data.groupOptions ?? [],
+      slotOptions: data.slotOptions ?? [],
       id: data.id,
     },
   });
   const { isSubmitting } = form.formState;
   const [isSaving, setIsSaving] = useState(false);
-  const isWrittenRecruitment = !data.type || data.type === 'recruitment';
+  /* 类型可被管理员改：派生字段（步骤模板、可配置项）都跟随当前选中的类型 */
+  const currentType = useWatch({ control: form.control, name: 'type' }) ?? data.type;
+  const isWrittenRecruitment = !currentType || currentType === 'recruitment';
+  /* 办公类部门面试招新：每个办公部门一条流程，额外配置面试时段 */
+  const isOfficeInterview = isOfficeInterviewFlow(currentType);
   const { data: savedSteps } = useFlowStepsInfoClient(data.id);
+  /* 类型改过以后，已存步骤属于上一个类型的模板：order+type 相同的旧行会带着
+     旧文案（如办公类 order 2 的「一面」）覆盖新模板，保存后就被持久化。 */
+  const typeChanged = currentType !== data.type;
   const defaults = useMemo(
-    () => (isWrittenRecruitment ? writtenRecruitmentSteps(data.id) : evaluationSteps(data.id)),
-    [data.id, isWrittenRecruitment],
+    () =>
+      isWrittenRecruitment
+        ? writtenRecruitmentSteps(data.id)
+        : isOfficeInterview
+          ? officeInterviewSteps(data.id)
+          : evaluationSteps(data.id),
+    [data.id, isWrittenRecruitment, isOfficeInterview],
   );
   const fixedStepList = useMemo(
     () => defaults.map((step) => {
-      const saved = savedSteps?.find((item) => item.order === step.order && item.type === step.type);
+      const saved = typeChanged
+        ? undefined
+        : savedSteps?.find((item) => item.order === step.order && item.type === step.type);
       return { ...step, id: saved?.id ?? step.id, title: saved?.title ?? step.title, description: saved?.description ?? step.description };
     }),
-    [defaults, savedSteps],
+    [defaults, savedSteps, typeChanged],
   );
   const [editableSteps, setEditableSteps] = useState<fullStepType[]>(fixedStepList);
   const [groupOptionsText, setGroupOptionsText] = useState((data.groupOptions ?? []).join('\n'));
+  const [department, setDepartment] = useState<string | null>(data.department ?? null);
+  /* 语义化「流程类型」：管理员可改（组合口径 = type + department）；非管理员只读 */
+  const currentTypeOption = flowTypeOptionOf(currentType, department);
+  const typeOptionValue = currentTypeOption?.value ?? CURRENT_FLOW_TYPE_VALUE;
+
+  /* 改类型即同时改归属部门；选中「当前」回落项（解析失败）时不改动任何值 */
+  const handleTypeOptionChange = (value: string) => {
+    const parsed = parseFlowTypeOptionValue(value);
+    if (!parsed) return;
+    form.setValue('type', parsed.type as displayFlow['type']);
+    setDepartment(parsed.department);
+    /* 非办公类流程不保留仅办公类可用的面试时段，避免校验报错 */
+    if (!isOfficeInterviewFlow(parsed.type)) form.setValue('slotOptions', []);
+  };
+  const [groupDepartments, setGroupDepartments] = useState<Record<string, string>>(
+    data.groupDepartments ?? {},
+  );
+  const parsedGroupOptions = useMemo(
+    () => groupOptionsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line, index, lines) => lines.indexOf(line) === index),
+    [groupOptionsText],
+  );
 
   useEffect(() => setEditableSteps(fixedStepList), [fixedStepList]);
 
+  /* 组别映射仅用于非办公类面试流程；办公类流程按归属部门隔离 */
+  const groupValues = {
+    groupOptions: parsedGroupOptions,
+    groupDepartments: pickGroupDepartments(parsedGroupOptions, groupDepartments),
+  };
+
   const save = async () => {
     const values = form.getValues();
-    const parsedGroups = groupOptionsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line, index, lines) => lines.indexOf(line) === index);
-    setGroupOptionsText(parsedGroups.join('\n'));
+    setGroupOptionsText(parsedGroupOptions.join('\n'));
     setIsSaving(true);
     try {
       await saveFlowWorkspace({
         flowId: data.id,
-        values: { ...values, groupOptions: parsedGroups },
+        values: {
+          ...values,
+          ...groupValues,
+          department,
+        },
         steps: editableSteps,
       });
     } finally {
@@ -100,7 +165,8 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
   const getDraft = () => ({
     values: {
       ...form.getValues(),
-      groupOptions: groupOptionsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line, index, lines) => lines.indexOf(line) === index),
+      ...groupValues,
+      department,
     },
     steps: editableSteps,
   });
@@ -142,7 +208,51 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
             <div className="lg:row-span-2"><FormField control={form.control} name="description" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>流程描述</FormLabel><FormControl><Textarea className="min-h-24 resize-y" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>} /></div>
             <FormField control={form.control} name="startedAt" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>开始时间</FormLabel><FormControl><DateTimeInput {...field} native value={field.value ?? undefined} onChange={(date) => field.onChange(date ?? null)} /></FormControl><FormMessage /></FormItem>} />
             <FormField control={form.control} name="endedAt" disabled={isSubmitting} render={({ field }) => <FormItem><FormLabel>结束时间</FormLabel><FormControl><DateTimeInput {...field} native value={field.value ?? undefined} onChange={(date) => field.onChange(date ?? null)} /></FormControl><FormMessage /></FormItem>} />
-            {!isWrittenRecruitment && <FormField control={form.control} name="groupOptions" disabled={isSubmitting} render={() => <FormItem className="lg:col-span-2"><FormLabel>投递组别选项</FormLabel><FormControl><Textarea className="min-h-24 resize-y" value={groupOptionsText} onChange={(event) => setGroupOptionsText(event.target.value)} placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'} /></FormControl><p className="text-xs text-muted-foreground">每行一个组别，留空表示不启用投递组别。</p><FormMessage /></FormItem>} />}
+            {isOfficeInterview && (
+              <FormField control={form.control} name="slotOptions" disabled={isSubmitting} render={({ field }) => <FormItem className="lg:col-span-2"><FormLabel htmlFor={`flow-editor-${data.id}-slots`}>面试时段</FormLabel><SlotOptionsField idPrefix={`flow-editor-${data.id}`} disabled={isSubmitting} value={field.value} onChange={field.onChange} /><FormMessage /></FormItem>} />
+            )}
+            {!isWrittenRecruitment && !isOfficeInterview && <FormField control={form.control} name="groupOptions" disabled={isSubmitting} render={() => <FormItem className="lg:col-span-2"><FormLabel>投递组别选项</FormLabel><FormControl><Textarea className="min-h-24 resize-y" value={groupOptionsText} onChange={(event) => setGroupOptionsText(event.target.value)} placeholder={'每行一个组别，例如：\n前端组\n后端组\n算法组'} /></FormControl><p className="text-xs text-muted-foreground">每行一个组别，留空表示不启用投递组别。</p><FormMessage /></FormItem>} />}
+            <div className="grid gap-2">
+              <span className="text-sm font-medium leading-none">流程类型</span>
+              {canChooseDepartment ? (
+                <FlowTypeSelect
+                  idPrefix={`flow-editor-${data.id}`}
+                  value={typeOptionValue}
+                  options={flowTypeOptionsForDepartment(null)}
+                  extraOption={
+                    currentTypeOption
+                      ? undefined
+                      : {
+                          value: CURRENT_FLOW_TYPE_VALUE,
+                          label: `${flowTypeLabel(currentType, department)}（当前，未在标准列表）`,
+                        }
+                  }
+                  onChange={handleTypeOptionChange}
+                  disabled={isSubmitting}
+                />
+              ) : (
+                <FlowTypeReadonly type={currentType} department={department} />
+              )}
+              <p className="text-xs text-muted-foreground">流程类型决定步骤模板与可配置项；仅管理员可修改，改类型会同时更新归属部门。</p>
+            </div>
+            <div className="grid gap-2 lg:col-span-2">
+              <span className="text-sm font-medium leading-none">归属部门</span>
+              {canChooseDepartment ? (
+                <DepartmentSelect allowGlobal={!isOfficeInterview} disabled={isSubmitting} value={department} onChange={setDepartment} />
+              ) : (
+                <p className="text-sm text-muted-foreground">{departmentLabel(department)}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {canChooseDepartment
+                  ? "管理员可维护任意部门的流程；全局流程对所有部门生效。"
+                  : "部长只能维护本部门的流程。"}
+              </p>
+            </div>
+            {!isOfficeInterview && (
+              <div className="lg:col-span-2">
+                <GroupDepartmentMapping groupOptions={parsedGroupOptions} value={groupDepartments} onChange={setGroupDepartments} disabled={isSubmitting} />
+              </div>
+            )}
           </div>
         </section>
 

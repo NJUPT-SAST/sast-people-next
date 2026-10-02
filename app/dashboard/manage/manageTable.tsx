@@ -1,5 +1,6 @@
 import { ManageTable } from "@/components/manage/manageTable";
 import { useUserList as getUserList } from "@/hooks/useUserList";
+import { isAdmin } from "@/lib/authz";
 import { verifySession } from "@/lib/dal";
 
 export const ManageTableServer = async (props: {
@@ -8,6 +9,7 @@ export const ManageTableServer = async (props: {
   search?: string;
 }) => {
   const session = await verifySession();
+  const superAdmin = isAdmin(session.role);
   const page = Number(props.page) || 1;
   const pageSize = Number(props.pageSize) || 10;
   const search = props.search || "";
@@ -22,6 +24,7 @@ export const ManageTableServer = async (props: {
       search={search}
       currentPage={page}
       role={session.role}
+      isAdmin={superAdmin}
     />
   );
 };

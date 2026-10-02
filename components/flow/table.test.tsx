@@ -37,6 +37,55 @@ describe("FlowTable", () => {
     expect(screen.getAllByText("ops-3")[0]).toBeInTheDocument();
   });
 
+  it("shows the department-aware flow type label", () => {
+    render(
+      <FlowTable
+        columns={FlowTableColumns}
+        data={[
+          {
+            id: 5,
+            title: "软件研发部面试流程",
+            description: "部门级流程",
+            type: "woc",
+            department: "software",
+            startedAt: new Date("2026-03-22T09:00:00.000Z"),
+            endedAt: new Date("2026-03-22T18:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    expect(screen.getAllByText("软件研发部WOC").length).toBeGreaterThan(0);
+    /* 类型 pill 已带部门口径，「归属部门」列/行不再单独展示 */
+    expect(screen.queryByText("归属部门")).not.toBeInTheDocument();
+    expect(screen.queryByText("WOC/WOD")).not.toBeInTheDocument();
+  });
+
+  it("shows the office flow type label without a round suffix", () => {
+    render(
+      <FlowTable
+        columns={FlowTableColumns}
+        data={[
+          {
+            id: 4,
+            title: "办公室面试招新",
+            description: "所有办公部门共用",
+            type: "office_interview",
+            startedAt: new Date("2026-03-22T09:00:00.000Z"),
+            endedAt: new Date("2026-03-22T18:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    expect(
+      screen.getAllByText("办公类部门面试招新").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByText(/一轮面试|二轮面试/),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the empty table state when there is no data", () => {
     render(<FlowTable columns={FlowTableColumns} data={[]} />);
 

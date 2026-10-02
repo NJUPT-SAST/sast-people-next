@@ -7,6 +7,7 @@ import {
   pgEnum,
   pgTable,
   serial,
+  smallint,
   text,
   timestamp,
   unique,
@@ -25,6 +26,47 @@ export const flowGroupOptionsSchema = z
   )
   .max(30, "组别数量不能超过 30 个");
 
+/* 面试流程可配置的时段选项：label 如「13:00-14:00」；isConflict 标记「时间冲突，另行约面」选项 */
+export const flowSlotOptionsSchema = z
+  .array(
+    z.object({
+      label: z
+        .string()
+        .trim()
+        .min(1, "时段不能为空")
+        .max(100, "时段名称不能超过 100 字"),
+      isConflict: z.boolean().optional(),
+    }),
+  )
+  .max(30, "时段数量不能超过 30 个")
+  .refine(
+    (options) => new Set(options.map((option) => option.label)).size === options.length,
+    "时段名称不能重复",
+  );
+
+export type FlowSlotOption = z.infer<typeof flowSlotOptionsSchema>[number];
+
+/* 组别 → 部门 映射（键为 flow.group_options 中的组别名，值为 Link 部门标识） */
+export const flowGroupDepartmentsSchema = z
+  .record(
+    z.string().trim().min(1).max(100),
+    z.string().trim().min(1).max(64),
+  )
+  .refine((value) => Object.keys(value).length <= 30, "组别数量不能超过 30 个");
+
+export const departmentKeySchema = z
+  .string()
+  .trim()
+  .min(1, "部门不能为空")
+  .max(64, "部门标识不能超过 64 字");
+
+/* 部门标识来自 SAST Link，People 侧按不透明字符串处理 */
+export const normalizeDepartmentKey = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 64 ? trimmed : null;
+};
+
 export const flowStepTypeEnum = pgEnum("flow_step_type_enum", [
   "registering",
   "checking",
@@ -38,6 +80,8 @@ export const flowTypeEnum = pgEnum("flow_type_enum", [
   "recruitment_exemption",
   "woc",
   "soc",
+  /* 办公类部门面试招新（办公室/科宣部/外联部/赛事部），按部门 × 轮次各建一条流程 */
+  "office_interview",
 ]);
 
 export const progressStatusEnum = pgEnum("progress_status_enum", [
@@ -90,6 +134,12 @@ export const flow = pgTable("flow", {
   groupOptions: jsonb("group_options").$type<
     z.infer<typeof flowGroupOptionsSchema>
   >(),
+  /* 流程归属部门（Link 部门标识），NULL = 全局流程，仅管理员可见可改 */
+  department: varchar("department", { length: 64 }),
+  /* 组别 → 部门 映射：共享流程按候选人选择的组别定部门 */
+  groupDepartments: jsonb("group_departments").$type<Record<string, string>>(),
+  /* 面试时段选项（含「时间冲突，另行约面」特殊项）；NULL = 不选时段 */
+  slotOptions: jsonb("slot_options").$type<FlowSlotOption[]>(),
   /* Link 用户 ID */
   ownerId: integer("owner_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -100,7 +150,9 @@ export const flow = pgTable("flow", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
   isDeleted: boolean("is_deleted").default(false),
-});
+}, (table) => ({
+  departmentIdx: index("flow_department_idx").on(table.department, table.isDeleted),
+}));
 
 export const flowStep = pgTable("flow_step", {
   id: serial("id").primaryKey(),
@@ -126,6 +178,16 @@ export const userFlow = pgTable("user_flow", {
   progressStatus: progressStatusEnum("progress_status"),
   /* 候选人报名时选择的投递组别 */
   applyGroup: varchar("apply_group", { length: 100 }),
+  /* 办公类面试当前阶段：1=一面，2=二面（一面通过后进入二面）；其他流程为 NULL */
+  round: smallint("round"),
+  /* 候选人选择的面试时段（flow.slot_options 中的 label，含「时间冲突」选项）；办公类可由部长在面试管理页直接调整 */
+  interviewSlot: varchar("interview_slot", { length: 100 }),
+  /* 办公类部门面试：志愿类型 1=第一志愿、2=第二志愿（其他流程为 NULL）；每个办公部门一条流程，报名分别提交 */
+  choice: smallint("choice"),
+  /* 部长团评议的最终去向部门（Link 部门标识，办公类）；为空时按「第一志愿优先」自动归属 */
+  finalDepartment: varchar("final_department", { length: 64 }),
+  /* 报名记录归属部门（Link 部门标识）：报名时按组别映射 → 流程归属解析后固化 */
+  department: varchar("department", { length: 64 }),
   /* 讲师/管理员退回面试时填写的理由 */
   withdrawReason: text("withdraw_reason"),
   /* FK → flow_step.id。step 被物理删除时置 NULL */
@@ -153,7 +215,53 @@ export const userFlow = pgTable("user_flow", {
     .on(table.fkFlowId, table.fkUserId, table.applyGroup)
     .where(sql`${table.applyGroup} IS NOT NULL`),
   userIdIdx: index("user_flow_fk_user_id_idx").on(table.fkUserId),
+  departmentIdx: index("user_flow_department_idx").on(table.department),
 }));
+
+export const interviewSlotChangeRequest = pgTable(
+  "interview_slot_change_request",
+  {
+    id: serial("id").primaryKey(),
+    fkUserFlowId: integer("fk_user_flow_id")
+      .references(() => userFlow.id, { onDelete: "cascade" })
+      .notNull(),
+    /* 技术部门面试：申请所绑定的飞书日程 */
+    fkInterviewScheduleId: integer("fk_interview_schedule_id").references(
+      () => interviewSchedule.id,
+      { onDelete: "cascade" },
+    ),
+    /* 历史字段：办公类改期申请已下线（改由部长在面试管理页直接改时段），仅保留存量记录 */
+    requestedSlot: varchar("requested_slot", { length: 100 }),
+    /* 技术部门：候选人申请改到的新时间（时长沿用原日程） */
+    requestedStartsAt: timestamp("requested_starts_at", { withTimezone: true }),
+    requestedEndsAt: timestamp("requested_ends_at", { withTimezone: true }),
+    /* 候选人填写的申请理由（必填） */
+    reason: text("reason").notNull(),
+    /* pending / approved / rejected */
+    status: varchar("status", { length: 16 }).notNull().default("pending"),
+    /* Link 用户 ID — 申请人（候选人本人） */
+    fkRequestedBy: integer("fk_requested_by").notNull(),
+    /* Link 用户 ID — 审批人（部长及以上） */
+    fkReviewedBy: integer("fk_reviewed_by"),
+    reviewNote: text("review_note"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => sql`now()`),
+  },
+  (table) => ({
+    /* 同一条报名最多一个待审批的改时段申请 */
+    pendingUnique: uniqueIndex("interview_slot_change_pending_uidx")
+      .on(table.fkUserFlowId)
+      .where(sql`${table.status} = 'pending'`),
+    statusIdx: index("interview_slot_change_status_idx").on(table.status),
+    scheduleIdx: index("interview_slot_change_schedule_idx").on(
+      table.fkInterviewScheduleId,
+    ),
+  }),
+);
 
 export const problem = pgTable("problem", {
   id: serial("id").primaryKey(),
@@ -311,7 +419,9 @@ export const emailSendRateLimit = pgTable("email_send_rate_limit", {
 
 export const emailTemplateSetting = pgTable("email_template_setting", {
   id: serial("id").primaryKey(),
-  templateKey: varchar("template_key", { length: 80 }).notNull().unique(),
+  templateKey: varchar("template_key", { length: 80 }).notNull(),
+  /* 模板覆盖归属部门（Link 部门标识），NULL = 全局默认 */
+  department: varchar("department", { length: 64 }),
   subjectTemplate: varchar("subject_template", { length: 255 }).notNull(),
   titleTemplate: varchar("title_template", { length: 255 }).notNull().default(""),
   subtitleTemplate: varchar("subtitle_template", { length: 255 }).notNull().default(""),
@@ -326,15 +436,24 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
   contactEmail: varchar("contact_email", { length: 254 }).notNull(),
   memberFormLabel: varchar("member_form_label", { length: 100 }).notNull(),
   feishuGroupName: varchar("feishu_group_name", { length: 100 }).notNull(),
+  /* QQ 群号：办公类部门面试通知里使用（{groupNumber} 变量），逐轮/逐部门维护 */
+  groupNumber: varchar("group_number", { length: 64 }).notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
-});
+}, (table) => ({
+  templateKeyDepartmentUnique: uniqueIndex(
+    "email_template_setting_key_department_uidx",
+  ).on(table.templateKey, sql`coalesce(${table.department}, '')`),
+  departmentIdx: index("email_template_setting_department_idx").on(table.department),
+}));
 
 export const emailTemplateContent = pgTable("email_template_content", {
   id: serial("id").primaryKey(),
-  templateKey: varchar("template_key", { length: 80 }).notNull().unique(),
+  templateKey: varchar("template_key", { length: 80 }).notNull(),
+  /* 模板覆盖归属部门（Link 部门标识），NULL = 全局默认 */
+  department: varchar("department", { length: 64 }),
   subjectTemplate: varchar("subject_template", { length: 255 }).notNull(),
   titleTemplate: varchar("title_template", { length: 255 }).notNull(),
   bodyTemplate: text("body_template").notNull(),
@@ -343,7 +462,12 @@ export const emailTemplateContent = pgTable("email_template_content", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
-});
+}, (table) => ({
+  templateKeyDepartmentUnique: uniqueIndex(
+    "email_template_content_key_department_uidx",
+  ).on(table.templateKey, sql`coalesce(${table.department}, '')`),
+  departmentIdx: index("email_template_content_department_idx").on(table.department),
+}));
 
 export const userPoint = pgTable("user_point", {
   id: serial("id").primaryKey(),
@@ -369,6 +493,10 @@ export const interviewEvaluation = pgTable("interview_evaluation", {
     .references(() => userFlow.id, { onDelete: "cascade" })
     .notNull(),
   content: text("content").notNull(),
+  /* 面试打分（0-100）：一面由面试部长单人打分，二面无领导小组由多位部长分别打分 */
+  score: integer("score"),
+  /* 面试轮次：1=一面，2=二面（办公类流程使用，其他流程为 NULL） */
+  round: smallint("round"),
   meetingLink: text("meeting_link"),
   /* 讲师建议，不等同于管理员最终决定。历史记录允许为空。 */
   recommendation: evaluationRecommendationEnum("recommendation"),
@@ -419,6 +547,10 @@ export const peopleSession = pgTable("people_session", {
   uid: integer("uid").notNull(),
   name: varchar("name", { length: 30 }).notNull(),
   role: integer("role").notNull(),
+  /* 当前用户所属部门（Link 部门标识），授权判定的依据 */
+  department: varchar("department", { length: 64 }),
+  /* 上次从 Link 回源同步部门的时刻 */
+  departmentSyncedAt: timestamp("department_synced_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   linkAccessToken: text("link_access_token"),
   linkRefreshToken: text("link_refresh_token"),
@@ -519,6 +651,8 @@ export const operationAudit = pgTable("operation_audit", {
   action: varchar("action", { length: 80 }).notNull(),
   resourceType: varchar("resource_type", { length: 80 }).notNull(),
   resourceId: integer("resource_id"),
+  /* 目标资源归属部门（Link 部门标识），用于部门维度的审计可见性 */
+  department: varchar("department", { length: 64 }),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
@@ -528,6 +662,10 @@ export const operationAudit = pgTable("operation_audit", {
     table.resourceId,
   ),
   createdAtIdx: index("operation_audit_created_at_idx").on(table.createdAt),
+  departmentIdx: index("operation_audit_department_idx").on(
+    table.department,
+    table.createdAt,
+  ),
 }));
 
 export const feedbackReport = pgTable("feedback_report", {
@@ -551,8 +689,11 @@ export const feedbackReport = pgTable("feedback_report", {
   resolutionNote: text("resolution_note"),
   resolvedBy: integer("resolved_by"),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  /* 提交人所属部门（Link 部门标识） */
+  department: varchar("department", { length: 64 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   userIdx: index("feedback_report_user_id_idx").on(table.fkUserId),
   createdAtIdx: index("feedback_report_created_at_idx").on(table.createdAt),
+  departmentIdx: index("feedback_report_department_idx").on(table.department),
 }));

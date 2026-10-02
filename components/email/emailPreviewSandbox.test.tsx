@@ -47,6 +47,7 @@ const delivery: EmailDeliveryRecord = {
   createdById: 3,
   batchName: "批次",
   flowTitle: "2026 春季招新",
+  flowDepartment: "software",
   userName: "张三",
   studentId: "B001",
   createdByName: "管理员",

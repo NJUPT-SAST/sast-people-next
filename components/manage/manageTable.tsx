@@ -22,6 +22,7 @@ import { EditUserFlowSheet } from './editUserFlowSheet';
 import { RemoveUserInfoDialog } from './removeUserInfoDialog';
 import { ViewUserInfoSheet } from './viewUserInfoSheet';
 import { SearchInput } from './searchInput';
+import { departmentLabel } from '@/const/department';
 import { userType } from '@/types/user';
 
 
@@ -34,6 +35,7 @@ export const ManageTable = ({
   search,
   currentPage,
   role,
+  isAdmin = false,
 }: {
   users: userType[];
   totalCount: number;
@@ -41,6 +43,8 @@ export const ManageTable = ({
   search: string;
   currentPage: number;
   role: number;
+  /* 封禁是全局操作：入口只对管理员展示，服务端仍会再校验 */
+  isAdmin?: boolean;
 }) => {
   const safeUsers = Array.isArray(users) ? users : [];
   const columns: ColumnDef<userType>[] = [
@@ -53,6 +57,20 @@ export const ManageTable = ({
       header: '姓名',
       cell(props) {
         return <div className="min-w-[60px]">{props.row.original.name}</div>;
+      },
+    },
+    {
+      accessorKey: 'departments',
+      header: '所属部门',
+      cell: ({ row }) => {
+        const departments = row.original.departments ?? [];
+        return (
+          <div className="min-w-[80px]">
+            {departments.length > 0
+              ? departments.map((item) => departmentLabel(item)).join('、')
+              : departmentLabel(null)}
+          </div>
+        );
       },
     },
     ...(role >= 3 ? [{
@@ -85,7 +103,7 @@ export const ManageTable = ({
         <div className="flex gap-3 min-w-[140px]">
           <ViewUserInfoSheet userInfo={row.original} currentUserRole={role} />
           {role >= 3 && <EditUserFlowSheet userInfo={row.original} role={role} />}
-          {role >= 3 && <RemoveUserInfoDialog uid={row.original.id} />}
+          {isAdmin && <RemoveUserInfoDialog uid={row.original.id} />}
         </div>
       ),
     },
@@ -187,6 +205,14 @@ export const ManageTable = ({
                     </div>
                   )}
                   <div className="flex justify-between items-center text-muted-foreground">
+                    <span>所属部门</span>
+                    <span className="text-foreground">
+                      {(row.original.departments ?? [])
+                        .map((item) => departmentLabel(item))
+                        .join('、') || departmentLabel(null)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-muted-foreground">
                     <span>邮箱</span>
                     <span className="max-w-[60%] truncate text-right text-foreground sm:max-w-[200px]">{row.original.email || '-'}</span>
                   </div>
@@ -198,7 +224,7 @@ export const ManageTable = ({
                 <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
                   <ViewUserInfoSheet userInfo={row.original} currentUserRole={role} />
                   {role >= 3 && <EditUserFlowSheet userInfo={row.original} role={role} />}
-                  {role >= 3 && <RemoveUserInfoDialog uid={row.original.id} />}
+                  {isAdmin && <RemoveUserInfoDialog uid={row.original.id} />}
                 </div>
               </div>
             ))

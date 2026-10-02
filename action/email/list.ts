@@ -10,6 +10,11 @@ import {
   userFlow,
 } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
+import { getDepartmentScope, type DepartmentScope } from "@/lib/authz";
+import {
+  scopedResolvedFlowIdCondition,
+  strictlyVisibleFlowPredicate,
+} from "@/lib/flow-access";
 import {
   findPeopleUserIdsByKeyword,
   listPeopleUsersByLinkIds,
@@ -28,12 +33,27 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 const DEFAULT_DELIVERY_PAGE_SIZE = 20;
 const MAX_DELIVERY_PAGE_SIZE = 50;
 const deliveryStatuses = ["pending", "sending", "sent", "failed", "dead"] as const;
 type DeliveryStatus = (typeof deliveryStatuses)[number];
 const MAX_DELIVERY_ATTEMPTS_PER_RECORD = 5;
+
+/* 老投递可能把流程记在批次上，用别名 join 出批次流程以解析实际归属 */
+const batchFlow = alias(flow, "batch_flow");
+
+/**
+ * 邮件按批次 / 投递所属流程的部门隔离：
+ * 投递自身未记录流程时回退到批次的流程；严格按流程归属部门判定，
+ * 全局流程（department IS NULL）的历史数据仅管理员可见，与重试写路径口径一致。
+ */
+const scopedDeliveryFlowCondition = (scope: DepartmentScope) =>
+  scopedResolvedFlowIdCondition(
+    scope,
+    sql`coalesce(${emailDelivery.fkFlowId}, ${emailBatch.fkFlowId})`,
+  );
 
 export type EmailDeliveryListParams = {
   page?: string | number;
@@ -97,17 +117,25 @@ function getDateEnd(value: string) {
   return start ? new Date(start.getTime() + 24 * 60 * 60 * 1000) : null;
 }
 
-async function buildEmailDeliveryWhereConditions({
-  category,
-  status,
-  templateKey,
-  flowId,
-  creatorId,
-  from,
-  to,
-  query,
-}: NormalizedEmailDeliveryListParams) {
+async function buildEmailDeliveryWhereConditions(
+  {
+    category,
+    status,
+    templateKey,
+    flowId,
+    creatorId,
+    from,
+    to,
+    query,
+  }: NormalizedEmailDeliveryListParams,
+  scope: DepartmentScope,
+) {
   const conditions: SQL<unknown>[] = [];
+
+  const scopedFlowCondition = scopedDeliveryFlowCondition(scope);
+  if (scopedFlowCondition) {
+    conditions.push(scopedFlowCondition);
+  }
 
   if (category) conditions.push(eq(emailDelivery.category, category));
   if (deliveryStatuses.includes(status as DeliveryStatus)) {
@@ -189,6 +217,7 @@ function groupRecentAttemptsByDelivery(
 
 export async function listEmailBatches() {
   await verifyRole(3);
+  const scope = await getDepartmentScope();
 
   const batches = await db
     .select({
@@ -199,6 +228,7 @@ export async function listEmailBatches() {
       status: emailBatch.status,
       totalCount: emailBatch.totalCount,
       flowId: emailBatch.fkFlowId,
+      department: flow.department,
       createdAt: emailBatch.createdAt,
       updatedAt: emailBatch.updatedAt,
       flowTitle: flow.title,
@@ -206,7 +236,7 @@ export async function listEmailBatches() {
     })
     .from(emailBatch)
     .innerJoin(flow, eq(flow.id, emailBatch.fkFlowId))
-    .where(eq(emailBatch.category, "result"))
+    .where(and(eq(emailBatch.category, "result"), strictlyVisibleFlowPredicate(scope)))
     .orderBy(desc(emailBatch.createdAt))
     .limit(20);
 
@@ -248,9 +278,10 @@ export async function listEmailBatches() {
 
 export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}) {
   await verifyRole(3);
+  const scope = await getDepartmentScope();
 
   const filters = normalizeEmailDeliveryListParams(params);
-  const whereConditions = await buildEmailDeliveryWhereConditions(filters);
+  const whereConditions = await buildEmailDeliveryWhereConditions(filters, scope);
 
   const totalCountResult = await db
     .select({ value: count() })
@@ -291,10 +322,12 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
       createdById: emailDelivery.createdBy,
       batchName: emailBatch.name,
       flowTitle: flow.title,
+      flowDepartment: sql<string | null>`coalesce(${flow.department}, ${batchFlow.department})`,
     })
     .from(emailDelivery)
     .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
     .leftJoin(flow, eq(flow.id, emailDelivery.fkFlowId))
+    .leftJoin(batchFlow, eq(batchFlow.id, emailBatch.fkFlowId))
     .where(whereConditions)
     .orderBy(desc(emailDelivery.createdAt))
     .limit(filters.pageSize)
@@ -363,6 +396,7 @@ export async function listEmailDeliveries() {
 
 export async function listResultEmailDeliveryStates() {
   await verifyRole(3);
+  const scope = await getDepartmentScope();
 
   // Older deliveries may predate fk_user_flow_id, or keep their flow and
   // result type on the delivery rather than the batch. Resolve those fields
@@ -395,6 +429,7 @@ export async function listResultEmailDeliveryStates() {
         isNotNull(resultFlowId),
         isNotNull(resultUserFlowId),
         isNotNull(resultAccept),
+        scopedDeliveryFlowCondition(scope),
       ),
     )
     .groupBy(
@@ -406,6 +441,8 @@ export async function listResultEmailDeliveryStates() {
 
 export async function getEmailStatusOverview() {
   await verifyRole(3);
+  const scope = await getDepartmentScope();
+  const scopedCondition = scopedDeliveryFlowCondition(scope);
 
   const { start: todayStart, end: todayEnd } = getBeijingDayRange();
   const [todaySent, todayFailed, pendingOrSending, recentFailures] =
@@ -413,34 +450,46 @@ export async function getEmailStatusOverview() {
       db
         .select({ value: count() })
         .from(emailDelivery)
+        .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
         .where(
           and(
             eq(emailDelivery.status, "sent"),
             gte(emailDelivery.sentAt, todayStart),
             lt(emailDelivery.sentAt, todayEnd),
+            scopedCondition,
           ),
         ),
       db
         .select({ value: count() })
         .from(emailDelivery)
+        .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
         .where(
-          or(
-            and(
-              eq(emailDelivery.status, "failed"),
-              gte(emailDelivery.lastAttemptAt, todayStart),
-              lt(emailDelivery.lastAttemptAt, todayEnd),
+          and(
+            or(
+              and(
+                eq(emailDelivery.status, "failed"),
+                gte(emailDelivery.lastAttemptAt, todayStart),
+                lt(emailDelivery.lastAttemptAt, todayEnd),
+              ),
+              and(
+                eq(emailDelivery.status, "dead"),
+                gte(emailDelivery.deadLetteredAt, todayStart),
+                lt(emailDelivery.deadLetteredAt, todayEnd),
+              ),
             ),
-            and(
-              eq(emailDelivery.status, "dead"),
-              gte(emailDelivery.deadLetteredAt, todayStart),
-              lt(emailDelivery.deadLetteredAt, todayEnd),
-            ),
+            scopedCondition,
           ),
         ),
       db
         .select({ value: count() })
         .from(emailDelivery)
-        .where(inArray(emailDelivery.status, ["pending", "sending"])),
+        .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
+        .where(
+          and(
+            inArray(emailDelivery.status, ["pending", "sending"]),
+            scopedCondition,
+          ),
+        ),
       db
         .select({
           id: emailDelivery.id,
@@ -450,7 +499,13 @@ export async function getEmailStatusOverview() {
           errorMessage: emailDelivery.errorMessage,
         })
         .from(emailDelivery)
-        .where(inArray(emailDelivery.status, ["failed", "dead"]))
+        .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
+        .where(
+          and(
+            inArray(emailDelivery.status, ["failed", "dead"]),
+            scopedCondition,
+          ),
+        )
         .orderBy(desc(emailDelivery.createdAt))
         .limit(5),
     ]);

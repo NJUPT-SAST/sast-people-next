@@ -37,18 +37,24 @@ function row({
   status,
   recommendation,
   reviewerName = null,
+  department = null,
+  score = null,
 }: {
   id: number;
   candidateName: string;
   status: "submitted" | "approved" | "rejected";
   recommendation: "passed" | "failed" | null;
   reviewerName?: string | null;
+  department?: string | null;
+  score?: number | null;
 }) {
   return {
     evaluation: {
       id,
       fkUserFlowId: id,
       content: `${candidateName} 的面评`,
+      score,
+      round: null,
       meetingLink: null,
       recommendation,
       status,
@@ -62,6 +68,7 @@ function row({
     portfolioLink: null,
     portfolioDescription: null,
     applyGroup: null,
+    department,
     scheduleMeetingLink: null,
     meetingMinuteLink: null,
     authorName: "讲师",
@@ -130,6 +137,40 @@ describe("ApprovalsContent", () => {
     );
   });
 
+  it("lets administrators filter the list by department", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(
+      <ApprovalsContent
+        canFilterDepartments
+        initialEvaluations={[
+          row({ id: 21, candidateName: "软件同学", status: "submitted", recommendation: "passed", department: "software" }),
+          row({ id: 22, candidateName: "多媒体同学", status: "submitted", recommendation: "passed", department: "media" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("软件同学")).toBeInTheDocument();
+    expect(screen.getByText("多媒体同学")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "按部门筛选" }));
+    await user.click(await screen.findByRole("option", { name: "多媒体部" }));
+
+    expect(screen.queryByText("软件同学")).not.toBeInTheDocument();
+    expect(screen.getByText("多媒体同学")).toBeInTheDocument();
+  });
+
+  it("hides the department filter for managers who only see their own department", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({ id: 23, candidateName: "软件同学", status: "submitted", recommendation: "passed", department: "software" }),
+        ]}
+      />,
+    );
+
+    expect(screen.queryByRole("combobox", { name: "按部门筛选" })).not.toBeInTheDocument();
+  });
+
   it("searches within every administrator-decided archive record", async () => {
     const user = userEvent.setup();
     render(
@@ -145,7 +186,7 @@ describe("ApprovalsContent", () => {
     expect(screen.queryByText("待终审")).not.toBeInTheDocument();
     expect(screen.getByText("讲师建议通过")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "已归档 (2)" }));
+    await user.click(screen.getByRole("tab", { name: /已归档/ }));
 
     expect(screen.getByText("张三")).toBeInTheDocument();
     expect(screen.getByText("李四")).toBeInTheDocument();
@@ -174,7 +215,7 @@ describe("ApprovalsContent", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "已归档 (1)" }));
+    await user.click(screen.getByRole("tab", { name: /已归档/ }));
 
     expect(screen.getByText("面评人：讲师")).toBeInTheDocument();
     expect(screen.getByText("审批人：管理员甲")).toBeInTheDocument();
@@ -223,5 +264,73 @@ describe("ApprovalsContent", () => {
     );
 
     expect(screen.getByRole("button", { name: "周七" })).toBeInTheDocument();
+  });
+
+  it("keeps office interview records out of the approval list", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({
+            id: 8,
+            candidateName: "技术同学",
+            status: "submitted",
+            recommendation: "passed",
+          }),
+          {
+            ...row({
+              id: 9,
+              candidateName: "办公同学",
+              status: "submitted",
+              recommendation: null,
+            }),
+            flowTitle: "2026 办公类部门面试招新",
+            flowType: "office_interview",
+          },
+        ]}
+      />,
+    );
+
+    /* 办公类面试记录只留档：结果由部长在名单确认时决定，审批页不展示、也没有审批入口 */
+    expect(screen.getByText("技术同学")).toBeInTheDocument();
+    expect(screen.queryByText("办公同学")).not.toBeInTheDocument();
+    expect(screen.getByText("讲师建议通过")).toBeInTheDocument();
+  });
+
+  it("shows an office-free approval card with the apply group", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({
+            id: 30,
+            candidateName: "免试同学",
+            status: "submitted",
+            recommendation: "passed",
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("投递组别")).toBeInTheDocument();
+    expect(screen.queryByText("志愿")).not.toBeInTheDocument();
+  });
+
+  it("shows the interview score only when the evaluation was scored", () => {
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({
+            id: 6,
+            candidateName: "打分同学",
+            status: "submitted",
+            recommendation: "passed",
+            score: 88,
+          }),
+          row({ id: 7, candidateName: "未打分同学", status: "submitted", recommendation: "passed" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("面试打分 88")).toBeInTheDocument();
+    expect(screen.getAllByText(/^面试打分 /)).toHaveLength(1);
   });
 });

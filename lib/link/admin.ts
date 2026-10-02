@@ -6,10 +6,13 @@ import {
   getMockUserDetail,
   getMockUsersByIds,
   listMockUsers,
+  updateMockUserDepartments,
   updateMockUserRoles,
 } from "@/lib/link/mock";
 import type {
+  LinkBatchDepartmentUpdateResponse,
   LinkBatchRoleUpdateResponse,
+  LinkDepartment,
   LinkListUsersParams,
   LinkRole,
   LinkUserProfile,
@@ -84,6 +87,32 @@ export const updateLinkUserRoles = async (
     accessToken,
     method: "PUT",
     body: { ids, role },
+  });
+};
+
+export const updateLinkUserDepartments = async (
+  accessToken: string,
+  ids: number[],
+  department: LinkDepartment,
+) => {
+  if (ids.length === 0) {
+    return { results: [] } satisfies LinkBatchDepartmentUpdateResponse;
+  }
+  if (ids.length > LINK_BATCH_USER_ROLE_UPDATE_LIMIT) {
+    throw new Error(
+      `Link batch department update accepts at most ${LINK_BATCH_USER_ROLE_UPDATE_LIMIT} IDs.`,
+    );
+  }
+
+  if (shouldUseMockLink()) {
+    return updateMockUserDepartments(ids, department);
+  }
+
+  /* 与角色同步同一端点：PUT /admin/users { ids, department } */
+  return linkFetch<LinkBatchDepartmentUpdateResponse>("/admin/users", {
+    accessToken,
+    method: "PUT",
+    body: { ids, department },
   });
 };
 
