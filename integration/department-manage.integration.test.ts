@@ -22,6 +22,7 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { getPeopleUserByLinkId, listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { verifyAdmin } from "@/lib/authz";
 import { db } from "@/db/drizzle";
+import { DEPARTMENT_KEYS } from "@/const/department";
 
 const ADMIN_UID = 901_001;
 
@@ -172,6 +173,19 @@ describe("部门控制台（服务端动作）", () => {
     expect(row?.groupDepartments).toEqual({ 前端组: "software" });
     // 组别映射里的部门标识也应出现在现存部门清单里
     expect((await listDepartmentOverview()).departmentKeys).toContain("software");
+  });
+
+  it("目录里的部门即使没有数据也出现在概览行与下拉候选里", async () => {
+    const overview = await listDepartmentOverview();
+    const rows = overview.departments.map((row) => row.department);
+
+    expect(rows).toEqual(expect.arrayContaining(DEPARTMENT_KEYS));
+    expect(overview.departmentKeys).toEqual(expect.arrayContaining(DEPARTMENT_KEYS));
+    expect(overview.departments.length).toBeGreaterThanOrEqual(DEPARTMENT_KEYS.length);
+
+    /* 有数据的部门排在 0 条的前面 */
+    const counts = overview.departments.map((row) => row.flowCount + row.candidateCount);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
   });
 
   it("拒绝非法部门标识与不存在的记录", async () => {

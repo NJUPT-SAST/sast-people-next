@@ -77,3 +77,28 @@ export const departmentCategory = (
   if (!key) return "unknown";
   return DEPARTMENT_CATEGORIES[key] ?? "unknown";
 };
+
+/** 部门清单（Link 目录的本地副本），顺序即目录顺序 */
+export const DEPARTMENT_KEYS: string[] = Object.keys(DEPARTMENT_LABELS);
+
+/** 当前启用的部门标识（目录里去掉暂时下线的部门） */
+export const ENABLED_DEPARTMENT_KEYS: string[] =
+  DEPARTMENT_KEYS.filter(isDepartmentEnabled);
+
+/**
+ * 候选部门标识：目录 ∪ 库中已出现的标识。
+ * 只依赖库内已有值会让「还一个部门都没归属过时」无从选择，
+ * 所以目录里的部门始终列出；库里的历史/未知标识也要保留，
+ * 免得存量数据变成下拉里选不到、只能手填才对得上的孤儿行。
+ */
+export const mergeDepartmentKeys = (
+  catalogue: readonly string[],
+  stored: Iterable<string | null | undefined>,
+): string[] => {
+  const keys = new Set<string>(catalogue);
+  for (const value of stored) {
+    const key = normalizeDepartmentKey(value);
+    if (key) keys.add(key);
+  }
+  return [...keys].sort((a, b) => a.localeCompare(b, "zh-CN"));
+};

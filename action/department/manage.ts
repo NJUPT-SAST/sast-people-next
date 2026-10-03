@@ -11,6 +11,7 @@ import {
   userFlow,
 } from "@/db/schema";
 import { verifyAdmin } from "@/lib/authz";
+import { DEPARTMENT_KEYS, mergeDepartmentKeys } from "@/const/department";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
@@ -30,9 +31,9 @@ export interface DepartmentOverviewRow {
 }
 
 export interface DepartmentOverview {
-  /** 有数据的部门，按流程数 + 报名数倒序 */
+  /** 部门目录 ∪ 现存部门，按流程数 + 报名数倒序（0 条的排后面） */
   departments: DepartmentOverviewRow[];
-  /** 下拉候选项（现存部门标识 + 组别映射值），字母序 */
+  /** 下拉候选项（Link 部门目录 ∪ 现存部门标识 + 组别映射值），字母序 */
   departmentKeys: string[];
   unassignedFlowCount: number;
   unassignedCandidateCount: number;
@@ -113,8 +114,9 @@ const normalizeAssignableDepartment = (department: string | null) => {
 
 /**
  * 部门概览：按 flow.department / user_flow.department 聚合。
- * 部门清单来自 SAST Link，这里只汇总「现存数据里出现过的标识」
- * （流程归属 + 报名记录归属 + 组别映射值），不做任何硬编码。
+ * 行与下拉候选都是「Link 部门目录 ∪ 现存数据里出现过的标识」
+ * （流程归属 + 报名记录归属 + 组别映射值）——目录里的部门即使 0 条数据也要列出来，
+ * 否则刚上线、还没归属过任何数据时整个控制台是空的，也没有可选的部门。
  */
 export async function listDepartmentOverview(): Promise<DepartmentOverview> {
   await verifyAdmin();
@@ -165,6 +167,10 @@ export async function listDepartmentOverview(): Promise<DepartmentOverview> {
     }
   }
 
+  /* 先记下库里已有的标识（含未知/历史值），再把目录补进来，目录部门即使 0 条也占一行 */
+  const storedKeys = Array.from(byDepartment.keys());
+  for (const key of DEPARTMENT_KEYS) collect(key);
+
   const departments = Array.from(byDepartment.values());
   return {
     departments: departments
@@ -174,7 +180,7 @@ export async function listDepartmentOverview(): Promise<DepartmentOverview> {
           a.department.localeCompare(b.department),
       ),
     /* 下拉候选项用字母序，避免聚合排序变化造成选项跳动 */
-    departmentKeys: departments.map((item) => item.department).sort((a, b) => a.localeCompare(b)),
+    departmentKeys: mergeDepartmentKeys(DEPARTMENT_KEYS, storedKeys),
     unassignedFlowCount,
     unassignedCandidateCount,
     totalFlowCount: flowRows.length,

@@ -66,6 +66,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### 部门管理控制台
+
+- **流程归属下拉只剩「全局」+「手填新部门」，部门概览一条不列**（`action/department/manage.ts`、`components/department/department-overview-table.tsx`）：下拉候选与概览行都只从库里的 `flow.department` / `user_flow.department` / 组别映射值派生，而刚上线时这些列全是 `NULL`，于是管理员打开 `/dashboard/departments` 一个部门都看不到，也没法直接选部门（只能手敲标识）。现在改为「Link 部门目录 ∪ 库中已有标识」——目录里的部门即使 0 条数据也占一行、也能直接选到，历史/未知标识继续保留；合并逻辑抽到 `const/department.ts` 的 `mergeDepartmentKeys`，邮件模板的部门下拉改用同一份实现（`integration/department-manage.integration.test.ts`、`e2e/department-console.spec.ts` 覆盖）。
+
 #### 邮件模板「填了不生效」修复
 
 - **测试发送 / 模板预览把 QQ 群号写死成示例值**：`action/email/test-send.ts` 与 `action/email/template.ts` 的 `getResultEmailPreviews` 都传 `groupNumber: "123456789"`，所以填了群号后在测试邮件和预览里永远看不到自己的值（真实发送路径取的是落库值，两个「预览」面彼此还不一致）。现在两处都取解析后的模板设置；「测试发送」的渲染请求构造抽到 `lib/email-center/test-render.ts`，与真实发送共用同一份解析结果并有单测守着。

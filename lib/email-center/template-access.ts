@@ -1,6 +1,6 @@
 import "server-only";
 
-import { DEPARTMENT_LABELS, isDepartmentEnabled } from "@/const/department";
+import { ENABLED_DEPARTMENT_KEYS, mergeDepartmentKeys } from "@/const/department";
 import { departmentKeySchema, normalizeDepartmentKey } from "@/db/schema";
 import { DepartmentAccessError, type DepartmentScope } from "@/lib/authz";
 import { isNull, type AnyColumn, type SQL } from "drizzle-orm";
@@ -88,16 +88,7 @@ export const canReadTemplateDepartment = (
  */
 export const mergeTemplateDepartmentOptions = (
   storedDepartments: Array<string | null | undefined>,
-): string[] => {
-  const keys = new Set<string>(
-    Object.keys(DEPARTMENT_LABELS).filter(isDepartmentEnabled),
-  );
-  for (const value of storedDepartments) {
-    const key = normalizeDepartmentKey(value);
-    if (key) keys.add(key);
-  }
-  return [...keys].sort((a, b) => a.localeCompare(b, "zh-CN"));
-};
+): string[] => mergeDepartmentKeys(ENABLED_DEPARTMENT_KEYS, storedDepartments);
 
 export const canEditTemplateRow = (
   scope: DepartmentScope,

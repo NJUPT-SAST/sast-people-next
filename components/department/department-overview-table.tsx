@@ -42,9 +42,9 @@ function StatTile({
 
 /** 部门概览：只有管理员能看到全量聚合，普通账号只能看到自己部门的数据 */
 export function DepartmentOverviewTable({ overview }: { overview: DepartmentOverview }) {
-  const departmentsWithData = overview.departments.filter(
-    (row) => row.flowCount > 0 || row.candidateCount > 0,
-  );
+  /* 服务端已经把目录里的部门补齐成 0 条的行：概览要能看出哪些部门还没归属数据，
+     所以这里不再按「有数据」过滤 */
+  const departments = overview.departments;
 
   return (
     <div className="flex flex-col gap-4">
@@ -83,14 +83,14 @@ export function DepartmentOverviewTable({ overview }: { overview: DepartmentOver
               </TableRow>
             </TableHeader>
             <TableBody>
-              {departmentsWithData.length === 0 ? (
+              {departments.length === 0 ? (
                 <TableRow className="border-b-0">
                   <TableCell colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     暂无部门归属数据
                   </TableCell>
                 </TableRow>
               ) : (
-                departmentsWithData.map((row) => (
+                departments.map((row) => (
                   <TableRow key={row.department} className="border-b border-border/60 last:border-0">
                     <TableCell className="px-4 py-2.5">
                       <div className="flex min-w-0 items-center gap-2">
