@@ -477,6 +477,13 @@
       "when": 1789250000012,
       "tag": "0067_office_slot_change_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1789250000013,
+      "tag": "0068_email_template_member_form_label",
+      "breakpoints": true
     }
   ]
 }

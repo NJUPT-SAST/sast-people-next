@@ -44,21 +44,38 @@ function formatDateTime(value: Date | string) {
 }
 
 export async function renderInterviewScheduleEmailSubject(
-  flowName: string,
-  kind: InterviewScheduleEmailVariables["kind"] = "created",
-  department?: string | null,
+  variables: InterviewScheduleEmailVariables & {
+    department?: string | null;
+  },
 ) {
-  const setting = await getInterviewScheduleTemplateSetting(kind, department);
-  return renderInterviewScheduleTemplateText(setting.subjectTemplate, {
-    candidateName: "同学",
+  const {
+    kind = "created",
     flowName,
-    organizerName: "李四",
-    startsAt: "",
-    endsAt: "",
-    location: "",
-    requestedTimeText: "",
-    reason: "",
-  });
+    candidateName,
+    organizerName,
+    startsAt,
+    endsAt,
+    requestedTimeText,
+    reason,
+    location,
+    department,
+  } = variables;
+  const setting = await getInterviewScheduleTemplateSetting(kind, department);
+  /* 标题与正文用同一套变量：曾经这里注入「同学 / 李四」等示例值，
+     导致模板标题里的 {candidateName} / {organizerName} 在真实邮件里永远是样例。 */
+  return renderInterviewScheduleTemplateText(
+    setting.subjectTemplate,
+    getTemplateVariables({
+      candidateName,
+      flowName,
+      organizerName,
+      startsAt,
+      endsAt,
+      requestedTimeText,
+      reason,
+      location,
+    }),
+  );
 }
 
 function getTemplateVariables({

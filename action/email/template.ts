@@ -239,7 +239,8 @@ export async function getResultEmailPreviews(department?: string | null) {
           flowName: "示例流程",
           /* 办公类模板需要 {department}；示例数据用归属部门展示名，缺省给「办公室」 */
           department: departmentLabel(target, "办公室"),
-          groupNumber: "123456789",
+          /* 群号取落库值：预览要能反映「填了之后长什么样」，不能用示例值顶替 */
+          groupNumber: setting.groupNumber,
           setting,
           genericGreeting: true,
         },

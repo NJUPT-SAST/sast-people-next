@@ -32,15 +32,20 @@ export function getWithdrawalOperatorLabel(role?: number) {
   return (role !== undefined && operatorRoleLabels[role]) || "讲师";
 }
 
-export async function renderInterviewWithdrawalEmailSubject(
-  flowName: string,
-  department?: string | null,
-) {
+export async function renderInterviewWithdrawalEmailSubject({
+  candidateName,
+  flowName,
+  reason,
+  operatorName,
+  department,
+}: InterviewWithdrawalEmailVariables & { department?: string | null }) {
   const setting = await getInterviewWithdrawalTemplateSetting(department);
+  /* 与正文同口径：标题里的 {candidateName} / {reason} / {organizerName} 必须是真实值 */
   return renderInterviewWithdrawalTemplateText(setting.subjectTemplate, {
-    candidateName: "同学",
+    candidateName,
     flowName,
-    reason: "",
+    reason,
+    organizerName: operatorName ?? "",
   });
 }
 

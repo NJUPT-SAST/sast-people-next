@@ -602,7 +602,7 @@ export async function createOfficeRoundOneEmailBatch({
     ]),
   ];
   for (const id of batchIdsToQueue) {
-    await sendEmailBatchById(id, { markUserFlowStatus: false });
+    await sendEmailBatchById(id);
   }
 
   const resultBatchId = batchId ?? queueableBatchIds[0] ?? null;
@@ -611,10 +611,7 @@ export async function createOfficeRoundOneEmailBatch({
   return { batchId: resultBatchId, recipientCount: queueableRecipients.length };
 }
 
-export async function sendEmailBatchById(
-  batchId: number,
-  { markUserFlowStatus = true }: { markUserFlowStatus?: boolean } = {},
-) {
+export async function sendEmailBatchById(batchId: number) {
   const [batch] = await db
     .select()
     .from(emailBatch)
@@ -654,8 +651,6 @@ export async function sendEmailBatchById(
     return { queuedCount: 0 };
   }
 
-  const finalStatus = batch.accept ? "passed" : "failed";
-
   await db
     .update(emailDelivery)
     .set({
@@ -677,18 +672,10 @@ export async function sendEmailBatchById(
     .set({ status: "queued", updatedAt: new Date() })
     .where(eq(emailBatch.id, batchId));
 
-  const userFlowIds = queueableDeliveries
-    .map((item) => item.userFlowId)
-    .filter((id): id is number => id !== null);
-
-  /* 一面通过通知不改变报名状态：候选人仍在二面流程中，不能提前标记为通过 */
-  if (markUserFlowStatus && userFlowIds.length > 0) {
-    await db
-      .update(userFlow)
-      .set({ progressStatus: finalStatus, updatedAt: new Date() })
-      .where(inArray(userFlow.id, userFlowIds));
-  }
-
+  /* 入队/重发只处理投递状态，绝不改报名状态：
+     - 最终结果批次的收件人在建批次时就已经是 passed/failed（createResultEmailBatch 按 sourceStatus 选人）；
+     - 一面通过通知的收件人仍在二面流程中（ongoing + round 2），重试时把她们标成 passed
+       会让她们跳过二面决定（closeOfficeRoundTwo 只找 ongoing 的二面候选人）。 */
   try {
     await runWithConcurrency(
       queueableDeliveries,

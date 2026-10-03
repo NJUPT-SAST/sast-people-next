@@ -224,6 +224,10 @@ function TemplateDialog({
               label="邮件标题"
               defaultValue={setting.subjectTemplate}
             />
+            {/* 标题只支持这几个变量；正文支持的更多，分开写避免「填了不生效」的误解 */}
+            <p className="text-xs text-muted-foreground">
+              标题可用变量：{"{name}"}、{"{flowName}"}、{"{department}"}、{"{groupNumber}"}。
+            </p>
           </div>
 
           <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 md:grid-cols-2 md:col-span-2">
@@ -245,7 +249,9 @@ function TemplateDialog({
               placeholder={isRecruitmentTemplate ? "招新正文使用固定版式，可按需填写自定义文案。" : "填写本流程的结果说明和后续安排。"}
               className="min-h-[180px] resize-y bg-background"
             />
-            <p className="text-xs text-muted-foreground">可用变量：{"{name}"}、{"{flowName}"}、{"{department}"}、{"{groupNumber}"}、{"{contactEmail}"}、{"{feishuGroupName}"}、{"{calendarUrl}"}。</p>
+            <p className="text-xs text-muted-foreground">
+              正文可用变量：{"{name}"}、{"{flowName}"}、{"{department}"}、{"{groupNumber}"}、{"{contactEmail}"}、{"{feishuGroupName}"}、{"{feishuGroupUrl}"}、{"{memberInfoFormUrl}"}、{"{feishuRegisterHelpUrl}"}、{"{calendarUrl}"}。
+            </p>
           </div>
 
           <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 md:col-span-2 md:grid-cols-2">
@@ -498,6 +504,26 @@ function InterviewTemplateDialog({
 
           <div className="rounded-lg border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
             <p>
+              标题与正文都可用变量：
+              {" "}<span className="font-mono text-foreground">{"{candidateName}"}</span>
+              {" "}、<span className="font-mono text-foreground">{"{flowName}"}</span>
+              {" "}、<span className="font-mono text-foreground">{"{organizerName}"}</span>
+              {isWithdrawalTemplate ? (
+                <>
+                  {" "}、<span className="font-mono text-foreground">{"{reason}"}</span>
+                </>
+              ) : (
+                <>
+                  {" "}、<span className="font-mono text-foreground">{"{startsAt}"}</span>
+                  {" "}、<span className="font-mono text-foreground">{"{endsAt}"}</span>
+                  {" "}、<span className="font-mono text-foreground">{"{location}"}</span>
+                  {" "}、<span className="font-mono text-foreground">{"{requestedTimeText}"}</span>
+                  {" "}、<span className="font-mono text-foreground">{"{reason}"}</span>
+                </>
+              )}
+              。
+            </p>
+            <p className="mt-1">
               正文建议保留 <span className="font-mono text-foreground">{"{candidateName}"}</span>
               {" "}和 <span className="font-mono text-foreground">{"{flowName}"}</span>。
             </p>

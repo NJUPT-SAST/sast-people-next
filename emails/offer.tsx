@@ -89,7 +89,7 @@ export const OfferEmail = ({
   calendarUrl = resultEmailLinks.calendar,
   feishuRegisterHelpUrl = resultEmailLinks.feishuRegisterHelp,
   contactEmail = resultEmailCopy.contactEmail,
-  memberFormLabel: _memberFormLabel = resultEmailCopy.memberFormLabel,
+  memberFormLabel = resultEmailCopy.memberFormLabel,
   feishuGroupName = resultEmailCopy.feishuGroupName,
 }: OfferEmailProps) => {
   const greeting =
@@ -227,7 +227,7 @@ export const OfferEmail = ({
                       <Button
                         style={{ ...button, backgroundColor: acceptedTone.primary }}
                         href={memberInfoFormUrl}>
-                        点击填写信息表
+                        {memberFormLabel}
                       </Button>
                       <Hr style={innerDivider} />
                       <Text style={text}>

@@ -142,6 +142,7 @@ const recruitmentDefault = defaultResultEmailTemplateSettings.find(
 )!;
 
 let getEmailTemplateSetting: typeof TemplateActions.getEmailTemplateSetting;
+let getResultEmailPreviews: typeof TemplateActions.getResultEmailPreviews;
 let listEmailTemplateSettings: typeof TemplateActions.listEmailTemplateSettings;
 let updateEmailTemplateSetting: typeof TemplateActions.updateEmailTemplateSetting;
 let resetEmailTemplateSetting: typeof TemplateActions.resetEmailTemplateSetting;
@@ -153,6 +154,7 @@ describe("result email template settings", () => {
     ({ DepartmentAccessError } = await import("@/lib/authz"));
     ({
       getEmailTemplateSetting,
+      getResultEmailPreviews,
       listEmailTemplateSettings,
       updateEmailTemplateSetting,
       resetEmailTemplateSetting,
@@ -234,6 +236,38 @@ describe("result email template settings", () => {
       ).rejects.toThrow(DepartmentAccessError);
 
       expect(mockDb.select).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getResultEmailPreviews", () => {
+    it("renders the saved QQ group number instead of a sample value", async () => {
+      /* 每个模板键各查一次：只有办公类模板有落库行，群号必须是落库值 */
+      mockSelectResults.push(
+        ...defaultResultEmailTemplateSettings.map((item) =>
+          item.templateKey === "office_round1.result.accepted"
+            ? [
+                {
+                  ...globalRow,
+                  templateKey: item.templateKey,
+                  groupNumber: "888777666",
+                },
+              ]
+            : [],
+        ),
+      );
+
+      const previews = await getResultEmailPreviews(null);
+
+      expect(previews["office_round1.result.accepted"]).toBe("<p>正文</p>");
+      const officeCall = mockRenderEmailTemplate.mock.calls.find(
+        ([request]) =>
+          (request as { templateKey?: string }).templateKey ===
+          "office_round1.result.accepted",
+      );
+      expect(
+        (officeCall?.[0] as { variables?: { groupNumber?: string } }).variables
+          ?.groupNumber,
+      ).toBe("888777666");
     });
   });
 

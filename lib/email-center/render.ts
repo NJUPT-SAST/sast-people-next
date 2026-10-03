@@ -103,11 +103,11 @@ export async function renderEmailTemplate(
     case "interview.schedule.change.rejected": {
       const kind = getInterviewEmailKind(request.templateKey);
       return {
-        subject: await renderInterviewScheduleEmailSubject(
-          request.variables.flowName,
+        subject: await renderInterviewScheduleEmailSubject({
+          ...request.variables,
           kind,
-          request.department,
-        ),
+          department: request.department,
+        }),
         html: await renderInterviewScheduleEmail({
           ...request.variables,
           kind,
@@ -117,10 +117,10 @@ export async function renderEmailTemplate(
     }
     case "interview.application.withdrawn":
       return {
-        subject: await renderInterviewWithdrawalEmailSubject(
-          request.variables.flowName,
-          request.department,
-        ),
+        subject: await renderInterviewWithdrawalEmailSubject({
+          ...request.variables,
+          department: request.department,
+        }),
         html: await renderInterviewWithdrawalEmail({
           ...request.variables,
           department: request.department,

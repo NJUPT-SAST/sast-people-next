@@ -1,6 +1,7 @@
 "use server";
 
-import { readResultEmailTemplateSetting } from "@/lib/email-center/template-resolution";
+import { createTestRenderRequest } from "@/lib/email-center/test-render";
+import type { EmailTemplateKey } from "@/lib/email-center/types";
 import { getDepartmentScope } from "@/lib/authz";
 import { verifyRole } from "@/lib/dal";
 import { resolveTemplateEditTarget } from "@/lib/email-center/template-access";
@@ -10,17 +11,9 @@ import {
 } from "@/lib/link/user-lookup";
 import { createRenderedTestEmailDelivery } from "@/lib/email-center/delivery";
 import { getEmailTemplateDefinition } from "@/lib/email-center/registry";
-import type {
-  EmailTemplateKey,
-  EmailTemplateRenderRequest,
-  InterviewScheduleEmailTemplateKey,
-  ResultEmailTemplateKey,
-} from "@/lib/email-center/types";
 import { getEducationEmail, normalizeEducationEmailInput } from "@/lib/email/address";
-import { departmentLabel } from "@/const/department";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
-import { getResultEmailFlowKind } from "@/lib/email/result-email";
 
 function getStudentIdFromTestAddress(value: string) {
   const normalized = value.trim().toLowerCase();
@@ -130,72 +123,4 @@ export async function sendEmailTest(
     });
     throw error;
   }
-}
-
-async function createTestRenderRequest({
-  templateKey,
-  flowName,
-  name,
-  operatorName,
-  operatorRole,
-  department,
-}: {
-  templateKey: EmailTemplateKey;
-  flowName: string;
-  name: string;
-  operatorName: string;
-  operatorRole: number;
-  department: string | null;
-}): Promise<EmailTemplateRenderRequest> {
-  if (getEmailTemplateDefinition(templateKey)?.category === "result") {
-    /* 内部读取：写入目标已由 resolveTemplateEditTarget 校验，这里不需要再走 action */
-    const setting = await readResultEmailTemplateSetting(templateKey, department);
-    const [flowKind] = templateKey.split(".");
-    /* 办公类模板按轮次区分；测试发送沿用模板键里的轮次 */
-    const round =
-      flowKind === "office_round2" ? 2 : flowKind === "office_round1" ? 1 : null;
-    return {
-      templateKey: templateKey as ResultEmailTemplateKey,
-      variables: {
-        name,
-        flowName,
-        round,
-        department: departmentLabel(department, "办公室"),
-        groupNumber: "123456789",
-        setting,
-        flowKind: getResultEmailFlowKind(flowKind, round),
-        genericGreeting: false,
-      },
-      department,
-    };
-  }
-
-  if (templateKey === "interview.application.withdrawn") {
-    return {
-      templateKey,
-      variables: {
-        candidateName: name,
-        flowName,
-        reason: "请补充作品集后重新报名。",
-        operatorName,
-        operatorRole,
-      },
-      department,
-    };
-  }
-
-  const startsAt = new Date("2026-06-06T16:00:00+08:00");
-  return {
-    templateKey: templateKey as InterviewScheduleEmailTemplateKey,
-    variables: {
-      candidateName: name,
-      flowName,
-      organizerName: "李四",
-      startsAt,
-      endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
-      location: "仙林校区大学生活动中心 101",
-      note: "请提前准备作品介绍。",
-    },
-    department,
-  };
 }
