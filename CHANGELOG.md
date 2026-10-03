@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### 部门管理控制台
 
+- **未归属报名记录不会跟随流程归属**（`action/department/manage.ts`、`components/department/user-flow-department-table.tsx`）：`user_flow.department` 只在报名（与改投递组别）时按「组别映射 → 流程归属」固化，而 `0060` 迁移之前的存量报名全是 `NULL`——上线后管理员面对 600+ 条「未归属」，流程早已分配好却只能一条条手改。现在两处收口：管理员在流程归属里改动流程部门时，本流程仍未归属的报名记录按报名时的同一口径（`resolveUserFlowDepartment`）**自动跟随**；「报名记录归属」页新增**「按流程归属回填」**按钮，一次性把存量未归属记录补齐（组别映射优先，手动纠正过的行不动，解析不出的——流程自己也没归属——保持未归属并回填后提示剩余条数）。回填写操作审计（`department.user_flow.backfill`），流程归属审计里带 `backfilledUserFlows`。
 - **流程归属下拉只剩「全局」+「手填新部门」，部门概览一条不列**（`action/department/manage.ts`、`components/department/department-overview-table.tsx`）：下拉候选与概览行都只从库里的 `flow.department` / `user_flow.department` / 组别映射值派生，而刚上线时这些列全是 `NULL`，于是管理员打开 `/dashboard/departments` 一个部门都看不到，也没法直接选部门（只能手敲标识）。现在改为「Link 部门目录 ∪ 库中已有标识」——目录里的部门即使 0 条数据也占一行、也能直接选到，历史/未知标识继续保留；合并逻辑抽到 `const/department.ts` 的 `mergeDepartmentKeys`，邮件模板的部门下拉改用同一份实现（`integration/department-manage.integration.test.ts`、`e2e/department-console.spec.ts` 覆盖）。
 
 #### 邮件模板「填了不生效」修复

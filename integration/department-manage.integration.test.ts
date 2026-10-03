@@ -14,6 +14,7 @@ jest.mock("@/lib/link/user-lookup", () => ({
 import {
   assignFlowDepartment,
   assignUserFlowDepartment,
+  backfillUserFlowDepartments,
   listDepartmentOverview,
   listFlowDepartmentAssignments,
   listUserFlowDepartmentAssignments,
@@ -173,6 +174,51 @@ describe("部门控制台（服务端动作）", () => {
     expect(row?.groupDepartments).toEqual({ 前端组: "software" });
     // 组别映射里的部门标识也应出现在现存部门清单里
     expect((await listDepartmentOverview()).departmentKeys).toContain("software");
+  });
+
+  it("按流程归属回填未归属报名记录：组别映射优先，手动纠正过的行不动", async () => {
+    await client.query(
+      "update flow set department = $2, group_departments = $3::jsonb where id = $1",
+      [flowId, "office", JSON.stringify({ 前端组: "media" })],
+    );
+    /* 手动纠正过的那条必须保留 */
+    await assignUserFlowDepartment(userFlowIds[0], "software");
+
+    const result = await backfillUserFlowDepartments();
+    expect(result.updated).toBeGreaterThanOrEqual(1);
+
+    const rows = (
+      await client.query<{ id: number; department: string | null }>(
+        "select id, department from user_flow where id = any($1::int[]) order by id",
+        [userFlowIds],
+      )
+    ).rows;
+    expect(rows).toEqual([
+      { id: userFlowIds[0], department: "software" },
+      /* 前端组 → media（组别映射优先于流程归属 office） */
+      { id: userFlowIds[1], department: "media" },
+    ]);
+  });
+
+  it("流程定归属时未归属的报名记录跟随，已纠正的不动", async () => {
+    await client.query("update flow set group_departments = $2::jsonb where id = $1", [
+      flowId,
+      JSON.stringify({ 前端组: "media" }),
+    ]);
+    await assignUserFlowDepartment(userFlowIds[1], "software");
+
+    await assignFlowDepartment(flowId, "office");
+
+    const rows = (
+      await client.query<{ id: number; department: string | null }>(
+        "select id, department from user_flow where id = any($1::int[]) order by id",
+        [userFlowIds],
+      )
+    ).rows;
+    expect(rows).toEqual([
+      { id: userFlowIds[0], department: "media" },
+      { id: userFlowIds[1], department: "software" },
+    ]);
   });
 
   it("目录里的部门即使没有数据也出现在概览行与下拉候选里", async () => {

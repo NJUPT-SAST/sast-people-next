@@ -85,4 +85,25 @@ test.describe("department console", () => {
     await page.getByRole("tab", { name: /部门概览/ }).click();
     await expect(softwareRow.getByRole("cell").nth(2)).toHaveText(String(before + 1));
   });
+
+  test("按流程归属回填未归属的报名记录", async ({ page }) => {
+    const record = await database.query<{ id: number }>(
+      "insert into user_flow (progress_status, fk_flow_id, fk_user_id, apply_group) values ('ongoing', $1, $2, '前端组') returning id",
+      [flowId, 920_001],
+    );
+    /* 直接改库：绕过操作界面的级联，制造「流程有归属、报名记录没有」的存量状态 */
+    await database.query("update flow set department = 'media' where id = $1", [flowId]);
+
+    await signInAs(page.context(), admin);
+    await page.goto("/dashboard/departments");
+    await page.getByRole("tab", { name: /报名记录归属/ }).click();
+    await page.getByRole("button", { name: "按流程归属回填" }).click();
+    await expect(page.getByText(/已按流程归属回填/)).toBeVisible();
+
+    const stored = await database.query<{ department: string | null }>(
+      "select department from user_flow where id = $1",
+      [record.rows[0].id],
+    );
+    expect(stored.rows[0].department).toBe("media");
+  });
 });

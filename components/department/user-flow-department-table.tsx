@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import {
   assignUserFlowDepartment,
+  backfillUserFlowDepartments,
   listUserFlowDepartmentAssignments,
   type UserFlowDepartmentAssignmentList,
 } from '@/action/department/manage';
@@ -68,6 +69,25 @@ export function UserFlowDepartmentTable({
     }
   }
 
+  /* 存量报名记录的部门是 0060 之前的空值：一键按报名时的同一口径（组别映射 → 流程归属）回填，
+     剩下的都是流程自己也还没定归属的记录 */
+  async function backfill() {
+    setLoading(true);
+    try {
+      const result = await backfillUserFlowDepartments();
+      toast.success(
+        result.remaining > 0
+          ? `已按流程归属回填 ${result.updated} 条；仍有 ${result.remaining} 条未归属，其流程也还没归部门`
+          : `已按流程归属回填 ${result.updated} 条`,
+      );
+      await reload(flowId, onlyUnassigned);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '回填失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function assign(userFlowId: number, department: string | null) {
     const result = await assignUserFlowDepartment(userFlowId, department);
     setData((current) => ({
@@ -89,7 +109,7 @@ export function UserFlowDepartmentTable({
       <CardHeader className="gap-1 border-b px-4 py-3">
         <CardTitle className="text-sm">报名记录归属</CardTitle>
         <CardDescription className="text-xs">
-          报名记录的部门在报名时按「组别映射 → 流程归属」固化；此表用于纠正历史数据。
+          报名记录的部门在报名时按「组别映射 → 流程归属」固化；此表用于纠正历史数据，「按流程归属回填」会把仍未归属的记录按同一口径补齐。
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-0 p-0">
@@ -133,6 +153,15 @@ export function UserFlowDepartmentTable({
             }}
           >
             只看未归属
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={loading}
+            onClick={() => void backfill()}
+          >
+            按流程归属回填
           </Button>
           <span className="text-xs tabular-nums text-muted-foreground sm:ml-auto">
             共 {data.total} 条，显示最近 {data.items.length} 条
