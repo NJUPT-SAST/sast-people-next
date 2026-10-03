@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import { db } from "@/db/drizzle";
@@ -11,6 +11,7 @@ import {
   userFlow,
 } from "@/db/schema";
 import { verifyAdmin } from "@/lib/authz";
+import { resolveUserFlowDepartment } from "@/lib/flow-access";
 import { DEPARTMENT_KEYS, mergeDepartmentKeys } from "@/const/department";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { writeOperationAudit } from "@/lib/operation-audit";
@@ -260,6 +261,80 @@ export async function listUserFlowDepartmentAssignments(options?: {
   };
 }
 
+type ResolvableUserFlow = {
+  id: number;
+  applyGroup: string | null;
+  groupDepartments: Record<string, string> | null;
+  flowDepartment: string | null;
+};
+
+/**
+ * 把解析结果写回未归属的报名记录：组别映射优先，其次流程归属部门。
+ * 解析与报名路径共用 `resolveUserFlowDepartment`，避免两份语义；
+ * 解析不出的（流程自己也没归属、组别没映射到部门）保持未归属，留给人工纠正。
+ */
+const writeResolvedFlowDepartments = async (
+  rows: ResolvableUserFlow[],
+): Promise<number> => {
+  const byDepartment = new Map<string, number[]>();
+  for (const row of rows) {
+    const department = resolveUserFlowDepartment(
+      row.groupDepartments,
+      row.applyGroup,
+      row.flowDepartment,
+    );
+    if (!department) continue;
+    const ids = byDepartment.get(department);
+    if (ids) {
+      ids.push(row.id);
+    } else {
+      byDepartment.set(department, [row.id]);
+    }
+  }
+
+  let updated = 0;
+  for (const [department, ids] of byDepartment) {
+    await db.update(userFlow).set({ department }).where(inArray(userFlow.id, ids));
+    updated += ids.length;
+  }
+  return updated;
+};
+
+/**
+ * 按流程归属回填全部未归属报名记录（存量数据一次性纠偏）。
+ * 流程与组别映射都解析不出的记录保持未归属，返回的 remaining 就是这些条数。
+ */
+export async function backfillUserFlowDepartments(): Promise<{
+  updated: number;
+  remaining: number;
+}> {
+  const session = await verifyAdmin();
+
+  const rows = await db
+    .select({
+      id: userFlow.id,
+      applyGroup: userFlow.applyGroup,
+      groupDepartments: flow.groupDepartments,
+      flowDepartment: flow.department,
+    })
+    .from(userFlow)
+    .innerJoin(flow, eq(flow.id, userFlow.fkFlowId))
+    .where(isNull(userFlow.department));
+
+  const updated = await writeResolvedFlowDepartments(rows);
+
+  await writeOperationAudit({
+    actorId: session.uid,
+    actorRole: session.realRole,
+    action: "department.user_flow.backfill",
+    resourceType: "user_flow",
+    metadata: { updated, remaining: rows.length - updated },
+  });
+  revalidatePath(DEPARTMENTS_PATH);
+
+  return { updated, remaining: rows.length - updated };
+}
+
 /** 管理员手动纠正流程归属；null = 清空为全局流程（仅管理员可见可改） */
 export async function assignFlowDepartment(
   flowId: number,
@@ -270,7 +345,11 @@ export async function assignFlowDepartment(
   const nextDepartment = normalizeAssignableDepartment(department);
 
   const [existing] = await db
-    .select({ department: flow.department, title: flow.title })
+    .select({
+      department: flow.department,
+      title: flow.title,
+      groupDepartments: flow.groupDepartments,
+    })
     .from(flow)
     .where(eq(flow.id, targetFlowId))
     .limit(1);
@@ -286,6 +365,21 @@ export async function assignFlowDepartment(
     .set({ department: nextDepartment })
     .where(eq(flow.id, targetFlowId));
 
+  /* 流程定了归属，本流程仍未归属的报名记录跟着走（组别映射优先），
+     否则存量报名只能一条条手改 */
+  const backfilledUserFlows = await writeResolvedFlowDepartments(
+    (
+      await db
+        .select({ id: userFlow.id, applyGroup: userFlow.applyGroup })
+        .from(userFlow)
+        .where(and(eq(userFlow.fkFlowId, targetFlowId), isNull(userFlow.department)))
+    ).map((row) => ({
+      ...row,
+      groupDepartments: existing.groupDepartments ?? null,
+      flowDepartment: nextDepartment,
+    })),
+  );
+
   await writeOperationAudit({
     actorId: session.uid,
     actorRole: session.realRole,
@@ -293,7 +387,12 @@ export async function assignFlowDepartment(
     resourceType: "flow",
     resourceId: targetFlowId,
     department: nextDepartment,
-    metadata: { department: nextDepartment, previousDepartment, title: existing.title },
+    metadata: {
+      department: nextDepartment,
+      previousDepartment,
+      title: existing.title,
+      backfilledUserFlows,
+    },
   });
   revalidatePath(DEPARTMENTS_PATH);
 
