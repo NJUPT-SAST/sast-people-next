@@ -19,7 +19,10 @@ const linkAdminUser: LinkAdminUserItem = {
 
 describe("Link user mapping", () => {
   it("maps Link admin list fields into the People user model", () => {
-    const user = toPeopleUserFromLinkAdminItem(linkAdminUser, true);
+    const user = toPeopleUserFromLinkAdminItem(linkAdminUser, {
+      canViewPhone: true,
+      canViewQq: true,
+    });
 
     expect(user).toMatchObject({
       id: 42,
@@ -39,14 +42,31 @@ describe("Link user mapping", () => {
   });
 
   it("hides sensitive fields when not allowed", () => {
-    const user = toPeopleUserFromLinkAdminItem(linkAdminUser, false);
+    const user = toPeopleUserFromLinkAdminItem(linkAdminUser, {
+      canViewPhone: false,
+      canViewQq: false,
+    });
 
     expect(user.phone).toBeNull();
     expect(user.qq).toBeNull();
   });
+
+  it("shows QQ to lecturers while keeping the phone hidden", () => {
+    const user = toPeopleUserFromLinkAdminItem(linkAdminUser, {
+      canViewPhone: false,
+      canViewQq: true,
+    });
+
+    expect(user.qq).toBe("420000");
+    expect(user.phone).toBeNull();
+  });
+
   it("maps an omitted phone number to null", () => {
     const { phone_number: _phoneNumber, ...withoutPhoneNumber } = linkAdminUser;
-    const user = toPeopleUserFromLinkAdminItem(withoutPhoneNumber, true);
+    const user = toPeopleUserFromLinkAdminItem(withoutPhoneNumber, {
+      canViewPhone: true,
+      canViewQq: true,
+    });
 
     expect(user.phone).toBeNull();
   });

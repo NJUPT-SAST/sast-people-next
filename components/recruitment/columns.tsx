@@ -92,7 +92,28 @@ export const SortableHeader = ({
   );
 };
 
-export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
+export const makeColumns = (
+  role: number,
+  /**
+   * 投递部门列只在流程没有归属、或候选人的归属与流程不一致（共享流程 / 未归属记录）时才显示：
+   * 部门自有流程下它与页签、流程名重复，讲师看到一列同值纯噪音。
+   */
+  { showDepartment = true }: { showDepartment?: boolean } = {},
+): ColumnDef<ScoreRow>[] => {
+  const departmentColumn: ColumnDef<ScoreRow> = {
+    accessorKey: 'department',
+    header: ({ column }) => <SortableHeader column={column} label="投递部门" />,
+    cell: ({ getValue }) => {
+      const label = departmentLabel(getValue() as string | null);
+      return (
+        <span className="truncate text-sm text-muted-foreground" title={label}>
+          {label}
+        </span>
+      );
+    },
+  };
+
+  return [
   {
     id: 'select',
     header: ({ table }) => {
@@ -172,18 +193,7 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
       );
     },
   },
-  {
-    accessorKey: 'department',
-    header: ({ column }) => <SortableHeader column={column} label="投递部门" />,
-    cell: ({ getValue }) => {
-      const label = departmentLabel(getValue() as string | null);
-      return (
-        <span className="truncate text-sm text-muted-foreground" title={label}>
-          {label}
-        </span>
-      );
-    },
-  },
+  ...(showDepartment ? [departmentColumn] : []),
   {
     accessorKey: 'qq',
     header: 'QQ',
@@ -310,7 +320,8 @@ export const makeColumns = (role: number): ColumnDef<ScoreRow>[] => [
         : false;
     },
   },
-];
+  ];
+};
 
 export const Table: React.FC = () => {
   return <></>;

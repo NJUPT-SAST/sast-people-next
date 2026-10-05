@@ -938,6 +938,7 @@ export const EvaluationTable = ({
   scoringEnabled = false,
   roundView = null,
   slotOptions = [],
+  showDepartment = true,
   onRefresh,
   onOpenRecord,
 }: {
@@ -956,6 +957,11 @@ export const EvaluationTable = ({
   roundView?: 1 | 2 | null;
   /** 办公类面试流程配置的时段选项（label）：用于行内改时段与时段筛选 */
   slotOptions?: string[];
+  /**
+   * 是否显示候选人的投递部门：部门自有流程下它与流程/页签重复（讲师看到一列同值纯噪音），
+   * 只在共享流程或归属与流程不一致时才传 true。
+   */
+  showDepartment?: boolean;
   onRefresh: () => void;
   /** 办公类候选人：打开「全部面试记录」弹窗；未传时行菜单不出现该入口 */
   onOpenRecord?: (userFlowId: number) => void;
@@ -2047,9 +2053,11 @@ export const EvaluationTable = ({
                             onEdit={() => startGroupEdit(c)}
                             editLabel={`修改${c.name}的投递组别`}
                           />
-                          <p className="mt-0.5 truncate text-xs text-muted-foreground" title="投递部门">
-                            {departmentLabel(c.department)}
-                          </p>
+                          {showDepartment && (
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground" title="投递部门">
+                              {departmentLabel(c.department)}
+                            </p>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="px-3 py-2 align-middle">
@@ -2199,12 +2207,16 @@ export const EvaluationTable = ({
                         onEdit={() => startGroupEdit(c)}
                         editLabel={`修改${c.name}的投递组别`}
                       />
-                      <span className="truncate text-xs text-muted-foreground" title="投递部门">
-                        {departmentLabel(c.department)}
-                      </span>
-                      <span className="text-muted-foreground/40" aria-hidden="true">
-                        ·
-                      </span>
+                      {showDepartment && (
+                        <>
+                          <span className="truncate text-xs text-muted-foreground" title="投递部门">
+                            {departmentLabel(c.department)}
+                          </span>
+                          <span className="text-muted-foreground/40" aria-hidden="true">
+                            ·
+                          </span>
+                        </>
+                      )}
                       <PortfolioLink
                         value={c.portfolioLink}
                         description={c.portfolioDescription}

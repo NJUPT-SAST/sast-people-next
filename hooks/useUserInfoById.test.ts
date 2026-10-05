@@ -61,7 +61,7 @@ describe("useUserInfoById", () => {
 
     expect(mockToPeopleUser).toHaveBeenCalledWith(
       expect.objectContaining({ id: 5 }),
-      false,
+      { canViewPhone: false, canViewQq: true },
     );
   });
 

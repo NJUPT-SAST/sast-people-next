@@ -49,6 +49,15 @@ type ExamResult = Awaited<ReturnType<typeof calScore>>;
 type CandidatesResult = Awaited<ReturnType<typeof getEvaluationCandidates>>;
 type RecruitmentWorkspaceMode = 'written' | 'interview';
 
+/**
+ * 投递部门只在没被流程归属隐含时才显示：部门自有流程下所有候选人都归同一个部门
+ * （页签与流程名已经写了），共享流程（流程无归属）或候选人与流程归属不一致时才需要逐行标出。
+ */
+const showsAppliedDepartment = (
+  rows: Array<{ department: string | null }>,
+  flowDepartment: string | null,
+) => rows.some((row) => (row.department ?? null) !== flowDepartment);
+
 /* 面试工作台的页签 = 部门 × 阶段的语义组合（软件研发部免试 / 多媒体部WOD / 办公室面试 …） */
 type InterviewFlowGroup = {
   /* 组合值：`部门:阶段`（flowTypeOptionValue），页签与选中态都用它 */
@@ -734,6 +743,7 @@ export const RecruitmentContent = ({
               scoringEnabled={scoringEnabled}
               roundView={scoringEnabled ? officeRoundView : null}
               slotOptions={currentFlowSlotOptions}
+              showDepartment={showsAppliedDepartment(safeEvalData, currentFlowDepartment)}
               onRefresh={refreshEvalDataAndPublication}
               onOpenRecord={setRecordUserFlowId}
             />
@@ -766,7 +776,12 @@ export const RecruitmentContent = ({
             errorPanel
           ) : (
             <DataTable
-              columns={makeColumns(role)}
+              columns={makeColumns(role, {
+                showDepartment: showsAppliedDepartment(
+                  safeScoreData,
+                  currentFlowDepartment,
+                ),
+              })}
               data={safeScoreData}
               flowTypeId={parseInt(flowId)}
               targetUserFlowId={targetUserFlowId}

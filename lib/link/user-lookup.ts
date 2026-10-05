@@ -9,6 +9,7 @@ import { getCurrentUserProfile } from "@/lib/link/user";
 import {
   toPeopleUserFromLinkAdminItem,
   toPeopleUserFromLinkProfile,
+  type SensitiveFieldVisibility,
 } from "@/lib/link/people-user";
 import {
   getLinkAdminAccessTokenFromSession,
@@ -19,8 +20,20 @@ import type { userType } from "@/types/user";
 import { cache } from "react";
 
 type LookupOptions = {
+  /** 手机号：role ≥ 3（部长/管理员） */
   canViewSensitiveInfo?: boolean;
+  /** QQ：role ≥ 2（讲师及以上）；不传时跟随 canViewSensitiveInfo */
+  canViewQq?: boolean;
 };
+
+/** 敏感信息按字段收敛：QQ 的门槛比手机号低（讲师要能联系候选人） */
+const toFieldVisibility = ({
+  canViewSensitiveInfo = false,
+  canViewQq,
+}: LookupOptions = {}): SensitiveFieldVisibility => ({
+  canViewPhone: canViewSensitiveInfo,
+  canViewQq: canViewQq ?? canViewSensitiveInfo,
+});
 
 const LINK_BATCH_USER_READ_LIMIT = 100;
 const LINK_KEYWORD_SEARCH_PAGE_SIZE = 100;
@@ -77,24 +90,26 @@ const findMatchingStudentInPages = async (
 
 export const getPeopleUserByLinkId = async (
   id: number,
-  { canViewSensitiveInfo = false }: LookupOptions = {},
+  options: LookupOptions = {},
 ): Promise<userType> => {
+  const visibility = toFieldVisibility(options);
   const accessToken = await getLinkAccessTokenFromSession();
   const currentUser = await tryGetCurrentUserProfile(accessToken);
 
   if (currentUser?.id === id) {
-    return toPeopleUserFromLinkProfile(currentUser, canViewSensitiveInfo);
+    return toPeopleUserFromLinkProfile(currentUser, visibility);
   }
 
   const adminAccessToken = await getLinkAdminAccessTokenFromSession();
   const userInfo = await getLinkUserDetail(adminAccessToken, id);
-  return toPeopleUserFromLinkProfile(userInfo, canViewSensitiveInfo);
+  return toPeopleUserFromLinkProfile(userInfo, visibility);
 };
 
 export const findPeopleUserByStudentId = async (
   studentId: string,
-  { canViewSensitiveInfo = false }: LookupOptions = {},
+  options: LookupOptions = {},
 ): Promise<userType | null> => {
+  const visibility = toFieldVisibility(options);
   const normalizedStudentId = normalizeStudentId(studentId);
   if (!normalizedStudentId) {
     return null;
@@ -108,7 +123,7 @@ export const findPeopleUserByStudentId = async (
     normalizeStudentId(currentUser.student_id) === normalizedStudentId &&
     currentUser.state !== "is_deleted"
   ) {
-    return toPeopleUserFromLinkProfile(currentUser, canViewSensitiveInfo);
+    return toPeopleUserFromLinkProfile(currentUser, visibility);
   }
 
   const adminAccessToken = await getLinkAdminAccessTokenFromSession();
@@ -134,7 +149,7 @@ export const findPeopleUserByStudentId = async (
   }
 
   return matchedUser
-    ? toPeopleUserFromLinkAdminItem(matchedUser, canViewSensitiveInfo)
+    ? toPeopleUserFromLinkAdminItem(matchedUser, visibility)
     : null;
 };
 
@@ -180,19 +195,21 @@ export const findPeopleUserIdsByKeyword = async (
 
 export const listPeopleUsersByLinkIds = async (
   ids: number[],
-  { canViewSensitiveInfo = false }: LookupOptions = {},
+  options: LookupOptions = {},
 ): Promise<Map<number, userType>> => {
+  const { canViewPhone, canViewQq } = toFieldVisibility(options);
   const idsKey = Array.from(
     new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0)),
   )
     .sort((a, b) => a - b)
     .join(",");
-  return listPeopleUsersByLinkIdsCached(idsKey, canViewSensitiveInfo);
+  return listPeopleUsersByLinkIdsCached(idsKey, canViewPhone, canViewQq);
 };
 
 const listPeopleUsersByLinkIdsCached = cache(async (
   idsKey: string,
-  canViewSensitiveInfo: boolean,
+  canViewPhone: boolean,
+  canViewQq: boolean,
 ): Promise<Map<number, userType>> => {
   const uniqueIds = idsKey
     ? idsKey.split(",").map(Number)
@@ -212,7 +229,7 @@ const listPeopleUsersByLinkIdsCached = cache(async (
   return new Map(
     users.map((item) => [
       item.id,
-      toPeopleUserFromLinkProfile(item, canViewSensitiveInfo),
+      toPeopleUserFromLinkProfile(item, { canViewPhone, canViewQq }),
     ]),
   );
 });

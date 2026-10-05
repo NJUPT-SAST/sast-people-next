@@ -1,6 +1,7 @@
-import { findPeopleUserByStudentId } from "./user-lookup";
+import { findPeopleUserByStudentId, listPeopleUsersByLinkIds } from "./user-lookup";
 
 const listLinkUsers = jest.fn();
+const getLinkUsersByIds = jest.fn();
 const getLinkAccessTokenFromSession = jest.fn();
 const getLinkAdminAccessTokenFromSession = jest.fn();
 const getCurrentUserProfile = jest.fn();
@@ -8,7 +9,7 @@ const getCurrentUserProfile = jest.fn();
 jest.mock("./admin", () => ({
   listLinkUsers: (...args: unknown[]) => listLinkUsers(...args),
   getLinkUserDetail: jest.fn(),
-  getLinkUsersByIds: jest.fn(),
+  getLinkUsersByIds: (...args: unknown[]) => getLinkUsersByIds(...args),
 }));
 
 jest.mock("./session", () => ({
@@ -113,5 +114,37 @@ describe("findPeopleUserByStudentId", () => {
       pageSize: 100,
       studentId: "B260006",
     });
+  });
+});
+
+describe("listPeopleUsersByLinkIds", () => {
+  beforeEach(() => {
+    getLinkUsersByIds.mockReset();
+    getLinkAdminAccessTokenFromSession.mockResolvedValue("admin-token");
+  });
+
+  it("gives QQ to callers without the phone permission", async () => {
+    /* 笔试工作台：讲师（role 2）要按 QQ 联系候选人，手机号仍不下发 */
+    getLinkUsersByIds.mockResolvedValue([
+      {
+        id: 77,
+        name: "待联系考生",
+        student_id: "B260077",
+        login_email: "candidate@example.com",
+        phone_number: "13800138077",
+        qq_number: "770000",
+        role: "freshman",
+        state: "njupter",
+        email_type: "njupt_email",
+        department: "software",
+        college: null,
+        major: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    const users = await listPeopleUsersByLinkIds([77], { canViewQq: true });
+
+    expect(users.get(77)).toMatchObject({ qq: "770000", phone: null });
   });
 });

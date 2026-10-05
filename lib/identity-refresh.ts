@@ -34,7 +34,10 @@ export async function refreshSessionIdentityIfStale(): Promise<boolean> {
   if (!linkProfile) return false;
 
   /* 与 hooks/useUserInfo 同一套换算：Link 原始 profile → People 角色 + 部门列表 */
-  const profile = toPeopleUserFromLinkProfile(linkProfile, false);
+  const profile = toPeopleUserFromLinkProfile(linkProfile, {
+    canViewPhone: false,
+    canViewQq: false,
+  });
 
   await syncCurrentSessionIdentity({
     role: profile.role ?? session.realRole,

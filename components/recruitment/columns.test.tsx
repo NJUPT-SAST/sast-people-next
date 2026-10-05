@@ -50,6 +50,20 @@ describe("recruitment columns", () => {
     ]);
   });
 
+  it("hides the applied department column when the flow already implies it", () => {
+    const withoutDepartment = makeColumns(3, { showDepartment: false });
+
+    expect(withoutDepartment.map(getColumnKey)).toEqual([
+      "select",
+      "studentId",
+      "name",
+      "qq",
+      "status",
+      "problemScores",
+      "totalScore",
+    ]);
+  });
+
   it("renders the candidate QQ with a placeholder when it is unavailable", () => {
     const qqColumn = columns.find(
       (column) => "accessorKey" in column && column.accessorKey === "qq",

@@ -35,10 +35,9 @@ export const useUserList = async ({
   });
 
   return {
-    users: result.users.map((item) => ({
-      ...toPeopleUserFromLinkAdminItem(item, canViewPhone),
-      qq: canViewQq ? item.qq_number ?? null : null,
-    })),
+    users: result.users.map((item) =>
+      toPeopleUserFromLinkAdminItem(item, { canViewPhone, canViewQq }),
+    ),
     totalCount: result.total,
     totalPages: Math.ceil(result.total / pageSize),
   };
