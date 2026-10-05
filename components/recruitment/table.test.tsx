@@ -294,12 +294,36 @@ describe("Recruitment DataTable", () => {
     expect(screen.getAllByText(/12345678/).length).toBeGreaterThan(0);
   });
 
-  it("hides the candidate QQ from roles without sensitive access", () => {
+  it("surfaces the candidate QQ to lecturers too", () => {
+    /* 讲师要按 QQ 拉笔试群 / 联系候选人：QQ 的口径是 role ≥ 2（手机号才是 role ≥ 3） */
     render(
       <DataTable
         columns={columns}
         flowTypeId={9}
         role={2}
+        data={[
+          {
+            uid: 1,
+            stepId: 3,
+            name: "张三",
+            totalScore: "90",
+            status: "ongoing",
+            qq: "12345678",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "QQ" })).toBeInTheDocument();
+    expect(screen.getAllByText(/12345678/).length).toBeGreaterThan(0);
+  });
+
+  it("hides the candidate QQ below the lecturer role", () => {
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={1}
         data={[
           {
             uid: 1,

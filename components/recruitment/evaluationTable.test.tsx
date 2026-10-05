@@ -1022,6 +1022,20 @@ describe("EvaluationTable", () => {
     expect(screen.getAllByRole("button", { name: "张三" }).length).toBeGreaterThan(0);
   });
 
+  it("shows the applied department only when the flow does not already imply it", () => {
+    const candidate = () =>
+      makeCandidate({ userFlowId: 1, name: "张三", department: "software" });
+
+    const { unmount } = renderTable([candidate()], { showDepartment: true });
+    expect(screen.getAllByTitle("投递部门").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("软件研发部").length).toBeGreaterThan(0);
+    unmount();
+
+    renderTable([candidate()], { showDepartment: false });
+    expect(screen.queryByTitle("投递部门")).not.toBeInTheDocument();
+    expect(screen.queryByText("软件研发部")).not.toBeInTheDocument();
+  });
+
   it("offers a 待我处理 chip covering only rows this user can act on", async () => {
     const user = userEvent.setup();
     renderTable(

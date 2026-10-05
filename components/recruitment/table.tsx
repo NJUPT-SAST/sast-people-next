@@ -114,7 +114,8 @@ export function DataTable<TData, TValue>({
             if (c.id === 'select') return false;
             const key = 'accessorKey' in c ? c.accessorKey : undefined;
             if (key === 'problemScores') return role >= 2;
-            if (key === 'qq') return false;
+            /* QQ 是联系候选人用的：讲师（role 2）就要看到，手机号仍只在部长及以上 */
+            if (key === 'qq') return role >= 2;
             return true;
           }),
     [safeColumns, role],

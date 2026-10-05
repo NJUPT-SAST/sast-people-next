@@ -66,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### 面试 / 笔试工作台
+
+- **讲师看不到笔试候选人的 QQ**（`components/recruitment/table.tsx`、`action/user-flow/user-point/calScore.ts`）：QQ 被两处 `role >= 3` 同时挡住——服务端 `calScore` 取用户资料时按 `canViewSensitiveInfo: role >= 3` 拉取（讲师拿到的 `qq` 直接是 null），客户端又对 `role < 3` 过滤掉 QQ 列。讲师正是要按 QQ 拉笔试群/联系候选人的角色（成员目录的口径也一直是 QQ role ≥ 2、手机号 role ≥ 3）。现在 `lib/link/people-user.ts` 把敏感字段拆成 `canViewPhone` / `canViewQq` 两个开关（`lib/link/user-lookup.ts` 的 `LookupOptions` 新增 `canViewQq`，缺省跟随原开关），`calScore` 用 `canViewQq: session.role >= 2`，QQ 列对 `role >= 2` 显示；手机号仍只在部长及以上下发（`e2e/recruitment-workspace-visibility.spec.ts` 覆盖）。
+- **面试 / 笔试工作台逐行重复「投递部门」**（`components/recruitment/recruitmentContent.tsx`、`components/recruitment/columns.tsx`、`components/recruitment/evaluationTable.tsx`）：流程已经按部门拆分后，部门自有流程的每个候选人都是同一个部门（页签与流程名已经写了），再挂一列/一行只会是噪音。现在只在「投递部门」没被流程归属隐含时才显示——`showsAppliedDepartment(rows, flowDepartment)`：所有行都与流程归属一致就不显示；共享流程（流程无归属）或候选人与流程归属不一致（未归属记录、组别映射指向别处）时照旧显示。
+
 #### 部门管理控制台
 
 - **未归属报名记录不会跟随流程归属**（`action/department/manage.ts`、`components/department/user-flow-department-table.tsx`）：`user_flow.department` 只在报名（与改投递组别）时按「组别映射 → 流程归属」固化，而 `0060` 迁移之前的存量报名全是 `NULL`——上线后管理员面对 600+ 条「未归属」，流程早已分配好却只能一条条手改。现在两处收口：管理员在流程归属里改动流程部门时，本流程仍未归属的报名记录按报名时的同一口径（`resolveUserFlowDepartment`）**自动跟随**；「报名记录归属」页新增**「按流程归属回填」**按钮，一次性把存量未归属记录补齐（组别映射优先，手动纠正过的行不动，解析不出的——流程自己也没归属——保持未归属并回填后提示剩余条数）。回填写操作审计（`department.user_flow.backfill`），流程归属审计里带 `backfilledUserFlows`。

@@ -18,7 +18,10 @@ export const useUserInfo = cache(async () => {
       if (!userInfo) {
         redirect('/login');
       }
-      return toPeopleUserFromLinkProfile(userInfo, true);
+      return toPeopleUserFromLinkProfile(userInfo, {
+        canViewPhone: true,
+        canViewQq: true,
+      });
     } catch (err) {
       if (err instanceof MissingLinkAccessTokenError) {
         redirect('/login');

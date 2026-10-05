@@ -19,8 +19,5 @@ export const useUserInfoById = async (id: number) => {
     throw new Error('User not found');
   }
 
-  return {
-    ...toPeopleUserFromLinkProfile(userInfo, canViewPhone),
-    qq: canViewQq ? userInfo.qq_number ?? null : null,
-  };
+  return toPeopleUserFromLinkProfile(userInfo, { canViewPhone, canViewQq });
 };

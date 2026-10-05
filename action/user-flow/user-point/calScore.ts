@@ -65,7 +65,10 @@ export const calScore = async (flowId: number) => {
           .map((row) => row.judgerId)
           .filter((id): id is number => id !== null),
       ],
-      { canViewSensitiveInfo: session.role >= 3 },
+      {
+        /* QQ 是笔试通知与群联络要用的，讲师（role 2）就要看到；手机号仍只在部长及以上下发 */
+        canViewQq: session.role >= 2,
+      },
     );
 
     const pointMap = new Map(
