@@ -131,4 +131,60 @@ describe('AuditLogTable', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('软件研发部')).toBeInTheDocument();
   });
+
+  it('names previously unlabelled actions and renders the simulated identity in the detail dialog', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AuditLogTable
+        totalCount={2}
+        filters={filters}
+        logs={[
+          {
+            id: 41,
+            actorId: 10,
+            actorRole: 4,
+            actorType: 'user',
+            actorName: '管理员',
+            actorStudentId: 'B00000000',
+            action: 'session.view-as.start',
+            resourceType: 'session',
+            resourceId: 10,
+            resourceLabel: null,
+            department: 'publicity',
+            createdAt: new Date('2026-10-07T04:00:00Z'),
+            metadata: { role: 3, department: 'publicity' },
+            targetUser: null,
+            targetUsers: [],
+          },
+          {
+            id: 42,
+            actorId: 10,
+            actorRole: 4,
+            actorType: 'user',
+            actorName: '管理员',
+            actorStudentId: 'B00000000',
+            action: 'flow.update_workspace',
+            resourceType: 'flow',
+            resourceId: 9,
+            resourceLabel: '流程：2026 校科协软件研发部 WOC 招新',
+            department: 'software',
+            createdAt: new Date('2026-10-07T04:01:00Z'),
+            metadata: {},
+            targetUser: null,
+            targetUsers: [],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText('切换身份查看').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('更新流程工作台').length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole('button', { name: '查看详情' })[0]);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('查看身份');
+    expect(dialog).toHaveTextContent('部长');
+    expect(dialog).toHaveTextContent('科宣部');
+  });
 });

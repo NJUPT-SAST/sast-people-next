@@ -70,11 +70,15 @@ const actionLabels: Record<string, string> = {
   "flow.duplicate": "复制流程",
   "flow.update_problems": "更新题目",
   "flow.update_steps": "更新流程步骤",
+  "flow.update_workspace": "更新流程工作台",
   "flow.result.publish": "发布流程结果",
+  "flow.office_round_one.close": "结束一面并确认名单",
+  "flow.office_round_two.close": "结束二面并确认名单",
   "user.update_role": "修改用户角色",
   "user.ban": "禁用用户",
   "department.flow.assign": "调整流程归属部门",
   "department.user_flow.assign": "调整报名记录归属部门",
+  "department.user_flow.backfill": "按流程归属回填报名记录",
   "user_flow.register": "报名流程",
   "user_flow.unregister": "取消报名",
   "user_flow.withdraw": "退回面试报名",
@@ -89,6 +93,10 @@ const actionLabels: Record<string, string> = {
   "user_flow.batch_set_outcome": "批量设置考生结果",
   "user_flow.apply_group.update": "修改投递组别",
   "user_flow.apply_group.mark": "标记投递组别",
+  "user_flow.interview_slot.request": "提交面试改期申请",
+  "user_flow.interview_slot.review": "处理面试改期申请",
+  "user_flow.interview_slot.update": "调整面试时段",
+  "user_flow.office_final_destination.set": "设置最终去向",
   "evaluation.create": "提交面评",
   "evaluation.update_pending": "更新待审面评",
   "evaluation.reject_candidate": "拒绝候选人",
@@ -107,6 +115,9 @@ const actionLabels: Record<string, string> = {
   "interview_schedule.sync.updated": "同步飞书改约",
   "interview_schedule.sync.cancelled": "同步飞书取消",
   "feedback.status.update": "更新反馈状态",
+  "session.view-as.start": "切换身份查看",
+  "session.view-as.stop": "退出切换身份",
+  "demo.seed": "写入演示数据",
 };
 
 const metadataLabels: Record<string, string> = {
@@ -145,6 +156,8 @@ const metadataLabels: Record<string, string> = {
   templateKey: "模板标识",
   templateName: "模板名称",
   title: "流程名称",
+  role: "查看身份",
+  department: "部门",
 };
 
 const metadataValueLabels: Record<string, string> = {
@@ -202,9 +215,9 @@ function getTargetUserLabel(item: AuditLogItem) {
   return null;
 }
 
-function formatMetadataValue(value: unknown): string {
+function formatMetadataValue(value: unknown, key?: string): string {
   if (Array.isArray(value)) {
-    return value.map((item) => formatMetadataValue(item)).join("、");
+    return value.map((item) => formatMetadataValue(item, key)).join("、");
   }
 
   if (value === true) return "是";
@@ -212,8 +225,18 @@ function formatMetadataValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "无";
   if (typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .map(([key, entry]) => `${metadataLabels[key] ?? key}：${formatMetadataValue(entry)}`)
+      .map(
+        ([entryKey, entry]) =>
+          `${metadataLabels[entryKey] ?? entryKey}：${formatMetadataValue(entry, entryKey)}`,
+      )
       .join("；");
+  }
+  /* 身份切换审计里的角色/部门写的是标识与数字：展示时换算成中文，免得读成 "role：3" */
+  if (key === "role" && typeof value === "number") {
+    return actorRoleLabels[value] ?? String(value);
+  }
+  if (key === "department" && typeof value === "string") {
+    return departmentLabel(value);
   }
   return typeof value === "string"
     ? metadataValueLabels[value] ?? value
@@ -259,7 +282,7 @@ function getAuditSummary(item: AuditLogItem) {
   const entries = getMetadataEntries(metadata);
   if (entries.length > 0) {
     const [key, value] = entries[0];
-    return `${metadataLabels[key] ?? key}：${formatMetadataValue(value)}`;
+    return `${metadataLabels[key] ?? key}：${formatMetadataValue(value, key)}`;
   }
 
   return "无附加说明";
@@ -291,7 +314,7 @@ function MetadataDetails({ item }: { item: AuditLogItem }) {
         {metadataEntries.map(([key, value]) => (
           <Fragment key={key}>
             <dt className="text-muted-foreground">{metadataLabels[key] ?? key}</dt>
-            <dd className="break-words">{formatMetadataValue(value)}</dd>
+            <dd className="break-words">{formatMetadataValue(value, key)}</dd>
           </Fragment>
         ))}
       </dl>

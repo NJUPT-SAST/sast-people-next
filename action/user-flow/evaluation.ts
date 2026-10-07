@@ -40,7 +40,8 @@ type EvaluationRecommendation = "passed" | "failed";
 
 /* 办公类面试必须打分，管理员终审驳回同样沿用这条文案 */
 const INVALID_SCORE_MESSAGE = "请填写 0-100 的面试分数";
-const RESULT_LOCKED_MESSAGE = "该候选人结果已确认，不能再修改";
+/* 候选人已撤回：结果锁定，审批改判不能把撤回的报名复活 */
+const WITHDRAWN_LOCKED_MESSAGE = "该候选人已撤回报名，结果不能再修改";
 /* 办公类部门没有讲师这一级：候选人列表与面评提交都只对部长开放 */
 const OFFICE_MANAGER_ONLY_MESSAGE = "办公类部门面试由部长操作，讲师账号无法评分";
 /* 办公类部门没有面评审批：结果由部长在名单确认时直接决定 */
@@ -701,13 +702,10 @@ export const approveEvaluation = async (evaluationId: number) => {
         throw new Error(OFFICE_APPROVAL_UNSUPPORTED_MESSAGE);
       }
 
-      // 候选人的结果已经落定，任何面评都不再改动其状态
-      if (
-        uf?.progressStatus === "passed" ||
-        uf?.progressStatus === "failed" ||
-        uf?.progressStatus === "withdrawn"
-      ) {
-        throw new Error(RESULT_LOCKED_MESSAGE);
+      /* 已通过/不通过的面评允许改判（“改为不通过 / 改为通过”），只要流程结果还没发布：
+         发布锁定由 moveUserFlowInTx 统一兜底；已撤回的候选人不能再改，防止复活 */
+      if (uf?.progressStatus === "withdrawn") {
+        throw new Error(WITHDRAWN_LOCKED_MESSAGE);
       }
 
       if (!canApproveEvaluation(evalRecord.status)) {
@@ -811,13 +809,10 @@ export const rejectEvaluation = async (evaluationId: number) => {
         throw new Error(OFFICE_APPROVAL_UNSUPPORTED_MESSAGE);
       }
 
-      // 候选人的结果已经落定，任何面评都不再改动其状态
-      if (
-        uf?.progressStatus === "passed" ||
-        uf?.progressStatus === "failed" ||
-        uf?.progressStatus === "withdrawn"
-      ) {
-        throw new Error(RESULT_LOCKED_MESSAGE);
+      /* 已通过/不通过的面评允许改判（“改为不通过 / 改为通过”），只要流程结果还没发布：
+         发布锁定由 moveUserFlowInTx 统一兜底；已撤回的候选人不能再改，防止复活 */
+      if (uf?.progressStatus === "withdrawn") {
+        throw new Error(WITHDRAWN_LOCKED_MESSAGE);
       }
 
       if (!canRejectEvaluation(evalRecord.status)) {

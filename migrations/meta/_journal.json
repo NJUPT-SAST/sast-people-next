@@ -484,6 +484,13 @@
       "when": 1789250000013,
       "tag": "0068_email_template_member_form_label",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1789250000014,
+      "tag": "0069_audit_view_as_actor_role_fix",
+      "breakpoints": true
     }
   ]
 }
