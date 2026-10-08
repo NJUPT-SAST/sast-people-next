@@ -670,6 +670,16 @@ export function TestEmailButton({
     setSelectedTemplateKey(resolvedDefaultKey);
   }, [resolvedDefaultKey]);
 
+  /* 过滤后的列表里已经没有当前选中时（例如在全局选了办公模板、再切到技术部门）
+     同样回落到默认键：下拉已经把它隐藏，发送就不能再把它带出去 */
+  useEffect(() => {
+    setSelectedTemplateKey((current) =>
+      templateDefinitions.some((definition) => definition.key === current)
+        ? current
+        : resolvedDefaultKey,
+    );
+  }, [templateDefinitions, resolvedDefaultKey]);
+
   return (
     <Dialog>
       <DialogTrigger asChild>

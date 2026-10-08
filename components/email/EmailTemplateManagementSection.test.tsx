@@ -100,20 +100,22 @@ const templateDefinitions = [
   },
 ] as unknown as EmailTemplateDefinition[];
 
-function renderSection({
-  templateSettings,
-  department,
-  selectedFlowTitle,
-  selectedFlowType,
-  onDepartmentChange = jest.fn(),
-}: {
+type SectionProps = {
   templateSettings: TemplateSettingsResult;
   department: string | null;
   selectedFlowTitle?: string;
   selectedFlowType?: string | null;
   onDepartmentChange?: (department: string | null) => void;
-}) {
-  return render(
+};
+
+function sectionElement({
+  templateSettings,
+  department,
+  selectedFlowTitle,
+  selectedFlowType,
+  onDepartmentChange = jest.fn(),
+}: SectionProps) {
+  return (
     <EmailTemplateManagementSection
       templateSettings={templateSettings}
       resultEmailPreviews={{}}
@@ -124,8 +126,12 @@ function renderSection({
       selectedFlowType={selectedFlowType}
       department={department}
       onDepartmentChange={onDepartmentChange}
-    />,
+    />
   );
+}
+
+function renderSection(props: SectionProps) {
+  return render(sectionElement(props));
 }
 
 /**
@@ -418,6 +424,39 @@ describe("EmailTemplateManagementSection", () => {
       "interview.schedule.created",
     ]);
     expect(select).toHaveValue("recruitment.result.accepted");
+  });
+
+  it("切换部门后已选模板被过滤掉时回落到默认键", async () => {
+    const user = userEvent.setup();
+    const props: SectionProps = {
+      templateSettings: {
+        rows: [
+          createResultRow("office_round1.result.accepted", null, true, false),
+        ],
+        departments: ["office", "software"],
+        scope: { kind: "all" },
+      },
+      department: null,
+      selectedFlowType: "recruitment",
+    };
+    const { rerender } = renderSection(props);
+
+    const [headerButton] = screen.getAllByRole("button", { name: "测试发送" });
+    await user.click(headerButton);
+    /* 全局范围（不过滤）下先选中一个办公模板 */
+    await user.selectOptions(
+      await screen.findByLabelText("模板"),
+      "office_round1.result.accepted",
+    );
+
+    /* 切到技术部门：默认键没变，但选中的办公模板已被过滤出下拉，发送不能继续带它 */
+    rerender(sectionElement({ ...props, department: "software" }));
+
+    const rescopedSelect = await screen.findByLabelText<HTMLSelectElement>("模板");
+    expect(
+      Array.from(rescopedSelect.options).map((option) => option.value),
+    ).not.toContain("office_round1.result.accepted");
+    expect(rescopedSelect).toHaveValue("recruitment.result.accepted");
   });
 
   it("不通过模板卡片用红色顶条，和通过模板一眼区分", () => {

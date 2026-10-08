@@ -271,6 +271,21 @@ describe("result email template settings", () => {
         }),
       );
     });
+
+    it("falls back to the sample name instead of passing 同学 as a name", async () => {
+      /* 账号没有姓名时用示例姓名兜底：把「同学」当姓名会渲染成「亲爱的同学同学」 */
+      mockVerifyRole.mockResolvedValue({ uid: 7, role: 3, name: "  " });
+      mockSelectResults.push(...defaultResultEmailTemplateSettings.map(() => []));
+
+      await getResultEmailPreviews(null);
+
+      expect(mockRenderEmailTemplate).toHaveBeenCalledTimes(
+        defaultResultEmailTemplateSettings.length,
+      );
+      for (const [request] of mockRenderEmailTemplate.mock.calls) {
+        expect(request.variables.name).toBe("张三");
+      }
+    });
   });
 
   describe("listEmailTemplateSettings", () => {

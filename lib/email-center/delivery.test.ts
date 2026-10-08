@@ -6,6 +6,9 @@ import type * as DeliveryModule from "@/lib/email-center/delivery";
 
 const mockSendMail = jest.fn();
 const mockAssertEmailSendRateLimit = jest.fn();
+const mockGetEmailTemplateSetting = jest.fn();
+const mockListPeopleUsersByLinkIds = jest.fn();
+const mockRenderEmailTemplate = jest.fn();
 const mockSelectResults: unknown[][] = [];
 const mockUpdateResults: unknown[][] = [];
 const mockUpdateSetCalls: unknown[] = [];
@@ -63,7 +66,15 @@ jest.mock("@/db/drizzle", () => ({
 }));
 
 jest.mock("@/lib/email-center/render", () => ({
-  renderEmailTemplate: jest.fn(),
+  renderEmailTemplate: mockRenderEmailTemplate,
+}));
+
+jest.mock("@/lib/email-center/template-resolution", () => ({
+  readResultEmailTemplateSetting: mockGetEmailTemplateSetting,
+}));
+
+jest.mock("@/lib/link/user-lookup", () => ({
+  listPeopleUsersByLinkIds: mockListPeopleUsersByLinkIds,
 }));
 
 jest.mock("@/lib/email-center/rate-limit", () => ({
@@ -129,6 +140,8 @@ describe("sendEmailDelivery", () => {
       count: 1,
       retryAfterSeconds: 60,
     });
+    mockGetEmailTemplateSetting.mockResolvedValue({ groupNumber: "" });
+    mockListPeopleUsersByLinkIds.mockResolvedValue(new Map());
     delete process.env.EMAIL_RETRY_MAX_ATTEMPTS;
   });
 
@@ -275,6 +288,98 @@ describe("sendEmailDelivery", () => {
     );
 
     /* 占位符绝不出网：SMTP 不调用，失败原因写进投递记录便于排查 */
+    expect(mockSendMail).not.toHaveBeenCalled();
+    expect(mockUpdateSetCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: "failed",
+          errorMessage: expect.stringContaining("[同学姓名]"),
+        }),
+      ]),
+    );
+  });
+
+  it("rebuilds a legacy office round-one placeholder snapshot with the recipient's real name", async () => {
+    const legacyDelivery = {
+      ...pendingDelivery,
+      templateKey: "office_round1.result.accepted",
+      subject: "办公室一轮面试结果通知",
+      htmlSnapshot: "<p>亲爱的[同学姓名]同学，</p>",
+    };
+    mockSelectResults.push(
+      [legacyDelivery],
+      // 重建快照：按投递记录里的流程解析流程名与归属部门
+      [{ title: "2026 办公类部门面试招新", department: "office" }],
+    );
+    mockUpdateResults.push([{ id: legacyDelivery.id }], [], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[23, { id: 23, name: "张三", studentId: "B001" }]]),
+    );
+    mockGetEmailTemplateSetting.mockResolvedValue({
+      templateKey: "office_round1.result.accepted",
+      subjectTemplate: "{department}一轮面试结果通知",
+      groupNumber: "888777666",
+    });
+    mockRenderEmailTemplate.mockResolvedValue({
+      subject: "办公室一轮面试结果通知",
+      html: "<p>亲爱的张三同学，</p>",
+    });
+    mockSendMail.mockResolvedValue({ messageId: "smtp-message-2" });
+
+    await expect(sendEmailDelivery(legacyDelivery.id)).resolves.toEqual({
+      messageId: "smtp-message-2",
+    });
+
+    /* 旧快照按收件人真实姓名重建：发送用的是重建后的内容，重建结果写回投递行供重试复用 */
+    expect(mockGetEmailTemplateSetting).toHaveBeenCalledWith(
+      "office_round1.result.accepted",
+      "office",
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: "office_round1.result.accepted",
+        department: "office",
+        variables: expect.objectContaining({
+          name: "张三",
+          flowKind: "office_round1",
+          round: 1,
+          department: "办公室",
+        }),
+      }),
+    );
+    expect(mockUpdateSetCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subject: "办公室一轮面试结果通知",
+          htmlSnapshot: "<p>亲爱的张三同学，</p>",
+        }),
+      ]),
+    );
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ html: "<p>亲爱的张三同学，</p>" }),
+    );
+  });
+
+  it("keeps blocking a legacy placeholder snapshot that cannot be rebuilt", async () => {
+    const legacyDelivery = {
+      ...pendingDelivery,
+      templateKey: "office_round1.result.accepted",
+      htmlSnapshot: "<p>亲爱的[同学姓名]同学，</p>",
+    };
+    mockSelectResults.push(
+      [legacyDelivery],
+      [{ title: "2026 办公类部门面试招新", department: "office" }],
+    );
+    mockUpdateResults.push([{ id: legacyDelivery.id }], []);
+    /* 收件人没有姓名：重建不出实名快照，仍由哨兵拦截 */
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[23, { id: 23, name: "  ", studentId: "B001" }]]),
+    );
+
+    await expect(sendEmailDelivery(legacyDelivery.id)).rejects.toThrow(
+      "仍有未替换的「[同学姓名]」占位符，已阻止发送",
+    );
+
     expect(mockSendMail).not.toHaveBeenCalled();
     expect(mockUpdateSetCalls).toEqual(
       expect.arrayContaining([

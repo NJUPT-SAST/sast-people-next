@@ -225,10 +225,11 @@ export async function getResultEmailPreviews(department?: string | null) {
         ? (requested ?? scope.department)
         : requested;
 
-  /* 样张与「测试发送」同一口径：候选人姓名读当前账号的姓名（会话里存的就是 Link 的真实姓名），
-     不再用占位称呼。不在这里查 Link：读模板页不该因为一次资料查询失败整页报错，
-     也省掉一次页面加载时的外部请求 */
-  const previewName = session.name?.trim() || "同学";
+  /* 样张与「测试发送」同一口径：候选人姓名读当前账号的姓名（会话里存的就是 Link 的真实姓名）。
+     账号没有姓名时用示例姓名兜底——样张的流程名、部门本来就是示例数据，但绝不把「同学」
+     这类称呼当成姓名塞给渲染器（会渲染成「亲爱的同学同学」）。不在这里查 Link：读模板页
+     不该因为一次资料查询失败整页报错，也省掉一次页面加载时的外部请求 */
+  const previewName = session.name?.trim() || "张三";
 
   const entries = await Promise.all(
     defaultResultEmailTemplateSettings.map(async (fallback) => {
