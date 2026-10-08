@@ -29,7 +29,6 @@ import {
   type ResultEmailTemplateSetting,
 } from "@/lib/email/template-settings";
 import { renderEmailTemplate } from "@/lib/email-center/render";
-import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 import type { ResultEmailTemplateKey } from "@/lib/email-center/types";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -226,10 +225,10 @@ export async function getResultEmailPreviews(department?: string | null) {
         ? (requested ?? scope.department)
         : requested;
 
-  /* 样张与「测试发送」同一口径：候选人姓名读真实姓名（当前账号的 Link 姓名），
-     不用占位称呼，预览里看到的效果就是真实渲染效果 */
-  const currentUser = await getPeopleUserByLinkId(session.uid);
-  const previewName = currentUser?.name?.trim() || session.name || "同学";
+  /* 样张与「测试发送」同一口径：候选人姓名读当前账号的姓名（会话里存的就是 Link 的真实姓名），
+     不再用占位称呼。不在这里查 Link：读模板页不该因为一次资料查询失败整页报错，
+     也省掉一次页面加载时的外部请求 */
+  const previewName = session.name?.trim() || "同学";
 
   const entries = await Promise.all(
     defaultResultEmailTemplateSettings.map(async (fallback) => {

@@ -17,7 +17,6 @@ const mockGetDepartmentScope = jest.fn();
 const mockWriteOperationAudit = jest.fn();
 const mockRenderEmailTemplate = jest.fn();
 const mockRevalidatePath = jest.fn();
-const mockGetPeopleUserByLinkId = jest.fn();
 
 jest.mock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
 jest.mock("@/lib/dal", () => ({
@@ -33,9 +32,6 @@ jest.mock("@/lib/operation-audit", () => ({
 }));
 jest.mock("@/lib/email-center/render", () => ({
   renderEmailTemplate: mockRenderEmailTemplate,
-}));
-jest.mock("@/lib/link/user-lookup", () => ({
-  getPeopleUserByLinkId: mockGetPeopleUserByLinkId,
 }));
 
 const mockSelectResults: unknown[][] = [];
@@ -176,7 +172,6 @@ describe("result email template settings", () => {
     jest.clearAllMocks();
     mockVerifyRole.mockResolvedValue({ uid: 7, role: 3, name: "测试账号" });
     mockGetDepartmentScope.mockResolvedValue({ kind: "all" });
-    mockGetPeopleUserByLinkId.mockResolvedValue({ id: 7, name: "测试同学" });
     mockRenderEmailTemplate.mockResolvedValue({ subject: "主题", html: "<p>正文</p>" });
   });
 
@@ -264,13 +259,13 @@ describe("result email template settings", () => {
       const previews = await getResultEmailPreviews(null);
 
       expect(previews["office_round1.result.accepted"]).toBe("<p>正文</p>");
-      /* 样张与「测试发送」同一口径：候选人姓名读当前账号的真实姓名，
-         不再用「同学」或「[同学姓名]」这类占位称呼 */
+      /* 样张与「测试发送」同一口径：候选人姓名读当前账号的姓名（会话里的真实姓名），
+         不用「同学」或「[同学姓名]」这类占位称呼，也不额外查 Link */
       expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
           templateKey: "office_round1.result.accepted",
           variables: expect.objectContaining({
-            name: "测试同学",
+            name: "测试账号",
             groupNumber: "888777666",
           }),
         }),
