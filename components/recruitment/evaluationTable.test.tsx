@@ -2110,6 +2110,39 @@ describe("EvaluationTable", () => {
     );
   }, 15000);
 
+  it("ignores repeated Ctrl+Enter while the first submit is still in flight", async () => {
+    const user = userEvent.setup();
+    const evaluationActionMock = jest.requireMock(
+      "@/action/user-flow/evaluation",
+    ) as { createEvaluation: jest.Mock };
+    const mockCreateEvaluation = evaluationActionMock.createEvaluation;
+    const mockToastSuccess = jest.requireMock("sonner").toast.success as jest.Mock;
+    mockToastSuccess.mockReset();
+    const pendingSubmit = Promise.withResolvers<unknown>();
+    mockCreateEvaluation.mockReset().mockImplementation(() => pendingSubmit.promise);
+
+    renderTable([makeCandidate({ userFlowId: 1, name: "办公同学" })], {
+      scoringEnabled: true,
+    });
+
+    const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    await user.click(rowMenu.getByRole("button", { name: "填写面试记录" }));
+    await user.type(screen.getByLabelText(/面试记录内容/), "表达清晰，记录完整。");
+    await user.type(screen.getByLabelText(/面试分数/), "90");
+
+    /* 按钮与快捷键共用提交锁：第一次还在路上时连按不会再发一次 */
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    expect(mockCreateEvaluation).toHaveBeenCalledTimes(1);
+
+    pendingSubmit.resolve({ success: true, data: { id: 15 } });
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith("面试记录已保存"),
+    );
+    expect(mockCreateEvaluation).toHaveBeenCalledTimes(1);
+  }, 15000);
+
   it("shows a saved office opinion in the score popover", async () => {
     const user = userEvent.setup();
     renderTable(

@@ -1004,6 +1004,8 @@ export const EvaluationTable = ({
   const canEditInterviewSlot =
     scoringEnabled && role >= 3 && safeSlotOptions.length > 0;
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
+  /* 提交锁：按钮与 Ctrl/⌘ + Enter 共用，请求结束前不接受第二次提交 */
+  const submitLockRef = useRef(false);
   const [portfolioCandidate, setPortfolioCandidate] = useState<Candidate | null>(null);
   const [returnConfirmCandidate, setReturnConfirmCandidate] = useState<Candidate | null>(null);
   const [returnReason, setReturnReason] = useState("");
@@ -1273,6 +1275,9 @@ export const EvaluationTable = ({
     safeCandidates.find((c) => c.userFlowId === schedulingId) ?? null;
 
   const handlePass = async (userFlowId: number) => {
+    /* 提交锁先于校验：连按按钮或快捷键时，第一次请求还在路上就不再发第二次
+       （服务端会更新同一条面评，但每次调用都会写一条审计，重复提交只会多出噪音记录） */
+    if (submitLockRef.current) return;
     if (!content.trim()) {
       setScoreError(null);
       setEvaluationError(
@@ -1304,6 +1309,7 @@ export const EvaluationTable = ({
     }
     setScoreError(null);
     setLoadingId(userFlowId);
+    submitLockRef.current = true;
     try {
       /* 办公类提交记录内容、可选的面试意见与分数：意见仅供参考，不带妙记/会议链接 */
       const result = scoringEnabled
@@ -1327,6 +1333,7 @@ export const EvaluationTable = ({
     } catch {
       toast.error("提交失败");
     } finally {
+      submitLockRef.current = false;
       setLoadingId(null);
     }
   };
