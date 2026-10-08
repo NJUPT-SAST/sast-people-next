@@ -156,6 +156,65 @@ describe("resolveLatestPassedDepartments", () => {
     expect(result.get(5)).toBe("office");
   });
 
+  it("lets a pass from a flow created after the decision supersede it", () => {
+    const result = resolveLatestPassedDepartments([
+      {
+        uid: 5,
+        flowType: "office_interview",
+        choice: 2,
+        finalDepartment: "publicity",
+        finalDepartmentDecidedAt: "2026-10-05T00:00:00Z",
+        flowCreatedAt: "2026-10-01T00:00:00Z",
+        flowDepartment: "publicity",
+        rowDepartment: "publicity",
+        passedAt: "2026-10-06T00:00:00Z",
+      },
+      {
+        /* 下一届新建的流程（晚于决策时刻）：通过后按「最后一次通过」重新裁决 */
+        uid: 5,
+        flowType: "office_interview",
+        choice: 2,
+        finalDepartment: null,
+        flowCreatedAt: "2027-09-01T00:00:00Z",
+        flowDepartment: "liaison",
+        rowDepartment: "liaison",
+        passedAt: "2027-09-20T00:00:00Z",
+      },
+    ]);
+
+    expect(result.get(5)).toBe("liaison");
+  });
+
+  it("keeps the decision while only flows created before it passed", () => {
+    const result = resolveLatestPassedDepartments([
+      {
+        uid: 5,
+        flowType: "office_interview",
+        choice: 1,
+        finalDepartment: "publicity",
+        finalDepartmentDecidedAt: "2026-10-08T00:00:00Z",
+        flowCreatedAt: "2026-10-01T00:00:00Z",
+        flowDepartment: "office",
+        rowDepartment: "office",
+        passedAt: "2026-10-03T00:00:00Z",
+      },
+      {
+        uid: 5,
+        flowType: "office_interview",
+        choice: 2,
+        finalDepartment: "publicity",
+        finalDepartmentDecidedAt: "2026-10-08T00:00:00Z",
+        flowCreatedAt: "2026-10-01T00:00:00Z",
+        flowDepartment: "publicity",
+        rowDepartment: "publicity",
+        passedAt: "2026-10-06T00:00:00Z",
+      },
+    ]);
+
+    /* 同批流程：即便通过晚于决策，评议值仍然优先 */
+    expect(result.get(5)).toBe("publicity");
+  });
+
   it("keeps the latest passed office department when no first choice passed", () => {
     const result = resolveLatestPassedDepartments([
       {

@@ -6,6 +6,7 @@
  *
  * 办公类部门面试（每个办公部门一条流程，候选人在两个部门分别报名）：
  * 1) 部长团评议的「最终去向」优先（`user_flow.final_department`），但仅当该部门确有已通过的办公类记录；
+ *    评议值当届有效：决策之后新创建的流程产生通过时，评议值不再采信（回到「最后一次通过」口径）；
  * 2) 没有评议结果时按「第一志愿优先」：同一人通过多个办公流程时归属第一志愿部门（choice=1）；
  *    没有第一志愿通过时取最后一次通过的办公部门。
  */
@@ -18,6 +19,10 @@ export type PassedFlowDepartmentRow = {
   choice?: number | null;
   /** 部长团评议的最终去向部门（Link 部门标识） */
   finalDepartment?: string | null;
+  /** 评议时刻（NULL = 历史数据未记录时刻，仍按有效处理） */
+  finalDepartmentDecidedAt?: Date | string | number | null;
+  /** 流程创建时间：决策之后创建的流程产生通过时，评议值被取代 */
+  flowCreatedAt?: Date | string | number | null;
   /** 流程归属部门（Link 部门标识） */
   flowDepartment: string | null | undefined;
   /** 报名记录固化归属（流程无归属时回落使用） */
@@ -60,20 +65,27 @@ export const resolveLatestPassedDepartments = (
     const otherRows = userRows.filter((row) => !isOfficeRow(row));
 
     /* 1) 部长团评议的最终去向：只有该部门确有已通过的办公类记录才生效。
-       预设后该部门落选（或写入时尚未通过）时忽略评议值，避免把成员归到未通过的部门。 */
+       预设后该部门落选（或写入时尚未通过）时忽略评议值，避免把成员归到未通过的部门；
+       评议值当届有效——决策之后新创建的流程一旦产生通过，就按「最后一次通过」重新裁决。 */
     const passedOfficeDepartments = new Set(
       officeRows
         .map((row) => normalize(row.flowDepartment ?? row.rowDepartment))
         .filter((department): department is string => department !== null),
     );
-    const decided = userRows
-      .map((row) => normalize(row.finalDepartment))
-      .find(
-        (department) =>
-          department !== null && passedOfficeDepartments.has(department),
-      );
-    if (decided) {
-      resolved.set(uid, decided);
+    const decidedDepartment = userRows.reduce<string | null>((found, row) => {
+      if (found) return found;
+      const department = normalize(row.finalDepartment);
+      if (department === null || !passedOfficeDepartments.has(department)) {
+        return null;
+      }
+      const decidedAt = toMillis(row.finalDepartmentDecidedAt);
+      const superseded =
+        decidedAt > 0 &&
+        userRows.some((other) => toMillis(other.flowCreatedAt) > decidedAt);
+      return superseded ? null : department;
+    }, null);
+    if (decidedDepartment) {
+      resolved.set(uid, decidedDepartment);
       continue;
     }
 

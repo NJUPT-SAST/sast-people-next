@@ -186,6 +186,10 @@ export const userFlow = pgTable("user_flow", {
   choice: smallint("choice"),
   /* 部长团评议的最终去向部门（Link 部门标识，办公类）；为空时按「第一志愿优先」自动归属 */
   finalDepartment: varchar("final_department", { length: 64 }),
+  /* 评议时刻：决策之后新创建的流程产生通过时，评议值不再生效（按「最后一次通过」重新裁决） */
+  finalDepartmentDecidedAt: timestamp("final_department_decided_at", {
+    withTimezone: true,
+  }),
   /* 报名记录归属部门（Link 部门标识）：报名时按组别映射 → 流程归属解析后固化 */
   department: varchar("department", { length: 64 }),
   /* 讲师/管理员退回面试时填写的理由 */
