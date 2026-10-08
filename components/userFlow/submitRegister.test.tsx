@@ -161,6 +161,61 @@ describe("SubmitRegister", () => {
     expect(screen.getByRole("button", { name: "暂无开放报名" })).toBeDisabled();
   });
 
+  it("greys out a flow whose registration closed after the round-one confirmation", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[
+          {
+            id: 9,
+            title: "办公室面试",
+            type: "office_interview",
+            startedAt: new Date("2026-03-21T08:00:00.000Z"),
+            endedAt: new Date("2026-03-30T08:00:00.000Z"),
+            registrationClosedAt: new Date("2026-03-22T07:00:00.000Z"),
+          },
+          {
+            id: 2,
+            title: "正在报名流程",
+            type: "recruitment",
+            startedAt: new Date("2026-03-21T08:00:00.000Z"),
+            endedAt: new Date("2026-03-23T08:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "提交报名" }));
+
+    /* 确认一面后报名截止的流程置灰并标注原因；同一时间其他流程照常可选 */
+    const closedOption = screen.getByRole("button", { name: /办公室面试/ });
+    expect(closedOption).toBeDisabled();
+    expect(closedOption).toHaveTextContent("报名已截止");
+    expect(screen.getByRole("button", { name: /正在报名流程/ })).toBeEnabled();
+  });
+
+  it("disables the entry when the only flow closed its registration", () => {
+    render(
+      <SubmitRegister
+        uid={7}
+        flowList={[
+          {
+            id: 9,
+            title: "办公室面试",
+            type: "office_interview",
+            startedAt: new Date("2026-03-21T08:00:00.000Z"),
+            endedAt: new Date("2026-03-30T08:00:00.000Z"),
+            registrationClosedAt: new Date("2026-03-22T07:00:00.000Z"),
+          },
+        ] as never}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "暂无开放报名" })).toBeDisabled();
+  });
+
   it("submits optional portfolio fields for ungrouped interview flows", async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 

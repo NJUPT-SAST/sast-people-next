@@ -357,6 +357,12 @@ export const closeOfficeRoundOne = async (
         if (updated !== decided.size) {
           throw new Error(ROSTER_CONFLICT_MESSAGE);
         }
+        /* 一面名单确认后报名截止：此时再报名已经没有一面可以参加，
+           报名入口与服务端 register 都以这个时间点为准（与名单同事务写入） */
+        await tx
+          .update(flow)
+          .set({ registrationClosedAt: new Date() })
+          .where(eq(flow.id, flowId));
       },
     });
     if (outcome.kind === "error") {

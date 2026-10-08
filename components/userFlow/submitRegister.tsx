@@ -34,7 +34,10 @@ import {
 } from '@/const/flow';
 
 const isFlowActive = (flow: displayFlow, now: Date) =>
-  now >= flow.startedAt && (!flow.endedAt || now <= flow.endedAt);
+  now >= flow.startedAt &&
+  (!flow.endedAt || now <= flow.endedAt) &&
+  /* 报名截止（办公类确认一面后写入）：入口置灰，服务端也会拒绝 */
+  !(flow.registrationClosedAt && now >= flow.registrationClosedAt);
 
 /* 冲突时段的补充提示；选项标签已包含默认冲突文案时不再重复展示 */
 const SLOT_CONFLICT_HINT = "（约面时间QQ群中另行通知）";
@@ -253,6 +256,9 @@ const SubmitRegister = ({
               {safeFlowList.map((flow) => {
                 const isBeforeStart = now < flow.startedAt;
                 const isAfterEnd = flow.endedAt ? now > flow.endedAt : false;
+                const isClosed = Boolean(
+                  flow.registrationClosedAt && now >= flow.registrationClosedAt,
+                );
                 const isActive = isFlowActive(flow, now);
 
                 return (
@@ -269,6 +275,7 @@ const SubmitRegister = ({
                       <span className="text-xs text-muted-foreground">
                         {isBeforeStart && `未开始 (${originalDayjs(flow.startedAt).format('YYYY-MM-DD HH:mm')})`}
                         {isAfterEnd && `已结束 (${originalDayjs(flow.endedAt).format('YYYY-MM-DD HH:mm')})`}
+                        {!isAfterEnd && isClosed && `报名已截止`}
                         {isActive && `进行中 (${originalDayjs(flow.endedAt).format('YYYY-MM-DD HH:mm')} 截止)`}
                       </span>
                     </div>
