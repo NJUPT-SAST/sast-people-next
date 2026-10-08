@@ -58,7 +58,9 @@ describe("result email flow kind and template key", () => {
 });
 
 describe("renderResultEmailSubject", () => {
-  it("substitutes the full result variable map", () => {
+  it("ignores the candidate name in office subjects (batch-consistent subject)", () => {
+    /* 主题不再带姓名：邮件中心发送记录/卡片按批次展示，
+       显示「张三办公室二轮面试结果通知」会像整批只发给某个人 */
     expect(
       renderResultEmailSubject(
         {
@@ -69,7 +71,18 @@ describe("renderResultEmailSubject", () => {
         },
         settingFor("office_round2.result.accepted"),
       ),
-    ).toBe("张三办公室二轮面试结果通知");
+    ).toBe("办公室二轮面试结果通知");
+  });
+
+  it("keeps office default subjects free of the candidate name", () => {
+    for (const key of [
+      "office_round1.result.accepted",
+      "office_round1.result.rejected",
+      "office_round2.result.accepted",
+      "office_round2.result.rejected",
+    ]) {
+      expect(settingFor(key).subjectTemplate).not.toContain("{name}");
+    }
   });
 
   it("renders office placeholders empty when the values are missing", () => {
@@ -140,5 +153,37 @@ describe("OfferEmail", () => {
 
     expect(html).toContain("点我填写成员表");
     expect(html).not.toContain("点击填写信息表");
+  });
+
+  /* 办公部门的一面结果通知曾经整批带着「[同学姓名]」占位符发出：
+     称呼必须用收件人的真实姓名渲染，任何路径都不允许出现占位符 */
+  it("greets the candidate by their real name and never emits the placeholder token", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张昊然",
+        flowName: "2026 校科协办公室面试招新",
+        accept: true,
+        flowKind: "office_round1",
+        department: "办公室",
+        groupNumber: "123456789",
+      }),
+    );
+
+    expect(html).toContain("亲爱的张昊然同学，");
+    expect(html).not.toContain("[同学姓名]");
+  });
+
+  it("falls back to a neutral greeting instead of a placeholder when the name is missing", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        flowName: "2026 校科协办公室面试招新",
+        accept: false,
+        flowKind: "office_round1",
+        department: "办公室",
+      }),
+    );
+
+    expect(html).toContain("亲爱的同学，");
+    expect(html).not.toContain("[同学姓名]");
   });
 });

@@ -99,7 +99,7 @@ export const emailTemplateDefinitions = [
     category: "result",
     name: "部门面试一面通过通知",
     description: "向通过办公类部门一轮面试的同学发送结果通知和二轮面试群信息。",
-    defaultSubject: "{name}{department}一轮面试结果通知",
+    defaultSubject: "{department}一轮面试结果通知",
     variables: [
       { key: "name", label: "候选人姓名", required: true, example: "张三" },
       { key: "flowName", label: "流程名称", required: true, example: "2026 办公类部门面试招新" },
@@ -112,7 +112,7 @@ export const emailTemplateDefinitions = [
     category: "result",
     name: "部门面试一面不通过通知",
     description: "向未通过办公类部门一轮面试的同学发送结果通知。",
-    defaultSubject: "{name}{department}面试结果通知",
+    defaultSubject: "{department}面试结果通知",
     variables: [
       { key: "name", label: "候选人姓名", required: true, example: "张三" },
       { key: "flowName", label: "流程名称", required: true, example: "2026 办公类部门面试招新" },
@@ -125,7 +125,7 @@ export const emailTemplateDefinitions = [
     category: "result",
     name: "部门面试二面通过通知",
     description: "向通过办公类部门二轮面试的同学发送结果通知和部门群信息。",
-    defaultSubject: "{name}{department}二轮面试结果通知",
+    defaultSubject: "{department}二轮面试结果通知",
     variables: [
       { key: "name", label: "候选人姓名", required: true, example: "张三" },
       { key: "flowName", label: "流程名称", required: true, example: "2026 办公类部门面试招新" },
@@ -138,7 +138,7 @@ export const emailTemplateDefinitions = [
     category: "result",
     name: "部门面试二面不通过通知",
     description: "向未通过办公类部门二轮面试的同学发送结果通知。",
-    defaultSubject: "{name}{department}面试结果通知",
+    defaultSubject: "{department}面试结果通知",
     variables: [
       { key: "name", label: "候选人姓名", required: true, example: "张三" },
       { key: "flowName", label: "流程名称", required: true, example: "2026 办公类部门面试招新" },

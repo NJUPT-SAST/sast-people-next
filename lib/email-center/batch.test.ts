@@ -165,6 +165,32 @@ describe("email batch service", () => {
     expect(mockRenderEmailTemplate).not.toHaveBeenCalled();
   });
 
+  it("rejects result batch creation when a recipient has no real name", async () => {
+    mockSelectResults.push([
+      {
+        userFlowId: 203,
+        userId: 303,
+        flowName: "2026 春季招新",
+      },
+    ], []);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[303, { id: 303, name: "", studentId: "B003" }]]),
+    );
+
+    await expect(
+      createResultEmailBatch({
+        userIds: [303],
+        flowId: 7,
+        accept: true,
+        createdBy: 99,
+      }),
+    ).rejects.toThrow("缺少姓名，无法发送实名通知：Link 用户 #303");
+
+    /* 称呼必须来自真实姓名：缺名的候选人直接拦住，不渲染、不入库 */
+    expect(mockDb.insert).not.toHaveBeenCalled();
+    expect(mockRenderEmailTemplate).not.toHaveBeenCalled();
+  });
+
   it("creates result batches and deliveries in one transaction", async () => {
     mockSelectResults.push([
       {

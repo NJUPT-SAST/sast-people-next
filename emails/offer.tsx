@@ -60,7 +60,6 @@ interface OfferEmailProps {
   resultBadgeTemplate?: string;
   resultTitleTemplate?: string;
   resultSummaryTemplate?: string;
-  genericGreeting?: boolean;
   memberInfoFormUrl?: string;
   feishuGroupUrl?: string;
   calendarUrl?: string;
@@ -83,7 +82,6 @@ export const OfferEmail = ({
   resultBadgeTemplate = '',
   resultTitleTemplate = '',
   resultSummaryTemplate = '',
-  genericGreeting = false,
   memberInfoFormUrl = resultEmailLinks.memberInfoForm,
   feishuGroupUrl = resultEmailLinks.feishuGroup,
   calendarUrl = resultEmailLinks.calendar,
@@ -92,13 +90,14 @@ export const OfferEmail = ({
   memberFormLabel = resultEmailCopy.memberFormLabel,
   feishuGroupName = resultEmailCopy.feishuGroupName,
 }: OfferEmailProps) => {
-  const greeting =
-    genericGreeting || !name
-      ? '亲爱的[同学姓名]同学，'
-      : `亲爱的${name}同学，`;
+  /* 称呼只用真实收件人姓名渲染：占位符（如「[同学姓名]」）绝不能进入最终发送的邮件 */
+  const greetingName = name?.trim();
+  const greeting = greetingName
+    ? `亲爱的${greetingName}同学，`
+    : '亲爱的同学，';
   const tone = accept ? acceptedTone : rejectedTone;
   const copyVariables = {
-    name: name ?? '[同学姓名]',
+    name: name ?? '',
     flowName: flowName ?? '本次流程',
     department,
     groupNumber,

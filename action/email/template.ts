@@ -29,6 +29,7 @@ import {
   type ResultEmailTemplateSetting,
 } from "@/lib/email/template-settings";
 import { renderEmailTemplate } from "@/lib/email-center/render";
+import { getPeopleUserByLinkId } from "@/lib/link/user-lookup";
 import type { ResultEmailTemplateKey } from "@/lib/email-center/types";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -214,7 +215,7 @@ export async function listEmailTemplateSettings(
  * 部门账号缺省本部门、也可跨部门只读预览，无部门账号只看全局默认。
  */
 export async function getResultEmailPreviews(department?: string | null) {
-  await verifyRole(3);
+  const session = await verifyRole(3);
   const scope = await getDepartmentScope();
   const requested = normalizeDepartmentKey(department);
   /* 部门账号缺省本部门；传入其他部门时不回落，按只读浏览渲染对应部门的模板 */
@@ -224,6 +225,11 @@ export async function getResultEmailPreviews(department?: string | null) {
       : scope.kind === "department"
         ? (requested ?? scope.department)
         : requested;
+
+  /* 样张与「测试发送」同一口径：候选人姓名读真实姓名（当前账号的 Link 姓名），
+     不用占位称呼，预览里看到的效果就是真实渲染效果 */
+  const currentUser = await getPeopleUserByLinkId(session.uid);
+  const previewName = currentUser?.name?.trim() || session.name || "同学";
 
   const entries = await Promise.all(
     defaultResultEmailTemplateSettings.map(async (fallback) => {
@@ -235,14 +241,13 @@ export async function getResultEmailPreviews(department?: string | null) {
       const rendered = await renderEmailTemplate({
         templateKey: fallback.templateKey as ResultEmailTemplateKey,
         variables: {
-          name: "同学",
+          name: previewName,
           flowName: "示例流程",
           /* 办公类模板需要 {department}；示例数据用归属部门展示名，缺省给「办公室」 */
           department: departmentLabel(target, "办公室"),
           /* 群号取落库值：预览要能反映「填了之后长什么样」，不能用示例值顶替 */
           groupNumber: setting.groupNumber,
           setting,
-          genericGreeting: true,
         },
         department: target,
       });

@@ -369,6 +369,57 @@ describe("EmailTemplateManagementSection", () => {
     expect(screen.getByRole("group", { name: "面试通知" })).toBeInTheDocument();
   });
 
+  it("办公部门的测试发送只列本部门用得到的模板", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [
+          createResultRow("office_round1.result.accepted", "office", true, true),
+        ],
+        departments: ["office", "software"],
+        scope: { kind: "department", department: "office" },
+      },
+      department: "office",
+    });
+
+    const [headerButton] = screen.getAllByRole("button", { name: "测试发送" });
+    await user.click(headerButton);
+
+    const select = await screen.findByLabelText<HTMLSelectElement>("模板");
+    /* 办公部门不该看到技术阶段（笔试/免试/WOC/SOC）和飞书日程类模板 */
+    expect(Array.from(select.options).map((option) => option.value)).toEqual([
+      "office_round1.result.accepted",
+    ]);
+    /* 跟随流程类型的默认键被过滤掉时回落到第一个可选项，而不是留在列表之外 */
+    expect(select).toHaveValue("office_round1.result.accepted");
+  });
+
+  it("技术部门的测试发送不列办公阶段模板", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [
+          createResultRow("recruitment.result.accepted", "software", true, true),
+        ],
+        departments: ["office", "software"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "software",
+      selectedFlowType: "recruitment",
+    });
+
+    const [headerButton] = screen.getAllByRole("button", { name: "测试发送" });
+    await user.click(headerButton);
+
+    const select = await screen.findByLabelText<HTMLSelectElement>("模板");
+    expect(Array.from(select.options).map((option) => option.value)).toEqual([
+      "recruitment.result.accepted",
+      "recruitment.result.rejected",
+      "interview.schedule.created",
+    ]);
+    expect(select).toHaveValue("recruitment.result.accepted");
+  });
+
   it("不通过模板卡片用红色顶条，和通过模板一眼区分", () => {
     renderSection({
       templateSettings: {

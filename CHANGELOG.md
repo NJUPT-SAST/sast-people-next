@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **办公类结果邮件的主题不再带候选人姓名**（`lib/email/template-settings.ts`、`lib/email-center/registry.ts`、`migrations/0070_office_email_subject_without_name.sql`）：内置主题曾是 `{name}{department}一轮面试结果通知`，于是邮件中心的「发送记录」与待发卡片显示成「张三办公室一轮面试结果通知」——每封投递各带不同姓名、批次却只能存一个代表性主题，看起来像整批只发给某个人，也与其他流程（「2026 春季招新 结果通知」）的读法不一致。现在内置默认改为 `{department}一轮面试结果通知` / `{department}面试结果通知`；批次级主题与流程卡片主题渲染时 `{name}` 留空（个人化只保留在正文称呼与每封投递自己的标题里），迁移 `0070` 把仍是旧默认的落库行改写过来。部门想要姓名进主题，仍可在模板里写 `{name}`。
+- **「测试发送」的模板列表按部门阶段收窄**（`components/email/EmailTemplateManagementSection.tsx`）：下拉与卡片此前口径不一致——卡片已按「部门 × 阶段」过滤，测试发送下拉却是全部模板，办公部门的部长能看到笔试/免试/WOC/SOC 与飞书日程模板，容易误以为这些也要自己维护。现在下拉与卡片同一套过滤（办公部门 = 一面/二面 + 报名退回；技术部门 = 笔试/免试/WOC/SOC + 面试通知），跟随流程类型的默认键被过滤掉时回落到第一个可选项。
 - **面评审批卡片信息重排**（`components/manage/approvalsContent.tsx`）：姓名、学号、讲师建议与最终结果徽章现在排在同一行且徽章靠右对齐（此前姓名触发按钮是块级元素，桌面端就把学号挤到下一行；移动端学号还被 `hidden sm:inline` 隐藏），移动端同样显示学号；去掉「投递部门」一行（部门隔离下流程名本身已体现部门，投递组别保留）。
 - **飞书绑定失败的提示改为中心弹窗**（`components/feishu-oauth-failure-dialog.tsx`、`app/dashboard/page.tsx`）：原来的右下角 toast 会被飞书授权页盖住，用户看不到「当前 Link 账号未绑定飞书身份」这类失败原因。现在失败原因固定显示在屏幕中央：Link 未绑定飞书时提供**「去 Link 绑定飞书」**（新标签页打开 `NEXT_PUBLIC_LINK_PROFILE_URL` 的 `/settings`，默认 `https://link.sast.fun/settings`）与「重新绑定飞书」，账号不匹配 / 授权中断提供「重新绑定飞书」；URL 参数清理与「刷新不再弹」的行为保持原样（`components/feishu-oauth-failure-toast.tsx` 删除）。
 - 办公部门**没有讲师这一级**：切换身份查看里「讲师」只在技术部门可选（选中办公部门时禁用并提示，部门下拉标注「（无讲师）」，服务端 `startViewAs` 同样拒绝），避免切出「办公室讲师」这种不存在的身份。
@@ -90,6 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### 邮件模板「填了不生效」修复
 
+- **办公类一面结果通知整批带着「[同学姓名]」占位符发出**（`lib/email-center/batch.ts`、`emails/offer.tsx`）：`createOfficeRoundOneEmailBatch` 给渲染传了 `genericGreeting: true`，`OfferEmail` 的称呼因此固定成字面的「亲爱的[同学姓名]同学，」——预览弹窗写着「真实发送时会替换为收件人姓名」，真实发送却把占位符原样发给了每一位候选人。现在称呼只按收件人真实姓名渲染（`genericGreeting` 机制整体移除）：两个批次创建入口（`createResultEmailBatch` / `createOfficeRoundOneEmailBatch`）在 Link 缺姓名时直接拦下并报「缺少姓名，无法发送实名通知：Link 用户 #…」，不再回落到「同学」这类非真实称呼；「测试发送」同样读真实姓名（面试通知的面试官用当前账号姓名，不再固定「李四」）；模板样张与流程发送预览也改用真实姓名渲染（样张取当前账号的 Link 姓名），样张说明文案同步更新；发送环节新增哨兵（`lib/email-center/delivery.ts`）——投递内容里仍有「[同学姓名]」占位符时直接阻止发送并把原因写进投递记录，占位符永远出不了网。
 - **测试发送 / 模板预览把 QQ 群号写死成示例值**：`action/email/test-send.ts` 与 `action/email/template.ts` 的 `getResultEmailPreviews` 都传 `groupNumber: "123456789"`，所以填了群号后在测试邮件和预览里永远看不到自己的值（真实发送路径取的是落库值，两个「预览」面彼此还不一致）。现在两处都取解析后的模板设置；「测试发送」的渲染请求构造抽到 `lib/email-center/test-render.ts`，与真实发送共用同一份解析结果并有单测守着。
 - **面试 / 退回通知的邮件标题渲染示例变量**：`renderInterviewScheduleEmailSubject` / `renderInterviewWithdrawalEmailSubject` 把 `{candidateName}` 固定成「同学」、`{organizerName}` 固定成「李四」、时间与理由为空，标题里写了这些变量的模板在真实邮件里永远是样例。现在标题与正文共用同一套真实变量（`lib/email/interview-schedule.tsx`、`lib/email-center/interview-withdrawal.tsx`、`lib/email-center/render.ts`）。
 - **「表单按钮文案」（`memberFormLabel`）是死字段**：可编辑、必填、会落库、也传给了邮件组件，但 `emails/offer.tsx` 把它解构成 `_memberFormLabel` 并忽略，按钮文案写死「点击填写信息表」，改了什么都不会变。现在按钮直接渲染该字段；内置默认同步改为「点击填写信息表」，迁移 `0068` 把仍是旧默认值「成员信息收集表」的行改写为新文案，已发出的邮件文案保持不变。

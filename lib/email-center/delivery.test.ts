@@ -262,6 +262,30 @@ describe("sendEmailDelivery", () => {
     ]);
   });
 
+  it("refuses to send a snapshot that still contains the placeholder greeting", async () => {
+    const placeholderDelivery = {
+      ...pendingDelivery,
+      htmlSnapshot: "<p>亲爱的[同学姓名]同学，</p>",
+    };
+    mockSelectResults.push([placeholderDelivery]);
+    mockUpdateResults.push([{ id: placeholderDelivery.id }], []);
+
+    await expect(sendEmailDelivery(placeholderDelivery.id)).rejects.toThrow(
+      "仍有未替换的「[同学姓名]」占位符，已阻止发送",
+    );
+
+    /* 占位符绝不出网：SMTP 不调用，失败原因写进投递记录便于排查 */
+    expect(mockSendMail).not.toHaveBeenCalled();
+    expect(mockUpdateSetCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: "failed",
+          errorMessage: expect.stringContaining("[同学姓名]"),
+        }),
+      ]),
+    );
+  });
+
   it("dead-letters the delivery after the retry limit is reached", async () => {
     process.env.EMAIL_RETRY_MAX_ATTEMPTS = "1";
     mockSelectResults.push([pendingDelivery]);

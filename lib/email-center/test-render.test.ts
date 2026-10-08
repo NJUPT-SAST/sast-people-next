@@ -82,7 +82,8 @@ describe("createTestRenderRequest", () => {
     expect(request.variables).toMatchObject({
       candidateName: "李四",
       flowName: "2026 免试招新",
-      organizerName: "李四",
+      /* 面试官读当前账号真实姓名，不再用「李四」这类样例值 */
+      organizerName: "讲师乙",
     });
     expect(mockReadResultEmailTemplateSetting).not.toHaveBeenCalled();
   });

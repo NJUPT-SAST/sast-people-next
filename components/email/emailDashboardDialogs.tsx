@@ -20,7 +20,7 @@ export function PreviewDialog({
   title,
   html,
   triggerLabel = "模板样张",
-  description = "样张使用占位称呼；真实发送时会替换为收件人姓名。",
+  description = "样张使用待发名单第一位同学渲染；真实发送时每位收件人都会替换为自己的姓名。",
   triggerClassName,
   triggerSize = "default",
 }: {

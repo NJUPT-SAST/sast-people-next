@@ -184,6 +184,22 @@ export async function createRenderedTestEmailDelivery(
   });
 }
 
+/* 结果通知的称呼必须是真实姓名：渲染期漏替换的占位符绝不允许进入最终发送，
+   旧快照（或未来的回归）在这里被拦下，并以失败原因的形式留在投递记录里可排查 */
+function assertNoUnreplacedPlaceholders(delivery: {
+  subject: string;
+  htmlSnapshot: string;
+}) {
+  if (
+    delivery.subject.includes("[同学姓名]") ||
+    delivery.htmlSnapshot.includes("[同学姓名]")
+  ) {
+    throw new Error(
+      "邮件内容里仍有未替换的「[同学姓名]」占位符，已阻止发送；请检查模板并重新创建发送任务。",
+    );
+  }
+}
+
 export const sendEmailDelivery = async (
   deliveryId: number,
   options: SendEmailDeliveryOptions = {},
@@ -271,6 +287,7 @@ export const sendEmailDelivery = async (
   }
 
   try {
+    assertNoUnreplacedPlaceholders(delivery);
     await assertEmailSendRateLimit();
     const result = await sendEmailViaProvider({
       to: delivery.toAddress,
