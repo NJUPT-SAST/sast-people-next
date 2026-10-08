@@ -64,7 +64,9 @@ describe("Recruitment DataTable", () => {
   it("shows the empty state", () => {
     render(<DataTable columns={columns} data={[]} flowTypeId={7} role={3} />);
 
-    expect(screen.getAllByText("暂时没有内容。")[0]).toBeInTheDocument();
+    expect(
+      screen.getAllByText("当前流程下还没有考生记录。")[0],
+    ).toBeInTheDocument();
   });
 
   it("does not crash when table inputs are temporarily undefined", () => {
@@ -77,7 +79,9 @@ describe("Recruitment DataTable", () => {
       />,
     );
 
-    expect(screen.getAllByText("暂时没有内容。")[0]).toBeInTheDocument();
+    expect(
+      screen.getAllByText("当前流程下还没有考生记录。")[0],
+    ).toBeInTheDocument();
   });
 
   it("sets selected rows as passed without changing unselected rows", async () => {

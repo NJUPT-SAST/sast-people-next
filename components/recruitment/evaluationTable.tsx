@@ -929,6 +929,7 @@ function ActionCell({
 }
 
 export const EvaluationTable = ({
+  flowId,
   candidates,
   groupOptions,
   role,
@@ -942,6 +943,8 @@ export const EvaluationTable = ({
   onRefresh,
   onOpenRecord,
 }: {
+  /** 当前流程 ID：切换流程时清空筛选与搜索，避免上一屏的条件把新列表筛空 */
+  flowId: number;
   candidates: Candidate[];
   groupOptions: string[];
   role: number;
@@ -1072,6 +1075,16 @@ export const EvaluationTable = ({
       current && !options.includes(current) ? null : current,
     );
   }, [groupOptionsKey]);
+
+  /* 切流程 / 切轮次是一次「重新开始看」：搜索与筛选全部清空。
+     否则上一屏的胶囊（如「待记录」）留在新列表上，看起来就是「新的一轮怎么没人」 */
+  useEffect(() => {
+    setSearch("");
+    setApplyGroupFilter(null);
+    setChoiceFilter(null);
+    setSlotFilter(null);
+    setStatusFilter(null);
+  }, [flowId, officeRound]);
 
   /* 二面不展示时段：留着一个看不见的时段筛选会把列表悄悄筛空 */
   useEffect(() => {

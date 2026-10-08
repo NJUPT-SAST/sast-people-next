@@ -138,6 +138,45 @@ describe("office round one email batch", () => {
     expect(mockDb.insert).not.toHaveBeenCalled();
   });
 
+  it("skips recipients the manager left unchecked in the roster", async () => {
+    mockSelectResults.push(
+      [{ id: 11, title: "2026 办公类部门面试招新", department: "office" }],
+      [
+        { userFlowId: 207, userId: 307 },
+        { userFlowId: 208, userId: 308 },
+      ],
+      // 只勾了 207：208 不参与去重查询，也不会建投递
+      [],
+      // sendEmailBatchById: batch row
+      [{ id: 1, category: "result", accept: true, status: "draft" }],
+      // sendEmailBatchById: stale sending deliveries
+      [],
+      // sendEmailBatchById: deliveries of the batch
+      [{ id: 41, userFlowId: 207, userId: 307, status: "pending" }],
+    );
+
+    await expect(
+      createOfficeRoundOneEmailBatch({
+        flowId: 11,
+        createdBy: 99,
+        accept: true,
+        notifyUserFlowIds: [207],
+      }),
+    ).resolves.toEqual({ batchId: 1, recipientCount: 1 });
+
+    /* 只有勾选的候选人建了投递；未勾选的连 idempotencyKey 都不出现 */
+    const deliveryInserts = mockInsertValues.slice(1) as Array<Record<string, unknown>>;
+    expect(deliveryInserts).toHaveLength(1);
+    expect(deliveryInserts[0].idempotencyKey).toContain("office_round1:accepted:207");
+    expect(
+      deliveryInserts.some((row) =>
+        String(row.idempotencyKey ?? "").includes(":208"),
+      ),
+    ).toBe(false);
+    expect(mockOffer).toHaveBeenCalledTimes(1);
+    expect(mockOffer).toHaveBeenCalledWith(41);
+  });
+
   it("resolves the flow department template for all recipients without touching candidate status", async () => {
     mockSelectResults.push(
       [{ id: 11, title: "2026 办公类部门面试招新", department: "office" }],

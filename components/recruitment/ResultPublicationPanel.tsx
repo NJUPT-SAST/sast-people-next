@@ -233,7 +233,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
       ? ""
       : summary.isOfficeFlow
         ? officeRosterRows.length > 0
-          ? `还有 ${officeRosterRows.length} 人待确认最终结果，确认名单后即发布。`
+          ? "确认名单后即发布。"
           : "名单已确认，可重新发布最终结果。"
         : counts.unfinished > 0
           ? `还有 ${counts.unfinished} 人未完成最终结果，完成后才可发布。`
@@ -277,7 +277,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
           <DialogHeader>
             <DialogTitle>完整结果名单</DialogTitle>
             <DialogDescription>
-              {summary.flow.title} · 共 {rows.length} 人。请在发布前快速核对名单和最终结果。
+              {summary.flow.title}。请在发布前快速核对名单和最终结果。
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">

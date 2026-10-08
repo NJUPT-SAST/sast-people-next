@@ -371,6 +371,7 @@ describe("RecruitmentContent", () => {
           { userFlowId: 1, passed: true },
           { userFlowId: 2, passed: false },
         ],
+        [1, 2],
         true,
       ),
     );
@@ -383,6 +384,50 @@ describe("RecruitmentContent", () => {
       expect(screen.queryByText("张三")).not.toBeInTheDocument(),
     );
     expect(getEvaluationCandidates).toHaveBeenCalledWith(1);
+  });
+
+  it("lets the round-one roster skip notifications for unchecked candidates", async () => {
+    const user = userEvent.setup();
+    jest.mocked(closeOfficeRoundOne).mockResolvedValue({
+      success: true,
+      passCount: 2,
+      rejectCount: 0,
+      sent: 1,
+    });
+
+    render(
+      <RecruitmentContent
+        flowTypes={officeFlowTypes}
+        initialData={[]}
+        initialEvalData={roundOneCandidates}
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "结束一面并发送通知" }));
+
+    /* 取消李四的「邮件」勾选：只写结果、不发通知（桌面表格与移动端卡片各一份，点第一个） */
+    await user.click(
+      screen.getAllByRole("checkbox", { name: "向 李四 发送一面结果通知" })[0],
+    );
+    expect(screen.getByText("1 人本次不发邮件")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "确认邮件模板" }));
+    await user.click(screen.getByRole("button", { name: /确认名单并发送/ }));
+
+    await waitFor(() =>
+      expect(closeOfficeRoundOne).toHaveBeenCalledWith(
+        1,
+        [
+          { userFlowId: 1, passed: true },
+          { userFlowId: 2, passed: true },
+        ],
+        [1],
+        true,
+      ),
+    );
   });
 
   it("swaps 结束一面 for the roster review once the round-one results exist", async () => {

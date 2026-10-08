@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -75,6 +75,14 @@ export function DataTable<TData, TValue>({
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({});
   const safeColumns = useMemo(() => (Array.isArray(columns) ? columns : []), [columns]);
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+
+  /* 切流程等于换一批数据：搜索、列筛选、勾选与本地结果都不该跟着跑到新流程上 */
+  useEffect(() => {
+    setRowSelection({});
+    setColumnFilters([]);
+    setGlobalFilter("");
+    setStatusOverrides({});
+  }, [flowTypeId]);
   const getDisplayStatus = useCallback((row: RecruitmentRowLike) => {
     const status = statusOverrides[row.uid] ?? row.status ?? 'ongoing';
     if ((status === 'not_started' || status === 'ongoing') && row.isGraded === false) {
@@ -183,7 +191,7 @@ export function DataTable<TData, TValue>({
     : [];
   const selectedCount = selectedMutableRows.length;
   const emptyMessage =
-    allRows.length > 0 ? '没有符合条件的考生。' : '暂时没有内容。';
+    allRows.length > 0 ? '没有符合条件的考生。' : '当前流程下还没有考生记录。';
   const filterChipClass = (active: boolean) =>
     cn(
       'inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors',
@@ -248,9 +256,9 @@ export function DataTable<TData, TValue>({
             </div>
             {role >= 3 && (
               <div className="flex min-w-0 items-center gap-2.5">
-                {(resultsLocked || selectedCount > 0) && (
+                {selectedCount > 0 && (
                   <span className="shrink-0 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-                    {resultsLocked ? '已锁定' : `已选 ${selectedCount} 人`}
+                    {`已选 ${selectedCount} 人`}
                   </span>
                 )}
                 <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 lg:flex lg:flex-none">
@@ -485,11 +493,6 @@ export function DataTable<TData, TValue>({
         ) : (
           <div className="flex flex-col gap-1 px-4 py-12 text-center">
             <p className="text-sm font-medium text-foreground">{emptyMessage}</p>
-            {allRows.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                当前流程下还没有考生记录。
-              </p>
-            )}
           </div>
         )}
       </div>
