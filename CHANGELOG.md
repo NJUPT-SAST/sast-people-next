@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **面试 / 笔试管理默认回到「上次使用的流程」**（`lib/workspace-flow-preference.ts`、`components/recruitment/recruitmentWorkspacePage.tsx`、`components/recruitment/recruitmentContent.tsx`）：原来每次打开都选中最新创建的流程，部长在多个流程之间来回切换后，下次进来还得重新找。现在每次切换流程都把它写进按工作台分开的 Cookie（`people_workspace_flow_interview` / `people_workspace_flow_written`，180 天），服务端首屏按「显式 flowId 链接 → 上次使用 → 最新」挑流程——不用 localStorage，避免先渲染最新流程再切换的闪动与重复请求；记忆值仍按当前会话可见的流程列表校验，越权 / 已删除的 id 自动回落最新流程。
 - **面评审批卡片信息重排**（`components/manage/approvalsContent.tsx`）：姓名、学号、讲师建议与最终结果徽章现在排在同一行且徽章靠右对齐（此前姓名触发按钮是块级元素，桌面端就把学号挤到下一行；移动端学号还被 `hidden sm:inline` 隐藏），移动端同样显示学号；去掉「投递部门」一行（部门隔离下流程名本身已体现部门，投递组别保留）。
 - **飞书绑定失败的提示改为中心弹窗**（`components/feishu-oauth-failure-dialog.tsx`、`app/dashboard/page.tsx`）：原来的右下角 toast 会被飞书授权页盖住，用户看不到「当前 Link 账号未绑定飞书身份」这类失败原因。现在失败原因固定显示在屏幕中央：Link 未绑定飞书时提供**「去 Link 绑定飞书」**（新标签页打开 `NEXT_PUBLIC_LINK_PROFILE_URL` 的 `/settings`，默认 `https://link.sast.fun/settings`）与「重新绑定飞书」，账号不匹配 / 授权中断提供「重新绑定飞书」；URL 参数清理与「刷新不再弹」的行为保持原样（`components/feishu-oauth-failure-toast.tsx` 删除）。
 - 办公部门**没有讲师这一级**：切换身份查看里「讲师」只在技术部门可选（选中办公部门时禁用并提示，部门下拉标注「（无讲师）」，服务端 `startViewAs` 同样拒绝），避免切出「办公室讲师」这种不存在的身份。
