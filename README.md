@@ -65,7 +65,7 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 
 | Field | Values | Meaning |
 | --- | --- | --- |
-| `interview_evaluation.status` | `submitted`, `returned`, `approved`, `rejected` | 技术部门流程：讲师提交面评 → 部长退回重写或终审；办公类提交即归档（保持 `submitted`，结果由部长在名单确认时决定） |
+| `interview_evaluation.status` | `submitted`, `returned`, `approved`, `rejected` | 技术部门流程：讲师提交面评 → 部长退回重写或终审；已归档的通过/不通过在流程发布前可改判为相反结论（发布中/已发布锁定）；办公类提交即归档（保持 `submitted`，结果由部长在名单确认时决定） |
 | `email_batch.status` | `draft`, `queued`, `completed`, `failed` | Result email batch lifecycle |
 | `email_delivery.status` | `pending`, `sending`, `sent`, `failed`, `dead` | Per-recipient delivery state |
 | `interview_schedule.status` | `created`, `cancelled`, `failed` | Feishu interview schedule state |

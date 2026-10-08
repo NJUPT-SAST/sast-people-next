@@ -333,4 +333,30 @@ describe("ApprovalsContent", () => {
     expect(screen.getByText("面试打分 88")).toBeInTheDocument();
     expect(screen.getAllByText(/^面试打分 /)).toHaveLength(1);
   });
+
+  it("lets managers change an archived decision and surfaces the server message when locked", async () => {
+    const approveMock = jest.requireMock("@/action/user-flow/evaluation")
+      .approveEvaluation as jest.Mock;
+    const mockToastError = jest.requireMock("sonner").toast.error as jest.Mock;
+    approveMock.mockRejectedValueOnce(
+      new Error("该流程结果正在发布或已经发布，名单和结果已锁定"),
+    );
+
+    const user = userEvent.setup();
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({ id: 31, candidateName: "已归档同学", status: "rejected", recommendation: "failed" }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: /已归档/ }));
+    await user.click(screen.getByRole("button", { name: "改为通过" }));
+
+    expect(approveMock).toHaveBeenCalledWith(31);
+    expect(mockToastError).toHaveBeenCalledWith(
+      "该流程结果正在发布或已经发布，名单和结果已锁定",
+    );
+  });
 });

@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **面评审批卡片信息重排**（`components/manage/approvalsContent.tsx`）：姓名、学号、讲师建议与最终结果徽章现在排在同一行且徽章靠右对齐（此前姓名触发按钮是块级元素，桌面端就把学号挤到下一行；移动端学号还被 `hidden sm:inline` 隐藏），移动端同样显示学号；去掉「投递部门」一行（部门隔离下流程名本身已体现部门，投递组别保留）。
+- **飞书绑定失败的提示改为中心弹窗**（`components/feishu-oauth-failure-dialog.tsx`、`app/dashboard/page.tsx`）：原来的右下角 toast 会被飞书授权页盖住，用户看不到「当前 Link 账号未绑定飞书身份」这类失败原因。现在失败原因固定显示在屏幕中央：Link 未绑定飞书时提供**「去 Link 绑定飞书」**（新标签页打开 `NEXT_PUBLIC_LINK_PROFILE_URL` 的 `/settings`，默认 `https://link.sast.fun/settings`）与「重新绑定飞书」，账号不匹配 / 授权中断提供「重新绑定飞书」；URL 参数清理与「刷新不再弹」的行为保持原样（`components/feishu-oauth-failure-toast.tsx` 删除）。
 - 办公部门**没有讲师这一级**：切换身份查看里「讲师」只在技术部门可选（选中办公部门时禁用并提示，部门下拉标注「（无讲师）」，服务端 `startViewAs` 同样拒绝），避免切出「办公室讲师」这种不存在的身份。
 - 笔试管理表格支持**表头排序**（学号 / 姓名 / 投递部门 / 状态 / 总分，默认总分从高到低，空分数固定沉底），与面试表同一套箭头与交互；面试表的「面试时段」「最终分 / 平均分」排序继续保持可用（办公类按流程配置的时段顺序排、没选时段的沉底）。
 - 办公类候选人「全部面试记录」里的「名单确认」空态改成说明性文案（该轮还没有确认名单 → 部长结束该轮后会留档结论 / 操作人 / 确认时刻均分与份数），不再只给一句「尚无名单确认记录」。
@@ -65,6 +67,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 邮件模板的办公类特例取消：`office_round1.*` / `office_round2.*` 与其它模板一样按 `(template_key, department)` 存部门覆盖，QQ 群号写在本部门模板的 `group_number` 里。
 
 ### Fixed
+
+#### 操作审计
+
+- **管理员的操作记录显示为「部长」**（`migrations/0069_audit_view_as_actor_role_fix.sql`）：PR #250 合并前的分支版本把操作审计写成 `session.role`（「切换身份查看」的临时视角角色），管理员以部长视角浏览时做的操作在审计里记成了部长；合并版（f1d9d5c）起所有写路径固定记录 `session.realRole`，本次迁移再把那段窗口里已经写错的历史行改成真实角色——只改「同一次 `session.view-as.start`（`metadata.role` = 被模拟角色）到对应 stop（无 stop 按视角 cookie 12 小时封顶）之间、`actor_role` 恰等于被模拟角色」的行，靠真实角色不可能写出这些行；修正值取该窗口 start 行记录的真实角色，没有 start/stop 记录的数据不会被触碰。
+- **取消报名后审计只剩 "user_flow"**（`lib/operation-audit-list.ts`）：取消报名会物理删除 `user_flow` 行，列表联表取不到流程名，资源列直接退化成资源类型。现在资源标签回退到审计元数据——优先 `metadata.flowTitle` 快照，其次按 `metadata.flowId` 反查流程标题，显示为「考生流程：<流程名>（报名已取消）」，`integration/audit-log-labels.integration.test.ts` 覆盖；查询对象（`targetUser`）照旧从元数据解析。
+- **「未命名操作」补齐中文名**（`components/audit/audit-log-table.tsx`、`lib/operation-audit-list.ts`）：`flow.update_workspace`、`flow.office_round_one.close`、`flow.office_round_two.close`、`department.user_flow.backfill`、`user_flow.interview_slot.request/review/update`、`user_flow.office_final_destination.set`、`session.view-as.start/stop`、`demo.seed` 补上标签并纳入快捷筛选分组；身份切换记录的元数据同时中文化（「查看身份：部长 · 部门：科宣部」，不再显示 `role：3`）。
+
+#### 面评审批
+
+- **已归档的通过/不通过结果在流程发布前无法改判**（`action/user-flow/evaluation.ts`、`components/manage/approvalsContent.tsx`）：审批页「已归档」里的「改为通过 / 改为不通过」按钮此前点了必然报「该候选人结果已确认，不能再修改」——`approveEvaluation` / `rejectEvaluation` 的终态锁把 `passed`/`failed` 一律挡住，而这两个状态正是第一次终审自己写下的（生产 Sentry：`role 4` 在 `/dashboard/approvals` 上 `approve-evaluation` 报错）。现在终态锁只保留「已撤回」（防止把撤回的报名复活），已通过/不通过的结果只要流程还没发布（发布中/已发布由 `moveUserFlowInTx` 锁定）就能互相改判，面评状态与候选人状态一起翻转并写操作审计；操作失败时前端直接显示服务端消息，不再只给一句「操作失败」。`integration/evaluation-result-flip.integration.test.ts` 覆盖改判、发布锁定与撤回拦截。
 
 #### 面试 / 笔试工作台
 

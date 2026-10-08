@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPublicBaseUrl } from "@/lib/app-url";
+import { isDashboardReturnTo } from "@/lib/feishu/oauth-return-to";
 
 function base64URLEncode(value: Buffer) {
   return value
@@ -36,7 +37,7 @@ export async function redirectFeishuOAuth(returnTo?: string) {
     sameSite: "lax",
     maxAge: 600,
   });
-  if (returnTo?.startsWith("/dashboard/")) {
+  if (isDashboardReturnTo(returnTo)) {
     cookieStore.set(FEISHU_OAUTH_RETURN_TO, returnTo, {
       path: "/",
       httpOnly: true,

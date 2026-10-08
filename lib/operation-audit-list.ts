@@ -100,7 +100,10 @@ export const operationAuditActionGroups = {
     "flow.duplicate",
     "flow.update_problems",
     "flow.update_steps",
+    "flow.update_workspace",
     "flow.result.publish",
+    "flow.office_round_one.close",
+    "flow.office_round_two.close",
   ],
   user: [
     "user.update_role",
@@ -119,6 +122,11 @@ export const operationAuditActionGroups = {
     "user_flow.batch_set_outcome",
     "user_flow.apply_group.update",
     "user_flow.apply_group.mark",
+    "user_flow.interview_slot.request",
+    "user_flow.interview_slot.review",
+    "user_flow.interview_slot.update",
+    "user_flow.office_final_destination.set",
+    "department.user_flow.backfill",
   ],
   feedback: [
     "feedback.status.update",
@@ -354,6 +362,46 @@ export async function listOperationAudit(params: OperationAuditListParams) {
     resourceLabelByKey.set(`user_flow:${item.id}`, `考生流程：${item.flowTitle}`);
     resourceTargetUserIdByKey.set(`user_flow:${item.id}`, item.targetUserId);
   });
+  /* 取消报名会删掉 user_flow 行，标签回退到审计元数据里的流程（flowTitle 快照，或按 flowId 反查），
+     否则列表只剩 "user_flow #id"，取消报名这条操作就没了上下文 */
+  const missingUserFlowLabels = rawLogs.flatMap((log) => {
+    if (log.resourceType !== "user_flow" || log.resourceId === null) return [];
+    const key = `user_flow:${log.resourceId}`;
+    if (resourceLabelByKey.has(key)) return [];
+    const metadata = (log.metadata ?? {}) as Record<string, unknown>;
+    return [{
+      key,
+      flowTitle:
+        typeof metadata.flowTitle === "string" && metadata.flowTitle.trim()
+          ? metadata.flowTitle.trim()
+          : null,
+      flowId: typeof metadata.flowId === "number" ? metadata.flowId : null,
+    }];
+  });
+  const fallbackFlowIds = [
+    ...new Set(
+      missingUserFlowLabels.flatMap((item) =>
+        item.flowTitle === null && item.flowId !== null ? [item.flowId] : [],
+      ),
+    ),
+  ];
+  const fallbackFlowTitles = fallbackFlowIds.length
+    ? await db
+        .select({ id: flow.id, label: flow.title })
+        .from(flow)
+        .where(inArray(flow.id, fallbackFlowIds))
+    : [];
+  const fallbackFlowTitleById = new Map(
+    fallbackFlowTitles.map((item) => [item.id, item.label]),
+  );
+  for (const item of missingUserFlowLabels) {
+    const flowTitle =
+      item.flowTitle ??
+      (item.flowId === null ? null : fallbackFlowTitleById.get(item.flowId) ?? null);
+    if (flowTitle) {
+      resourceLabelByKey.set(item.key, `考生流程：${flowTitle}（报名已取消）`);
+    }
+  }
   emailBatches.forEach((item) =>
     resourceLabelByKey.set(`email_batch:${item.id}`, `邮件批次：${item.label ?? item.subject}`),
   );

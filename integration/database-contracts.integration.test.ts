@@ -267,4 +267,67 @@ describe("PostgreSQL migration contracts", () => {
       updated_type: "timestamp with time zone",
     });
   });
+  it("repairs audit roles only within an identified session, including its stop", async () => {
+    // A temporary table shadows the real audit table; the transaction rolls it back.
+    await client.query(`
+      CREATE TEMP TABLE operation_audit (
+        id serial PRIMARY KEY, actor_id integer, actor_type text,
+        actor_role integer, action text, metadata jsonb, created_at timestamptz
+      ) ON COMMIT DROP
+    `);
+    const rows: Array<{
+      sessionId?: string | number | null;
+      minute: number;
+      action?: string;
+      role?: number;
+      viewedRole?: number;
+      actorId?: number;
+      actorType?: string;
+      expected: number;
+    }> = [
+      { sessionId: "a", minute: 0, action: "session.view-as.start", role: 4, expected: 4 },
+      { sessionId: "b", minute: 1, action: "session.view-as.start", role: 5, expected: 5 },
+      { sessionId: "b", minute: 2, action: "session.view-as.stop", expected: 5 },
+      { sessionId: "a", minute: 3, expected: 4 },
+      { sessionId: "b", minute: 3, expected: 3 },
+      { sessionId: "a", minute: 4, action: "session.view-as.stop", expected: 4 },
+      { sessionId: "a", minute: 5, expected: 3 },
+      { sessionId: "other", minute: 3, expected: 3 },
+      { minute: 0, action: "session.view-as.start", role: 4, expected: 4 },
+      { minute: 3, expected: 3 },
+      { minute: 4, action: "session.view-as.stop", expected: 3 },
+      { sessionId: "", minute: 0, action: "session.view-as.start", role: 4, expected: 4 },
+      { sessionId: "", minute: 3, expected: 3 },
+      { sessionId: null, minute: 3, expected: 3 },
+      { sessionId: 123, minute: 0, action: "session.view-as.start", role: 4, expected: 4 },
+      { sessionId: 123, minute: 3, expected: 3 },
+      { sessionId: "a", minute: 3, action: "session.view-as.preview", expected: 3 },
+      { sessionId: "a", minute: 3, action: "session.view-as.start", viewedRole: 1, expected: 3 },
+      { sessionId: "a", minute: 3, role: 2, expected: 2 },
+      { sessionId: "a", minute: 3, actorId: 2, expected: 3 },
+      { sessionId: "a", minute: 3, actorType: "system", expected: 3 },
+      { sessionId: "a", minute: -1, expected: 3 },
+      { sessionId: "expires", minute: 0, action: "session.view-as.start", role: 4, expected: 4 },
+      { sessionId: "expires", minute: 720, expected: 4 },
+      { sessionId: "expires", minute: 721, expected: 3 },
+    ];
+    for (const row of rows) {
+      await client.query(`
+        INSERT INTO operation_audit (actor_id, actor_type, actor_role, action, metadata, created_at)
+        VALUES ($1, $2, $3, $4, $5, '2026-01-01T00:00:00Z'::timestamptz + $6 * interval '1 minute')
+      `, [
+        row.actorId ?? 1, row.actorType ?? "user", row.role ?? 3,
+        row.action ?? "flow.update", JSON.stringify({ sessionId: row.sessionId, role: row.viewedRole ?? 3 }),
+        row.minute,
+      ]);
+    }
+    const migration = readFileSync("migrations/0069_audit_view_as_actor_role_fix.sql", "utf8");
+    await client.query(migration);
+    const result = await client.query("SELECT actor_role FROM operation_audit ORDER BY id");
+    expect(result.rows.map((row) => row.actor_role)).toEqual(rows.map((row) => row.expected));
+    await client.query(migration);
+    expect((await client.query("SELECT actor_role FROM operation_audit ORDER BY id")).rows)
+      .toEqual(result.rows);
+  });
+
 });

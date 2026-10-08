@@ -167,8 +167,8 @@ export const ApprovalsContent = ({
       await approveEvaluation(id);
       toast.success("面评已通过");
       await fetchEvaluations();
-    } catch {
-      toast.error("操作失败");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "操作失败");
     } finally {
       setActionLoading(null);
     }
@@ -180,8 +180,8 @@ export const ApprovalsContent = ({
       await rejectEvaluation(id);
       toast.success("面评已判定不通过");
       await fetchEvaluations();
-    } catch {
-      toast.error("操作失败");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "操作失败");
     } finally {
       setActionLoading(null);
     }
@@ -412,8 +412,8 @@ export const ApprovalsContent = ({
             return (
             <Card key={row.evaluation.id}>
               <CardHeader className="flex flex-col gap-3 pb-3">
-                <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                  <CardTitle className="min-w-0 overflow-hidden text-base leading-6 sm:text-sm">
+                <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <CardTitle className="text-base leading-6 sm:text-sm">
                     {row.candidateName && row.candidateId ? (
                       <ViewUserInfoSheet
                         userInfo={{
@@ -426,7 +426,7 @@ export const ApprovalsContent = ({
                           <button
                             type="button"
                             title={row.candidateName}
-                            className="block min-w-0 truncate text-left text-inherit underline-offset-4 hover:text-primary hover:underline"
+                            className="inline-block max-w-full truncate align-bottom text-left text-inherit underline-offset-4 hover:text-primary hover:underline"
                           >
                             {row.candidateName}
                           </button>
@@ -435,11 +435,11 @@ export const ApprovalsContent = ({
                     ) : (
                       row.candidateName ?? "未知用户"
                     )}
-                    <span className="hidden text-muted-foreground font-normal sm:inline">
-                      {" "}· {row.candidateStudentId ?? "-"}
-                    </span>
                   </CardTitle>
-                  <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {row.candidateStudentId ?? "-"}
+                  </span>
+                  <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
                     {row.evaluation.recommendation && (
                       <Badge
                         variant="outline"
@@ -493,12 +493,6 @@ export const ApprovalsContent = ({
                     ) : (
                       <span className="text-muted-foreground/70">未提供</span>
                     )}
-                  </span>
-                  <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
-                    <span className="text-muted-foreground">投递部门</span>
-                    <span className="min-w-0 break-words font-medium text-foreground">
-                      {departmentLabel(row.department)}
-                    </span>
                   </span>
                 </div>
               </CardHeader>

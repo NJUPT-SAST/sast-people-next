@@ -1,4 +1,4 @@
-import { FeishuOAuthFailureToast } from "@/components/feishu-oauth-failure-toast";
+import { FeishuOAuthFailureDialog } from "@/components/feishu-oauth-failure-dialog";
 import { PageHeader, PageTitle } from "@/components/route";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,7 +51,8 @@ export default async function Home({
           </div>
         )}
       </PageHeader>
-      <FeishuOAuthFailureToast
+      <FeishuOAuthFailureDialog
+        failure={awaitedSearchParams.feishuOAuth}
         message={feishuOAuthFailureMessage[awaitedSearchParams.feishuOAuth ?? ""]}
       />
       {userInfo.studentId === null && !awaitedSearchParams.start ? (
