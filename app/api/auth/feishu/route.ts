@@ -9,6 +9,7 @@ import { shouldUseLinkFeishuTestMock } from "@/lib/link/client";
 import { getLinkAccessTokenFromSession } from "@/lib/link/session";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import { getPublicBaseUrl } from "@/lib/app-url";
+import { isDashboardReturnTo } from "@/lib/feishu/oauth-return-to";
 import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -108,7 +109,7 @@ function redirectAfterFeishuOAuthFailure(
 
 function getOAuthReturnTo(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   const value = cookieStore.get(FEISHU_OAUTH_RETURN_TO)?.value;
-  return value?.startsWith("/dashboard/") ? value : "/dashboard";
+  return isDashboardReturnTo(value) ? value : "/dashboard";
 }
 
 function getFeishuOAuthFailure(error: unknown): FeishuOAuthFailure {

@@ -77,11 +77,23 @@ describe("Feishu OAuth callback", () => {
     expect(mockCookieStore.delete).toHaveBeenCalledWith("feishu_oauth_state");
   });
 
-  it("returns to the dashboard page that initiated authorization", async () => {
+  it.each([
+    ["/dashboard", "/dashboard"],
+    ["/dashboard?start=profile", "/dashboard?start=profile"],
+    ["/dashboard/interviews", "/dashboard/interviews"],
+    ["/dashboard/interviews?flowId=12", "/dashboard/interviews?flowId=12"],
+    [undefined, "/dashboard"],
+    ["/dashboard-other", "/dashboard"],
+    ["/dashboardevil?start=profile", "/dashboard"],
+    ["https://evil.example/dashboard", "/dashboard"],
+    ["//evil.example/dashboard", "/dashboard"],
+    ["/dashboard/../admin", "/dashboard"],
+    ["/dashboard/%2e%2e/admin", "/dashboard"],
+  ])("handles the callback return destination %s", async (returnTo, expected) => {
     mockCookieStore.get.mockImplementation((name: string) => {
       if (name === "feishu_oauth_state") return { value: "expected-state" };
       if (name === "feishu_oauth_return_to") {
-        return { value: "/dashboard/interviews?flowId=12" };
+        return returnTo === undefined ? undefined : { value: returnTo };
       }
       return undefined;
     });
@@ -99,7 +111,7 @@ describe("Feishu OAuth callback", () => {
       ),
     );
 
-    expect(mockRedirect).toHaveBeenCalledWith("/dashboard/interviews?flowId=12");
+    expect(mockRedirect).toHaveBeenCalledWith(expected);
     expect(mockCookieStore.delete).toHaveBeenCalledWith("feishu_oauth_return_to");
   });
 

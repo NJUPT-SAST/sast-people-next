@@ -43,7 +43,7 @@ jest.mock("@/lib/link/admin", () => ({
 
 import { db } from "@/db/drizzle";
 import { flow, operationAudit, userFlow } from "@/db/schema";
-import { eq, inArray, like } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { listOperationAudit } from "@/lib/operation-audit-list";
 
 const ACTOR_ID = 900981;
@@ -115,14 +115,9 @@ afterAll(async () => {
   if (createdAuditIds.length > 0) {
     await db.delete(operationAudit).where(inArray(operationAudit.id, createdAuditIds));
   }
-  const created = await db
-    .select({ id: flow.id })
-    .from(flow)
-    .where(like(flow.title, `${TITLE_PREFIX}%`));
-  const flowIds = created.map((row) => row.id);
-  if (flowIds.length > 0) {
-    await db.delete(userFlow).where(inArray(userFlow.fkFlowId, flowIds));
-    await db.delete(flow).where(inArray(flow.id, flowIds));
+  if (flowId > 0) {
+    await db.delete(userFlow).where(eq(userFlow.fkFlowId, flowId));
+    await db.delete(flow).where(eq(flow.id, flowId));
   }
 });
 
