@@ -154,6 +154,7 @@ describe("办公类名单确认的护栏", () => {
         { userFlowId: candidateA, passed: true },
         { userFlowId: candidateB, passed: true },
       ],
+      [candidateA, candidateB],
       true,
     );
 
@@ -169,6 +170,7 @@ describe("办公类名单确认的护栏", () => {
     const retried = await closeOfficeRoundOne(
       flowId,
       [{ userFlowId: candidateA, passed: true }],
+      [candidateA],
       true,
     );
     if (!retried.success) throw new Error(JSON.stringify(retried));

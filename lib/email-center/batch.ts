@@ -391,10 +391,13 @@ export async function createOfficeRoundOneEmailBatch({
   flowId,
   createdBy,
   accept,
+  notifyUserFlowIds,
 }: {
   flowId: number;
   createdBy: number;
   accept: boolean;
+  /** 本次发送的报名记录（缺省 = 全部）：名单确认时未勾选「邮件」的候选人不建投递 */
+  notifyUserFlowIds?: number[];
 }): Promise<{ batchId: number; recipientCount: number } | null> {
   assertEmailConfigured();
   const [flowRow] = await db
@@ -436,7 +439,16 @@ export async function createOfficeRoundOneEmailBatch({
     );
   if (recipientRows.length === 0) return null;
 
-  const recipients = recipientRows.map((row) => ({
+  /* 名单确认里未勾选「邮件」的候选人不建投递、不入队：之后重发也不会带上他们 */
+  const notifySet = notifyUserFlowIds
+    ? new Set(notifyUserFlowIds)
+    : null;
+  const notifiedRecipientRows = notifySet
+    ? recipientRows.filter((row) => notifySet.has(row.userFlowId))
+    : recipientRows;
+  if (notifiedRecipientRows.length === 0) return null;
+
+  const recipients = notifiedRecipientRows.map((row) => ({
     ...row,
     idempotencyKey: getResultEmailDeliveryIdempotencyKey({
       flowId,

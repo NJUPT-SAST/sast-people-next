@@ -285,10 +285,11 @@ const commitRosterDecisions = async ({
   }
 };
 
-/** 结束一面：按名单写入通过/不通过并发送一面结果通知（重复调用只补发未发送的邮件） */
+/** 结束一面：按名单写入通过/不通过并发送一面结果通知（未勾选邮件的候选人不发） */
 export const closeOfficeRoundOne = async (
   flowId: number,
   decisions: OfficeCandidateDecision[],
+  notifyUserFlowIds: number[],
   confirmTemplate: boolean,
 ): Promise<CloseOfficeRoundOneResult> => {
   let session: Awaited<ReturnType<typeof verifyManager>> | null = null;
@@ -378,13 +379,24 @@ export const closeOfficeRoundOne = async (
       }
     }
 
-    /* 发送一面结果通知：已发送的不重复；邮件服务不可用时只提示，名单确认仍然生效 */
+    /* 发送一面结果通知：只发给勾选了「邮件」的候选人；已发送的不重复；
+       邮件服务不可用时只提示，名单确认仍然生效 */
     let emailWarning: string | undefined;
     let sent = 0;
     try {
       const [accepted, rejected] = await Promise.all([
-        createOfficeRoundOneEmailBatch({ flowId, createdBy: session.uid, accept: true }),
-        createOfficeRoundOneEmailBatch({ flowId, createdBy: session.uid, accept: false }),
+        createOfficeRoundOneEmailBatch({
+          flowId,
+          createdBy: session.uid,
+          accept: true,
+          notifyUserFlowIds,
+        }),
+        createOfficeRoundOneEmailBatch({
+          flowId,
+          createdBy: session.uid,
+          accept: false,
+          notifyUserFlowIds,
+        }),
       ]);
       sent = (accepted?.recipientCount ?? 0) + (rejected?.recipientCount ?? 0);
       if (sent === 0) {

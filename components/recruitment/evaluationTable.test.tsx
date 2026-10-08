@@ -193,6 +193,7 @@ function renderTable(
 ) {
   return render(
     <EvaluationTable
+      flowId={1}
       role={3}
       groupOptions={[]}
       onRefresh={jest.fn()}
@@ -208,6 +209,7 @@ describe("EvaluationTable", () => {
     jest.mocked(returnInterviewCandidate).mockResolvedValue({ success: true });
     render(
       <EvaluationTable
+        flowId={1}
         role={3}
         groupOptions={[]}
         onRefresh={jest.fn()}
@@ -261,6 +263,7 @@ describe("EvaluationTable", () => {
     jest.mocked(returnInterviewCandidate).mockResolvedValue({ success: true });
     render(
       <EvaluationTable
+        flowId={1}
         role={3}
         groupOptions={[]}
         onRefresh={jest.fn()}
@@ -315,6 +318,7 @@ describe("EvaluationTable", () => {
     jest.mocked(returnInterviewCandidate).mockResolvedValue({ success: true });
     render(
       <EvaluationTable
+        flowId={1}
         role={3}
         targetUserFlowId={42}
         groupOptions={[]}
@@ -388,6 +392,7 @@ describe("EvaluationTable", () => {
   it("shows withdrawn candidates as withdrawn instead of waiting", () => {
     render(
       <EvaluationTable
+        flowId={1}
         role={3}
         groupOptions={[]}
         onRefresh={jest.fn()}
@@ -439,6 +444,7 @@ describe("EvaluationTable", () => {
     const user = userEvent.setup();
     render(
       <EvaluationTable
+        flowId={1}
         role={3}
         groupOptions={[]}
         onRefresh={jest.fn()}
@@ -491,6 +497,7 @@ describe("EvaluationTable", () => {
     const user = userEvent.setup();
     render(
       <EvaluationTable
+        flowId={1}
         role={2}
         groupOptions={[]}
         onRefresh={jest.fn()}
@@ -604,6 +611,7 @@ describe("EvaluationTable", () => {
   it("hides schedule and pending evaluation edits from non-owners", () => {
     render(
       <EvaluationTable
+        flowId={1}
         role={2}
         groupOptions={[]}
         onRefresh={jest.fn()}
@@ -661,6 +669,7 @@ describe("EvaluationTable", () => {
     const user = userEvent.setup();
     render(
       <EvaluationTable
+        flowId={1}
         role={2}
         groupOptions={[]}
         onRefresh={jest.fn()}
@@ -710,6 +719,7 @@ describe("EvaluationTable", () => {
 
     render(
       <EvaluationTable
+        flowId={1}
         role={2}
         groupOptions={["前端组", "后端组"]}
         onRefresh={jest.fn()}
@@ -798,6 +808,7 @@ describe("EvaluationTable", () => {
 
     render(
       <EvaluationTable
+        flowId={1}
         role={2}
         groupOptions={["前端组", "后端组"]}
         onRefresh={onRefresh}
@@ -898,6 +909,7 @@ describe("EvaluationTable", () => {
 
     const { rerender } = render(
       <EvaluationTable
+        flowId={1}
         role={2}
         groupOptions={["前端组", "后端组"]}
         onRefresh={jest.fn()}
@@ -912,6 +924,7 @@ describe("EvaluationTable", () => {
     // hands down a new array instance holding the same group values.
     rerender(
       <EvaluationTable
+        flowId={1}
         role={2}
         groupOptions={["前端组", "后端组"]}
         onRefresh={jest.fn()}
@@ -2021,6 +2034,7 @@ describe("EvaluationTable", () => {
     /* 切到另一个办公部门流程：时段 label 完全换了 */
     rerender(
       <EvaluationTable
+        flowId={1}
         role={3}
         groupOptions={[]}
         onRefresh={jest.fn()}
@@ -2231,5 +2245,51 @@ describe("EvaluationTable", () => {
 
     expect(screen.getByRole("group", { name: "讲师建议" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "部长建议" })).not.toBeInTheDocument();
+  });
+
+  it("clears the filters when the round view or the flow changes", async () => {
+    const user = userEvent.setup();
+    const candidates = [
+      makeCandidate({ userFlowId: 1, name: "甲同学", round: 1 }),
+      makeCandidate({ userFlowId: 2, name: "乙同学", round: 2 }),
+    ];
+    const table = (flowId: number, roundView: 1 | 2) => (
+      <EvaluationTable
+        flowId={flowId}
+        role={3}
+        groupOptions={[]}
+        onRefresh={jest.fn()}
+        candidates={candidates}
+        scoringEnabled
+        roundView={roundView}
+      />
+    );
+    const { rerender } = render(table(1, 1));
+
+    await user.click(screen.getByRole("button", { name: /待记录/ }));
+    expect(screen.getByRole("button", { name: /待记录/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    /* 切轮次是一次「重新开始看」：上一屏的胶囊不该继续筛新列表 */
+    rerender(table(1, 2));
+    expect(screen.getByRole("button", { name: /待记录/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    await user.click(screen.getByRole("button", { name: /待记录/ }));
+    expect(screen.getByRole("button", { name: /待记录/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    /* 切流程同理 */
+    rerender(table(2, 2));
+    expect(screen.getByRole("button", { name: /待记录/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });

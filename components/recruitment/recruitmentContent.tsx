@@ -262,6 +262,10 @@ export const RecruitmentContent = ({
   /* 办公类一体流程：结束一面时的名单确认状态（逐人通过/不通过 + 模板核对） */
   const [roundOneDialogOpen, setRoundOneDialogOpen] = useState(false);
   const [roundOneRosterOpen, setRoundOneRosterOpen] = useState(false);
+  /* 一面名单确认时勾选「邮件」的候选人：默认全部，未勾选者只写结果不发通知 */
+  const [roundOneNotifyUserFlowIds, setRoundOneNotifyUserFlowIds] = useState<
+    number[]
+  >([]);
   const [closingRoundOne, setClosingRoundOne] = useState(false);
   const [roundOneDecisions, setRoundOneDecisions] = useState<
     Record<number, boolean>
@@ -488,10 +492,11 @@ export const RecruitmentContent = ({
   const canReviewRoundOneRoster = roundOneToolbarVisible && roundOneConfirmed;
 
   const openRoundOneDialog = () => {
-    /* 每次打开都按当前名单重建默认结论：全部通过、邮件模板未核对 */
+    /* 每次打开都按当前名单重建默认结论与勾选：全部通过、全部发邮件、模板未核对 */
     setRoundOneDecisions(
       Object.fromEntries(roundOneRoster.map((row) => [row.userFlowId, true])),
     );
+    setRoundOneNotifyUserFlowIds(roundOneRoster.map((row) => row.userFlowId));
     setRoundOneTemplateConfirmed(false);
     setRoundOneDialogOpen(true);
   };
@@ -516,6 +521,7 @@ export const RecruitmentContent = ({
           userFlowId: row.userFlowId,
           passed: roundOneDecisions[row.userFlowId] !== false,
         })),
+        roundOneNotifyUserFlowIds,
         roundOneTemplateConfirmed,
       );
       if (!result.success) {
@@ -718,6 +724,8 @@ export const RecruitmentContent = ({
                   templateConfirmed={roundOneTemplateConfirmed}
                   onTemplateConfirmedChange={setRoundOneTemplateConfirmed}
                   templateHref={templateHref}
+                  notifyUserFlowIds={roundOneNotifyUserFlowIds}
+                  onNotifyUserFlowIdsChange={setRoundOneNotifyUserFlowIds}
                   submitting={closingRoundOne}
                   onConfirm={() => void confirmRoundOne()}
                 />
@@ -773,6 +781,7 @@ export const RecruitmentContent = ({
             errorPanel
           ) : (
             <EvaluationTable
+              flowId={Number(flowId)}
               candidates={safeEvalData}
               groupOptions={currentFlowGroupOptions}
               role={role}

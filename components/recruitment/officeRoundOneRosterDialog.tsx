@@ -46,7 +46,7 @@ export function OfficeRoundOneRosterDialog({
         <DialogHeader>
           <DialogTitle>一面名单</DialogTitle>
           <DialogDescription>
-            {flowTitle} · 共 {rows.length} 人。结论在确认一面时确定，分数按当前记录展示。
+            {flowTitle} · 结论在确认一面时确定，分数按当前记录展示。
           </DialogDescription>
         </DialogHeader>
 

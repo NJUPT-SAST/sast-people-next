@@ -313,6 +313,7 @@ describe("办公类部门流程的轮次推进", () => {
         { userFlowId, passed: true },
         { userFlowId: secondUserFlowId, passed: false },
       ],
+      [userFlowId, secondUserFlowId],
       true,
     );
     if (!result.success) throw new Error(JSON.stringify(result));
@@ -570,6 +571,7 @@ describe("办公类全部面试记录", () => {
     const confirmed = await closeOfficeRoundOne(
       recordFlowId,
       [{ userFlowId: recordUserFlowId, passed: true }],
+      [recordUserFlowId],
       true,
     );
     expect(confirmed.success).toBe(true);
@@ -658,6 +660,7 @@ describe("办公类全部面试记录", () => {
     const closed = await closeOfficeRoundOne(
       recordFlowId,
       [{ userFlowId: lateCandidateId, passed: false }],
+      [lateCandidateId],
       true,
     );
     expect(closed.success).toBe(true);

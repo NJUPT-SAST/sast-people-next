@@ -126,7 +126,12 @@ describe("closeOfficeRoundOne", () => {
     mockUpdateReturning.push([{ id: 101 }]);
 
     await expect(
-      closeOfficeRoundOne(11, [{ userFlowId: 101, passed: true }], true),
+      closeOfficeRoundOne(
+        11,
+        [{ userFlowId: 101, passed: true }],
+        [101],
+        true,
+      ),
     ).resolves.toEqual({
       success: true,
       passCount: 1,

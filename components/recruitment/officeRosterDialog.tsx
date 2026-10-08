@@ -222,7 +222,7 @@ export function OfficeRosterDialog({
         <DialogHeader>
           <DialogTitle>{isFinal ? "确认最终名单并发布" : "结束一面并发送通知"}</DialogTitle>
           <DialogDescription>
-            {flowTitle} · 共 {rows.length} 人。逐人确认结果，
+            {flowTitle} ·{" "}
             {isFinal
               ? "同一人通过多个部门时请在「最终去向」里选择归属部门（冲突由双方部门讨论决定）。"
               : "通过者进入二面，未通过者结束流程。"}
@@ -240,6 +240,11 @@ export function OfficeRosterDialog({
           {missingRecords > 0 && (
             <span className="text-xs text-amber-600 dark:text-amber-400">
               其中 {missingRecords} 人没有面试记录
+            </span>
+          )}
+          {rows.length - notifySelection.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {rows.length - notifySelection.length} 人本次不发邮件
             </span>
           )}
           <div className="ml-auto flex items-center gap-2">
@@ -261,12 +266,12 @@ export function OfficeRosterDialog({
             {/* 桌面：固定列宽，不横向滚动 */}
             <table className="hidden w-full table-fixed text-sm md:table">
               <colgroup>
-                <col className={isFinal ? "w-[22%]" : "w-[26%]"} />
-                <col className={isFinal ? "w-[14%]" : "w-[16%]"} />
-                <col className={isFinal ? "w-[24%]" : "w-[16%]"} />
+                <col className={isFinal ? "w-[22%]" : "w-[24%]"} />
+                <col className="w-[14%]" />
+                <col className={isFinal ? "w-[24%]" : "w-[22%]"} />
                 {isFinal && <col className="w-[16%]" />}
-                <col className={isFinal ? "w-[14%]" : "w-[22%]"} />
-                {isFinal && <col className="w-[10%]" />}
+                <col className={isFinal ? "w-[14%]" : "w-[26%]"} />
+                <col className="w-[10%]" />
               </colgroup>
               <thead className="bg-muted/40 text-xs text-muted-foreground">
                 <tr>
@@ -277,7 +282,7 @@ export function OfficeRosterDialog({
                   </th>
                   {isFinal && <th className="px-3 py-2 text-left font-medium">最终去向</th>}
                   <th className="px-3 py-2 text-left font-medium">结果</th>
-                  {isFinal && <th className="px-3 py-2 text-left font-medium">邮件</th>}
+                  <th className="px-3 py-2 text-left font-medium">邮件</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -309,22 +314,20 @@ export function OfficeRosterDialog({
                         {decisionButton(row, false)}
                       </div>
                     </td>
-                    {isFinal && (
-                      <td className="px-3 py-2">
-                        <Checkbox
-                          checked={notifySelection.includes(row.userFlowId)}
-                          disabled={submitting}
-                          onCheckedChange={(checked) =>
-                            onNotifyUserFlowIdsChange?.(
-                              checked === true
-                                ? [...notifySelection, row.userFlowId]
-                                : notifySelection.filter((id) => id !== row.userFlowId),
-                            )
-                          }
-                          aria-label={`向 ${row.name} 发送结果邮件`}
-                        />
-                      </td>
-                    )}
+                    <td className="px-3 py-2">
+                      <Checkbox
+                        checked={notifySelection.includes(row.userFlowId)}
+                        disabled={submitting}
+                        onCheckedChange={(checked) =>
+                          onNotifyUserFlowIdsChange?.(
+                            checked === true
+                              ? [...notifySelection, row.userFlowId]
+                              : notifySelection.filter((id) => id !== row.userFlowId),
+                          )
+                        }
+                        aria-label={`向 ${row.name} 发送${isFinal ? "结果邮件" : "一面结果通知"}`}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -360,23 +363,21 @@ export function OfficeRosterDialog({
                   <div className="flex flex-wrap items-center gap-2">
                     {decisionButton(row, true)}
                     {decisionButton(row, false)}
-                    {isFinal && (
-                      <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Checkbox
-                          checked={notifySelection.includes(row.userFlowId)}
-                          disabled={submitting}
-                          onCheckedChange={(checked) =>
-                            onNotifyUserFlowIdsChange?.(
-                              checked === true
-                                ? [...notifySelection, row.userFlowId]
-                                : notifySelection.filter((id) => id !== row.userFlowId),
-                            )
-                          }
-                          aria-label={`向 ${row.name} 发送结果邮件`}
-                        />
-                        发送邮件
-                      </label>
-                    )}
+                    <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Checkbox
+                        checked={notifySelection.includes(row.userFlowId)}
+                        disabled={submitting}
+                        onCheckedChange={(checked) =>
+                          onNotifyUserFlowIdsChange?.(
+                            checked === true
+                              ? [...notifySelection, row.userFlowId]
+                              : notifySelection.filter((id) => id !== row.userFlowId),
+                          )
+                        }
+                        aria-label={`向 ${row.name} 发送${isFinal ? "结果邮件" : "一面结果通知"}`}
+                      />
+                      发送邮件
+                    </label>
                   </div>
                 </div>
               ))}
@@ -384,7 +385,8 @@ export function OfficeRosterDialog({
           </div>
         )}
 
-        <div className="flex flex-col gap-2 rounded-lg border bg-muted/20 p-3">
+        {/* 勾选说明与「去核对模板」同一行：按钮不再独占一行，也不再重复「未勾选不发邮件」长句 */}
+        <div className="flex flex-col gap-2 rounded-lg border bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <label className="flex items-start gap-2 text-sm">
             <Checkbox
               checked={templateConfirmed}
@@ -392,8 +394,7 @@ export function OfficeRosterDialog({
               aria-label="确认邮件模板"
             />
             <span>
-              我已在邮件中心核对本年度{isFinal ? "结果" : "一面结果"}通过和不通过邮件模板，确认内容无误。
-              {isFinal && "未勾选邮件的候选人只发布结果、不发送本次通知。"}
+              已核对本年度{isFinal ? "结果" : "一面结果"}通过和不通过邮件模板
             </span>
           </label>
           {templateHref && (
@@ -402,7 +403,7 @@ export function OfficeRosterDialog({
               asChild
               variant="outline"
               size="sm"
-              className="h-9 w-full self-start sm:w-auto"
+              className="h-9 w-full shrink-0 sm:w-auto"
             >
               <a href={templateHref} target="_blank" rel="noopener noreferrer">
                 <ExternalLink data-icon="inline-start" />
