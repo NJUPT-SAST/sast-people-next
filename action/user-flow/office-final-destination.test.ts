@@ -143,7 +143,10 @@ describe("setOfficeFinalDestination", () => {
     });
     /* 决定已经写库，不能因为同步失败回滚或报错 */
     expect(mockUpdates).toEqual([
-      expect.objectContaining({ finalDepartment: "publicity" }),
+      expect.objectContaining({
+        finalDepartment: "publicity",
+        finalDepartmentDecidedAt: expect.any(Date),
+      }),
     ]);
     expect(mockSyncIdentity).toHaveBeenCalledWith([77]);
   });
@@ -155,7 +158,12 @@ describe("setOfficeFinalDestination", () => {
     const result = await setOfficeFinalDestination(11, null);
 
     expect(result).toEqual({ success: true, department: null });
-    expect(mockUpdates).toEqual([expect.objectContaining({ finalDepartment: null })]);
+    expect(mockUpdates).toEqual([
+      expect.objectContaining({
+        finalDepartment: null,
+        finalDepartmentDecidedAt: null,
+      }),
+    ]);
   });
 
   it("rejects flows that are not office interviews before touching the database", async () => {

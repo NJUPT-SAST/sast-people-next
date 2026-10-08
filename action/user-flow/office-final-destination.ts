@@ -96,7 +96,12 @@ export const setOfficeFinalDestination = async (
 
     await db
       .update(userFlow)
-      .set({ finalDepartment: target, updatedAt: new Date() })
+      .set({
+        finalDepartment: target,
+        /* 记录评议时刻：决策之后新创建的流程产生通过时，评议值按「最后一次通过」口径失效 */
+        finalDepartmentDecidedAt: target ? new Date() : null,
+        updatedAt: new Date(),
+      })
       .where(inArray(userFlow.id, registrations.map((item) => item.id)));
 
     /* 已发布的通过记录：立即按新的最终去向重新同步身份（未发布时由发布流程应用）。

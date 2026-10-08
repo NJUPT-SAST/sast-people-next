@@ -58,6 +58,8 @@ export const syncUserIdentityFromAcceptedFlows = async (uids: number[], publishi
       type: flow.type,
       choice: userFlow.choice,
       finalDepartment: userFlow.finalDepartment,
+      finalDepartmentDecidedAt: userFlow.finalDepartmentDecidedAt,
+      flowCreatedAt: flow.createdAt,
       flowDepartment: flow.department,
       rowDepartment: userFlow.department,
       publishedAt: flowResultPublication.publishedAt,
@@ -105,13 +107,16 @@ export const syncUserIdentityFromAcceptedFlows = async (uids: number[], publishi
 
   /* 部门归属：多次通过以最后一次为准；部长及以上账号不改动，已是目标部门的跳过。
      办公类需要 flowType/choice/finalDepartment：部长团评议的「最终去向」优先，
-     否则按「第一志愿优先」——三者必须一并传给解析器，否则办公类分支不会生效。 */
+     否则按「第一志愿优先」——三者必须一并传给解析器，否则办公类分支不会生效。
+     评议值当届有效：决策时刻与流程创建时间一并传入，决策之后创建的流程通过时会取代评议值。 */
   const latestDepartments = resolveLatestPassedDepartments(
     acceptedFlows.map((row) => ({
       uid: row.uid,
       flowType: row.type,
       choice: row.choice,
       finalDepartment: row.finalDepartment,
+      finalDepartmentDecidedAt: row.finalDepartmentDecidedAt,
+      flowCreatedAt: row.flowCreatedAt,
       flowDepartment: row.flowDepartment,
       rowDepartment: row.rowDepartment,
       passedAt: row.publishedAt ?? row.updatedAt,
