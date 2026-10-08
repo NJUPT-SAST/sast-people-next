@@ -36,9 +36,11 @@ import { Loading } from '@/components/loading';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { flowSelection } from '@/types/flow';
-import { BadgeCheck, Users } from 'lucide-react';
+import { BadgeCheck, ClipboardList, Download, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResultPublicationPanel } from '@/components/recruitment/ResultPublicationPanel';
+import { OfficeRoundOneRosterDialog } from '@/components/recruitment/officeRoundOneRosterDialog';
+import { buildOfficeRoundOneRoster } from '@/lib/office-round-one-roster';
 import {
   OfficeRosterDialog,
   type OfficeRosterRow,
@@ -259,6 +261,7 @@ export const RecruitmentContent = ({
   const [publicationStatus, setPublicationStatus] = useState<string | null>(null);
   /* 办公类一体流程：结束一面时的名单确认状态（逐人通过/不通过 + 模板核对） */
   const [roundOneDialogOpen, setRoundOneDialogOpen] = useState(false);
+  const [roundOneRosterOpen, setRoundOneRosterOpen] = useState(false);
   const [closingRoundOne, setClosingRoundOne] = useState(false);
   const [roundOneDecisions, setRoundOneDecisions] = useState<
     Record<number, boolean>
@@ -440,8 +443,8 @@ export const RecruitmentContent = ({
     if (flowId) void handleFlowChange(flowId);
   };
 
-  /* 结束一面：部长在名单弹窗里逐人确认结果，确认即归档并发一面结果通知；只对办公类流程开放 */
-  const canCloseRoundOne =
+  /* 结束一面：名单里有进行中的一面候选人才需要确认；确认过一面后入口换成查看/导出名单 */
+  const roundOneToolbarVisible =
     isEvaluationWorkspace &&
     scoringEnabled &&
     role >= 3 &&
@@ -476,6 +479,13 @@ export const RecruitmentContent = ({
       officeChoices: [],
       finalDepartment: null,
     }));
+
+  /* 一面已确认：没有进行中的一面候选人，但已经有了一面结论（进入二面或止步一面） */
+  const roundOneRosterRows = buildOfficeRoundOneRoster(safeEvalData);
+  const roundOneConfirmed =
+    roundOneRoster.length === 0 && roundOneRosterRows.length > 0;
+  const canCloseRoundOne = roundOneToolbarVisible && roundOneRoster.length > 0;
+  const canReviewRoundOneRoster = roundOneToolbarVisible && roundOneConfirmed;
 
   const openRoundOneDialog = () => {
     /* 每次打开都按当前名单重建默认结论：全部通过、邮件模板未核对 */
@@ -713,6 +723,32 @@ export const RecruitmentContent = ({
                 />
               </>
             )}
+            {/* 一面确认后入口换成名单回看与导出：结束一面的动作不再可点（重发通知走邮件中心） */}
+            {canReviewRoundOneRoster && (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-10 shrink-0 sm:h-9"
+                  onClick={() => setRoundOneRosterOpen(true)}
+                >
+                  <ClipboardList data-icon="inline-start" />
+                  查看一面名单
+                </Button>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-10 shrink-0 sm:h-9"
+                >
+                  <a href={`/api/flow/office-round-one-export?flowId=${flowId}`}>
+                    <Download data-icon="inline-start" />
+                    导出一面名单
+                  </a>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -761,6 +797,15 @@ export const RecruitmentContent = ({
               onOpenChange={(open) => {
                 if (!open) setRecordUserFlowId(null);
               }}
+            />
+          )}
+          {/* 一面确认后的名单回看：与「导出一面名单」同一份推导（进入二面 / 止步一面） */}
+          {scoringEnabled && (
+            <OfficeRoundOneRosterDialog
+              open={roundOneRosterOpen}
+              onOpenChange={setRoundOneRosterOpen}
+              flowTitle={currentFlowTitle}
+              candidates={safeEvalData}
             />
           )}
         </div>

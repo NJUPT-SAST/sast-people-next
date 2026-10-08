@@ -9,18 +9,9 @@ import { assertFlowEditableRecord } from "@/lib/flow-access";
 import type { FlowScopedSession } from "@/action/flow/department-utils";
 import { departmentLabel } from "@/const/department";
 import { isOfficeInterviewFlow } from "@/const/flow";
+import { escapeCsv } from "@/lib/csv";
+import { officeChoiceLabel } from "@/lib/office-round-one-roster";
 import { eq } from "drizzle-orm";
-
-function escapeCsv(value: unknown) {
-  const raw = String(value ?? "");
-  const text = /^[=+@\-\t\r]/.test(raw) ? `'${raw}` : raw;
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-/* 办公类志愿类型：1=第一志愿、2=第二志愿 */
-function choiceLabel(value: unknown) {
-  return value === 1 ? "第一志愿" : value === 2 ? "第二志愿" : "";
-}
 
 export async function GET(request: NextRequest) {
   const flowId = Number(request.nextUrl.searchParams.get("flowId"));
@@ -76,7 +67,7 @@ export async function GET(request: NextRequest) {
         ...rows.map((row) => [
           row.name,
           row.studentId,
-          choiceLabel(row.choice),
+          officeChoiceLabel(row.choice),
           departmentLabel((row.department as string | null) ?? null, ""),
           row.interviewSlot,
           /* 旧快照没有分轮均分字段：缺失时导出空单元格（escapeCsv 已把 null/undefined 转为空串） */

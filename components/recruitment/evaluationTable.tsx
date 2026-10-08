@@ -1004,6 +1004,8 @@ export const EvaluationTable = ({
   const canEditInterviewSlot =
     scoringEnabled && role >= 3 && safeSlotOptions.length > 0;
   const [evaluatingId, setEvaluatingId] = useState<number | null>(null);
+  /* 提交锁：按钮与 Ctrl/⌘ + Enter 共用，请求结束前不接受第二次提交 */
+  const submitLockRef = useRef(false);
   const [portfolioCandidate, setPortfolioCandidate] = useState<Candidate | null>(null);
   const [returnConfirmCandidate, setReturnConfirmCandidate] = useState<Candidate | null>(null);
   const [returnReason, setReturnReason] = useState("");
@@ -1273,6 +1275,9 @@ export const EvaluationTable = ({
     safeCandidates.find((c) => c.userFlowId === schedulingId) ?? null;
 
   const handlePass = async (userFlowId: number) => {
+    /* 提交锁先于校验：连按按钮或快捷键时，第一次请求还在路上就不再发第二次
+       （服务端会更新同一条面评，但每次调用都会写一条审计，重复提交只会多出噪音记录） */
+    if (submitLockRef.current) return;
     if (!content.trim()) {
       setScoreError(null);
       setEvaluationError(
@@ -1304,6 +1309,7 @@ export const EvaluationTable = ({
     }
     setScoreError(null);
     setLoadingId(userFlowId);
+    submitLockRef.current = true;
     try {
       /* 办公类提交记录内容、可选的面试意见与分数：意见仅供参考，不带妙记/会议链接 */
       const result = scoringEnabled
@@ -1327,6 +1333,7 @@ export const EvaluationTable = ({
     } catch {
       toast.error("提交失败");
     } finally {
+      submitLockRef.current = false;
       setLoadingId(null);
     }
   };
@@ -2345,7 +2352,20 @@ export const EvaluationTable = ({
                   : "面试结束后填写评价内容和妙记链接。"}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
+          <div
+            className="grid gap-4 py-2"
+            onKeyDown={(event) => {
+              /* 键盘保存：Ctrl/⌘ + Enter，长记录不用再去点按钮 */
+              if (
+                editingCandidate &&
+                (event.metaKey || event.ctrlKey) &&
+                event.key === "Enter"
+              ) {
+                event.preventDefault();
+                void handlePass(editingCandidate.userFlowId);
+              }
+            }}
+          >
             {editingCandidate && !scoringEnabled && (
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="mb-1 text-xs text-muted-foreground">作品链接</p>
@@ -2356,18 +2376,24 @@ export const EvaluationTable = ({
               </div>
             )}
             <div className="space-y-2">
-              <label htmlFor="evaluation-content" className="text-sm font-medium">
-                {scoringEnabled ? "面试记录内容" : "面评内容"}{" "}
-                <span className="text-destructive">*</span>
-              </label>
-              <p className="text-xs leading-5 text-muted-foreground">
-                {scoringEnabled
-                  ? "面试记录内容必填。"
-                  : `面评内容必填；建议通过时至少填写 ${MIN_PASSED_EVALUATION_LENGTH} 个字。`}
-              </p>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <label htmlFor="evaluation-content" className="text-sm font-medium">
+                  {scoringEnabled ? "面试记录内容" : "面评内容"}{" "}
+                  <span className="text-destructive">*</span>
+                </label>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {content.trim().length} 字
+                </span>
+              </div>
+              {!scoringEnabled && (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  面评内容必填；建议通过时至少填写 {MIN_PASSED_EVALUATION_LENGTH} 个字。
+                </p>
+              )}
               <Textarea
                 id="evaluation-content"
-                placeholder={scoringEnabled ? "请输入面试记录内容..." : "请输入面评内容..."}
+                autoFocus
+                placeholder={scoringEnabled ? "记录候选人的表现、亮点与不足…" : "请输入面评内容..."}
                 value={content}
                 onChange={(e) => {
                   setContent(e.target.value);
@@ -2380,7 +2406,6 @@ export const EvaluationTable = ({
                 required
                 className="min-h-[160px] resize-y"
               />
-              <p className="text-right text-xs text-muted-foreground">{content.trim().length} 字</p>
               {evaluationError && (
                 <p id="evaluation-content-error" role="alert" className="text-sm text-destructive">
                   {evaluationError}
@@ -2389,10 +2414,12 @@ export const EvaluationTable = ({
             </div>
             {scoringEnabled && (
               <div className="space-y-2">
-                <label htmlFor="evaluation-score" className="text-sm font-medium">
-                  {scoringEnabled ? "面试分数（0-100）" : "面试打分（0-100）"}{" "}
-                  <span className="text-destructive">*</span>
-                </label>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <label htmlFor="evaluation-score" className="text-sm font-medium">
+                    面试分数 <span className="text-destructive">*</span>
+                  </label>
+                  <span className="text-xs text-muted-foreground">0-100 整数</span>
+                </div>
                 <Input
                   id="evaluation-score"
                   type="number"
@@ -2400,7 +2427,7 @@ export const EvaluationTable = ({
                   min={0}
                   max={100}
                   step={1}
-                  placeholder="请输入 0-100 的整数"
+                  placeholder="85"
                   value={score}
                   onChange={(event) => {
                     setScore(event.target.value);
@@ -2411,7 +2438,7 @@ export const EvaluationTable = ({
                     scoreError ? "evaluation-score-error" : undefined
                   }
                   required
-                  className="h-10 w-32"
+                  className="h-10 w-32 tabular-nums"
                 />
                 {scoreError && (
                   <p
@@ -2422,15 +2449,17 @@ export const EvaluationTable = ({
                     {scoreError}
                   </p>
                 )}
-                <p className="text-xs leading-5 text-muted-foreground">
-                  分数为该{reviewerLabel}的面试评分，最终结果取各{reviewerLabel}已提交分数的平均分。
-                </p>
               </div>
             )}
             {/* 办公类的面试意见可选：只作参考留档，不参与结果判定 */}
             {scoringEnabled && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">面试意见（参考）</label>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <label className="text-sm font-medium">面试意见（参考）</label>
+                  <span className="text-xs text-muted-foreground">
+                    可选，不影响结果
+                  </span>
+                </div>
                 <Select
                   value={recommendation ?? "none"}
                   onValueChange={(value) =>
@@ -2452,9 +2481,6 @@ export const EvaluationTable = ({
                     <SelectItem value="failed">建议不通过</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  意见仅供参考，不影响面试结果；结果由部长在名单确认时决定。
-                </p>
               </div>
             )}
             {/* 技术流程才有讲师建议与妙记链接 */}
@@ -2506,8 +2532,9 @@ export const EvaluationTable = ({
             )}
           </div>
           <DialogFooter className="mt-2 border-t pt-4 sm:items-center sm:justify-between">
-            <div className="min-h-9">
-            </div>
+            <p className="hidden text-xs text-muted-foreground sm:block">
+              Ctrl/⌘ + Enter 提交
+            </p>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={cancelEdit}>
                 取消

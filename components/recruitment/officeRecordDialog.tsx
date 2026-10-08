@@ -39,16 +39,7 @@ const statusClassNames: Record<string, string> = {
 const formatTime = (value: string | null) =>
   value ? dayjs(value).format("YYYY-MM-DD HH:mm") : "—";
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words">{value}</dd>
-    </div>
-  );
-}
-
-/** 单轮分区：面评列表 + 均分行 + 名单确认结论 */
+/** 单轮分区：面评列表 + 均分/名单确认结论（只读回溯，决策快照保留） */
 function RoundSection({ round }: { round: OfficeRecordRound }) {
   const isFinal = round.round === 2;
   const title = isFinal ? "二面" : "一面";
@@ -58,96 +49,81 @@ function RoundSection({ round }: { round: OfficeRecordRound }) {
   ).length;
 
   return (
-    <section aria-label={`${title}记录`} className="space-y-2 rounded-lg border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section
+      aria-label={`${title}记录`}
+      className="space-y-2 border-t pt-4 first:border-t-0 first:pt-0"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h4 className="text-sm font-semibold">{title}</h4>
-        <span className="text-xs text-muted-foreground">
-          {isFinal ? "2-3 位部长分别打分，取平均" : "1 位部长考察，只给最终分"}
-        </span>
+        {round.averageScore !== null && (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            均分 {round.averageScore} · {scoredCount} 份
+          </span>
+        )}
       </div>
 
       {round.evaluations.length === 0 ? (
-        <p className="rounded-md border border-dashed bg-muted/20 p-4 text-center text-sm text-muted-foreground">
+        <p className="rounded-md border border-dashed bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
           尚未记录{title}面评
         </p>
       ) : (
         <ul className="space-y-2">
           {round.evaluations.map((evaluation) => (
-            <li key={evaluation.id} className="rounded-md border bg-card p-3 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <span className="font-medium">
+            <li key={evaluation.id} className="rounded-md border bg-card p-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <span className="text-sm font-medium">
                   {evaluation.authorName ?? "未知面试官"}
                   {evaluation.isMine && (
-                    <span className="ml-1 text-xs text-muted-foreground">（我）</span>
-                  )}
-                </span>
-                <span className="tabular-nums">
-                  分数 {evaluation.score ?? "未打分"}
-                  {evaluation.recommendation && (
-                    <span className="text-muted-foreground">
-                      {" · "}
-                      {evaluation.recommendation === "passed"
-                        ? "建议通过"
-                        : "建议不通过"}
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      （我）
                     </span>
                   )}
                 </span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums">
+                  {evaluation.score !== null ? `${evaluation.score} 分` : "未打分"}
+                </span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">
+              <p className="mt-1 whitespace-pre-wrap break-words text-sm">
                 {evaluation.content}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 {formatTime(evaluation.createdAt)}
+                {evaluation.recommendation &&
+                  ` · ${
+                    evaluation.recommendation === "passed"
+                      ? "建议通过"
+                      : "建议不通过"
+                  }`}
               </p>
             </li>
           ))}
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <span className="text-muted-foreground">{title}均分</span>
-        {round.averageScore === null ? (
-          <span className="text-muted-foreground">暂无</span>
-        ) : (
-          <span className="font-medium tabular-nums">
-            {round.averageScore}
-            <span className="ml-1 text-xs text-muted-foreground">
-              · {scoredCount} 位部长
-            </span>
-          </span>
-        )}
-      </div>
-
-      <div className="rounded-md border bg-muted/20 p-3 text-sm">
-        <p className="font-medium text-muted-foreground">名单确认</p>
-        {round.decision === null ? (
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            该轮还没有确认名单。部长结束这一轮后会在这里留档：结论、操作人，以及确认时刻的均分与份数。
-          </p>
-        ) : (
-          <>
-            <p className="mt-1">
+      {round.decision === null
+        ? round.evaluations.length > 0 && (
+            <p className="text-xs text-muted-foreground">名单确认：尚未确认</p>
+          )
+        : (
+            <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span>名单确认</span>
               <span
                 className={
-                  round.decision.passed ? "text-primary" : "text-destructive"
+                  round.decision.passed
+                    ? "font-medium text-primary"
+                    : "font-medium text-destructive"
                 }
               >
                 {round.decision.passed ? "通过" : "未通过"}
               </span>
-              <span className="text-muted-foreground">
-                {" · "}
-                {formatTime(round.decision.decidedAt)}
+              <span>{formatTime(round.decision.decidedAt)}</span>
+              <span>操作人 {round.decision.decidedBy ?? "未知"}</span>
+              <span>
+                确认时刻均分 {round.decision.averageScore ?? "无"}（
+                {round.decision.evaluationCount} 份）
               </span>
             </p>
-            <p className="text-xs text-muted-foreground">
-              操作人 {round.decision.decidedBy ?? "未知"}
-              {" · "}
-              确认时刻均分 {round.decision.averageScore ?? "无"}（
-              {round.decision.evaluationCount} 份）
-            </p>
-          </>
-        )}
-      </div>
+          )}
     </section>
   );
 }
@@ -203,9 +179,7 @@ export function OfficeRecordDialog({
         <DialogHeader>
           <DialogTitle>全部面试记录</DialogTitle>
           <DialogDescription>
-            {record
-              ? `${record.candidate.name} 的两轮面评与名单确认结论。`
-              : "查看候选人两轮面评与名单确认结论。"}
+            两轮面评与名单确认结论。
           </DialogDescription>
         </DialogHeader>
 
@@ -253,42 +227,47 @@ export function OfficeRecordDialog({
               </Badge>
             </div>
 
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-2 rounded-lg border bg-muted/20 p-3 text-sm sm:grid-cols-2">
-              <InfoRow
-                label="志愿"
-                value={
-                  record.candidate.choice === 1
+            {/* 关键信息压成一行：志愿 / 另一志愿 / 时段 / 最终去向（不再各占一个边框格子） */}
+            <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span className="flex items-baseline gap-1">
+                志愿
+                <span className="text-foreground">
+                  {record.candidate.choice === 1
                     ? "第一志愿"
                     : record.candidate.choice === 2
                       ? "第二志愿"
-                      : "未填写"
-                }
-              />
-              <InfoRow
-                label="另一志愿部门"
-                value={
-                  record.candidate.siblingDepartment
+                      : "未填写"}
+                </span>
+              </span>
+              <span className="flex items-baseline gap-1">
+                另一志愿
+                <span className="text-foreground">
+                  {record.candidate.siblingDepartment
                     ? departmentLabel(record.candidate.siblingDepartment)
-                    : "无"
-                }
-              />
-              <InfoRow
-                label="面试时段"
-                value={record.candidate.interviewSlot ?? "未选择"}
-              />
-              <InfoRow
-                label="最终去向"
-                value={
-                  record.candidate.finalDepartment
+                    : "无"}
+                </span>
+              </span>
+              <span className="flex items-baseline gap-1">
+                时段
+                <span className="text-foreground">
+                  {record.candidate.interviewSlot ?? "未选择"}
+                </span>
+              </span>
+              <span className="flex items-baseline gap-1">
+                最终去向
+                <span className="text-foreground">
+                  {record.candidate.finalDepartment
                     ? departmentLabel(record.candidate.finalDepartment)
-                    : "未确定"
-                }
-              />
-            </dl>
+                    : "未确定"}
+                </span>
+              </span>
+            </p>
 
-            {record.rounds.map((round) => (
-              <RoundSection key={round.round} round={round} />
-            ))}
+            <div className="space-y-4">
+              {record.rounds.map((round) => (
+                <RoundSection key={round.round} round={round} />
+              ))}
+            </div>
           </div>
         )}
       </DialogContent>

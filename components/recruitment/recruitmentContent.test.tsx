@@ -385,7 +385,7 @@ describe("RecruitmentContent", () => {
     expect(getEvaluationCandidates).toHaveBeenCalledWith(1);
   });
 
-  it("keeps 结束一面 in the first-round view only and keeps it openable without a roster", async () => {
+  it("swaps 结束一面 for the roster review once the round-one results exist", async () => {
     const user = userEvent.setup();
     render(
       <RecruitmentContent
@@ -393,7 +393,13 @@ describe("RecruitmentContent", () => {
         initialData={[]}
         initialEvalData={
           [
-            { userFlowId: 3, status: "ongoing", round: 2, evaluations: [] },
+            {
+              userFlowId: 3,
+              name: "王五",
+              status: "ongoing",
+              round: 2,
+              evaluations: [{ round: 1, score: 70 }],
+            },
           ] as never
         }
         defaultFlowId="1"
@@ -402,7 +408,7 @@ describe("RecruitmentContent", () => {
       />,
     );
 
-    /* 只剩二面候选人时默认落在二面：一面那一轮的收口按钮不该出现 */
+    /* 只剩二面候选人时默认落在二面：一面那一轮的入口不该出现 */
     expect(screen.getByRole("button", { name: "二面 1" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -413,15 +419,26 @@ describe("RecruitmentContent", () => {
 
     await user.click(screen.getByRole("button", { name: "一面 0" }));
 
-    /* 面/二面切换只影响视图：不重新拉取候选人 */
+    /* 一/二面切换只影响视图：不重新拉取候选人 */
     expect(getEvaluationCandidates).not.toHaveBeenCalled();
     expect(screen.getByTestId("evaluation-table")).toHaveAttribute(
       "data-round-view",
       "1",
     );
-    const closeButton = screen.getByRole("button", { name: "结束一面并发送通知" });
-    /* 名单空时仍可打开：邮件队列失败后要能再次确认以补发未发送的通知 */
-    expect(closeButton).toBeEnabled();
+    /* 一面已确认（有人进入二面）：结束一面的动作消失，改为查看 / 导出名单 */
+    expect(
+      screen.queryByRole("button", { name: "结束一面并发送通知" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "导出一面名单" }),
+    ).toHaveAttribute("href", "/api/flow/office-round-one-export?flowId=1");
+
+    await user.click(screen.getByRole("button", { name: "查看一面名单" }));
+
+    /* 回看的是确认结论：进入二面 = 一面通过 */
+    const rosterDialog = await screen.findByRole("dialog");
+    expect(rosterDialog).toHaveTextContent("王五");
+    expect(rosterDialog).toHaveTextContent("通过");
   });
 
   it("stays on the first-round view when nobody has reached the second round", () => {
@@ -454,9 +471,12 @@ describe("RecruitmentContent", () => {
       "aria-pressed",
       "true",
     );
-    /* 一面已全部出结果（名单为空）时仍可打开弹窗补发通知 */
+    /* 一面已全部出结果：收口按钮消失，改为名单回看与导出（补发通知在邮件中心处理） */
     expect(
-      screen.getByRole("button", { name: "结束一面并发送通知" }),
+      screen.queryByRole("button", { name: "结束一面并发送通知" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "查看一面名单" }),
     ).toBeEnabled();
   });
 
