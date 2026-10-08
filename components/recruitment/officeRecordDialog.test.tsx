@@ -105,26 +105,22 @@ describe("OfficeRecordDialog", () => {
     const roundOne = within(screen.getByRole("region", { name: "一面记录" }));
     const roundTwo = within(screen.getByRole("region", { name: "二面记录" }));
 
-    /* 一面：单人分数 + 意见 + 确认结论快照 */
-    expect(roundOne.getByText(/分数 88/)).toBeInTheDocument();
-    expect(roundOne.getByText(/建议通过/)).toBeInTheDocument();
+    /* 一面：单人分数 + 意见 + 确认结论快照（结论压成一行，不再整块说明） */
+    expect(roundOne.getByText("88 分")).toBeInTheDocument();
     expect(roundOne.getByText("一面表现不错，沟通清晰。")).toBeInTheDocument();
-    expect(roundOne.getByText("88")).toBeInTheDocument();
-    expect(roundOne.getByText(/· 1 位部长/)).toBeInTheDocument();
+    expect(roundOne.getByText(/建议通过/)).toBeInTheDocument();
+    expect(roundOne.getByText("均分 88 · 1 份")).toBeInTheDocument();
     expect(roundOne.getByText("通过")).toBeInTheDocument();
     expect(roundOne.getByText(/操作人 部长甲/)).toBeInTheDocument();
     expect(roundOne.getByText(/确认时刻均分 88（1 份）/)).toBeInTheDocument();
-    expect(roundOne.queryByText(/该轮还没有确认名单/)).not.toBeInTheDocument();
 
-    /* 二面：多人面评 + 平均分带参评人数；尚未确认名单 */
-    expect(roundTwo.getByText(/分数 80/)).toBeInTheDocument();
-    expect(roundTwo.getByText(/分数 90/)).toBeInTheDocument();
+    /* 二面：多人面评 + 平均分带份数；尚未确认名单是一行提示 */
+    expect(roundTwo.getByText("80 分")).toBeInTheDocument();
+    expect(roundTwo.getByText("90 分")).toBeInTheDocument();
     expect(roundTwo.getByText("（我）")).toBeInTheDocument();
-    expect(roundTwo.getByText("85")).toBeInTheDocument();
-    expect(roundTwo.getByText(/· 2 位部长/)).toBeInTheDocument();
-    expect(roundTwo.getByText(/该轮还没有确认名单/)).toBeInTheDocument();
-    /* 二面提示考察方式 */
-    expect(roundTwo.getByText("2-3 位部长分别打分，取平均")).toBeInTheDocument();
+    expect(roundTwo.getByText("均分 85 · 2 份")).toBeInTheDocument();
+    expect(roundTwo.getByText("名单确认：尚未确认")).toBeInTheDocument();
+    expect(roundTwo.getByText(/建议不通过/)).toBeInTheDocument();
   });
 
   it("某轮还没有面评与名单确认时给出空态", async () => {
@@ -151,7 +147,9 @@ describe("OfficeRecordDialog", () => {
     expect(await screen.findByText("李四")).toBeInTheDocument();
     expect(screen.getByText("尚未记录一面面评")).toBeInTheDocument();
     expect(screen.getByText("尚未记录二面面评")).toBeInTheDocument();
-    expect(screen.getAllByText(/该轮还没有确认名单/)).toHaveLength(2);
+    /* 空轮次不再渲染均分与名单确认区块，只留一行空态 —— 没有的信息不摆占位 */
+    expect(screen.queryByText("名单确认：尚未确认")).not.toBeInTheDocument();
+    expect(screen.queryByText(/确认时刻均分/)).not.toBeInTheDocument();
     /* 未填写的信息用占位文案展示，不显示空白 */
     expect(screen.getByText("无")).toBeInTheDocument();
     expect(screen.getByText("未选择")).toBeInTheDocument();

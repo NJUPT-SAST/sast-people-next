@@ -2077,6 +2077,39 @@ describe("EvaluationTable", () => {
     );
   }, 15000);
 
+  it("saves the office record with Ctrl+Enter", async () => {
+    const user = userEvent.setup();
+    const evaluationActionMock = jest.requireMock(
+      "@/action/user-flow/evaluation",
+    ) as { createEvaluation: jest.Mock };
+    const mockCreateEvaluation = evaluationActionMock.createEvaluation;
+    mockCreateEvaluation
+      .mockReset()
+      .mockResolvedValue({ success: true, data: { id: 13 } });
+
+    renderTable([makeCandidate({ userFlowId: 1, name: "办公同学" })], {
+      scoringEnabled: true,
+    });
+
+    const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    await user.click(rowMenu.getByRole("button", { name: "填写面试记录" }));
+
+    await user.type(screen.getByLabelText(/面试记录内容/), "表达清晰，记录完整。");
+    await user.type(screen.getByLabelText(/面试分数/), "90");
+    /* 长记录不用再去点按钮：Ctrl/⌘ + Enter 直接保存 */
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    await waitFor(() =>
+      expect(mockCreateEvaluation).toHaveBeenCalledWith(
+        1,
+        "表达清晰，记录完整。",
+        null,
+        undefined,
+        90,
+      ),
+    );
+  }, 15000);
+
   it("shows a saved office opinion in the score popover", async () => {
     const user = userEvent.setup();
     renderTable(
@@ -2140,7 +2173,10 @@ describe("EvaluationTable", () => {
     // 字段：记录内容 + 分数 + 可选的面试意见
     expect(screen.getByLabelText(/面试记录内容/)).toBeInTheDocument();
     expect(screen.getByLabelText(/面试分数/)).toBeInTheDocument();
-    expect(screen.getByText(/分数为该部长的面试评分/)).toBeInTheDocument();
+    /* 上限、可选说明与快捷键提示都贴在标题行：必填规则不再重复成整段说明 */
+    expect(screen.getByText("0-100 整数")).toBeInTheDocument();
+    expect(screen.getByText("可选，不影响结果")).toBeInTheDocument();
+    expect(screen.getByText("Ctrl/⌘ + Enter 提交")).toBeInTheDocument();
     expect(screen.getByLabelText("面试意见（参考）")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "不填" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "建议通过" })).toBeInTheDocument();
