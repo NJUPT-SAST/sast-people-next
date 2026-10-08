@@ -7,18 +7,13 @@
 -- 个人化只保留在邮件正文的称呼里。
 --
 -- 内置默认同步去掉姓名；把仍是旧内置默认值的落库行改写为新文案，
--- 部门自定义过的主题保持原样。模板键限定为四个办公类模板：其他模板即使自定义
--- 成同样的文案也不该被改写。
+-- 部门自定义过的主题保持原样。模板键与旧默认主题一一配对匹配：只有该键
+-- 原本的默认文案才改写，键与文案的交叉组合（可能是管理员的自定义）不动。
 UPDATE "email_template_setting"
 SET "subject_template" = replace("subject_template", '{name}', '')
-WHERE "template_key" IN (
-    'office_round1.result.accepted',
-    'office_round1.result.rejected',
-    'office_round2.result.accepted',
-    'office_round2.result.rejected'
-  )
-  AND "subject_template" IN (
-    '{name}{department}一轮面试结果通知',
-    '{name}{department}二轮面试结果通知',
-    '{name}{department}面试结果通知'
+WHERE ("template_key", "subject_template") IN (
+    ('office_round1.result.accepted', '{name}{department}一轮面试结果通知'),
+    ('office_round1.result.rejected', '{name}{department}面试结果通知'),
+    ('office_round2.result.accepted', '{name}{department}二轮面试结果通知'),
+    ('office_round2.result.rejected', '{name}{department}面试结果通知')
   );
