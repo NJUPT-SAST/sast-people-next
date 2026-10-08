@@ -100,20 +100,22 @@ const templateDefinitions = [
   },
 ] as unknown as EmailTemplateDefinition[];
 
-function renderSection({
-  templateSettings,
-  department,
-  selectedFlowTitle,
-  selectedFlowType,
-  onDepartmentChange = jest.fn(),
-}: {
+type SectionProps = {
   templateSettings: TemplateSettingsResult;
   department: string | null;
   selectedFlowTitle?: string;
   selectedFlowType?: string | null;
   onDepartmentChange?: (department: string | null) => void;
-}) {
-  return render(
+};
+
+function sectionElement({
+  templateSettings,
+  department,
+  selectedFlowTitle,
+  selectedFlowType,
+  onDepartmentChange = jest.fn(),
+}: SectionProps) {
+  return (
     <EmailTemplateManagementSection
       templateSettings={templateSettings}
       resultEmailPreviews={{}}
@@ -124,8 +126,12 @@ function renderSection({
       selectedFlowType={selectedFlowType}
       department={department}
       onDepartmentChange={onDepartmentChange}
-    />,
+    />
   );
+}
+
+function renderSection(props: SectionProps) {
+  return render(sectionElement(props));
 }
 
 /**
@@ -367,6 +373,90 @@ describe("EmailTemplateManagementSection", () => {
     /* 选项按「结果通知 / 面试通知」分组，15 个模板里找起来不用翻列表 */
     expect(screen.getByRole("group", { name: "结果通知" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "面试通知" })).toBeInTheDocument();
+  });
+
+  it("办公部门的测试发送只列本部门用得到的模板", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [
+          createResultRow("office_round1.result.accepted", "office", true, true),
+        ],
+        departments: ["office", "software"],
+        scope: { kind: "department", department: "office" },
+      },
+      department: "office",
+    });
+
+    const [headerButton] = screen.getAllByRole("button", { name: "测试发送" });
+    await user.click(headerButton);
+
+    const select = await screen.findByLabelText<HTMLSelectElement>("模板");
+    /* 办公部门不该看到技术阶段（笔试/免试/WOC/SOC）和飞书日程类模板 */
+    expect(Array.from(select.options).map((option) => option.value)).toEqual([
+      "office_round1.result.accepted",
+    ]);
+    /* 跟随流程类型的默认键被过滤掉时回落到第一个可选项，而不是留在列表之外 */
+    expect(select).toHaveValue("office_round1.result.accepted");
+  });
+
+  it("技术部门的测试发送不列办公阶段模板", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [
+          createResultRow("recruitment.result.accepted", "software", true, true),
+        ],
+        departments: ["office", "software"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "software",
+      selectedFlowType: "recruitment",
+    });
+
+    const [headerButton] = screen.getAllByRole("button", { name: "测试发送" });
+    await user.click(headerButton);
+
+    const select = await screen.findByLabelText<HTMLSelectElement>("模板");
+    expect(Array.from(select.options).map((option) => option.value)).toEqual([
+      "recruitment.result.accepted",
+      "recruitment.result.rejected",
+      "interview.schedule.created",
+    ]);
+    expect(select).toHaveValue("recruitment.result.accepted");
+  });
+
+  it("切换部门后已选模板被过滤掉时回落到默认键", async () => {
+    const user = userEvent.setup();
+    const props: SectionProps = {
+      templateSettings: {
+        rows: [
+          createResultRow("office_round1.result.accepted", null, true, false),
+        ],
+        departments: ["office", "software"],
+        scope: { kind: "all" },
+      },
+      department: null,
+      selectedFlowType: "recruitment",
+    };
+    const { rerender } = renderSection(props);
+
+    const [headerButton] = screen.getAllByRole("button", { name: "测试发送" });
+    await user.click(headerButton);
+    /* 全局范围（不过滤）下先选中一个办公模板 */
+    await user.selectOptions(
+      await screen.findByLabelText("模板"),
+      "office_round1.result.accepted",
+    );
+
+    /* 切到技术部门：默认键没变，但选中的办公模板已被过滤出下拉，发送不能继续带它 */
+    rerender(sectionElement({ ...props, department: "software" }));
+
+    const rescopedSelect = await screen.findByLabelText<HTMLSelectElement>("模板");
+    expect(
+      Array.from(rescopedSelect.options).map((option) => option.value),
+    ).not.toContain("office_round1.result.accepted");
+    expect(rescopedSelect).toHaveValue("recruitment.result.accepted");
   });
 
   it("不通过模板卡片用红色顶条，和通过模板一眼区分", () => {

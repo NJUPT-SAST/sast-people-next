@@ -236,20 +236,33 @@ export async function createResultEmailBatch({
   const userMap = await listPeopleUsersByLinkIds(
     missingTargets.map((item) => item.userId),
   );
-  const missingStudentIdRecipients = missingTargets
-    .map((item) => {
-      const targetUser = userMap.get(item.userId);
-      return {
-        name: targetUser?.name ?? `Link 用户 #${item.userId}`,
-        studentId: targetUser?.studentId ?? null,
-      };
-    })
-    .filter((item) => !item.studentId?.trim());
+  /* 收件人资料一次整理：姓名与学号都必须是真实值，缺任何一项都不发 */
+  const recipients = missingTargets.map((item) => {
+    const targetUser = userMap.get(item.userId);
+    return {
+      ...item,
+      name: targetUser?.name?.trim() ?? "",
+      studentId: targetUser?.studentId ?? null,
+    };
+  });
+  const missingStudentIdRecipients = recipients.filter(
+    (item) => !item.studentId?.trim(),
+  );
 
   if (missingStudentIdRecipients.length > 0) {
     throw new Error(
       `以下同学缺少学号，无法生成教育邮箱：${missingStudentIdRecipients
-        .map((item) => item.name)
+        .map((item) => item.name || `Link 用户 #${item.userId}`)
+        .join("、")}`,
+    );
+  }
+
+  /* 称呼按真实姓名渲染：Link 没有姓名的候选人先拦住，绝不能把占位称呼发出去 */
+  const missingNameRecipients = recipients.filter((item) => !item.name);
+  if (missingNameRecipients.length > 0) {
+    throw new Error(
+      `以下同学缺少姓名，无法发送实名通知：${missingNameRecipients
+        .map((item) => `Link 用户 #${item.userId}`)
         .join("、")}`,
     );
   }
@@ -276,13 +289,12 @@ export async function createResultEmailBatch({
   });
 
   const deliveryDrafts = await Promise.all(
-    missingTargets.map(async (item) => {
-      const targetUser = userMap.get(item.userId);
-      const toAddress = getEducationEmail(targetUser?.studentId);
+    recipients.map(async (item) => {
+      const toAddress = getEducationEmail(item.studentId);
       const rendered = await renderEmailTemplate({
         templateKey,
         variables: {
-          name: targetUser?.name ?? "同学",
+          name: item.name,
           flowName: item.flowName,
           flowKind,
           round: flowRound,
@@ -300,17 +312,16 @@ export async function createResultEmailBatch({
       };
     }),
   );
-  const batchSubject =
-    deliveryDrafts[0]?.rendered.subject ??
-    renderResultEmailSubject(
-      {
-        name: userMap.get(missingTargets[0].userId)?.name ?? "同学",
-        flowName: targets[0].flowName,
-        department: departmentDisplay,
-        groupNumber: templateSetting.groupNumber,
-      },
-      templateSetting,
-    );
+  /* 批次级主题不落到某一位候选人身上：{name} 留空，投递各自保存渲染后的真实标题 */
+  const batchSubject = renderResultEmailSubject(
+    {
+      name: "",
+      flowName: targets[0].flowName,
+      department: departmentDisplay,
+      groupNumber: templateSetting.groupNumber,
+    },
+    templateSetting,
+  );
 
   return db.transaction(async (tx) => {
     const [batch] = await tx
@@ -480,19 +491,32 @@ export async function createOfficeRoundOneEmailBatch({
     const userMap = await listPeopleUsersByLinkIds(
       newRecipients.map((item) => item.userId),
     );
-    const missingStudentIdRecipients = newRecipients
-      .map((item) => {
-        const targetUser = userMap.get(item.userId);
-        return {
-          name: targetUser?.name ?? `Link 用户 #${item.userId}`,
-          studentId: targetUser?.studentId ?? null,
-        };
-      })
-      .filter((item) => !item.studentId?.trim());
+    /* 收件人资料一次整理：姓名与学号都必须是真实值，缺任何一项都不发 */
+    const recipients = newRecipients.map((item) => {
+      const targetUser = userMap.get(item.userId);
+      return {
+        ...item,
+        name: targetUser?.name?.trim() ?? "",
+        studentId: targetUser?.studentId ?? null,
+      };
+    });
+    const missingStudentIdRecipients = recipients.filter(
+      (item) => !item.studentId?.trim(),
+    );
     if (missingStudentIdRecipients.length > 0) {
       throw new Error(
         `以下同学缺少学号，无法生成教育邮箱：${missingStudentIdRecipients
-          .map((item) => item.name)
+          .map((item) => item.name || `Link 用户 #${item.userId}`)
+          .join("、")}`,
+      );
+    }
+    /* 称呼与主题都按真实姓名渲染（模板里的 {name}）：没有姓名的候选人不发，
+       绝不能把「同学」这类非真实称呼发出去 */
+    const missingNameRecipients = recipients.filter((item) => !item.name);
+    if (missingNameRecipients.length > 0) {
+      throw new Error(
+        `以下同学缺少姓名，无法发送实名通知：${missingNameRecipients
+          .map((item) => `Link 用户 #${item.userId}`)
           .join("、")}`,
       );
     }
@@ -501,34 +525,33 @@ export async function createOfficeRoundOneEmailBatch({
     const setting = await readResultEmailTemplateSetting(templateKey, flowDepartment);
 
     const deliveryDrafts = await Promise.all(
-      newRecipients.map(async (item) => {
-        const targetUser = userMap.get(item.userId);
+      recipients.map(async (item) => {
         const rendered = await renderEmailTemplate({
           templateKey,
           variables: {
-            name: targetUser?.name ?? "同学",
+            name: item.name,
             flowName: flowRow.title,
             flowKind: getResultEmailFlowKind(OFFICE_INTERVIEW_FLOW_TYPE, round),
             round,
             department: departmentDisplay,
             groupNumber: setting.groupNumber,
             setting,
-            genericGreeting: true,
           },
           department: flowDepartment,
         });
         return {
           item,
-          toAddress: getEducationEmail(targetUser?.studentId),
+          toAddress: getEducationEmail(item.studentId),
           rendered,
         };
       }),
     );
 
-    const [firstDraft] = deliveryDrafts;
+    /* 批次级主题不落到某一位候选人身上：{name} 留空，
+       个人化只出现在每封投递自己的标题里（部门模板若写 {name} 也不会漏进列表） */
     const subject = renderResultEmailSubject(
       {
-        name: userMap.get(firstDraft.item.userId)?.name ?? "同学",
+        name: "",
         flowName: flowRow.title,
         department: departmentDisplay,
         groupNumber: setting.groupNumber,

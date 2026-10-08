@@ -52,7 +52,6 @@ export async function createTestRenderRequest({
         groupNumber: setting.groupNumber,
         setting,
         flowKind: getResultEmailFlowKind(flowKind, round),
-        genericGreeting: false,
       },
       department,
     };
@@ -78,7 +77,8 @@ export async function createTestRenderRequest({
     variables: {
       candidateName: name,
       flowName,
-      organizerName: "李四",
+      /* 面试官用当前账号的真实姓名：测试邮件也要按真实的人渲染，而不是样例名 */
+      organizerName: operatorName,
       startsAt,
       endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
       location: "仙林校区大学生活动中心 101",

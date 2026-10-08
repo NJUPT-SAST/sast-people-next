@@ -13,10 +13,16 @@ import { assertEmailSendRateLimit } from "@/lib/email-center/rate-limit";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import { getFailedDeliveryRetryState } from "@/lib/email-center/retry-policy";
 import { sendEmailViaProvider } from "@/lib/email-center/provider";
+import { readResultEmailTemplateSetting } from "@/lib/email-center/template-resolution";
+import { departmentLabel } from "@/const/department";
+import { OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
+import { getResultEmailFlowKind } from "@/lib/email/result-email";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import type {
   CreateRenderedEmailDeliveryInput,
   CreateRenderedTestEmailDeliveryInput,
   EmailCategory,
+  ResultEmailTemplateKey,
 } from "@/lib/email-center/types";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
@@ -184,6 +190,96 @@ export async function createRenderedTestEmailDelivery(
   });
 }
 
+/* 结果通知的称呼必须是真实姓名：渲染期漏替换的占位符绝不允许进入最终发送，
+   旧快照（或未来的回归）在这里被拦下，并以失败原因的形式留在投递记录里可排查 */
+const UNREPLACED_NAME_PLACEHOLDER = "[同学姓名]";
+
+/* 旧版一面通知把称呼固定成占位符渲染过；只有这两个模板键的快照能按真实姓名安全重建 */
+const REBUILDABLE_PLACEHOLDER_TEMPLATE_KEYS: Record<string, true> = {
+  "office_round1.result.accepted": true,
+  "office_round1.result.rejected": true,
+};
+
+function assertNoUnreplacedPlaceholders(content: {
+  subject: string;
+  htmlSnapshot: string;
+}) {
+  if (
+    content.subject.includes(UNREPLACED_NAME_PLACEHOLDER) ||
+    content.htmlSnapshot.includes(UNREPLACED_NAME_PLACEHOLDER)
+  ) {
+    throw new Error(
+      "邮件内容里仍有未替换的「[同学姓名]」占位符，已阻止发送；请检查模板并重新创建发送任务。",
+    );
+  }
+}
+
+/**
+ * 旧版一面通知的占位符快照恢复：这些投递在哨兵下会永久失败——队列、自动重试、
+ * 手动重试拿到的都是同一份旧快照。这里按投递记录的流程与收件人重建真实姓名快照，
+ * 并把重建结果写回投递行，让下一次发送用新内容；重建不了（非办公一面投递、
+ * 流程/收件人缺失、收件人没有姓名、模板本身写了占位符）返回 null，仍由哨兵照常拦截。
+ */
+async function rebuildLegacyPlaceholderSnapshot(delivery: {
+  id: number;
+  templateKey: string;
+  fkFlowId: number | null;
+  fkUserId: number | null;
+}): Promise<{ subject: string; htmlSnapshot: string } | null> {
+  if (!REBUILDABLE_PLACEHOLDER_TEMPLATE_KEYS[delivery.templateKey]) {
+    return null;
+  }
+  if (delivery.fkFlowId === null || delivery.fkUserId === null) return null;
+
+  const [flowRow] = await db
+    .select({ title: flow.title, department: flow.department })
+    .from(flow)
+    .where(eq(flow.id, delivery.fkFlowId))
+    .limit(1);
+  if (!flowRow) return null;
+
+  const userMap = await listPeopleUsersByLinkIds([delivery.fkUserId]);
+  const name = userMap.get(delivery.fkUserId)?.name?.trim();
+  if (!name) return null;
+
+  const round = 1;
+  const department = normalizeDepartmentKey(flowRow.department);
+  const setting = await readResultEmailTemplateSetting(
+    delivery.templateKey,
+    department,
+  );
+  const rendered = await renderEmailTemplate({
+    templateKey: delivery.templateKey as ResultEmailTemplateKey,
+    variables: {
+      name,
+      flowName: flowRow.title,
+      flowKind: getResultEmailFlowKind(OFFICE_INTERVIEW_FLOW_TYPE, round),
+      round,
+      department: departmentLabel(flowRow.department),
+      groupNumber: setting.groupNumber,
+      setting,
+    },
+    department,
+  });
+  const repaired = { subject: rendered.subject, htmlSnapshot: rendered.html };
+  if (
+    repaired.subject.includes(UNREPLACED_NAME_PLACEHOLDER) ||
+    repaired.htmlSnapshot.includes(UNREPLACED_NAME_PLACEHOLDER)
+  ) {
+    return null;
+  }
+
+  await db
+    .update(emailDelivery)
+    .set({
+      subject: repaired.subject,
+      htmlSnapshot: repaired.htmlSnapshot,
+      updatedAt: new Date(),
+    })
+    .where(eq(emailDelivery.id, delivery.id));
+  return repaired;
+}
+
 export const sendEmailDelivery = async (
   deliveryId: number,
   options: SendEmailDeliveryOptions = {},
@@ -271,11 +367,18 @@ export const sendEmailDelivery = async (
   }
 
   try {
+    /* 旧快照先尝试按真实姓名重建；重建后仍有占位符（或无法重建）才交给哨兵拦截 */
+    const content =
+      (delivery.subject.includes(UNREPLACED_NAME_PLACEHOLDER) ||
+      delivery.htmlSnapshot.includes(UNREPLACED_NAME_PLACEHOLDER)
+        ? await rebuildLegacyPlaceholderSnapshot(delivery)
+        : null) ?? delivery;
+    assertNoUnreplacedPlaceholders(content);
     await assertEmailSendRateLimit();
     const result = await sendEmailViaProvider({
       to: delivery.toAddress,
-      subject: delivery.subject,
-      html: delivery.htmlSnapshot,
+      subject: content.subject,
+      html: content.htmlSnapshot,
     });
     const finishedAt = new Date();
     await db.transaction(async (tx) => {

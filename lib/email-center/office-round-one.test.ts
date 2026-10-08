@@ -165,6 +165,8 @@ describe("office round one email batch", () => {
     expect(batchInsert.templateKey).toBe("office_round1.result.accepted");
     expect(batchInsert.accept).toBe(true);
     expect(batchInsert.name).toBe("2026 办公类部门面试招新 一面通过通知");
+    /* 批次主题不落到某位候选人身上：模板里的 {name} 留空，显示成部门级主题 */
+    expect(batchInsert.subject).toBe("办公室一轮面试结果通知");
     expect(batchInsert.metadata).toEqual({
       accept: true,
       flowId: 11,
@@ -206,6 +208,20 @@ describe("office round one email batch", () => {
         }),
       );
     }
+
+    /* 每位收件人用自己的真实姓名渲染（曾经整批发出去的都是「[同学姓名]」占位称呼） */
+    expect(mockRenderEmailTemplate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        variables: expect.objectContaining({ name: "Grace" }),
+      }),
+    );
+    expect(mockRenderEmailTemplate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        variables: expect.objectContaining({ name: "Heidi" }),
+      }),
+    );
 
     expect(mockOffer).toHaveBeenCalledWith(41);
     expect(mockOffer).toHaveBeenCalledWith(42);
@@ -258,6 +274,25 @@ describe("office round one email batch", () => {
         }),
       }),
     );
+  });
+
+  it("refuses to send when a recipient has no Link name", async () => {
+    mockSelectResults.push(
+      [{ id: 11, title: "2026 办公类部门面试招新", department: "office" }],
+      [{ userFlowId: 207, userId: 307 }],
+      [],
+    );
+    mockListPeopleUsersByLinkIds.mockResolvedValue(
+      new Map([[307, { id: 307, name: "   ", studentId: "B007" }]]),
+    );
+
+    await expect(
+      createOfficeRoundOneEmailBatch({ flowId: 11, createdBy: 99, accept: true }),
+    ).rejects.toThrow("缺少姓名，无法发送实名通知：Link 用户 #307");
+    /* 没有真实姓名就不渲染、不入队，绝不让占位称呼流出去 */
+    expect(mockRenderEmailTemplate).not.toHaveBeenCalled();
+    expect(mockDb.insert).not.toHaveBeenCalled();
+    expect(mockOffer).not.toHaveBeenCalled();
   });
 
   it("skips recipients already sent and resends pending deliveries only", async () => {

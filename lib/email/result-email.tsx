@@ -30,7 +30,6 @@ export type ResultEmailVariables = {
   /** 后续 QQ 群号：办公类部门面试通知的 {groupNumber} 变量 */
   groupNumber?: string;
   setting?: ResultEmailTemplateSetting;
-  genericGreeting?: boolean;
 };
 
 export function getResultEmailKind(accept: boolean): ResultEmailKind {
@@ -77,7 +76,6 @@ export async function renderResultEmail({
   department = "",
   groupNumber = "",
   setting,
-  genericGreeting = false,
 }: ResultEmailVariables) {
   const resolvedSetting =
     setting ??
@@ -99,7 +97,6 @@ export async function renderResultEmail({
       resultBadgeTemplate={resolvedSetting.resultBadgeTemplate}
       resultTitleTemplate={resolvedSetting.resultTitleTemplate}
       resultSummaryTemplate={resolvedSetting.resultSummaryTemplate}
-      genericGreeting={genericGreeting}
       memberInfoFormUrl={resolvedSetting.memberInfoFormUrl}
       feishuGroupUrl={resolvedSetting.feishuGroupUrl}
       calendarUrl={resolvedSetting.calendarUrl}
