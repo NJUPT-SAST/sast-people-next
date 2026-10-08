@@ -114,6 +114,7 @@ export const register = async (
         .select({
           startedAt: flow.startedAt,
           endedAt: flow.endedAt,
+          registrationClosedAt: flow.registrationClosedAt,
           title: flow.title,
           type: flow.type,
           groupOptions: flow.groupOptions,
@@ -136,7 +137,7 @@ export const register = async (
       }
 
       const now = new Date();
-      const { startedAt, endedAt, title, type, groupOptions } = flowInfo[0];
+      const { startedAt, endedAt, registrationClosedAt, title, type, groupOptions } = flowInfo[0];
       const flowDepartment = flowInfo[0].department;
       const groupDepartments = flowInfo[0].groupDepartments;
       const parsedSlotOptions = flowSlotOptionsSchema.safeParse(
@@ -221,6 +222,16 @@ export const register = async (
           success: false,
           error: {
               message: `流程"${title}"已结束，结束时间为 ${formatBeijingDateTime(endedAt)}`,
+          },
+        };
+      }
+
+      /* 办公类确认一面后该流程的报名入口已经置灰，服务端同样拒绝（不能只靠前端禁用） */
+      if (registrationClosedAt && now >= registrationClosedAt) {
+        return {
+          success: false,
+          error: {
+            message: `流程"${title}"报名已截止`,
           },
         };
       }

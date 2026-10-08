@@ -145,6 +145,10 @@ export const flow = pgTable("flow", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
+  /* 报名截止时间：办公类「确认一面」后写入，之后不接受新报名（NULL = 未截止） */
+  registrationClosedAt: timestamp("registration_closed_at", {
+    withTimezone: true,
+  }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
