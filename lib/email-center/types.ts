@@ -71,7 +71,6 @@ export type ResultEmailRenderVariables = {
   department?: string;
   /** 后续 QQ 群号（{groupNumber} 变量） */
   groupNumber?: string;
-  genericGreeting?: boolean;
 };
 
 export type InterviewScheduleEmailRenderVariables = Omit<

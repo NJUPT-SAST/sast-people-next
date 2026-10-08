@@ -370,7 +370,7 @@ function TemplateDialog({
                 title={`${templateTitle}样张`}
                 html={previewHtml}
                 triggerLabel="预览"
-                description="样张使用固定示例数据；保存后刷新页面可看到最新链接与文案。"
+                description="样张使用当前账号的姓名渲染；真实发送时会替换为收件人姓名。保存后刷新页面可看到最新链接与文案。"
               />
               {writable && (
                 <Button type="submit" className="w-full sm:w-auto">
@@ -653,16 +653,32 @@ export function TestEmailButton({
   compact?: boolean;
 }) {
   const [address, setAddress] = useState("");
+  /* 调用方给的默认键必须落在可选列表里：部门阶段过滤后旧默认可能已被隐藏 */
+  const resolvedDefaultKey = templateDefinitions.some(
+    (definition) => definition.key === defaultTemplateKey,
+  )
+    ? defaultTemplateKey
+    : (templateDefinitions[0]?.key ?? defaultTemplateKey);
   const [selectedTemplateKey, setSelectedTemplateKey] =
-    useState<EmailTemplateDefinition["key"]>(defaultTemplateKey);
+    useState<EmailTemplateDefinition["key"]>(resolvedDefaultKey);
   const selectedTemplate = templateDefinitions.find(
     (definition) => definition.key === selectedTemplateKey,
   );
 
   /* 切换流程/部门后默认模板要跟着走，否则会把上一次选中的模板接着发出去 */
   useEffect(() => {
-    setSelectedTemplateKey(defaultTemplateKey);
-  }, [defaultTemplateKey]);
+    setSelectedTemplateKey(resolvedDefaultKey);
+  }, [resolvedDefaultKey]);
+
+  /* 过滤后的列表里已经没有当前选中时（例如在全局选了办公模板、再切到技术部门）
+     同样回落到默认键：下拉已经把它隐藏，发送就不能再把它带出去 */
+  useEffect(() => {
+    setSelectedTemplateKey((current) =>
+      templateDefinitions.some((definition) => definition.key === current)
+        ? current
+        : resolvedDefaultKey,
+    );
+  }, [templateDefinitions, resolvedDefaultKey]);
 
   return (
     <Dialog>
@@ -853,6 +869,12 @@ export function EmailTemplateManagementSection({
     scopeCategory === "unknown" ||
     (emailTemplateStageCategory(templateKey) ?? scopeCategory) === scopeCategory;
 
+  /* 「测试发送」下拉与卡片同一口径：只列本部门实际会用到的模板，
+     办公部门不再看到技术阶段的模板、技术部门不再看到一面/二面模板，避免误解 */
+  const scopedTemplateDefinitions = templateDefinitions.filter((definition) =>
+    belongsToScope(definition.key),
+  );
+
   /* 没有配置行的模板定义同样按部门阶段过滤，否则办公部门会看到永远用不到的技术阶段模板 */
   const resultDefinitionsMissing = templateDefinitions.filter(
     (definition) =>
@@ -928,7 +950,7 @@ export function EmailTemplateManagementSection({
           <TestEmailButton
             flowName={selectedFlowTitle}
             department={department}
-            templateDefinitions={templateDefinitions}
+            templateDefinitions={scopedTemplateDefinitions}
             defaultTemplateKey={defaultTestTemplateKeyForFlowType(
               selectedFlowType,
             )}
@@ -980,7 +1002,7 @@ export function EmailTemplateManagementSection({
                     compact
                     flowName={selectedFlowTitle}
                     department={department}
-                    templateDefinitions={templateDefinitions}
+                    templateDefinitions={scopedTemplateDefinitions}
                     defaultTemplateKey={
                       group.templateKey as EmailTemplateDefinition["key"]
                     }
@@ -1004,7 +1026,7 @@ export function EmailTemplateManagementSection({
                     compact
                     flowName={selectedFlowTitle}
                     department={department}
-                    templateDefinitions={templateDefinitions}
+                    templateDefinitions={scopedTemplateDefinitions}
                     defaultTemplateKey={definition.key}
                   />
                 )}
@@ -1063,7 +1085,7 @@ export function EmailTemplateManagementSection({
                     compact
                     flowName={selectedFlowTitle}
                     department={department}
-                    templateDefinitions={templateDefinitions}
+                    templateDefinitions={scopedTemplateDefinitions}
                     defaultTemplateKey={definition.key}
                   />
                 )}

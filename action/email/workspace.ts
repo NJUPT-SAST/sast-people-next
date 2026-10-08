@@ -15,7 +15,7 @@ import {
   requirePositiveIntegerInput,
 } from "@/lib/email-center/action-input";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { getResultEmailTemplateKey } from "@/lib/email/result-email";
+import { getResultEmailTemplateKey, renderResultEmailSubject } from "@/lib/email/result-email";
 import { renderEmailTemplate } from "@/lib/email-center/render";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -112,7 +112,6 @@ export async function listEmailFlowTargets() {
             department: departmentDisplay,
             groupNumber: acceptedSetting.groupNumber,
             setting: acceptedSetting,
-            genericGreeting: true,
           },
           department: item.department,
         })
@@ -127,11 +126,31 @@ export async function listEmailFlowTargets() {
             department: departmentDisplay,
             groupNumber: rejectedSetting.groupNumber,
             setting: rejectedSetting,
-            genericGreeting: true,
           },
           department: item.department,
         })
       : null;
+
+    /* 卡片与确认弹窗是批次口径：主题按模板渲染但 {name} 留空，
+       不把「待发名单第一位同学」的名字当成整批的主题（预览正文仍用真实姓名） */
+    const acceptedSubject = renderResultEmailSubject(
+      {
+        name: "",
+        flowName: item.title,
+        department: departmentDisplay,
+        groupNumber: acceptedSetting.groupNumber,
+      },
+      acceptedSetting,
+    );
+    const rejectedSubject = renderResultEmailSubject(
+      {
+        name: "",
+        flowName: item.title,
+        department: departmentDisplay,
+        groupNumber: rejectedSetting.groupNumber,
+      },
+      rejectedSetting,
+    );
 
     return {
       ...item,
@@ -139,8 +158,8 @@ export async function listEmailFlowTargets() {
       failed,
       accepted: passed,
       rejected: failed,
-      acceptedSubject: acceptedPreview?.subject ?? `${item.title} 结果通知`,
-      rejectedSubject: rejectedPreview?.subject ?? `${item.title} 结果通知`,
+      acceptedSubject,
+      rejectedSubject,
       acceptedPreviewHtml: acceptedPreview?.html ?? null,
       rejectedPreviewHtml: rejectedPreview?.html ?? null,
     };

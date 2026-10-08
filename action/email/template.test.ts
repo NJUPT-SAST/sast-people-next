@@ -259,15 +259,32 @@ describe("result email template settings", () => {
       const previews = await getResultEmailPreviews(null);
 
       expect(previews["office_round1.result.accepted"]).toBe("<p>正文</p>");
-      const officeCall = mockRenderEmailTemplate.mock.calls.find(
-        ([request]) =>
-          (request as { templateKey?: string }).templateKey ===
-          "office_round1.result.accepted",
+      /* 样张与「测试发送」同一口径：候选人姓名读当前账号的姓名（会话里的真实姓名），
+         不用「同学」或「[同学姓名]」这类占位称呼，也不额外查 Link */
+      expect(mockRenderEmailTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateKey: "office_round1.result.accepted",
+          variables: expect.objectContaining({
+            name: "测试账号",
+            groupNumber: "888777666",
+          }),
+        }),
       );
-      expect(
-        (officeCall?.[0] as { variables?: { groupNumber?: string } }).variables
-          ?.groupNumber,
-      ).toBe("888777666");
+    });
+
+    it("falls back to the sample name instead of passing 同学 as a name", async () => {
+      /* 账号没有姓名时用示例姓名兜底：把「同学」当姓名会渲染成「亲爱的同学同学」 */
+      mockVerifyRole.mockResolvedValue({ uid: 7, role: 3, name: "  " });
+      mockSelectResults.push(...defaultResultEmailTemplateSettings.map(() => []));
+
+      await getResultEmailPreviews(null);
+
+      expect(mockRenderEmailTemplate).toHaveBeenCalledTimes(
+        defaultResultEmailTemplateSettings.length,
+      );
+      for (const [request] of mockRenderEmailTemplate.mock.calls) {
+        expect(request.variables.name).toBe("张三");
+      }
     });
   });
 

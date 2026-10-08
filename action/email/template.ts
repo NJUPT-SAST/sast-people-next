@@ -214,7 +214,7 @@ export async function listEmailTemplateSettings(
  * 部门账号缺省本部门、也可跨部门只读预览，无部门账号只看全局默认。
  */
 export async function getResultEmailPreviews(department?: string | null) {
-  await verifyRole(3);
+  const session = await verifyRole(3);
   const scope = await getDepartmentScope();
   const requested = normalizeDepartmentKey(department);
   /* 部门账号缺省本部门；传入其他部门时不回落，按只读浏览渲染对应部门的模板 */
@@ -224,6 +224,12 @@ export async function getResultEmailPreviews(department?: string | null) {
       : scope.kind === "department"
         ? (requested ?? scope.department)
         : requested;
+
+  /* 样张与「测试发送」同一口径：候选人姓名读当前账号的姓名（会话里存的就是 Link 的真实姓名）。
+     账号没有姓名时用示例姓名兜底——样张的流程名、部门本来就是示例数据，但绝不把「同学」
+     这类称呼当成姓名塞给渲染器（会渲染成「亲爱的同学同学」）。不在这里查 Link：读模板页
+     不该因为一次资料查询失败整页报错，也省掉一次页面加载时的外部请求 */
+  const previewName = session.name?.trim() || "张三";
 
   const entries = await Promise.all(
     defaultResultEmailTemplateSettings.map(async (fallback) => {
@@ -235,14 +241,13 @@ export async function getResultEmailPreviews(department?: string | null) {
       const rendered = await renderEmailTemplate({
         templateKey: fallback.templateKey as ResultEmailTemplateKey,
         variables: {
-          name: "同学",
+          name: previewName,
           flowName: "示例流程",
           /* 办公类模板需要 {department}；示例数据用归属部门展示名，缺省给「办公室」 */
           department: departmentLabel(target, "办公室"),
           /* 群号取落库值：预览要能反映「填了之后长什么样」，不能用示例值顶替 */
           groupNumber: setting.groupNumber,
           setting,
-          genericGreeting: true,
         },
         department: target,
       });

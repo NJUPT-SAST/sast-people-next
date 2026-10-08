@@ -143,7 +143,7 @@ export const defaultResultEmailTemplateSettings: ResultEmailTemplateSetting[] = 
   },
   {
     templateKey: "office_round1.result.accepted",
-    subjectTemplate: "{name}{department}一轮面试结果通知",
+    subjectTemplate: "{department}一轮面试结果通知",
     ...baseSetting,
     titleTemplate: "{department}一轮面试结果通知",
     subtitleTemplate: "恭喜通过{department}一轮面试",
@@ -157,7 +157,7 @@ export const defaultResultEmailTemplateSettings: ResultEmailTemplateSetting[] = 
   },
   {
     templateKey: "office_round1.result.rejected",
-    subjectTemplate: "{name}{department}面试结果通知",
+    subjectTemplate: "{department}面试结果通知",
     ...baseSetting,
     titleTemplate: "{department}面试结果通知",
     subtitleTemplate: "感谢你参与{department}面试",
@@ -171,7 +171,7 @@ export const defaultResultEmailTemplateSettings: ResultEmailTemplateSetting[] = 
   },
   {
     templateKey: "office_round2.result.accepted",
-    subjectTemplate: "{name}{department}二轮面试结果通知",
+    subjectTemplate: "{department}二轮面试结果通知",
     ...baseSetting,
     titleTemplate: "{department}二轮面试结果通知",
     subtitleTemplate: "恭喜通过{department}二轮面试",
@@ -185,7 +185,7 @@ export const defaultResultEmailTemplateSettings: ResultEmailTemplateSetting[] = 
   },
   {
     templateKey: "office_round2.result.rejected",
-    subjectTemplate: "{name}{department}面试结果通知",
+    subjectTemplate: "{department}面试结果通知",
     ...baseSetting,
     titleTemplate: "{department}面试结果通知",
     subtitleTemplate: "感谢你参与{department}面试",
