@@ -9,7 +9,13 @@ import { verifySession } from "@/lib/dal";
 import { getDepartmentScope } from "@/lib/authz";
 import { visibleFlowPredicate } from "@/lib/flow-access";
 import { MANAGER_ROLE } from "@/lib/link/role";
+import {
+  parseWorkspaceFlowPreference,
+  resolveWorkspaceFlowId,
+  workspaceFlowPreferenceCookieName,
+} from "@/lib/workspace-flow-preference";
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { INTERVIEW_FLOW_TYPES, OFFICE_INTERVIEW_FLOW_TYPE } from "@/const/flow";
 
 /* 面试类流程：免试 / WOC-WOD / SOC-SOD / 办公类部门面试 */
@@ -78,8 +84,19 @@ export async function RecruitmentWorkspacePage({
     isDepartmentEnabled(item.department),
   );
   const requestedFlowId = parsePositiveInteger(params.flowId);
+  /* 「上次使用的流程」：显式 flowId 链接优先，其次本浏览器上次点选的流程（Cookie），
+     否则回落最新流程；记忆的 id 也要在本次会话可见的流程里才算数 */
+  const cookieStore = await cookies();
+  const rememberedFlowId = parseWorkspaceFlowPreference(
+    cookieStore.get(workspaceFlowPreferenceCookieName(mode))?.value,
+  );
+  const resolvedFlowId = resolveWorkspaceFlowId({
+    requestedFlowId,
+    rememberedFlowId,
+    selectableFlowIds: selectableFlows.map((item) => item.id),
+  });
   const defaultFlow =
-    selectableFlows.find((item) => item.id === requestedFlowId) ??
+    selectableFlows.find((item) => item.id === resolvedFlowId) ??
     selectableFlows[0];
   const defaultFlowId = defaultFlow?.id.toString();
   /* 办公类流程由部长操作：讲师账号不加载该流程的候选人（action 也会再次拒绝） */

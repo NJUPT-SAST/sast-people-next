@@ -30,6 +30,7 @@ import {
   isOfficeInterviewFlow,
 } from '@/const/flow';
 import { departmentKey, departmentLabel } from '@/const/department';
+import { writeWorkspaceFlowPreference } from '@/lib/workspace-flow-preference';
 import { cn } from '@/lib/utils';
 import { Loading } from '@/components/loading';
 import { Button } from '@/components/ui/button';
@@ -358,6 +359,8 @@ export const RecruitmentContent = ({
   const handleFlowChange = async (value: string) => {
     const requestId = ++flowRequestId.current;
     setFlowId(value);
+    /* 记住这次点选的流程：下次打开工作台（面试/笔试管理）默认回到它 */
+    writeWorkspaceFlowPreference(mode, Number(value));
     setPublicationStatus(null);
     setLoadError(null);
     setLoading(true);

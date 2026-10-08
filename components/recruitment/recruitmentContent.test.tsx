@@ -159,6 +159,28 @@ describe("RecruitmentContent", () => {
     expect(screen.getByTestId("scores")).toHaveTextContent("92");
   });
 
+  it("remembers the flow the user switches to for the next visit", async () => {
+    const user = userEvent.setup();
+    jest.mocked(getEvaluationCandidates).mockResolvedValueOnce([]);
+    document.cookie = "people_workspace_flow_interview=; path=/; max-age=0";
+
+    render(
+      <RecruitmentContent
+        flowTypes={[]}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="1"
+        mode="interview"
+        role={3}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Flow 2" }));
+
+    /* 记录「最后一次点选的流程」：下次打开面试管理，服务端按该 Cookie 直接选中 */
+    expect(document.cookie).toContain("people_workspace_flow_interview=2");
+  });
+
   it("reports a failed flow load instead of rendering it as an empty list", async () => {
     const user = userEvent.setup();
     jest

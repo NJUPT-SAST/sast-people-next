@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **面试 / 笔试管理默认回到「上次使用的流程」**（`lib/workspace-flow-preference.ts`、`components/recruitment/recruitmentWorkspacePage.tsx`、`components/recruitment/recruitmentContent.tsx`）：原来每次打开都选中最新创建的流程，部长在多个流程之间来回切换后，下次进来还得重新找。现在每次切换流程都把它写进按工作台分开的 Cookie（`people_workspace_flow_interview` / `people_workspace_flow_written`，180 天），服务端首屏按「显式 flowId 链接 → 上次使用 → 最新」挑流程——不用 localStorage，避免先渲染最新流程再切换的闪动与重复请求；记忆值仍按当前会话可见的流程列表校验，越权 / 已删除的 id 自动回落最新流程。
 - **办公类结果邮件的主题不再带候选人姓名**（`lib/email/template-settings.ts`、`lib/email-center/registry.ts`、`migrations/0070_office_email_subject_without_name.sql`）：内置主题曾是 `{name}{department}一轮面试结果通知`，于是邮件中心的「发送记录」与待发卡片显示成「张三办公室一轮面试结果通知」——每封投递各带不同姓名、批次却只能存一个代表性主题，看起来像整批只发给某个人，也与其他流程（「2026 春季招新 结果通知」）的读法不一致。现在内置默认改为 `{department}一轮面试结果通知` / `{department}面试结果通知`；批次级主题与流程卡片主题渲染时 `{name}` 留空（个人化只保留在正文称呼与每封投递自己的标题里），迁移 `0070` 把仍是旧默认的落库行改写过来。部门想要姓名进主题，仍可在模板里写 `{name}`。
 - **「测试发送」的模板列表按部门阶段收窄**（`components/email/EmailTemplateManagementSection.tsx`）：下拉与卡片此前口径不一致——卡片已按「部门 × 阶段」过滤，测试发送下拉却是全部模板，办公部门的部长能看到笔试/免试/WOC/SOC 与飞书日程模板，容易误以为这些也要自己维护。现在下拉与卡片同一套过滤（办公部门 = 一面/二面 + 报名退回；技术部门 = 笔试/免试/WOC/SOC + 面试通知），跟随流程类型的默认键被过滤掉时回落到第一个可选项；已选中的模板被新部门过滤隐藏时同样回落到默认键，发送不会再带上下拉里已经看不见的模板。
 - **面评审批卡片信息重排**（`components/manage/approvalsContent.tsx`）：姓名、学号、讲师建议与最终结果徽章现在排在同一行且徽章靠右对齐（此前姓名触发按钮是块级元素，桌面端就把学号挤到下一行；移动端学号还被 `hidden sm:inline` 隐藏），移动端同样显示学号；去掉「投递部门」一行（部门隔离下流程名本身已体现部门，投递组别保留）。
