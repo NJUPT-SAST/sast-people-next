@@ -55,6 +55,25 @@ export const OFFICE_DEPARTMENT_KEYS = [
 ] as const;
 
 /**
+ * 叫号号段前缀：按部门中文名拼音首字母，一个部门一个号段，
+ * 现场一眼就能对上部门（办公室 B / 科宣部 K / 外联部 W / 赛事部 S）。
+ * 未知部门回落 `D`，保证号码仍然唯一可读。
+ */
+export const DEPARTMENT_QUEUE_PREFIX: Record<string, string> = {
+  office: "B",
+  publicity: "K",
+  liaison: "W",
+  competition: "S",
+};
+
+export const departmentQueuePrefix = (
+  value: string | null | undefined,
+): string => {
+  const key = normalizeDepartmentKey(value);
+  return (key ? DEPARTMENT_QUEUE_PREFIX[key] : undefined) ?? "D";
+};
+
+/**
  * 暂不启用的部门：这些部门的流程不会出现在招新工作台（面试管理 / 笔试管理）的
  * 流程选择器与页签里。数据保留——流程、报名记录、模板都不动，
  * 以后要启用时把这个键从清单里去掉即可。

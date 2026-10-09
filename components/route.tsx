@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   FileWarning,
   Mail,
+  QrCode,
   ScrollText,
   Info,
   MessageSquareText,
@@ -93,6 +94,14 @@ export const menuItems: MenuItem[] = [
     group: 'work',
     requiresDepartment: true,
     minRole: LECTURER_ROLE,
+  },
+  {
+    title: '签到叫号',
+    icon: QrCode,
+    path: '/checkin',
+    group: 'work',
+    requiresDepartment: true,
+    minRole: MANAGER_ROLE,
   },
   {
     title: '邮件中心',

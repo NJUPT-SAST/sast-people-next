@@ -69,6 +69,7 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 | `email_batch.status` | `draft`, `queued`, `completed`, `failed` | Result email batch lifecycle |
 | `email_delivery.status` | `pending`, `sending`, `sent`, `failed`, `dead` | Per-recipient delivery state |
 | `interview_schedule.status` | `created`, `cancelled`, `failed` | Feishu interview schedule state |
+| `interview_checkin.status` | `waiting`, `called`, `interviewing`, `done`, `skipped`, `cancelled` | 办公类部门面试现场签到叫号状态（与 `progress_status` 正交，一人一轮一条） |
 
 ### 办公类部门面试招新 (`office_interview`)
 
@@ -86,6 +87,20 @@ This enum replaced the older `user_flow.status` values (`pending` / `accepted` /
 - 结果邮件都在各自流程内发送，模板与 QQ 群号按本部门维护（两轮各不相同）。
 - **最终去向**：同一候选人通过多个办公部门时按「第一志愿优先」自动归属；部长团评议可在名单确认时逐人设置最终去向（写入 `user_flow.final_department`，立即同步成员部门），避免发布顺序影响归属。
 - 面试时段：候选人在报名时从本流程配置的时段中选择（含「时间冲突，约面时间QQ群中另行通知」特殊选项）；**需要改时间时私下联系部长**，由部长在面试管理页直接点击候选人的「面试时段」单元格修改（`updateCandidateInterviewSlot`，记录操作审计）——办公类不再有改期申请/审批，面试管理也支持按时段筛选候选人。
+- **现场签到叫号（`/dashboard/checkin`，大屏 `/checkin/board`）**：多个办公部门共用签到台与一块大屏，页面**不按部门切分**，一页列出全部办公部门的面试位与队列。
+  - **签到**：扫候选人的「我的资料 · 身份码」，或在「未签到名单」里按姓名/学号/部门手动签到；同一同学若同时有第一/第二志愿，弹窗逐条列出、可分别签到。
+  - **排队顺序 = 签到时间**，号码按**部门号段**编（拼音首字母：办公室 `B001`、科宣部 `K001`、外联部 `W001`、赛事部 `S001`），先到先叫、跨部门不重号；一面/二面各自从 001 起。
+  - **面试位**：每个部门可自己配置并行几个位；新增要**选部门（仅四个办公部门）+ 填名称**，可改名 / 暂停 / 删除。部长在自己位点「叫下一位」取本部门队首，或在队列行「叫到…」里指定到某个空闲位。
+  - **正在别部门面试 → 自动跳过、不阻塞**：叫号直接叫本部门下一位空闲候选人，被跳过的人保留队列位置，面完回来优先补叫。**第一志愿只做优先、不做硬挡**（没有别人可叫时照样叫），所以队列不会被卡住。
+  - **过号**：号码不变，**往后顺延 3 位**（相对还能被叫的人；不足则到队尾）；同一个人**最多自动重排一次**，第二次过号后就不再自动叫号（人可能已经走了），需要部长手动重呼或取消签到。
+  - **一/二志愿各自排队**：一条面完后另一条立即恢复可叫；队列与扫码弹窗都会标出「另有 X」。
+  - **边面边写面评**：面试位卡片上直接有**「写面评」**（面试中就能写，不必等结束），弹窗里填分数 + 记录内容（可选面试意见），与面试工作台同一套数据（`createEvaluation`）；已写过会显示「我已记录 · n 分」。**全程不离开本页、不新开标签页**。
+  - **手机优先**：默认选中**自己的部门**（`?dept=office` 可收藏），现场按「现场 / 签到台」两段；**面试位与队列合并在一个部门块里**，不需要在两个页签之间来回切。每个部门块只列等待/过号/已完成，正在面试的人只在面试位卡片上出现一次（不再重复一行）。
+  - **减噪**：等待态不染色、次要动作（过号 / 取消签到）收进 `⋯`、每行两行结构（号码 + 姓名一行，说明与操作一行），名字不会再被按钮挤掉。
+  - **大屏整屏显示、不滚动**：按部门数自动 1–4 列平分，面试位卡片 + 紧凑等候队列（超出显示「还有 n 位」）。可开启浏览器语音播报：**同一号最多念 3 次、间隔 5 秒**，人到场（进场/过号）即停；多人同时叫号时**串行播报**（不互相打断），一拍多于一条会合并成一句，超过 2 分钟的旧叫号不补念（避免刷新后把历史念一遍）。
+  - 权限：**所有部长**（role ≥ 3）。
+  - `pnpm db:seed:demo` 会一并灌好演示数据：mock Link 里有一批办公类面试候选人（uid 301–312），四个办公部门各有 1–2 个面试位；一面在等候的人数约 办公室 8 / 科宣部 6 / 外联部 4 / 赛事部 5（其中含正在面试与已完成的），另有 8 人在「未签到名单」里；二面也有已完成与等候记录。足以把「叫下一位 / 过号 / 一志愿未面完 / 正在别部门面试」都点出来。
+- **取消报名**只在候选人**还停在第一步（报名）**时提供：进入流程（后面任一步骤结束）后按钮不再显示，服务端同样拒绝（`unregister` 校验当前步骤是否为流程第一步）。
 - 技术部门（免试/WOC/SOC）改约申请（`interview_slot_change_request`）保持「候选人申请 → 预约该日程的讲师处理」：讲师会收到飞书卡片提醒，同意后飞书日程与留档会议同步改期并发改约邮件；暂不改期需填写说明并邮件告知候选人。改约申请只对预约讲师可见，列表按所选流程显示，不会串到其他流程。
 
 ## Tech Stack
@@ -339,6 +354,8 @@ instrumentation*.ts     Runtime and client instrumentation entrypoints
 | `/dashboard/flow` | Flow management |
 | `/dashboard/recruitment` | Written recruitment operations |
 | `/dashboard/review` | Review and marking |
+| `/dashboard/interviews` | Interview operations (technical + office) |
+| `/dashboard/checkin` | 办公部门共享的面试签到叫号台（大屏在 `/checkin/board`） |
 | `/dashboard/user-flow` | User-flow administration |
 | `/dashboard/approvals` | Interview evaluation final approval |
 | `/dashboard/emails` | Email center |

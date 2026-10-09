@@ -512,6 +512,27 @@
       "when": 1789250000017,
       "tag": "0072_flow_registration_closed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1789250000018,
+      "tag": "0073_interview_checkin",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1789250000019,
+      "tag": "0074_interview_stations",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1789250000020,
+      "tag": "0075_interview_checkin_skip_count",
+      "breakpoints": true
     }
   ]
 }

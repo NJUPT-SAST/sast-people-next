@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ForbiddenError } from "@/lib/access-error";
+import { OFFICE_DEPARTMENT_KEYS } from "@/const/department";
 import { normalizeDepartmentKey } from "@/db/schema";
 import { verifyRole, verifySession } from "@/lib/dal";
 import { getSession } from "@/lib/session";
@@ -50,6 +51,14 @@ export const canAccessDepartment = (
   if (!target) return false;
 
   return scope.kind === "department" && scope.department === target;
+};
+
+export const isOfficeDepartmentKey = (key: string | null | undefined): boolean => {
+  const normalized = normalizeDepartmentKey(key);
+  return (
+    normalized !== null &&
+    (OFFICE_DEPARTMENT_KEYS as readonly string[]).includes(normalized)
+  );
 };
 
 export const assertDepartmentAccess = (

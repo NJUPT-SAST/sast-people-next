@@ -21,7 +21,7 @@ describe("getVisibleMenuItems", () => {
     ]);
   });
 
-  it("部长增加邮件中心、流程管理、面评审批与操作审计", () => {
+  it("部长增加签到叫号、邮件中心、流程管理、面评审批与操作审计", () => {
     expect(pathsFor(MANAGER_ROLE)).toEqual([
       "",
       "/user-flow",
@@ -29,6 +29,7 @@ describe("getVisibleMenuItems", () => {
       "/manage",
       "/exams",
       "/interviews",
+      "/checkin",
       "/emails",
       "/flow",
       "/approvals",
@@ -44,6 +45,7 @@ describe("getVisibleMenuItems", () => {
       "/manage",
       "/exams",
       "/interviews",
+      "/checkin",
       "/emails",
       "/flow",
       "/departments",

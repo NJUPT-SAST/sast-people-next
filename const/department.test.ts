@@ -4,6 +4,7 @@ import {
   ENABLED_DEPARTMENT_KEYS,
   OFFICE_DEPARTMENT_KEYS,
   departmentCategory,
+  departmentQueuePrefix,
   mergeDepartmentKeys,
 } from "./department";
 
@@ -55,5 +56,20 @@ describe("mergeDepartmentKeys", () => {
   it("keeps disabled departments out of the enabled catalogue only", () => {
     expect(DEPARTMENT_KEYS).toContain("electronics");
     expect(ENABLED_DEPARTMENT_KEYS).not.toContain("electronics");
+  });
+});
+
+describe("departmentQueuePrefix", () => {
+  it("gives each office department its own number segment", () => {
+    expect(departmentQueuePrefix("office")).toBe("B");
+    expect(departmentQueuePrefix("publicity")).toBe("K");
+    expect(departmentQueuePrefix("liaison")).toBe("W");
+    expect(departmentQueuePrefix("competition")).toBe("S");
+  });
+
+  it("falls back to D instead of guessing an unknown department", () => {
+    expect(departmentQueuePrefix("software")).toBe("D");
+    expect(departmentQueuePrefix(null)).toBe("D");
+    expect(departmentQueuePrefix("  ")).toBe("D");
   });
 });

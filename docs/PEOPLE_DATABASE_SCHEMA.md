@@ -25,6 +25,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `email_batch_status_enum` | `draft`、`queued`、`completed`、`failed` | 邮件批次状态 |
 | `email_delivery_status_enum` | `pending`、`sending`、`sent`、`failed`、`dead` | 单封邮件发送状态 |
 | `interview_schedule_status_enum` | `created`、`cancelled`、`failed` | 面试日程状态 |
+| `interview_checkin_status_enum` | `waiting`、`called`、`interviewing`、`done`、`skipped`、`cancelled` | 办公类部门面试现场签到叫号状态（与 `progress_status` 正交） |
 
 > `progress_status` 来自旧 `user_flow_status_enum`（`pending`/`accepted`/`rejected`/`ongoing`/`passed`/`failed`）的简化，去掉报名审核维度。迁移时 `pending` → `not_started`，`accepted` → `passed`，`rejected` → `failed`，`ongoing`/`passed`/`failed` 保持原语义。
 
@@ -47,6 +48,8 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `user_oauth_account` | People 私有第三方 OAuth token 绑定 | `fk_user_id` 保存 Link 用户 ID |
 | `interview_schedule` | 非笔试流程面试日程和飞书会议记录 | `fk_organizer_id` 保存 Link 用户 ID |
 | `interview_slot_change_request` | 面试时间/时段变更申请与审批 | `fk_requested_by` / `fk_reviewed_by` 保存 Link 用户 ID |
+| `interview_checkin` | 办公类部门面试现场签到与叫号 | `fk_user_flow_id` 关联报名；`checked_in_by` 保存办理签到的部长 Link 用户 ID |
+| `interview_station` | 办公类面试的面试位（部门并行面试工位） | `fk_interviewer_id` 保存坐该位的部长 Link 用户 ID（可空） |
 | `operation_audit` | 管理操作审计 | `actor_id` 保存 Link 用户 ID |
 
 ## 4. 流程表
@@ -231,6 +234,56 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 - `interview_slot_change_status_idx` on `status`
 - `interview_slot_change_schedule_idx` on `fk_interview_schedule_id`
 
+### `interview_station`
+
+办公类面试的「面试位」：多个部门同一个大面试间时，每位部长一对一面试的工位。每个部门可自己配置并行几个位（= 同时面试几人），**仅服务办公部门**（办公室/科宣部/外联部/赛事部）的流程。签到叫号页与大屏都是**各部长共用**的（不按部门切分），面试位是「哪个部门的哪个位」的载体。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 面试位 ID |
+| `fk_flow_id` | `integer` | 关联 `flow.id`（CASCADE）；即该位所属部门 |
+| `label` | `varchar(32)` | 展示名（如「1 号位」「张三」），同一部门内唯一 |
+| `fk_interviewer_id` | `integer` | 坐该位的部长 Link 用户 ID（可空） |
+| `sort_order` | `integer` | 展示顺序，默认 0 |
+| `status` | `varchar(16)` | `active`（启用叫号）/ `paused`（暂停），默认 `active` |
+| `created_at` / `updated_at` | `timestamp` | 创建 / 更新时间 |
+
+索引与约束：
+
+- `interview_station_flow_label_uidx` unique on `fk_flow_id, label`
+- `interview_station_flow_order_idx` on `fk_flow_id, sort_order`
+
+### `interview_checkin`
+
+办公类部门面试**现场签到与叫号**表。候选人在共享签到台由部长扫身份码（或手动检索）签到，系统按签到顺序分配叫号（一面 `A001`、二面 `B001`），部长在各面试位叫号 / 进场 / 结束 / 过号，大屏轮询展示全场各部门的面试位与队列。一人一轮一条，与 `user_flow.progress_status`（流程结论）正交，只记录「到场 → 叫号 → 进场 → 结束」的现场状态；一面/二面各一条（`round` 与 `user_flow.round` 对齐）。同一同学同时有一/二志愿时会有两条记录（分属两个部门），各自排队，但同一时刻只能在一个部门被叫/面试。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 签到 ID |
+| `fk_user_flow_id` | `integer` | 关联 `user_flow.id`（CASCADE） |
+| `fk_flow_id` | `integer` | 关联 `flow.id`（CASCADE）；队伍按流程（部门）隔离 |
+| `round` | `smallint` | 轮次，默认 1（1=一面、2=二面） |
+| `queue_no` | `varchar(16)` | 展示叫号（`A001` / `B012`），按 `round` 加前缀 |
+| `queue_seq` | `integer` | 排队序号（`queue_no` 的数值部分），队伍内递增 |
+| `status` | `interview_checkin_status_enum` | 现场状态，默认 `waiting` |
+| `method` | `varchar(16)` | 签到方式：`staff_scan`（扫身份码）/ `manual`（手动检索） |
+| `room` | `varchar(64)` | 面试间（单队列现场留空，多面试间时由叫号界面写入） |
+| `fk_station_id` | `integer` | 关联 `interview_station.id`（SET NULL）；叫号时写入，过号/取消清空，结束保留作留档 |
+| `checked_in_at` | `timestamp` | 签到时刻 |
+| `checked_in_by` | `integer` | 办理签到的部长 Link 用户 ID |
+| `called_at` / `started_at` / `finished_at` | `timestamp` | 叫号 / 进场 / 结束时刻（可空） |
+| `call_count` | `smallint` | 叫号次数，默认 0（过号后重叫累加） |
+| `skip_count` | `smallint` | 过号次数，默认 0；第一次过号会往后顺延 3 位，超过 1 次不再自动叫号 |
+| `note` | `text` | 备注 |
+| `created_at` / `updated_at` | `timestamp` | 创建 / 更新时间 |
+
+索引与约束：
+
+- `interview_checkin_user_flow_round_uidx` unique on `fk_user_flow_id, round`（同一报名同一轮只允许一条签到）
+- `interview_checkin_queue_idx` on `fk_flow_id, round, queue_seq`（大屏按队列顺序取人）
+- `interview_checkin_status_idx` on `fk_flow_id, round, status`（控制台按状态分桶）
+- `interview_checkin_station_idx` on `fk_station_id`（面试位占用查询）
+
 ## 8. 邮件表
 
 ### `email_template_setting`
@@ -412,12 +465,14 @@ flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
   ├──CASCADE──► flow_step ──CASCADE──► problem    │
   │                │                              │
   │                └──SET NULL──► user_flow.fk_current_step_id
+  ├──CASCADE──► interview_station                 │
   │                                               │
   └──CASCADE──► user_flow ◄──SET NULL─────────────┘
                    │
                    ├──CASCADE──► user_point
                    ├──CASCADE──► interview_evaluation
                    ├──CASCADE──► interview_schedule
+                   ├──CASCADE──► interview_checkin
                    │
                    └── 业务表 user ID 字段无 DB 级 FK（用户数据在 Link）
 ```
@@ -431,6 +486,7 @@ flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
 | 其他业务表 → 父表 | CASCADE | 父记录删除时级联清理子数据 |
 | `user_flow.fk_current_step_id` → `flow_step` | SET NULL | step 被物理删除后不阻断用户流程 |
 | `interview_schedule.fk_evaluation_id` → `interview_evaluation` | SET NULL | 删除或重建面评时保留已创建日程记录 |
+| `interview_checkin.fk_station_id` → `interview_station` | SET NULL | 删除面试位时保留签到留档，只解除「在几号位面的」 |
 
 ## 11. v3 用户 ID 迁移口径
 
