@@ -236,6 +236,122 @@ on conflict (id) do update set
   department = excluded.department,
   final_department = null;
 
+/* 签到叫号演示数据（面试现场：面试位 + 签到记录）。
+   与上面的报名共用同一批演示人物，并额外补一批办公类面试候选人（uid 301-312 的 mock 账号）：
+   - 一面：办公室 8 人已签到（1 人在面试）、科宣部 6 人、外联部 3 人、赛事部 5 人在等候；
+     未签到名单里还有 8 人可直接手动签到；
+   - 一/二志愿规则可见：第二志愿候选人会标「第一志愿（X）未面完」或在别部门面试时「正在 X 面试」。 */
+insert into user_flow (
+  id, progress_status, fk_current_step_id, apply_group, round,
+  interview_slot, choice, fk_flow_id, fk_user_id, department
+) values
+  (411, 'ongoing', 1212, null, 1, '15:00-16:00', 1, 121, 3, 'office'),
+  (412, 'ongoing', 1222, null, 1, '15:00-16:00', 2, 122, 3, 'publicity'),
+  (413, 'ongoing', 1222, null, 1, '16:00-17:00', 2, 122, 9, 'publicity'),
+  /* 办公类面试候选人（每人一个第一志愿 + 一个第二志愿）；id 用 6xx 段避开技术类演示数据的 5xx */
+  (601, 'ongoing', 1212, null, 1, '13:00-14:00', 1, 121, 301, 'office'),
+  (602, 'ongoing', 1212, null, 1, '14:00-15:00', 1, 121, 302, 'office'),
+  (603, 'ongoing', 1212, null, 1, '15:00-16:00', 1, 121, 303, 'office'),
+  (604, 'ongoing', 1212, null, 1, '16:00-17:00', 1, 121, 304, 'office'),
+  (605, 'ongoing', 1212, null, 1, '17:00-18:00', 1, 121, 305, 'office'),
+  (606, 'ongoing', 1222, null, 1, '13:00-14:00', 1, 122, 306, 'publicity'),
+  (607, 'ongoing', 1222, null, 1, '14:00-15:00', 1, 122, 307, 'publicity'),
+  (608, 'ongoing', 1222, null, 1, '15:00-16:00', 1, 122, 308, 'publicity'),
+  (609, 'ongoing', 1232, null, 1, '16:00-17:00', 1, 123, 309, 'liaison'),
+  (610, 'ongoing', 1232, null, 1, '17:00-18:00', 1, 123, 310, 'liaison'),
+  (611, 'ongoing', 1242, null, 1, '13:00-14:00', 1, 124, 311, 'competition'),
+  (612, 'ongoing', 1242, null, 1, '14:00-15:00', 1, 124, 312, 'competition'),
+  (613, 'ongoing', 1222, null, 1, '13:00-14:00', 2, 122, 301, 'publicity'),
+  (614, 'ongoing', 1232, null, 1, '14:00-15:00', 2, 123, 302, 'liaison'),
+  (615, 'ongoing', 1242, null, 1, '15:00-16:00', 2, 124, 303, 'competition'),
+  (616, 'ongoing', 1222, null, 1, '16:00-17:00', 2, 122, 304, 'publicity'),
+  (617, 'ongoing', 1232, null, 1, '17:00-18:00', 2, 123, 305, 'liaison'),
+  (618, 'ongoing', 1212, null, 1, '13:00-14:00', 2, 121, 306, 'office'),
+  (619, 'ongoing', 1242, null, 1, '14:00-15:00', 2, 124, 307, 'competition'),
+  (620, 'ongoing', 1212, null, 1, '15:00-16:00', 2, 121, 308, 'office'),
+  (621, 'ongoing', 1222, null, 1, '16:00-17:00', 2, 122, 309, 'publicity'),
+  (622, 'ongoing', 1242, null, 1, '17:00-18:00', 2, 124, 310, 'competition'),
+  (623, 'ongoing', 1212, null, 1, '13:00-14:00', 2, 121, 311, 'office'),
+  (624, 'ongoing', 1232, null, 1, '14:00-15:00', 2, 123, 312, 'liaison')
+on conflict (id) do update set
+  progress_status = excluded.progress_status,
+  fk_current_step_id = excluded.fk_current_step_id,
+  round = excluded.round,
+  interview_slot = excluded.interview_slot,
+  choice = excluded.choice,
+  fk_flow_id = excluded.fk_flow_id,
+  fk_user_id = excluded.fk_user_id,
+  department = excluded.department,
+  final_department = null;
+
+/* 面试位：每个办公部门一个到两个（并行面试人数由部门自己增删） */
+insert into interview_station (id, fk_flow_id, label, fk_interviewer_id, sort_order, status) values
+  (1, 121, '1 号位', 213, 1, 'active'),
+  (2, 121, '2 号位', null, 2, 'active'),
+  (3, 122, '1 号位', null, 1, 'active'),
+  (4, 123, '1 号位', null, 1, 'active'),
+  (5, 124, '1 号位', null, 1, 'active')
+on conflict (id) do update set
+  fk_flow_id = excluded.fk_flow_id,
+  label = excluded.label,
+  fk_interviewer_id = excluded.fk_interviewer_id,
+  sort_order = excluded.sort_order,
+  status = excluded.status;
+
+/* 签到记录：号码按部门号段分配（办公室 B / 科宣部 K / 外联部 W / 赛事部 S），
+   一面/二面各自从 001 起；含两条过号示例（顺延中 / 不再自动叫号） */
+insert into interview_checkin (
+  id, fk_user_flow_id, fk_flow_id, round, queue_no, queue_seq, status, method,
+  fk_station_id, checked_in_at, checked_in_by, called_at, started_at, finished_at,
+  call_count, skip_count
+) values
+  /* 一面 */
+  (1, 401, 121, 1, 'B001', 1, 'interviewing', 'staff_scan', 1, now() - interval '25 min', 213, now() - interval '18 min', now() - interval '15 min', null, 1, 0),
+  (2, 411, 121, 1, 'B002', 2, 'waiting', 'manual', null, now() - interval '22 min', 213, null, null, null, 0, 0),
+  (12, 601, 121, 1, 'B003', 3, 'waiting', 'staff_scan', null, now() - interval '20 min', 213, null, null, null, 0, 0),
+  (13, 602, 121, 1, 'B004', 4, 'waiting', 'staff_scan', null, now() - interval '19 min', 213, null, null, null, 0, 0),
+  (14, 603, 121, 1, 'B005', 5, 'waiting', 'manual', null, now() - interval '18 min', 213, null, null, null, 0, 0),
+  (15, 604, 121, 1, 'B006', 6, 'waiting', 'staff_scan', null, now() - interval '17 min', 213, null, null, null, 0, 0),
+  (16, 605, 121, 1, 'B007', 7, 'waiting', 'staff_scan', null, now() - interval '16 min', 213, null, null, null, 0, 0),
+  (17, 618, 121, 1, 'B008', 8, 'waiting', 'manual', null, now() - interval '14 min', 213, null, null, null, 0, 0),
+  (3, 412, 122, 1, 'K001', 1, 'waiting', 'staff_scan', null, now() - interval '21 min', 213, null, null, null, 0, 0),
+  (4, 408, 122, 1, 'K002', 2, 'waiting', 'staff_scan', null, now() - interval '20 min', 213, null, null, null, 0, 0),
+  (5, 413, 122, 1, 'K003', 3, 'waiting', 'manual', null, now() - interval '13 min', 213, null, null, null, 0, 0),
+  (18, 613, 122, 1, 'K004', 4, 'waiting', 'staff_scan', null, now() - interval '12 min', 213, null, null, null, 0, 0),
+  (19, 616, 122, 1, 'K005', 5, 'waiting', 'staff_scan', null, now() - interval '11 min', 213, null, null, null, 0, 0),
+  (20, 621, 122, 1, 'K006', 6, 'waiting', 'manual', null, now() - interval '10 min', 213, null, null, null, 0, 0),
+  (6, 406, 123, 1, 'W001', 1, 'done', 'staff_scan', 4, now() - interval '50 min', 213, now() - interval '45 min', now() - interval '42 min', now() - interval '25 min', 1, 0),
+  (21, 609, 123, 1, 'W002', 2, 'waiting', 'staff_scan', null, now() - interval '15 min', 213, null, null, null, 0, 0),
+  (22, 610, 123, 1, 'W003', 3, 'waiting', 'manual', null, now() - interval '13 min', 213, null, null, null, 0, 0),
+  (23, 614, 123, 1, 'W004', 4, 'skipped', 'staff_scan', null, now() - interval '9 min', 213, now() - interval '6 min', null, null, 1, 1),
+  (24, 611, 124, 1, 'S001', 1, 'waiting', 'staff_scan', null, now() - interval '14 min', 213, null, null, null, 0, 0),
+  (25, 612, 124, 1, 'S002', 2, 'waiting', 'manual', null, now() - interval '12 min', 213, null, null, null, 0, 0),
+  (26, 615, 124, 1, 'S003', 3, 'waiting', 'staff_scan', null, now() - interval '10 min', 213, null, null, null, 0, 0),
+  (27, 619, 124, 1, 'S004', 4, 'waiting', 'staff_scan', null, now() - interval '8 min', 213, null, null, null, 0, 0),
+  (28, 622, 124, 1, 'S005', 5, 'skipped', 'manual', null, now() - interval '7 min', 213, now() - interval '4 min', null, null, 2, 2),
+  /* 二面 */
+  (7, 403, 121, 2, 'B001', 1, 'done', 'manual', 2, now() - interval '70 min', 213, now() - interval '65 min', now() - interval '62 min', now() - interval '45 min', 1, 0),
+  (8, 405, 121, 2, 'B002', 2, 'done', 'staff_scan', 1, now() - interval '75 min', 213, now() - interval '72 min', now() - interval '70 min', now() - interval '55 min', 1, 0),
+  (9, 404, 122, 2, 'K001', 1, 'waiting', 'staff_scan', null, now() - interval '14 min', 213, null, null, null, 0, 0),
+  (10, 410, 124, 2, 'S001', 1, 'done', 'manual', 5, now() - interval '80 min', 213, now() - interval '76 min', now() - interval '74 min', now() - interval '60 min', 1, 0),
+  (11, 407, 124, 2, 'S002', 2, 'done', 'staff_scan', 5, now() - interval '85 min', 213, now() - interval '82 min', now() - interval '80 min', now() - interval '65 min', 1, 0)
+on conflict (id) do update set
+  fk_user_flow_id = excluded.fk_user_flow_id,
+  fk_flow_id = excluded.fk_flow_id,
+  round = excluded.round,
+  queue_no = excluded.queue_no,
+  queue_seq = excluded.queue_seq,
+  status = excluded.status,
+  method = excluded.method,
+  fk_station_id = excluded.fk_station_id,
+  checked_in_at = excluded.checked_in_at,
+  checked_in_by = excluded.checked_in_by,
+  called_at = excluded.called_at,
+  started_at = excluded.started_at,
+  finished_at = excluded.finished_at,
+  call_count = excluded.call_count,
+  skip_count = excluded.skip_count;
+
 insert into flow_result_publication (
   fk_flow_id,
   status,
@@ -899,6 +1015,8 @@ select setval(pg_get_serial_sequence('user_flow', 'id'), greatest((select coales
 select setval(pg_get_serial_sequence('user_point', 'id'), greatest((select coalesce(max(id), 1) from user_point), 1));
 select setval(pg_get_serial_sequence('interview_evaluation', 'id'), greatest((select coalesce(max(id), 1) from interview_evaluation), 1));
 select setval(pg_get_serial_sequence('interview_schedule', 'id'), greatest((select coalesce(max(id), 1) from interview_schedule), 1));
+select setval(pg_get_serial_sequence('interview_station', 'id'), greatest((select coalesce(max(id), 1) from interview_station), 1));
+select setval(pg_get_serial_sequence('interview_checkin', 'id'), greatest((select coalesce(max(id), 1) from interview_checkin), 1));
 select setval(pg_get_serial_sequence('interview_slot_change_request', 'id'), greatest((select coalesce(max(id), 1) from interview_slot_change_request), 1));
 select setval(pg_get_serial_sequence('email_batch', 'id'), greatest((select coalesce(max(id), 1) from email_batch), 1));
 select setval(pg_get_serial_sequence('email_delivery', 'id'), greatest((select coalesce(max(id), 1) from email_delivery), 1));

@@ -125,6 +125,21 @@ export const interviewScheduleStatusEnum = pgEnum("interview_schedule_status_enu
   "failed",
 ]);
 
+export const interviewCheckinStatusEnum = pgEnum("interview_checkin_status_enum", [
+  /* 已签到，等待叫号 */
+  "waiting",
+  /* 已叫号，等待进场 */
+  "called",
+  /* 面试进行中 */
+  "interviewing",
+  /* 面试结束 */
+  "done",
+  /* 过号（叫了没来，可重呼） */
+  "skipped",
+  /* 取消签到 */
+  "cancelled",
+]);
+
 export const flow = pgTable("flow", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 100 }).notNull(),
@@ -649,6 +664,108 @@ export const interviewScheduleCancellationOutbox = pgTable(
       .where(sql`${table.publishedAt} IS NULL`),
   }),
 );
+
+/**
+ * 办公类部门面试的「面试位」：一个大面试间里多位部长各自一对一面试的工位。
+ * 每个部门可自己配置并行几个位（= 同时面试几位候选人），label 默认「1 号位」，
+ * 也可以写成部长姓名。叫号时把候选人指派到某个位，大屏按位展示当前候选人。
+ */
+export const interviewStation = pgTable("interview_station", {
+  id: serial("id").primaryKey(),
+  fkFlowId: integer("fk_flow_id")
+    .references(() => flow.id, { onDelete: "cascade" })
+    .notNull(),
+  /* 展示名（如「1 号位」「张三」），同一部门内唯一 */
+  label: varchar("label", { length: 32 }).notNull(),
+  /* Link 用户 ID — 坐这个位的部长（可空，未指派时只显示位号） */
+  fkInterviewerId: integer("fk_interviewer_id"),
+  /* 展示顺序（大屏与控制台按它排列） */
+  sortOrder: integer("sort_order").notNull().default(0),
+  /* active = 启用叫号；paused = 暂停（位不在用，不参与叫号） */
+  status: varchar("status", { length: 16 }).notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  flowLabelUnique: unique("interview_station_flow_label_uidx").on(
+    table.fkFlowId,
+    table.label,
+  ),
+  flowOrderIdx: index("interview_station_flow_order_idx").on(
+    table.fkFlowId,
+    table.sortOrder,
+  ),
+}));
+
+/**
+ * 办公类部门面试现场签到与叫号。
+ * 与 user_flow.progress_status（流程结论）正交：这里只记录「到场/排队/被叫」的物理状态，
+ * 一面/二面各一条，面试结束后仍保留作为当天现场的过程留档。
+ */
+export const interviewCheckin = pgTable("interview_checkin", {
+  id: serial("id").primaryKey(),
+  fkUserFlowId: integer("fk_user_flow_id")
+    .references(() => userFlow.id, { onDelete: "cascade" })
+    .notNull(),
+  fkFlowId: integer("fk_flow_id")
+    .references(() => flow.id, { onDelete: "cascade" })
+    .notNull(),
+  /* 面试轮次：1=一面，2=二面（与 user_flow.round 对齐） */
+  round: smallint("round").notNull().default(1),
+  /* 展示用叫号（如 B012，B/K/W/S 为部门号段）：同一流程同一轮次内按签到顺序分配，可读性优先 */
+  queueNo: varchar("queue_no", { length: 16 }).notNull(),
+  /* 排队序号：签到时等于号码数值，过号重排后会整段压平重编（排序与并发分配以它为准） */
+  queueSeq: integer("queue_seq").notNull(),
+  status: interviewCheckinStatusEnum("status").notNull().default("waiting"),
+  /* 签到方式：staff_scan = 工作人员扫候选人身份码；manual = 手动检索 */
+  method: varchar("method", { length: 16 }).notNull(),
+  /* 面试间（单队列现场留空；多面试间时由叫号界面写入） */
+  room: varchar("room", { length: 64 }),
+  /* 当前/最后所在的面试位；叫号时写入，过号/取消后清空，结束后保留作留档 */
+  fkStationId: integer("fk_station_id").references(() => interviewStation.id, {
+    onDelete: "set null",
+  }),
+  checkedInAt: timestamp("checked_in_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  /* Link 用户 ID — 办理签到的工作人员 */
+  checkedInBy: integer("checked_in_by").notNull(),
+  calledAt: timestamp("called_at", { withTimezone: true }),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  /* 叫号次数（过号后重叫会累加） */
+  callCount: smallint("call_count").notNull().default(0),
+  /* 过号次数：>1 之后不再自动叫回来（人可能已经不来了） */
+  skipCount: smallint("skip_count").notNull().default(0),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  /* 同一报名记录同一轮次只允许一条签到记录 */
+  userFlowRoundUnique: unique("interview_checkin_user_flow_round_uidx").on(
+    table.fkUserFlowId,
+    table.round,
+  ),
+  /* 大屏按队列顺序取「当前叫号 + 后续等待」 */
+  queueIdx: index("interview_checkin_queue_idx").on(
+    table.fkFlowId,
+    table.round,
+    table.queueSeq,
+  ),
+  /* 控制台按状态分桶统计 */
+  statusIdx: index("interview_checkin_status_idx").on(
+    table.fkFlowId,
+    table.round,
+    table.status,
+  ),
+  /* 面试位占用查询（当前在位候选人） */
+  stationIdx: index("interview_checkin_station_idx").on(table.fkStationId),
+}));
 
 export const operationAudit = pgTable("operation_audit", {
   id: serial("id").primaryKey(),

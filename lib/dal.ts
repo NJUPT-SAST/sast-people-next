@@ -1,13 +1,27 @@
 import "server-only";
 
 import { ForbiddenError } from "@/lib/access-error";
-import { getSession } from "@/lib/session";
+import { getSession, type SessionViewAs } from "@/lib/session";
 import { refreshSessionIdentityIfStale } from "@/lib/identity-refresh";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 
-export const verifySession = cache(async () => {
+/** `verifySession()` 的返回：已确认的会话身份（uid / 角色 / 部门）。 */
+export type VerifiedSession = {
+  isAuth: true;
+  uid: number;
+  role: number;
+  /** 会话本身的真实角色：切换身份查看时仍是管理员本人 */
+  realRole: number;
+  /** 当前是否处于「切换身份查看」临时视角 */
+  viewAs: SessionViewAs | null | undefined;
+  name: string;
+  /** 授权判定用：Link 部门标识，null 表示没有部门归属 */
+  department: string | null;
+};
+
+export const verifySession = cache(async (): Promise<VerifiedSession> => {
   try {
     const session = await getSession();
 

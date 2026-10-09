@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import { AlertCircle } from 'lucide-react';
+import Link from 'next/link';
 import { SelectFlow } from '@/components/recruitment/selectFlow';
 import { DataTable } from '@/components/recruitment/table';
 import { EvaluationTable } from '@/components/recruitment/evaluationTable';
@@ -36,7 +37,7 @@ import { Loading } from '@/components/loading';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { flowSelection } from '@/types/flow';
-import { BadgeCheck, ClipboardList, Download, Users } from 'lucide-react';
+import { BadgeCheck, ClipboardList, Download, Megaphone, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResultPublicationPanel } from '@/components/recruitment/ResultPublicationPanel';
 import { OfficeRoundOneRosterDialog } from '@/components/recruitment/officeRoundOneRosterDialog';
@@ -675,6 +676,21 @@ export const RecruitmentContent = ({
                   </button>
                 ))}
               </div>
+            )}
+            {/* 办公类现场：从面试管理一键回到签到叫号（在场上叫号 ↔ 写面评 少绕路） */}
+            {isEvaluationWorkspace && scoringEnabled && flowId && !loadError && (
+              <Button asChild size="sm" variant="outline" className="h-10 shrink-0 self-start sm:h-9">
+                <Link
+                  href={
+                    currentFlowDepartment
+                      ? `/dashboard/checkin?round=${officeRoundView}&dept=${encodeURIComponent(currentFlowDepartment)}`
+                      : `/dashboard/checkin?round=${officeRoundView}`
+                  }
+                >
+                  <Megaphone className="size-4" />
+                  签到叫号
+                </Link>
+              </Button>
             )}
           </div>
 

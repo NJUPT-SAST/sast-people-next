@@ -350,7 +350,59 @@ const mockDepartmentAccounts: LinkUserProfile[] = [
   }),
 ];
 
-const mockUsers: LinkUserProfile[] = [...mockBaseUsers, ...mockDepartmentAccounts];
+/**
+ * 本地 mock 的办公类面试候选人：办公室/科宣部/外联部/赛事部招新时的报名者，
+ * 尚未归属部门（department: null），学号用 `B24xxxxxx` 前缀与部门演示账号区分
+ * （`mock.test.ts` 按 `B<部门序号>0…` 过滤部门账号，不会受这批影响）。
+ */
+const mockApplicantNames = [
+  "许清和",
+  "裴知远",
+  "岑星野",
+  "康宁",
+  "施语",
+  "郗望",
+  "盛嘉",
+  "常宁",
+  "钟灵",
+  "黎川",
+  "骆书",
+  "简宁",
+] as const;
+
+const mockApplicantUsers: LinkUserProfile[] = mockApplicantNames.map(
+  (name, index) => {
+    const id = 301 + index;
+    const studentId = `B24${String(index + 1).padStart(6, "0")}`;
+
+    return {
+      id,
+      name,
+      login_email: `${studentId}@njupt.edu.cn`,
+      role: "member",
+      state: "on-sast",
+      phone_number: `139${String(20000000 + id).slice(-8)}`,
+      qq_number: String(300000 + id * 11),
+      student_id: studentId,
+      college: "通信与信息工程学院",
+      major: "通信工程",
+      profile: {
+        department: null,
+        intro: "办公类面试候选人（本地演示）",
+        email: `${studentId}@njupt.edu.cn`,
+      },
+      created_at: new Date(
+        `2026-03-${String((index % 27) + 1).padStart(2, "0")}T00:00:00.000Z`,
+      ).toISOString(),
+    } satisfies LinkUserProfile;
+  },
+);
+
+const mockUsers: LinkUserProfile[] = [
+  ...mockBaseUsers,
+  ...mockDepartmentAccounts,
+  ...mockApplicantUsers,
+];
 
 const toAdminItem = (user: LinkUserProfile): LinkAdminUserItem => ({
   id: user.id,

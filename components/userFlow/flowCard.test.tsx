@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 
 jest.mock("./cancelRegistration", () => ({
-  CancelRegistration: () => null,
+  CancelRegistration: ({ userFlowId }: { userFlowId: number }) => (
+    <div data-testid="cancel-registration">{userFlowId}</div>
+  ),
 }));
 
 jest.mock("./portfolioLinkEditor", () => ({
@@ -269,5 +271,61 @@ describe("FlowCard", () => {
       screen.getByRole("button", { name: "申请修改面试时间" }),
     ).toBeEnabled();
     expect(screen.queryByText("面试时段：14:00-15:00")).not.toBeInTheDocument();
+  });
+
+  describe("取消报名入口", () => {
+    it("只在还停在第一步（报名）时显示", async () => {
+      const ui = await FlowCard({
+        flow: {
+          id: 21,
+          title: "刚报名的流程",
+          status: "ongoing",
+          currentStepOrder: 1,
+          steps: [
+            { id: 1, order: 1, title: "报名", description: "提交资料" },
+            { id: 2, order: 2, title: "一面", description: "现场面试" },
+          ],
+        } as never,
+      });
+
+      render(ui);
+      expect(screen.getByTestId("cancel-registration")).toBeInTheDocument();
+    });
+
+    it("流程已推进（后面步骤结束）后不再显示", async () => {
+      const ui = await FlowCard({
+        flow: {
+          id: 22,
+          title: "已进流程",
+          status: "ongoing",
+          currentStepOrder: 2,
+          steps: [
+            { id: 1, order: 1, title: "报名", description: "提交资料" },
+            { id: 2, order: 2, title: "一面", description: "现场面试" },
+          ],
+        } as never,
+      });
+
+      render(ui);
+      expect(screen.queryByTestId("cancel-registration")).not.toBeInTheDocument();
+    });
+
+    it("流程已出结果（通过/未通过）后不再显示", async () => {
+      const ui = await FlowCard({
+        flow: {
+          id: 23,
+          title: "已出结果",
+          status: "failed",
+          currentStepOrder: 1,
+          steps: [
+            { id: 1, order: 1, title: "报名", description: "提交资料" },
+            { id: 2, order: 2, title: "一面", description: "现场面试" },
+          ],
+        } as never,
+      });
+
+      render(ui);
+      expect(screen.queryByTestId("cancel-registration")).not.toBeInTheDocument();
+    });
   });
 });
