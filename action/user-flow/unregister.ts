@@ -2,7 +2,7 @@
 
 import { db } from "@/db/drizzle";
 import { flowStep, userFlow } from "@/db/schema";
-import { and, asc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { verifySession, type VerifiedSession } from "@/lib/dal";
 import { logServerError } from "@/lib/server-error-log";
@@ -17,9 +17,12 @@ export const unregister = async (userFlowId: number) => {
     const uid = session.uid;
 
     /**
-     * 校验与删除必须原子：只在「还停在第一步（报名）」时删除。
-     * 删条件直接写在 `delete` 的 where 里（当前步骤 = 流程第一步，或未记录当前步骤），
+     * 校验与删除必须原子：只在候选人尚未进入流程时删除。
+     * 删条件直接写在 `delete` 的 where 里（当前步骤 ∈ 报名后的前两步，或未记录当前步骤），
      * 于是步骤推进与删除由同一行的行锁定序——先校验后删除之间的竞态窗口不存在。
+     *
+     * 数据模型：`register` 提交报名时把当前步骤写成「报名」（order=1）的下一步（order=2），
+     * 因此「刚报名、还没被处理」的合法状态是前两步之一；推进到第三步即视为已进流程。
      */
     const outcome = await db.transaction(async (tx) => {
       const [record] = await tx
@@ -39,24 +42,26 @@ export const unregister = async (userFlowId: number) => {
 
       await assertFlowResultsEditable(record.flowId);
 
-      const [firstStep] = await tx
+      const leadingSteps = await tx
         .select({ id: flowStep.id })
         .from(flowStep)
         .where(
           and(eq(flowStep.fkFlowId, record.flowId), eq(flowStep.isDeleted, false)),
         )
         .orderBy(asc(flowStep.order))
-        .limit(1);
+        .limit(2);
+
+      const cancelableStepIds = leadingSteps.map((step) => step.id);
 
       const deleted = await tx
         .delete(userFlow)
         .where(
           and(
             eq(userFlow.id, userFlowId),
-            firstStep
+            cancelableStepIds.length > 0
               ? or(
                   isNull(userFlow.fkCurrentStepId),
-                  eq(userFlow.fkCurrentStepId, firstStep.id),
+                  inArray(userFlow.fkCurrentStepId, cancelableStepIds),
                 )
               : undefined,
           ),

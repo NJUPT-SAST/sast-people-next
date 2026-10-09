@@ -70,17 +70,23 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
   const registrationEditable =
     safeFlow.status === "not_started" || safeFlow.status === "ongoing";
   /**
-   * 取消报名只在「还停在第一步（报名）」时提供：
-   * 后面任何一个步骤结束（候选人已经进流程）之后就不该再让他一键退出。
-   * 这里用**持久化的** `currentStepOrder` 判定（`activeStepOrder` 在步骤缺失时会回退到第一步，
+   * 取消报名只在候选人尚未真正进入流程（后面任一步骤结束）之前提供。
+   *
+   * 注意数据模型：提交报名时 `register` 已把当前步骤写死为「报名」（order=1）的**下一步**
+   * （`findStepIdByOrder(flowId, 2)`），所以「刚报名、还没被处理」的持久化状态就是第二步。
+   * 准入边界因此取排序后的第二步：停在第二步 = 只完成了报名，可以取消；
+   * 推进到第三步（某个后续步骤已结束）= 已进流程，不再提供取消。
+   *
+   * 判定用**持久化的** `currentStepOrder`（`activeStepOrder` 在步骤缺失时会回退到第一步，
    * 只用于展示，不能拿来做准入判断）。
    */
-  const firstStepOrder = steps[0]?.order ?? 0;
+  const cancelableThroughOrder =
+    steps.length > 1 ? steps[1].order : (steps[0]?.order ?? 0);
   const persistedStepOrder = safeFlow.currentStepOrder ?? 0;
   const canCancelRegistration =
     registrationEditable &&
     typeof safeFlow.id === "number" &&
-    (steps.length === 0 || persistedStepOrder <= firstStepOrder);
+    (steps.length === 0 || persistedStepOrder <= cancelableThroughOrder);
   /* 技术部门按已预约的飞书日程申请改时间；办公类时段调整由部长直接修改，候选人不再有申请入口 */
   const canRequestSlotChange =
     typeof safeFlow.id === "number" &&
