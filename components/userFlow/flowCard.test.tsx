@@ -274,17 +274,21 @@ describe("FlowCard", () => {
   });
 
   describe("取消报名入口", () => {
-    it("只在还停在第一步（报名）时显示", async () => {
+    const steps = [
+      { id: 1, order: 1, title: "报名", description: "提交资料" },
+      { id: 2, order: 2, title: "一面", description: "现场面试" },
+      { id: 3, order: 3, title: "结果确认", description: "等待确认" },
+    ];
+
+    it("刚报名、仍停在报名后的第一步时显示", async () => {
       const ui = await FlowCard({
         flow: {
           id: 21,
           title: "刚报名的流程",
           status: "ongoing",
-          currentStepOrder: 1,
-          steps: [
-            { id: 1, order: 1, title: "报名", description: "提交资料" },
-            { id: 2, order: 2, title: "一面", description: "现场面试" },
-          ],
+          // register 提交报名时把当前步骤写死为「报名」的下一步（order=2）
+          currentStepOrder: 2,
+          steps,
         } as never,
       });
 
@@ -292,17 +296,14 @@ describe("FlowCard", () => {
       expect(screen.getByTestId("cancel-registration")).toBeInTheDocument();
     });
 
-    it("流程已推进（后面步骤结束）后不再显示", async () => {
+    it("流程已推进（后面步骤结束，进入第三步）后不再显示", async () => {
       const ui = await FlowCard({
         flow: {
           id: 22,
           title: "已进流程",
           status: "ongoing",
-          currentStepOrder: 2,
-          steps: [
-            { id: 1, order: 1, title: "报名", description: "提交资料" },
-            { id: 2, order: 2, title: "一面", description: "现场面试" },
-          ],
+          currentStepOrder: 3,
+          steps,
         } as never,
       });
 
@@ -316,11 +317,8 @@ describe("FlowCard", () => {
           id: 23,
           title: "已出结果",
           status: "failed",
-          currentStepOrder: 1,
-          steps: [
-            { id: 1, order: 1, title: "报名", description: "提交资料" },
-            { id: 2, order: 2, title: "一面", description: "现场面试" },
-          ],
+          currentStepOrder: 2,
+          steps,
         } as never,
       });
 
