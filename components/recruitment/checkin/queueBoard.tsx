@@ -37,7 +37,7 @@ type VenueApiResponse = {
 const POLL_INTERVAL_MS = 3000;
 
 /** 每个部门最多列出的等待人数（超出只显示「还有 n 位」），保证一屏放得下。 */
-const MAX_WAITING_ROWS = 12;
+const MAX_WAITING_ROWS = 10;
 
 /** 部门数量 → 大屏列数（最多 4 个办公部门正好一屏平分）。 */
 const COLUMN_CLASS = [
@@ -209,10 +209,7 @@ const QueueBoard = ({
               } else {
                 speechQueue.current.length = 0;
                 speaking.current = false;
-                if (
-                  typeof window !== "undefined" &&
-                  "speechSynthesis" in window
-                ) {
+                if (typeof window !== "undefined" && "speechSynthesis" in window) {
                   window.speechSynthesis.cancel();
                 }
               }
@@ -241,7 +238,12 @@ const QueueBoard = ({
           <p className="text-sm text-muted-foreground">暂无启用的办公部门</p>
         </div>
       ) : (
-        <div className={cn("grid min-h-0 flex-1 gap-3", "grid-cols-1", columnClass)}>
+        <div
+          className={cn(
+            "grid min-h-0 flex-1 grid-cols-1 gap-3",
+            columnClass,
+          )}
+        >
           {departments.map((department) => (
             <DepartmentPanel
               key={department.flowId}
@@ -265,18 +267,20 @@ const DepartmentPanel = ({
   const shown = waiting.slice(0, MAX_WAITING_ROWS);
 
   return (
-    <section className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl border p-3">
-      <div className="flex shrink-0 flex-wrap items-baseline justify-between gap-2 border-b pb-2">
-        <h2 className="text-lg font-bold lg:text-xl">{department.departmentLabel}</h2>
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-card">
+      <div className="flex shrink-0 items-baseline justify-between gap-2 border-b bg-muted/40 px-4 py-2.5">
+        <h2 className="text-xl font-bold lg:text-2xl">
+          {department.departmentLabel}
+        </h2>
         <span className="text-xs text-muted-foreground">
-          等候 {waiting.length} · 面试中 {department.counts.interviewing} · 已完成{" "}
+          等候 {waiting.length} · 面试中 {department.counts.interviewing} · 完成{" "}
           {department.counts.done}
         </span>
       </div>
 
-      <div className="flex shrink-0 flex-col gap-1.5">
+      <div className="flex shrink-0 flex-col gap-2 p-3">
         {department.stations.length === 0 ? (
-          <p className="rounded-lg border border-dashed py-3 text-center text-xs text-muted-foreground">
+          <p className="rounded-xl border border-dashed py-4 text-center text-sm text-muted-foreground">
             未设置面试位
           </p>
         ) : (
@@ -286,24 +290,24 @@ const DepartmentPanel = ({
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
-        <p className="shrink-0 text-xs font-semibold text-amber-700 dark:text-amber-300">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 border-t p-3">
+        <p className="shrink-0 text-sm font-semibold text-amber-600 dark:text-amber-400">
           等候队列
         </p>
         {waiting.length === 0 ? (
-          <p className="py-2 text-center text-xs text-muted-foreground">暂无等待</p>
+          <p className="py-4 text-center text-sm text-muted-foreground">暂无等待</p>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
             {shown.map((entry) => (
-              <WaitingChip key={entry.id} entry={entry} />
+              <WaitingRow key={entry.id} entry={entry} />
             ))}
+            {waiting.length > MAX_WAITING_ROWS ? (
+              <p className="text-right text-xs text-muted-foreground">
+                还有 {waiting.length - MAX_WAITING_ROWS} 位…
+              </p>
+            ) : null}
           </div>
         )}
-        {waiting.length > MAX_WAITING_ROWS ? (
-          <p className="shrink-0 text-right text-xs text-muted-foreground">
-            还有 {waiting.length - MAX_WAITING_ROWS} 位…
-          </p>
-        ) : null}
       </div>
     </section>
   );
@@ -316,74 +320,80 @@ const StationCard = ({ station }: { station: CheckinStation }) => {
   return (
     <div
       className={cn(
-        "flex flex-col gap-0.5 rounded-lg border-2 px-2.5 py-1.5",
+        "flex items-center justify-between gap-3 rounded-xl border-2 px-3.5 py-2.5",
         occupant?.status === "interviewing"
-          ? "border-violet-500/50 bg-violet-500/5"
+          ? "border-violet-500/40 bg-violet-500/5"
           : occupant?.status === "called"
-            ? "border-primary/50 bg-primary/5"
+            ? "border-primary/40 bg-primary/5"
             : "border-border bg-muted/20",
         paused && "opacity-60",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-semibold">
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate text-xs font-medium text-muted-foreground">
           {station.label}
-          {station.interviewerName ? (
-            <span className="ml-1 font-normal text-muted-foreground">
-              {station.interviewerName}
-            </span>
-          ) : null}
+          {station.interviewerName ? ` · ${station.interviewerName}` : ""}
         </span>
-        {paused ? (
-          <Badge variant="secondary">暂停</Badge>
-        ) : occupant ? (
-          <Badge className={interviewCheckinStatusMeta[occupant.status].badgeClassName}>
-            {interviewCheckinStatusMeta[occupant.status].displayLabel}
-          </Badge>
+        {occupant ? (
+          <span className="flex min-w-0 items-baseline gap-2.5">
+            <span className="shrink-0 font-mono text-2xl font-bold tabular-nums text-primary lg:text-3xl">
+              {occupant.queueNo}
+            </span>
+            <span className="min-w-0 truncate text-lg font-semibold">
+              {occupant.name}
+            </span>
+          </span>
         ) : (
-          <Badge variant="outline">空闲</Badge>
+          <span className="text-base text-muted-foreground">空闲</span>
         )}
       </div>
-      {occupant ? (
-        <div className="flex items-baseline gap-2">
-          <span className="font-mono text-2xl font-bold tabular-nums text-primary lg:text-3xl">
-            {occupant.queueNo}
-          </span>
-          <span className="min-w-0 truncate text-sm font-medium">
-            {occupant.name}
-          </span>
-        </div>
-      ) : (
-        <span className="text-xs text-muted-foreground">空闲</span>
-      )}
+
+      {paused ? (
+        <Badge variant="secondary">暂停</Badge>
+      ) : occupant ? (
+        <Badge className={interviewCheckinStatusMeta[occupant.status].badgeClassName}>
+          {interviewCheckinStatusMeta[occupant.status].displayLabel}
+        </Badge>
+      ) : null}
     </div>
   );
 };
 
-const WaitingChip = ({ entry }: { entry: CheckinEntry }) => {
+const WaitingRow = ({ entry }: { entry: CheckinEntry }) => {
   const note = checkinBlockNote(entry.block);
   const skip = checkinSkipNote(entry.skipCount);
-  const marker = skip ? (entry.skipCount > MAX_QUEUE_SKIPS ? "不再叫号" : `过号${entry.skipCount}`) : null;
+  const marker = skip
+    ? entry.skipCount > MAX_QUEUE_SKIPS
+      ? "不再叫号"
+      : `过号${entry.skipCount}`
+    : note
+      ? entry.block?.reason === "busy"
+        ? "面试中"
+        : "待一志愿"
+      : null;
 
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-1.5 overflow-hidden rounded border bg-muted/20 px-2 py-1",
+        "flex shrink-0 items-center gap-3 rounded-lg bg-muted/20 px-3 py-1.5",
         entry.status === "skipped" && "opacity-55",
       )}
       title={`${entry.queueNo} ${entry.name}${skip ? ` ${skip}` : ""}${note ? ` ${note}` : ""}`}
     >
-      <span className="shrink-0 font-mono text-sm font-semibold tabular-nums">
+      <span className="w-[4.2rem] shrink-0 font-mono text-lg font-bold tabular-nums">
         {entry.queueNo}
       </span>
-      <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
+      <span className="min-w-0 flex-1 truncate text-base">{entry.name}</span>
       {marker ? (
-        <span className="shrink-0 text-[10px] text-orange-600 dark:text-orange-400">
+        <span
+          className={cn(
+            "shrink-0 text-xs",
+            skip
+              ? "text-orange-600 dark:text-orange-400"
+              : "text-sky-600 dark:text-sky-400",
+          )}
+        >
           {marker}
-        </span>
-      ) : note ? (
-        <span className="shrink-0 text-[10px] text-sky-600 dark:text-sky-400">
-          {entry.block?.reason === "busy" ? "面试中" : "待一志愿"}
         </span>
       ) : null}
     </div>
