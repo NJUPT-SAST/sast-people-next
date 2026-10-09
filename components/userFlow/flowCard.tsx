@@ -69,6 +69,15 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
   const interviewSchedule = safeFlow.interviewSchedule ?? null;
   const registrationEditable =
     safeFlow.status === "not_started" || safeFlow.status === "ongoing";
+  /**
+   * 取消报名只在「还停在第一步（报名）」时提供：
+   * 后面任何一个步骤结束（候选人已经进流程）之后就不该再让他一键退出。
+   */
+  const firstStepOrder = steps[0]?.order ?? 0;
+  const canCancelRegistration =
+    registrationEditable &&
+    typeof safeFlow.id === "number" &&
+    (steps.length === 0 || activeStepOrder <= firstStepOrder);
   /* 技术部门按已预约的飞书日程申请改时间；办公类时段调整由部长直接修改，候选人不再有申请入口 */
   const canRequestSlotChange =
     typeof safeFlow.id === "number" &&
@@ -250,13 +259,11 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
               </p>
             )}
           </div>
-          {typeof safeFlow.id === "number" &&
-            (safeFlow.status === "not_started" ||
-              safeFlow.status === "ongoing") && (
-              <div className="shrink-0 self-end sm:self-auto">
-                <CancelRegistration userFlowId={safeFlow.id} />
-              </div>
-            )}
+          {canCancelRegistration && typeof safeFlow.id === "number" && (
+            <div className="shrink-0 self-end sm:self-auto">
+              <CancelRegistration userFlowId={safeFlow.id} />
+            </div>
+          )}
         </div>
         {typeof safeFlow.id === "number" && needsPortfolio && (
           <div className="mt-4">
