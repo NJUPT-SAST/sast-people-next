@@ -29,7 +29,7 @@ export type AnnounceRecord = {
 export type AnnounceState = Record<string, AnnounceRecord>;
 
 export const ANNOUNCE_MAX_REPEATS = 3;
-export const ANNOUNCE_REPEAT_INTERVAL_MS = 12_000;
+export const ANNOUNCE_REPEAT_INTERVAL_MS = 5_000;
 export const ANNOUNCE_STALE_MS = 120_000;
 export const ANNOUNCE_BATCH_LIMIT = 3;
 /** 待播队列上限：超出时丢掉最旧的待播项，避免念到已经过号的旧号。 */

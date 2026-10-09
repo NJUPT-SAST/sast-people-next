@@ -34,8 +34,9 @@ import { revalidatePath } from "next/cache";
  * 多个「面试位」（部长各自一对一面试）。签到叫号页与大屏页都不按部门切分——
  * 任一办公部门的部长进来都能看到全部部门的面试位与队列。
  *
- * 队伍：按 (流程, 轮次) 隔离，叫号序号在队伍内递增（一面 A、二面 B）；
- * 签到用流程+轮次粒度的 advisory xact 锁串行化，避免并发双签重号。
+ * 队伍：按 (流程, 轮次) 隔离，叫号号段按部门（办公室 B / 科宣部 K / 外联部 W / 赛事部 S）；
+ * 所有写入路径（签到、叫号、过号重排）都拿同一把「场地 + 轮次」粒度的 advisory xact 锁串行化，
+ * 避免并发重号、同一面试位被重复占位、以及同一个人被两个部门同时叫号。
  *
  * 一人同时有一/二志愿（两条部门报名）时：两条各自独立排队、各自叫号；
  * 但同一时刻只能在一个部门被叫/面试——叫号会跳过「正在其他部门面试」的候选人，
@@ -46,6 +47,23 @@ import { revalidatePath } from "next/cache";
 
 const CHECKIN_CONSOLE_PATH = "/dashboard/checkin";
 const CHECKIN_BOARD_PATH = "/checkin/board";
+
+/**
+ * 场地级 advisory 锁命名空间（`0x4f46464b`，与仓库其它单参数 advisory 锁的 key 空间不重叠）。
+ * 签到分号、自动叫号、手动叫号、过号重排都拿 `(本命名空间, 轮次)`：同一轮次里这些写入彼此串行，
+ * 于是不会出现「并发分配到同一个号」「同一个面试位被两人同时占」「同一个人被两个部门同时叫号」。
+ * 现场量级（每分钟几次写入、每次几毫秒）远低于锁的争用阈值。
+ */
+const VENUE_ADVISORY_LOCK = 0x4f46464b;
+
+/** 取「场地 + 轮次」的 advisory xact 锁（必须在事务里调用，事务结束自动释放）。 */
+const lockVenue = (
+  executor: Executor,
+  round: number,
+): Promise<unknown> =>
+  executor.execute(
+    sql`select pg_advisory_xact_lock(${VENUE_ADVISORY_LOCK}, ${round})`,
+  );
 
 /** 已产生结论的报名状态：这些候选人不再等待面试，也就不能再签到。 */
 const TERMINAL_PROGRESS_STATUSES = ["passed", "failed", "withdrawn"] as const;
@@ -786,8 +804,8 @@ export const checkInCandidate = async (
     }
 
     const outcome = await db.transaction(async (tx) => {
-      /* 队伍粒度锁：同一流程同一轮的签到串行，保证序号不重号 */
-      await tx.execute(sql`select pg_advisory_xact_lock(${flowId}, ${round})`);
+      /* 场地粒度锁：同一轮的签到分号串行，保证序号不重号（与叫号/过号重排同一把锁） */
+      await lockVenue(tx, round);
 
       const [existing] = await tx
         .select({ id: interviewCheckin.id, uid: userFlow.fkUserId })
@@ -923,26 +941,21 @@ export const transitionCheckin = async (
   let actorId: number | null = null;
 
   try {
-    const [record] = await db
+    /* 先轻量读一次定位流程（权限校验 + 审计归属）；真正的状态校验与写入在场地锁内重做 */
+    const [pointer] = await db
       .select({
         flowId: interviewCheckin.fkFlowId,
         round: interviewCheckin.round,
-        status: interviewCheckin.status,
-        callCount: interviewCheckin.callCount,
-        skipCount: interviewCheckin.skipCount,
-        userFlowId: interviewCheckin.fkUserFlowId,
-        uid: userFlow.fkUserId,
       })
       .from(interviewCheckin)
-      .innerJoin(userFlow, eq(interviewCheckin.fkUserFlowId, userFlow.id))
       .where(eq(interviewCheckin.id, checkinId))
       .limit(1);
 
-    if (!record) {
+    if (!pointer) {
       return { success: false, error: { message: "签到记录不存在" } };
     }
 
-    const context = await loadOfficeFlowForVenue(record.flowId);
+    const context = await loadOfficeFlowForVenue(pointer.flowId);
     if (context.kind === "missing") {
       return { success: false, error: { message: "流程不存在" } };
     }
@@ -952,82 +965,108 @@ export const transitionCheckin = async (
     const { actor } = context;
     actorId = actor.uid;
 
-    const from = record.status as InterviewCheckinStatusKey;
-    if (!canTransitionCheckin(from, to)) {
+    const outcome = await db.transaction(async (tx) => {
+      await lockVenue(tx, pointer.round);
+
+      const [record] = await tx
+        .select({
+          status: interviewCheckin.status,
+          callCount: interviewCheckin.callCount,
+          skipCount: interviewCheckin.skipCount,
+          uid: userFlow.fkUserId,
+        })
+        .from(interviewCheckin)
+        .innerJoin(userFlow, eq(interviewCheckin.fkUserFlowId, userFlow.id))
+        .where(eq(interviewCheckin.id, checkinId))
+        .limit(1);
+
+      if (!record) return { kind: "missing" as const };
+
+      const from = record.status as InterviewCheckinStatusKey;
+      if (!canTransitionCheckin(from, to)) return { kind: "invalid" as const };
+
+      let stationId: number | null = null;
+      if (to === "called") {
+        if (!options.stationId) return { kind: "no-station" as const };
+
+        const [station] = await tx
+          .select({ id: interviewStation.id, status: interviewStation.status })
+          .from(interviewStation)
+          .where(
+            and(
+              eq(interviewStation.id, options.stationId),
+              eq(interviewStation.fkFlowId, pointer.flowId),
+            ),
+          )
+          .limit(1);
+        if (!station) return { kind: "station-missing" as const };
+        if (station.status !== "active") return { kind: "station-paused" as const };
+        if ((await stationOccupantId(tx, options.stationId, checkinId)) !== null) {
+          return { kind: "station-busy" as const };
+        }
+
+        const busy = busyElsewhere(record.uid, await loadVenueBlockers(tx));
+        if (busy) return { kind: "busy" as const, label: busy };
+
+        stationId = station.id;
+      }
+
+      const now = new Date();
+      const patch: Partial<typeof interviewCheckin.$inferInsert> = { status: to };
+      if (to === "called") {
+        patch.calledAt = now;
+        patch.callCount = record.callCount + 1;
+        patch.fkStationId = stationId;
+      } else if (to === "interviewing") {
+        patch.startedAt = now;
+      } else if (to === "done") {
+        patch.finishedAt = now;
+      } else if (to === "skipped") {
+        /* 过号：号不变，往后顺延；累计超过上限就不再自动叫号 */
+        patch.fkStationId = null;
+        patch.skipCount = record.skipCount + 1;
+      } else if (to === "cancelled") {
+        patch.fkStationId = null;
+      }
+
+      /* 条件更新：只有「读到的状态仍是当前状态」才写，行数为 0 说明已被别人改过 */
+      const updated = await tx
+        .update(interviewCheckin)
+        .set(patch)
+        .where(
+          and(eq(interviewCheckin.id, checkinId), eq(interviewCheckin.status, from)),
+        )
+        .returning({ id: interviewCheckin.id });
+      if (updated.length === 0) return { kind: "stale" as const };
+
+      if (to === "skipped") {
+        await requeueAfterSkip(tx, pointer.flowId, pointer.round, checkinId);
+      }
+
+      return { kind: "ok" as const, from, stationId };
+    });
+
+    if (outcome.kind === "busy") {
       return {
         success: false,
-        error: { message: "当前状态不能执行该操作，请刷新后重试" },
+        error: { message: `该候选人正在${outcome.label}面试中，不能同时叫号` },
       };
     }
 
-    let stationId: number | null = null;
-    if (to === "called") {
-      if (!options.stationId) {
-        return { success: false, error: { message: "请选择叫到哪个面试位" } };
-      }
-      const [station] = await db
-        .select({ id: interviewStation.id, status: interviewStation.status })
-        .from(interviewStation)
-        .where(
-          and(
-            eq(interviewStation.id, options.stationId),
-            eq(interviewStation.fkFlowId, record.flowId),
-          ),
-        )
-        .limit(1);
-      if (!station) {
-        return { success: false, error: { message: "面试位不存在（需属于本部门）" } };
-      }
-      if (station.status !== "active") {
-        return { success: false, error: { message: "该面试位已暂停" } };
-      }
-      if ((await stationOccupantId(options.stationId, checkinId)) !== null) {
-        return { success: false, error: { message: "该面试位还在面试中，请先结束" } };
-      }
-      const busy = busyElsewhere(record.uid, await loadVenueBlockers(db));
-      if (busy) {
-        return {
-          success: false,
-          error: { message: `该候选人正在${busy}面试中，不能同时叫号` },
-        };
-      }
-      stationId = station.id;
-    }
-
-    const now = new Date();
-    const patch: Partial<typeof interviewCheckin.$inferInsert> = { status: to };
-    if (to === "called") {
-      patch.calledAt = now;
-      patch.callCount = record.callCount + 1;
-      patch.fkStationId = stationId;
-    } else if (to === "interviewing") {
-      patch.startedAt = now;
-    } else if (to === "done") {
-      patch.finishedAt = now;
-    } else if (to === "skipped") {
-      /* 过号：号不变，往后顺延；累计超过上限就不再自动叫号 */
-      patch.fkStationId = null;
-      patch.skipCount = record.skipCount + 1;
-    } else if (to === "cancelled") {
-      patch.fkStationId = null;
-    }
-
-    if (to === "skipped") {
-      await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(${record.flowId}, ${record.round})`,
-        );
-        await tx
-          .update(interviewCheckin)
-          .set(patch)
-          .where(eq(interviewCheckin.id, checkinId));
-        await requeueAfterSkip(tx, record.flowId, record.round, checkinId);
-      });
-    } else {
-      await db
-        .update(interviewCheckin)
-        .set(patch)
-        .where(eq(interviewCheckin.id, checkinId));
+    if (outcome.kind !== "ok") {
+      const messages: Record<
+        Exclude<typeof outcome.kind, "ok" | "busy">,
+        string
+      > = {
+        missing: "签到记录不存在",
+        invalid: "当前状态不能执行该操作，请刷新后重试",
+        stale: "状态已变化，请刷新后重试",
+        "no-station": "请选择叫到哪个面试位",
+        "station-missing": "面试位不存在（需属于本部门）",
+        "station-paused": "该面试位已暂停",
+        "station-busy": "该面试位还在面试中，请先结束",
+      };
+      return { success: false, error: { message: messages[outcome.kind] } };
     }
 
     await writeOperationAudit({
@@ -1038,11 +1077,11 @@ export const transitionCheckin = async (
       resourceId: checkinId,
       department: context.flow.department,
       metadata: {
-        flowId: record.flowId,
-        round: record.round,
-        from,
+        flowId: pointer.flowId,
+        round: pointer.round,
+        from: outcome.from,
         to,
-        stationId,
+        stationId: outcome.stationId,
       },
     });
 
@@ -1109,10 +1148,11 @@ const requeueAfterSkip = async (
 
 /** 面试位当前占用的签到 id（called / interviewing）；空闲返回 null。 */
 const stationOccupantId = async (
+  executor: Executor,
   stationId: number,
   exceptCheckinId?: number,
 ): Promise<number | null> => {
-  const rows = await db
+  const rows = await executor
     .select({ id: interviewCheckin.id })
     .from(interviewCheckin)
     .where(
@@ -1278,7 +1318,7 @@ export const deleteCheckinStation = async (
     if (context.kind !== "ok") {
       return { success: false, error: { message: "无权删除该面试位" } };
     }
-    if ((await stationOccupantId(stationId)) !== null) {
+    if ((await stationOccupantId(db, stationId)) !== null) {
       return { success: false, error: { message: "该面试位还在面试中，请先结束" } };
     }
 
@@ -1334,9 +1374,8 @@ export const callNextAtStation = async (
     }
 
     const outcome = await db.transaction(async (tx) => {
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(${target.fkFlowId}, ${round})`,
-      );
+      /* 与手动叫号、签到分号、过号重排共用同一把场地锁 */
+      await lockVenue(tx, round);
 
       const busyStation = await tx
         .select({ id: interviewCheckin.id })
@@ -1355,6 +1394,7 @@ export const callNextAtStation = async (
       const waiting = await tx
         .select({
           id: interviewCheckin.id,
+          status: interviewCheckin.status,
           callCount: interviewCheckin.callCount,
           uid: userFlow.fkUserId,
           choice: userFlow.choice,
@@ -1400,7 +1440,7 @@ export const callNextAtStation = async (
         ) ?? available[0];
 
       const now = new Date();
-      await tx
+      const moved = await tx
         .update(interviewCheckin)
         .set({
           status: "called",
@@ -1409,7 +1449,16 @@ export const callNextAtStation = async (
           callCount: next.callCount + 1,
           updatedAt: now,
         })
-        .where(eq(interviewCheckin.id, next.id));
+        .where(
+          and(
+            eq(interviewCheckin.id, next.id),
+            eq(interviewCheckin.status, next.status),
+          ),
+        )
+        .returning({ id: interviewCheckin.id });
+      if (moved.length === 0) {
+        return { kind: "error" as const, message: "状态已变化，请刷新后重试" };
+      }
 
       return { kind: "ok" as const, checkinId: next.id };
     });

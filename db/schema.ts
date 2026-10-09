@@ -714,9 +714,9 @@ export const interviewCheckin = pgTable("interview_checkin", {
     .notNull(),
   /* 面试轮次：1=一面，2=二面（与 user_flow.round 对齐） */
   round: smallint("round").notNull().default(1),
-  /* 展示用叫号（如 A012）：同一流程同一轮次内按签到顺序分配，可读性优先 */
+  /* 展示用叫号（如 B012，B/K/W/S 为部门号段）：同一流程同一轮次内按签到顺序分配，可读性优先 */
   queueNo: varchar("queue_no", { length: 16 }).notNull(),
-  /* 排队序号（queueNo 的数值部分）：排序与并发分配以它为准 */
+  /* 排队序号：签到时等于号码数值，过号重排后会整段压平重编（排序与并发分配以它为准） */
   queueSeq: integer("queue_seq").notNull(),
   status: interviewCheckinStatusEnum("status").notNull().default("waiting"),
   /* 签到方式：staff_scan = 工作人员扫候选人身份码；manual = 手动检索 */
