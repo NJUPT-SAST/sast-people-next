@@ -4,8 +4,8 @@
 | --- | --- |
 | 文档状态 | Draft |
 | 适用分支 | `v3` |
-| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql` 至 `migrations/0026_email_center_production_hardening.sql` |
-| 最后更新 | 2026-06-10 |
+| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql` 至 `migrations/0075_interview_checkin_skip_count.sql` |
+| 最后更新 | 2026-10-10 |
 
 ## 1. 边界
 
@@ -20,14 +20,15 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | --- | --- | --- |
 | `flow_step_type_enum` | `registering`、`checking`、`judging`、`email`、`finished` | 流程步骤类型 |
 | `flow_type_enum` | `recruitment`、`recruitment_exemption`、`woc`、`soc`、`office_interview` | 流程类型；界面按「部门 + 阶段」语义化展示（软件研发部笔试/WOC、多媒体部WOD、办公室面试…），因此不需要单独的「归属部门」展示列 |
-| `progress_status_enum` | `not_started`、`ongoing`、`passed`、`failed` | 流程进行状态（报名即进流程，无需审核） |
-| `evaluation_status_enum` | `submitted`、`returned`、`approved`、`rejected` | 面评状态（讲师提交 → 管理员可退回重写或终审） |
+| `progress_status_enum` | `not_started`、`ongoing`、`passed`、`failed`、`withdrawn` | 流程进行状态（报名即进流程，无需审核）；`withdrawn` 由迁移 0041 追加，表示候选人主动退出 |
+| `evaluation_status_enum` | `submitted`、`returned`、`approved`、`rejected` | 面评状态（讲师提交 → 管理员可退回重写或终审）；仅技术部门面试流程走审批 |
+| `evaluation_recommendation_enum` | `passed`、`failed` | 面评讲师建议（迁移 0029 新增）；表达讲师倾向，不等同于管理员最终决定 |
 | `email_batch_status_enum` | `draft`、`queued`、`completed`、`failed` | 邮件批次状态 |
 | `email_delivery_status_enum` | `pending`、`sending`、`sent`、`failed`、`dead` | 单封邮件发送状态 |
 | `interview_schedule_status_enum` | `created`、`cancelled`、`failed` | 面试日程状态 |
 | `interview_checkin_status_enum` | `waiting`、`called`、`interviewing`、`done`、`skipped`、`cancelled` | 办公类部门面试现场签到叫号状态（与 `progress_status` 正交） |
 
-> `progress_status` 来自旧 `user_flow_status_enum`（`pending`/`accepted`/`rejected`/`ongoing`/`passed`/`failed`）的简化，去掉报名审核维度。迁移时 `pending` → `not_started`，`accepted` → `passed`，`rejected` → `failed`，`ongoing`/`passed`/`failed` 保持原语义。
+> `progress_status` 来自旧 `user_flow_status_enum`（`pending`/`accepted`/`rejected`/`ongoing`/`passed`/`failed`）的简化，去掉报名审核维度。迁移时 `pending` → `not_started`，`accepted` → `passed`，`rejected` → `failed`，`ongoing`/`passed`/`failed` 保持原语义；`withdrawn` 为迁移 0041 新增，旧枚举无对应值。
 
 ## 3. 表总览
 
@@ -37,6 +38,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `flow_step` | 流程步骤 | 无用户字段 |
 | `user_flow` | 用户报名和流程状态 | `fk_user_id` 保存 Link 用户 ID |
 | `problem` | 笔试题目 | 无用户字段 |
+| `flow_result_publication` | 流程结果发布记录与快照 | `confirmed_by` 保存 Link 用户 ID |
 | `user_point` | 题目评分记录 | `fk_judger_id` 保存 Link 用户 ID |
 | `interview_evaluation` | 面评记录和审批状态 | `fk_user_id` 保存 Link 用户 ID（面评撰写人）；`fk_reviewed_by` 保存 Link 用户 ID（审批人） |
 | `email_template_setting` | 结果邮件模板配置 | 无用户字段 |
@@ -45,12 +47,15 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `email_delivery` | 单封邮件投递记录 | `fk_user_id` 保存 Link 用户 ID，可为空（测试邮件或外部收件人） |
 | `email_delivery_attempt` | 邮件发送尝试和 provider 回执日志 | `triggered_by` 保存 Link 用户 ID，可为空 |
 | `email_send_rate_limit` | 邮件发送全局限速 bucket | 无用户字段 |
+| `people_session` | People 登录会话与 Link token 缓存 | `uid` 保存 Link 用户 ID |
 | `user_oauth_account` | People 私有第三方 OAuth token 绑定 | `fk_user_id` 保存 Link 用户 ID |
 | `interview_schedule` | 非笔试流程面试日程和飞书会议记录 | `fk_organizer_id` 保存 Link 用户 ID |
+| `interview_schedule_cancellation_outbox` | 飞书日程取消通知的重试 outbox | 无用户字段 |
 | `interview_slot_change_request` | 面试时间/时段变更申请与审批 | `fk_requested_by` / `fk_reviewed_by` 保存 Link 用户 ID |
 | `interview_checkin` | 办公类部门面试现场签到与叫号 | `fk_user_flow_id` 关联报名；`checked_in_by` 保存办理签到的部长 Link 用户 ID |
 | `interview_station` | 办公类面试的面试位（部门并行面试工位） | `fk_interviewer_id` 保存坐该位的部长 Link 用户 ID（可空） |
 | `operation_audit` | 管理操作审计 | `actor_id` 保存 Link 用户 ID |
+| `feedback_report` | 用户问题反馈上报与处理 | `fk_user_id` 保存提交人 Link 用户 ID（可空，允许未登录提交）；`resolved_by` 保存处理人 Link 用户 ID |
 
 ## 4. 流程表
 
@@ -72,6 +77,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `created_at` | `timestamp` | 创建时间 |
 | `started_at` | `timestamp` | 开始时间 |
 | `ended_at` | `timestamp` | 结束时间（NULL = 未结束） |
+| `registration_closed_at` | `timestamp` | 报名截止时间（迁移 0072）：办公类「确认一面」后写入，此后拒收新报名（NULL = 未截止） |
 | `updated_at` | `timestamp` | 更新时间 |
 | `is_deleted` | `boolean` | 软删除标记 |
 
@@ -97,7 +103,12 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 
 ### `user_flow`
 
-用户报名和流程状态表。`(fk_flow_id, fk_user_id)` 组合唯一（按投递组别拆分的部分唯一索引），一人对同一流程只能有一条报名记录。
+用户报名和流程状态表。唯一性由两条部分唯一索引表达，而非单一组合唯一：
+
+- `uq_user_flow_flow_user_no_group` on `(fk_flow_id, fk_user_id)` where `apply_group IS NULL`：无组别流程（笔试/办公类等）一人对同一流程只有一条报名记录。
+- `uq_user_flow_flow_user_group` on `(fk_flow_id, fk_user_id, apply_group)` where `apply_group IS NOT NULL`：面试流程按组别独立投递，同一技术部门流程同人可报多个组别。
+
+因此技术部门同人多组别、办公类同人多部门（每个办公部门一条独立流程）的报名均可并存。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -109,6 +120,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `interview_slot` | `varchar(100)` | 办公类部门面试选择的时段（`flow.slot_options` 的 label，含「时间冲突」选项）；改时段由部长在面试管理页直接修改 |
 | `choice` | `smallint` | 办公类部门面试志愿类型：1=第一志愿、2=第二志愿 |
 | `final_department` | `varchar(64)` | 部长团评议的最终去向部门（Link 部门标识）；为空时按「第一志愿优先」自动归属 |
+| `final_department_decided_at` | `timestamp` | 部长团评议时刻（迁移 0071）：决策之后新创建的流程产生通过记录时，评议值不再生效，按「最后一次通过」重新裁决 |
 | `department` | `varchar(64)` | 报名记录归属部门（Link 部门标识）：报名时按组别映射 → 流程归属解析后固化 |
 | `withdraw_reason` | `text` | 退回面试时填写的理由 |
 | `portfolio_link` | `text` | 作品集或报名补充链接（仅技术部门面试流程） |
@@ -119,9 +131,33 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `updated_at` | `timestamp` | 最后更新时间 |
 
 > 报名无需审核，报名后直接进入流程。典型生命周期：
-> `not_started` → `ongoing` → `passed` / `failed`
+> `not_started` → `ongoing` → `passed` / `failed`，候选人主动退出时记为 `withdrawn`。
 >
-> 办公类部门面试改为**每个办公部门一条独立流程**（`flow.department` = 部门）：候选人在两个部门流程分别报名并选择志愿类型（`choice`），进行中的办公类报名最多两条、且一志愿/二志愿各最多一条；互斥规则已取消。
+> 办公类部门面试改为**每个办公部门一条独立流程**（`flow.department` = 部门）：候选人在两个部门流程分别报名并选择志愿类型（`choice`，1=第一志愿、2=第二志愿）。同一候选人进行中（`not_started` / `ongoing`）的办公类报名最多两条，且必须一条第一志愿、一条第二志愿，同类型志愿不可重复（`action/user-flow/register.ts:174-200`）。`flow.registration_closed_at` 写入后该流程拒收新报名（迁移 0072，`action/user-flow/register.ts:230`）。
+
+## 5. 结果发布表
+
+### `flow_result_publication`
+
+流程结果发布记录表。每个流程一行（`fk_flow_id` 唯一），保存结果通知的发布状态与发布时的结果/模板快照，用于结果邮件的幂等与审计。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 发布记录 ID |
+| `fk_flow_id` | `integer` | 关联 `flow.id`（RESTRICT）；唯一，一个流程一条 |
+| `status` | `varchar(32)` | 发布状态，默认 `publishing` |
+| `version` | `integer` | 发布版本号，默认 1 |
+| `result_snapshot` | `jsonb` | 发布时的结果快照 |
+| `template_snapshot` | `jsonb` | 发布时的模板快照 |
+| `confirmed_by` | `integer` | 确认发布的 Link 用户 ID（可空） |
+| `confirmed_at` | `timestamp` | 确认时间（可空） |
+| `published_at` | `timestamp` | 发布时间（可空） |
+| `created_at` | `timestamp` | 创建时间 |
+| `updated_at` | `timestamp` | 更新时间 |
+
+索引：
+
+- `flow_result_publication_status_idx` on `status`
 
 ## 6. 笔试评分表
 
@@ -148,6 +184,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `fk_user_flow_id` | `integer` | 关联 `user_flow.id`（CASCADE） |
 | `fk_problem_id` | `integer` | 关联 `problem.id`（CASCADE） |
 | `points` | `integer` | 得分 |
+| `note` | `text` | 讲师对该题的批卷备注（迁移 0057） |
 | `fk_judger_id` | `integer` | 阅卷人 Link 用户 ID（题目归属，见下） |
 | `created_at` | `timestamp` | 评分时间 |
 
@@ -159,20 +196,32 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 
 ### `interview_evaluation`
 
-面评记录和管理员终审表。讲师初审通过后提交面评（status=`submitted`）；管理员可退回重写（→ `returned`）或统一终审（→ `approved` / `rejected`）。候选人通过 `fk_user_flow_id` → `user_flow.fk_user_id` 获取，`fk_user_id` 为面评撰写人。
+面评记录表。候选人通过 `fk_user_flow_id` → `user_flow.fk_user_id` 获取，`fk_user_id` 为面评撰写人。
+
+**技术部门面试（笔试/免试/WOC/SOC）**走管理员终审：讲师提交面评（status=`submitted`），管理员可退回重写（→ `returned`）或终审（→ `approved` / `rejected`），并推送飞书审批卡片。
+
+**办公类部门面试不走审批**：提交即留档（`action/user-flow/evaluation.ts:637-639`），既不推审批飞书卡片，也不进入面评审批列表（列表按流程类型排除办公类，`action/user-flow/evaluation.ts:974`）。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `serial` | 面评记录 ID |
 | `fk_user_flow_id` | `integer` | 关联 `user_flow.id`（CASCADE） |
-| `fk_user_id` | `integer` | 面评撰写人 Link 用户 ID |
 | `content` | `text` | 面评内容 |
+| `score` | `integer` | 面试打分（0-100，可空）：一面由面试部长单人打分，二面无领导小组由多位部长分别打分 |
+| `round` | `smallint` | 面试轮次：1=一面，2=二面（办公类流程使用，其他流程为 NULL） |
 | `meeting_link` | `text` | 面试结束后的妙记链接或复盘记录链接 |
-| `status` | `evaluation_status_enum` | 终审状态，默认 `submitted` |
-| `return_reason` | `text` nullable | 管理员退回重写时填写的理由 |
+| `recommendation` | `evaluation_recommendation_enum` | 讲师建议（`passed` / `failed`，可空）；不等同于管理员最终决定 |
+| `status` | `evaluation_status_enum` | 状态，默认 `submitted` |
+| `return_reason` | `text` | 管理员退回重写时填写的理由 |
 | `fk_reviewed_by` | `integer` | 审批人 Link 用户 ID |
+| `fk_user_id` | `integer` | 面评撰写人 Link 用户 ID |
+| `feishu_approval_message_id` | `varchar(255)` | 飞书审批卡片消息 ID |
 | `created_at` | `timestamp` | 创建时间 |
 | `updated_at` | `timestamp` | 更新时间 |
+
+索引：
+
+- `interview_evaluation_user_flow_status_idx` on `fk_user_flow_id, status`
 
 > 删除 `user_flow` 时级联删除面评记录。
 
@@ -187,20 +236,25 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `fk_evaluation_id` | `integer` | 关联 `interview_evaluation.id`（SET NULL） |
 | `fk_organizer_id` | `integer` | 日程发起讲师 Link 用户 ID |
 | `provider` | `varchar(32)` | 日程服务商，默认 `feishu` |
+| `provider_calendar_id` | `varchar(255)` | 飞书 Calendar ID，默认 `primary` |
 | `provider_event_id` | `varchar(255)` | 飞书 Calendar event ID |
 | `provider_reserve_id` | `varchar(255)` | 飞书 VC reserve ID |
 | `provider_meeting_no` | `varchar(255)` | 飞书会议号 |
+| `provider_meeting_id` | `varchar(255)` | 飞书会议 ID |
 | `meeting_link` | `text` | 飞书会议链接，必须展示给讲师和面试同学 |
 | `schedule_link` | `text` | 飞书日程详情链接，用于区分日程入口和会议入口 |
 | `meeting_minute_link` | `text` | 飞书妙记/日程妙记链接，由飞书事件回调自动同步 |
 | `summary` | `varchar(255)` | 日程标题 |
 | `description` | `text` | 日程描述 |
 | `location` | `varchar(255)` | 线下面试地点或补充地点说明 |
+| `meeting_room_id` | `varchar(255)` | 飞书会议室 ID（可空） |
 | `attendee_email` | `varchar(254)` | 候选人邮箱 |
 | `starts_at` | `timestamp` | 开始时间 |
 | `ends_at` | `timestamp` | 结束时间 |
 | `timezone` | `varchar(64)` | 时区，默认 `Asia/Shanghai` |
 | `status` | `interview_schedule_status_enum` | 状态，默认 `created` |
+| `meeting_status` | `varchar(32)` | 会议状态，默认 `scheduled` |
+| `meeting_ended_at` | `timestamp` | 会议结束时刻（可空） |
 | `created_at` | `timestamp` | 创建时间 |
 | `updated_at` | `timestamp` | 更新时间 |
 
@@ -208,7 +262,29 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 
 - `interview_schedule_user_flow_idx` on `fk_user_flow_id`
 - `interview_schedule_organizer_idx` on `fk_organizer_id`
+- `interview_schedule_active_user_flow_uidx` unique on `fk_user_flow_id` where `status = 'created'`（同一报名最多一条生效日程）
 - `interview_schedule_provider_event_uidx` unique on `provider, provider_event_id`
+
+### `interview_schedule_cancellation_outbox`
+
+飞书日程取消通知的重试 outbox。写日程取消时先入队一条记录，由后台任务按 `next_attempt_at` 领取推送（`FOR UPDATE SKIP LOCKED` 并发安全），失败按次数重试，成功后写 `published_at` 出队。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 记录 ID |
+| `fk_interview_schedule_id` | `integer` | 关联 `interview_schedule.id`（CASCADE）；唯一，一条日程一条 |
+| `attempt_count` | `integer` | 已尝试次数，默认 0 |
+| `next_attempt_at` | `timestamp` | 下次可尝试时间，默认创建时刻 |
+| `locked_until` | `timestamp` | 领取锁到期时间（可空） |
+| `last_attempt_at` | `timestamp` | 最近一次尝试时间（可空） |
+| `last_error` | `text` | 最近一次失败信息 |
+| `published_at` | `timestamp` | 成功发布时间（可空；非空表示已出队） |
+| `created_at` / `updated_at` | `timestamp` | 创建 / 更新时间 |
+
+索引与约束：
+
+- `interview_schedule_cancellation_outbox_schedule_uidx` unique on `fk_interview_schedule_id`
+- `interview_schedule_cancellation_outbox_pending_idx` on `next_attempt_at` where `published_at IS NULL`
 
 ### `interview_slot_change_request`
 
@@ -290,13 +366,20 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 
 ### `email_template_setting`
 
-结果邮件模板配置表。
+结果邮件模板配置表。模板按「模板 key + 部门」维度覆盖：`department IS NULL` = 全局默认（仅管理员可写），`department = <Link 部门标识>` = 该部门覆盖，渲染时部门覆盖优先于全局默认（`lib/email-center/template-access.ts`）。办公类部门面试的 `office_round1.*` / `office_round2.*` 模板同样按流程归属部门存部门覆盖行。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `serial` | 配置 ID |
-| `template_key` | `varchar(80)` | 模板 key，唯一 |
+| `template_key` | `varchar(80)` | 模板 key |
+| `department` | `varchar(64)` | 覆盖归属部门（Link 部门标识）；`NULL` = 全局默认（迁移 0061） |
 | `subject_template` | `varchar(255)` | 主题模板 |
+| `title_template` | `varchar(255)` | 邮件正文主标题模板，默认空串 |
+| `subtitle_template` | `varchar(255)` | 邮件副标题模板，默认空串 |
+| `result_badge_template` | `varchar(100)` | 结果徽标文案模板，默认空串 |
+| `result_title_template` | `varchar(255)` | 结果标题模板，默认空串 |
+| `result_summary_template` | `varchar(255)` | 结果摘要模板，默认空串 |
+| `body_template` | `text` | 邮件正文模板，默认空串 |
 | `member_info_form_url` | `text` | 成员信息登记表链接 |
 | `feishu_group_url` | `text` | 飞书群链接 |
 | `calendar_url` | `text` | 日历链接 |
@@ -304,21 +387,33 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `contact_email` | `varchar(254)` | 联系邮箱 |
 | `member_form_label` | `varchar(100)` | 登记表展示名称 |
 | `feishu_group_name` | `varchar(100)` | 飞书群展示名称 |
+| `group_number` | `varchar(64)` | QQ 群号：办公类部门面试通知里使用（`{groupNumber}` 变量），逐轮/逐部门维护，默认空串 |
 | `updated_at` | `timestamp` | 更新时间 |
+
+索引与约束：
+
+- `email_template_setting_key_department_uidx` unique on `template_key, coalesce(department, '')`（迁移 0061）：唯一键为「模板 key + 部门」，`department IS NULL` 视作全局默认参与唯一性。
+- `email_template_setting_department_idx` on `department`
 
 ### `email_template_content`
 
-通用邮件文案模板配置表。当前用于面试预约、改约和取消通知，不承载通过/不通过结果邮件语义。
+通用邮件文案模板配置表。当前用于面试预约、改约和取消通知，不承载通过/不通过结果邮件语义。与 `email_template_setting` 一样按「模板 key + 部门」覆盖（`department` 语义一致，迁移 0061）。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `serial` | 模板配置 ID |
 | `template_key` | `varchar(80)` | 模板 key，当前支持 `interview.schedule.created`、`interview.schedule.rescheduled`、`interview.schedule.cancelled`、`interview.schedule.change.rejected`；历史 `interview.schedule` 仅作为创建通知 fallback |
+| `department` | `varchar(64)` | 覆盖归属部门（Link 部门标识）；`NULL` = 全局默认（迁移 0061） |
 | `subject_template` | `varchar(255)` | 邮件标题模板 |
 | `title_template` | `varchar(255)` | 邮件正文主标题模板 |
 | `body_template` | `text` | 邮件正文说明模板 |
 | `footer_text` | `varchar(255)` | 邮件落款 |
 | `updated_at` | `timestamp` | 更新时间 |
+
+索引与约束：
+
+- `email_template_content_key_department_uidx` unique on `template_key, coalesce(department, '')`（迁移 0061）
+- `email_template_content_department_idx` on `department`
 
 ### `email_batch`
 
@@ -411,7 +506,33 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `count` | `integer` | 当前窗口已领取发送数 |
 | `updated_at` | `timestamp` | 更新时间 |
 
-## 9. OAuth 与审计表
+## 9. 会话、OAuth 与审计表
+
+### `people_session`
+
+People 登录会话表。以 session ID 为主键（非自增），保存会话主体（Link 用户 ID、姓名、角色、部门）与 Link 的 access/refresh token 缓存；部门由 Link 回源同步，`department_synced_at` 记录最近同步时刻。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `varchar(64)` | 会话 ID（主键） |
+| `uid` | `integer` | Link 用户 ID |
+| `name` | `varchar(30)` | 用户姓名 |
+| `role` | `integer` | 角色 |
+| `department` | `varchar(64)` | 当前用户所属部门（Link 部门标识，可空），授权判定依据 |
+| `department_synced_at` | `timestamp` | 上次从 Link 回源同步部门的时刻（可空） |
+| `expires_at` | `timestamp` | 会话过期时间 |
+| `link_access_token` | `text` | 加密后的 Link access token（可空） |
+| `link_refresh_token` | `text` | 加密后的 Link refresh token（可空） |
+| `link_access_token_expires_at` | `timestamp` | Link access token 过期时间（可空） |
+| `link_admin_access_token` | `text` | 加密后的 Link 管理员 access token（可空） |
+| `link_admin_refresh_token` | `text` | 加密后的 Link 管理员 refresh token（可空） |
+| `link_admin_access_token_expires_at` | `timestamp` | Link 管理员 access token 过期时间（可空） |
+| `created_at` / `updated_at` | `timestamp` | 创建 / 更新时间 |
+
+索引：
+
+- `people_session_expires_at_idx` on `expires_at`
+- `people_session_uid_idx` on `uid`
 
 ### `user_oauth_account`
 
@@ -444,9 +565,12 @@ People 私有 OAuth token 绑定表。当前用于保存讲师飞书 `user_acces
 | --- | --- | --- |
 | `id` | `serial` | 审计记录 ID |
 | `actor_id` | `integer` | 操作者 Link 用户 ID |
+| `actor_role` | `integer` | 操作时的角色（可空，兼容历史记录） |
+| `actor_type` | `varchar(32)` | 操作者类型，默认 `user` |
 | `action` | `varchar(80)` | 操作名称 |
 | `resource_type` | `varchar(80)` | 资源类型 |
 | `resource_id` | `integer` | 资源 ID |
+| `department` | `varchar(64)` | 目标资源归属部门（Link 部门标识，可空），用于部门维度审计可见性 |
 | `metadata` | `jsonb` | 附加信息 |
 | `created_at` | `timestamp` | 创建时间 |
 
@@ -455,6 +579,42 @@ People 私有 OAuth token 绑定表。当前用于保存讲师飞书 `user_acces
 - `operation_audit_actor_id_idx` on `actor_id`
 - `operation_audit_resource_idx` on `resource_type, resource_id`
 - `operation_audit_created_at_idx` on `created_at`
+- `operation_audit_department_idx` on `department, created_at`
+
+### `feedback_report`
+
+用户问题反馈上报表。前端提交问题（含页面地址、环境、设备、UA、IP 等上下文）后落库，管理员在反馈后台按状态处理。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 反馈 ID |
+| `fk_user_id` | `integer` | 提交人 Link 用户 ID（可空，允许未登录提交） |
+| `user_name` | `varchar(80)` | 提交人姓名快照（可空） |
+| `student_id` | `varchar(64)` | 学号（可空） |
+| `category` | `varchar(32)` | 问题分类 |
+| `title` | `varchar(160)` | 标题 |
+| `description` | `text` | 问题描述 |
+| `contact` | `varchar(160)` | 联系方式（可空） |
+| `page_url` | `text` | 出问题的页面地址（可空） |
+| `environment` | `varchar(64)` | 环境标识（可空） |
+| `device_name` | `varchar(160)` | 设备名称（可空） |
+| `browser_info` | `text` | 浏览器信息（可空） |
+| `viewport` | `varchar(64)` | 视口尺寸（可空） |
+| `user_agent` | `text` | User-Agent（可空） |
+| `referer` | `text` | 来源页（可空） |
+| `ip_address` | `varchar(64)` | 提交 IP（可空） |
+| `status` | `varchar(20)` | 处理状态，默认 `pending`（`pending` / `in_progress` / `resolved`） |
+| `resolution_note` | `text` | 处理备注（可空） |
+| `resolved_by` | `integer` | 处理人 Link 用户 ID（可空） |
+| `resolved_at` | `timestamp` | 处理时间（可空） |
+| `department` | `varchar(64)` | 提交人所属部门（Link 部门标识，可空） |
+| `created_at` | `timestamp` | 创建时间 |
+
+索引：
+
+- `feedback_report_user_id_idx` on `fk_user_id`
+- `feedback_report_created_at_idx` on `created_at`
+- `feedback_report_department_idx` on `department`
 
 ## 10. 外键删除策略
 
@@ -467,13 +627,14 @@ flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
   ├──CASCADE──► flow_step ──CASCADE──► problem    │
   │                │                              │
   │                └──SET NULL──► user_flow.fk_current_step_id
+  ├──RESTRICT──► flow_result_publication          │
   ├──CASCADE──► interview_station                 │
   │                                               │
   └──CASCADE──► user_flow ◄──SET NULL─────────────┘
                    │
                    ├──CASCADE──► user_point
                    ├──CASCADE──► interview_evaluation
-                   ├──CASCADE──► interview_schedule
+                   ├──CASCADE──► interview_schedule ──CASCADE──► interview_schedule_cancellation_outbox
                    ├──CASCADE──► interview_checkin
                    │
                    └── 业务表 user ID 字段无 DB 级 FK（用户数据在 Link）
@@ -482,12 +643,14 @@ flow ──RESTRICT──► email_batch ──CASCADE──► email_delivery
 | 关系 | 策略 | 理由 |
 |------|------|------|
 | `flow` → `email_batch` | RESTRICT | 防止误删有邮件记录的流程 |
+| `flow` → `flow_result_publication` | RESTRICT | 防止误删已有结果发布记录的流程 |
 | `email_batch` → `email_delivery` | CASCADE | 删除批次时级联清理所有发送记录 |
 | `flow` → `email_delivery` | RESTRICT | 单封面试/测试邮件可直接关联流程，保留审计 |
 | `email_delivery` → `user_flow` | SET NULL | 删除报名记录时保留审计，解除关联 |
 | 其他业务表 → 父表 | CASCADE | 父记录删除时级联清理子数据 |
 | `user_flow.fk_current_step_id` → `flow_step` | SET NULL | step 被物理删除后不阻断用户流程 |
 | `interview_schedule.fk_evaluation_id` → `interview_evaluation` | SET NULL | 删除或重建面评时保留已创建日程记录 |
+| `interview_schedule` → `interview_schedule_cancellation_outbox` | CASCADE | 删除日程时级联清理取消重试 outbox |
 | `interview_checkin.fk_station_id` → `interview_station` | SET NULL | 删除面试位时保留签到留档，只解除「在几号位面的」 |
 
 ## 11. v3 用户 ID 迁移口径
