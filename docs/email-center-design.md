@@ -80,17 +80,36 @@
 
 第一阶段必须覆盖以下邮件：
 
+`category` 只有 `result` / `interview` / `test` 三种（`lib/email-center/types.ts:5`）；注册表里只登记 `result` 与 `interview` 两类模板（`EmailTemplateDefinition.category` 为 `Exclude<EmailCategory, "test">`，`lib/email-center/types.ts:45`），测试发送不单独注册模板。
+
+结果通知按「流程类型」拆成 5 个模板族，每族各有一条 accepted / rejected（`lib/email-center/types.ts:7-20`、`lib/email-center/registry.ts:8-227`）：
+
 | category | templateKey | 触发场景 | 发送方式 |
 | --- | --- | --- | --- |
 | `result` | `recruitment.result.accepted` | 笔试招新通过结果通知 | 批量 |
 | `result` | `recruitment.result.rejected` | 笔试招新不通过结果通知 | 批量 |
+| `result` | `recruitment_exemption.result.accepted` | 免试（面试）招新通过结果通知 | 批量 |
+| `result` | `recruitment_exemption.result.rejected` | 免试（面试）招新不通过结果通知 | 批量 |
+| `result` | `woc.result.accepted` | WOC/WOD 阶段考核通过结果通知 | 批量 |
+| `result` | `woc.result.rejected` | WOC/WOD 阶段考核不通过结果通知 | 批量 |
+| `result` | `soc.result.accepted` | SOC/SOD 暑期考核通过、留任通知 | 批量 |
+| `result` | `soc.result.rejected` | SOC/SOD 暑期考核不通过通知 | 批量 |
+| `result` | `office_round1.result.accepted` | 办公类部门一面通过通知（含二面群号） | 批量 |
+| `result` | `office_round1.result.rejected` | 办公类部门一面不通过通知 | 批量 |
+| `result` | `office_round2.result.accepted` | 办公类部门二面通过通知（含部门群号） | 批量 |
+| `result` | `office_round2.result.rejected` | 办公类部门二面不通过通知 | 批量 |
 | `interview` | `interview.schedule.created` | 面试预约创建 | 单封 |
 | `interview` | `interview.schedule.rescheduled` | 面试改约 | 单封 |
 | `interview` | `interview.schedule.cancelled` | 面试取消 | 单封 |
 | `interview` | `interview.schedule.change.rejected` | 面试暂不改期说明（含说明） | 单封 |
-| `test` | 任意模板 + `.test` 标记 | 管理员测试发送 | 单封 |
+| `interview` | `interview.application.withdrawn` | 面试报名被退回（含退回理由） | 单封 |
+| `test` | 任意模板 + `.test` 后缀 | 管理员测试发送 | 单封 |
 
-面试预约、改约与取消已分别使用 `interview.schedule.created`、`interview.schedule.rescheduled` 和 `interview.schedule.cancelled` 三个模板 key；改约申请暂不调整时另用 `interview.schedule.change.rejected`（变量含说明）。这些状态可以共享 React Email 组件，但模板注册层保留独立条目，以便预览、测试和管理文案。
+说明：
+
+- 结果模板 key 由「流程类型 + 轮次 + 通过与否」推导：`getResultEmailTemplateKey(flowKind, accept, round)`（`lib/email/result-email.tsx:40`），`office_interview` 类型按 `round` 取 `office_round1` / `office_round2`。
+- 面试预约、改约与取消分别使用 `interview.schedule.created`、`interview.schedule.rescheduled`、`interview.schedule.cancelled`；改约申请暂不调整时用 `interview.schedule.change.rejected`，报名退回用 `interview.application.withdrawn`（`lib/email-center/registry.ts` 中各有独立条目，预览、测试与文案管理互不影响）。
+- 测试发送不注册独立模板：走 `createRenderedTestEmailDelivery`（`lib/email-center/delivery.ts:169`），以 `category = "test"`、`templateKey = 原模板键 + ".test"` 落 `email_delivery`（`lib/email-center/delivery.ts:176-177`），示例变量由 `createTestRenderRequest` 构造（`lib/email-center/test-render.ts:29`）。
 
 ## 5. UI 信息架构
 
@@ -154,14 +173,14 @@ UI：
 - 重试失败
 - 恢复中断
 
-状态：
+状态（`email_batch.status` 枚举 `draft` / `queued` / `completed` / `failed`，`db/schema.ts:107-112`）：
 
 - `draft`：已创建任务但未发送
-- `queued`：已入队
-- `sending`：投递中
-- `completed`：全部成功
-- `failed`：存在失败
-- `partial`：部分成功、部分失败，当前可以由统计计算，不一定要做数据库枚举
+- `queued`：已入队，仍有投递未完成
+- `completed`：批次内全部投递成功
+- `failed`：批次内存在失败（含已判定 `dead`）的投递
+
+没有 `sending`、`partial`：批次状态由投递统计派生，`refreshEmailBatchStatus` 按「有 failed/dead → `failed`，全部 sent → `completed`，否则 → `queued`」回写 `email_batch.status`（`lib/email-center/delivery.ts:443-465`）；单封投递自身的状态枚举才是 `pending` / `sending` / `sent` / `failed` / `dead`（`db/schema.ts:114-120`）。
 
 ### 5.3 发送记录
 
@@ -303,32 +322,29 @@ UI：
 | `fk_email_batch_id` | integer nullable | 单封业务邮件可以为空或挂到自动批次 |
 | `fk_flow_id` | integer nullable | 关联流程 |
 | `fk_user_flow_id` | integer nullable | 已有，继续使用 |
-| `fk_user_id` | integer nullable | 当前非空，后续测试邮件可能为空 |
+| `fk_user_id` | integer nullable | 收件人 Link 用户 ID，可空 |
 | `related_schedule_id` | integer nullable | 面试预约 ID |
 | `created_by` | integer nullable | 触发人 |
 | `metadata` | jsonb | 变量、业务上下文、测试标记 |
 
-需要注意：当前 `fkUserId` 是 not null。测试邮件或外部联系人不一定有 Link 用户 ID。第一阶段可以继续给测试邮件使用当前登录用户 ID；长期应改为 nullable。
+需要注意：`fkUserId` 曾经是 not null，现已改为可空（`db/schema.ts:366`，迁移 `migrations/0023_email_delivery_flow_nullable_user.sql`）。测试邮件、外部联系人或已解绑 Link 账号的收件人可以不携带 Link 用户 ID；创建投递时缺省写 `null`。
 
 ## 7. 模板注册设计
 
-新增模板注册表或静态 registry：
+模板注册表是 `lib/email-center/registry.ts` 中的静态数组 `emailTemplateDefinitions`（`lib/email-center/registry.ts:8-227`），定义类型为 `EmailTemplateDefinition`（`lib/email-center/types.ts:43-50`）：
 
 ```ts
 export type EmailTemplateDefinition = {
-  key: string;
-  category: "result" | "interview" | "test";
+  key: EmailTemplateKey;
+  category: Exclude<EmailCategory, "test">;
   name: string;
   description: string;
-  variables: EmailVariableDefinition[];
   defaultSubject: string;
-  defaultTitle?: string;
-  defaultBody?: string;
-  render: (input: EmailRenderInput) => Promise<RenderedEmail>;
+  variables: EmailVariableDefinition[];
 };
 ```
 
-变量定义：
+变量定义（`lib/email-center/types.ts:35-41`）：
 
 ```ts
 export type EmailVariableDefinition = {
@@ -340,48 +356,60 @@ export type EmailVariableDefinition = {
 };
 ```
 
-注册示例：
+注册条目示例（`lib/email-center/registry.ts`）：
 
 ```ts
-export const emailTemplates = [
-  {
-    key: "interview.schedule.created",
-    category: "interview",
-    name: "面试预约通知",
-    variables: [
-      { key: "candidateName", label: "候选人姓名", required: true, example: "张三" },
-      { key: "flowName", label: "流程名称", required: true, example: "2026 免试招新" },
-      { key: "startsAt", label: "开始时间", required: true, example: "2026-06-06 16:00" },
-      { key: "location", label: "地点", required: false, example: "大学生活动中心 101" },
-    ],
-    render: renderInterviewScheduleEmailByTemplate,
-  },
-];
+{
+  key: "interview.schedule.created",
+  category: "interview",
+  name: "面试预约通知",
+  description: "线下面试预约创建后发送给候选人的确认邮件，不包含飞书会议入口。",
+  defaultSubject: "{flowName} 面试预约通知",
+  variables: [
+    { key: "candidateName", label: "候选人姓名", required: true, example: "张三" },
+    { key: "flowName", label: "流程名称", required: true, example: "2026 免试招新" },
+    { key: "organizerName", label: "讲师姓名", required: true, example: "李四" },
+    { key: "startsAt", label: "开始时间", required: true, example: "2026-06-06 16:00" },
+    { key: "endsAt", label: "结束时间", required: true, example: "2026-06-06 16:30" },
+    { key: "location", label: "地点", required: false, example: "仙林校区大学生活动中心 101" },
+  ],
+}
 ```
+
+注册表本身不含渲染函数：定义只提供元数据、默认主题与变量清单，取用入口是 `getEmailTemplateDefinition(templateKey)`（`lib/email-center/registry.ts:229`）；渲染分离在 `renderEmailTemplate`（`lib/email-center/render.ts:57`）——先按定义校验必填变量，再用 `switch (templateKey)` 分派到 React Email 组件（结果类 `lib/email/result-email.tsx`、面试类 `lib/email/interview-schedule.tsx`、退回类 `lib/email-center/interview-withdrawal.tsx`），返回 `RenderedEmail = { subject, html }`（`lib/email-center/types.ts:52-55`）。
 
 ## 8. 服务层 API 设计
 
-新增目录：
+实际目录（`lib/email-center/`）：
 
 ```text
 lib/email-center/
-├─ types.ts
-├─ registry.ts
-├─ render.ts
-├─ create-delivery.ts
-├─ create-batch.ts
-├─ enqueue.ts
-├─ send.ts
-├─ retry.ts
-└─ query.ts
+├─ types.ts                 模板 key、变量/模板定义、渲染请求与投递入参类型
+├─ registry.ts              emailTemplateDefinitions / getEmailTemplateDefinition
+├─ render.ts                renderEmailTemplate：校验变量并分派 React Email 组件
+├─ delivery.ts              createEmailDelivery / createRenderedEmailDelivery / createRenderedTestEmailDelivery / sendEmailDelivery / refreshEmailBatchStatus
+├─ batch.ts                 createResultEmailBatch / createOfficeRoundOneEmailBatch / sendEmailBatchById / recoverStaleEmailBatchById
+├─ retry.ts                 retryDueEmailDeliveries：扫描 nextRetryAt 到期的投递并重投
+├─ retry-policy.ts          getNextEmailRetryAt / getFailedDeliveryRetryState（指数退避与 dead 判定）
+├─ rate-limit.ts            claimEmailSendRateLimit / assertEmailSendRateLimit
+├─ provider.ts              sendEmailViaProvider / assertEmailConfigured（唯一 SMTP 出口）
+├─ provider-events.ts       parseEmailProviderEventPayload / verifyEmailWebhookSecret / applyEmailProviderEvent
+├─ template-access.ts       模板部门归属的读写范围、编辑目标解析与归属选项
+├─ template-resolution.ts   mergeResultEmailTemplateSetting / readResultEmailTemplateSetting
+├─ idempotency.ts           getResultEmailDeliveryIdempotencyKey / getResultEmailBatchIdempotencyKey
+├─ config.ts                SMTP / 重试策略 / 限流 / webhook secret / 保留期配置读取
+├─ action-input.ts          requirePositiveIntegerInput 等 action 入参校验
+├─ attempt-retention.ts     deleteOldEmailDeliveryAttempts / deleteOldEmailRateLimitBuckets
+├─ test-render.ts           createTestRenderRequest：测试发送的示例变量构造
+└─ interview-withdrawal.tsx 面试报名退回的 React Email 模板组件
 ```
 
 ### 8.1 创建单封邮件
 
 ```ts
-await createEmailDelivery({
+await createRenderedEmailDelivery({
   templateKey: "interview.schedule.created",
-  to: attendeeEmail,
+  toAddress: attendeeEmail,
   recipientUserId: candidateId,
   variables: {
     candidateName,
@@ -390,63 +418,84 @@ await createEmailDelivery({
     startsAt,
     endsAt,
     location,
-    meetingLink,
-    scheduleLink,
   },
-  related: {
-    flowId,
-    userFlowId,
-    scheduleId,
-  },
+  flowId,
+  userFlowId,
+  relatedScheduleId: scheduleId,
   createdBy: session.uid,
-  sendImmediately: true,
 });
 ```
 
-行为：
+行为（`lib/email-center/delivery.ts:141-167`）：
 
-1. 校验模板存在。
-2. 校验必填变量。
-3. 渲染 subject 和 HTML。
-4. 创建 `email_delivery`。
-5. 如果 `sendImmediately` 为 true，则入队或直接 fallback 发送。
-6. 返回 deliveryId。
+1. 解析模板归属部门：显式 `department` 优先（`null` = 全局默认模板），缺省按 `user_flow.department` → `flow.department` 逐级回退（`resolveRenderDepartment`，`lib/email-center/delivery.ts:109-135`）。
+2. 调用 `renderEmailTemplate`：校验模板存在与必填变量，渲染 subject 和 HTML（`lib/email-center/render.ts:57`）。
+3. 按 key 前缀判定 category（`interview.` → `interview`，其余 → `result`），写入 `email_delivery`。
+4. 返回 `deliveryId`。
+
+已渲染好内容、或需要挂到批次 / 显式指定幂等键时用更底层的 `createEmailDelivery`（`lib/email-center/delivery.ts:61`，入参见 `lib/email-center/delivery.ts:44-59`，可选 `sendImmediately`）；测试发送用 `createRenderedTestEmailDelivery`（`lib/email-center/delivery.ts:169`）。
 
 ### 8.2 创建批量任务
 
 ```ts
-await createEmailBatch({
-  templateKey: "recruitment.result.accepted",
-  name: "2026 免试招新 通过通知",
-  recipients,
-  variablesFor: (recipient) => ({
-    candidateName: recipient.name,
-    flowName,
-  }),
-  related: {
-    flowId,
-  },
+await createResultEmailBatch({
+  userIds,
+  userFlowIds,
+  flowId,
+  accept: true,
   createdBy: session.uid,
 });
 ```
 
-行为：
+行为（`lib/email-center/batch.ts:65`）：
 
-1. 创建 `email_batch`。
-2. 为每个收件人创建 `email_delivery`。
-3. 每封邮件保存独立 HTML 快照。
-4. 不自动发送，除非调用方指定 `sendImmediately`。
+1. 按流程类型 + 轮次 + 通过与否解析模板 key 与归属部门，创建 `email_batch`。
+2. 为每个收件人创建 `email_delivery`，每封保存独立 HTML 快照。
+3. 幂等键去重：已 `sent` / `sending` 的不重复发送，`pending` / `failed` / `dead` 保留可重试。
+4. 不自动发送；发送由 `sendEmailBatchById`（`lib/email-center/batch.ts:649`）执行，中断恢复由 `recoverStaleEmailBatchById`（`lib/email-center/batch.ts:753`）执行。
+
+办公类一面另有独立入口，见 §8.5。
 
 ### 8.3 发送与重试
 
 ```ts
-await enqueueEmailDelivery(deliveryId);
-await sendEmailDelivery(deliveryId);
-await retryEmailDelivery(deliveryId);
-await retryEmailBatch(batchId);
+await sendEmailDelivery(deliveryId, { trigger: "manual_retry", triggeredBy });
+await retryDueEmailDeliveries();
+await sendEmailBatchById(batchId);
+await recoverStaleEmailBatchById(batchId);
 ```
 
-`sendEmailDelivery` 是唯一允许调用 SMTP 的地方。
+`sendEmailDelivery`（`lib/email-center/delivery.ts:283`）是唯一允许调用 SMTP 的地方，内部经 `sendEmailViaProvider`（`lib/email-center/provider.ts:28`）。action 层入口：`retryEmailDelivery`（`action/email/delivery.ts:17`）、`sendEmailBatch` / `recoverStaleEmailBatch`（`action/email/send.ts:31,71`）、`createResultEmailBatchFromFlow` / `sendResultEmailFromFlow`（`action/email/workspace.ts:186,224`）。
+
+### 8.4 模板归属与部门权限
+
+- 模板行按 `(template_key, department)` 存储，`department IS NULL` 为全局默认（`db/schema.ts:443-473`，迁移 `migrations/0061_email_template_departments.sql`）。
+- 读写范围均由 `DepartmentScope` 决定：读过滤 `templateReadFilter`（`lib/email-center/template-access.ts:56`）、读入口校验 `canReadTemplateDepartment`（:74，管理员与部门账号可读任意部门、部门账号只读）、编辑目标解析 `resolveTemplateEditTarget`（:24）、行可编辑判定 `canEditTemplateRow`（:93）、归属下拉选项合并 `mergeTemplateDepartmentOptions`（:89，Link 部门目录 ∪ 库中已有覆盖）。
+- 渲染取模板 `pickTemplateSettingRow`：部门覆盖优先，其次全局默认（`lib/email-center/template-access.ts:104`）；结果邮件的落库设置由 `readResultEmailTemplateSetting` 解析（`lib/email-center/template-resolution.ts:62`）。
+
+### 8.5 办公类一面 / 二面独立批次
+
+- 一面用 `createOfficeRoundOneEmailBatch`（`lib/email-center/batch.ts:390`）：`accept=true` 发给「一面已通过、正在二面阶段」的候选人，`accept=false` 发给「一面未通过、停在第一阶段」的候选人；与最终结果发布解耦（一面结果不改变报名状态），单独成批、单独入队，并用 `office_round1` / `office_round1_rejected` 独立去重作用域，避免与最终结果批次互相覆盖。
+- 「未勾选不发邮件」：名单确认时未勾选「邮件」的候选人不建投递、不入队，之后重发也不会带上（`lib/email-center/batch.ts:447-456`）；调用点在 `action/user-flow/office-rounds.ts:388,394`，邮件服务不可用时只提示、名单确认仍然生效（`action/user-flow/office-rounds.ts:382-410`）。
+- 二面即最终结果：办公类流程缺省按 `round = 2`（最终结果）走 `createResultEmailBatch` / `sendEmailBatch`（`lib/email-center/batch.ts:39-40`）。
+
+### 8.6 发布面板内直接建批发送
+
+发布流程结果时，服务端直接按勾选名单建批并立即入队，不经过发送任务页手工操作：对 `passed` / `failed` 两侧分别调用 `createResultEmailBatch`（`accept: true` / `false`，透传 `flowType`、`department`、`templateSetting`），再 `Promise.all` 调 `sendEmailBatch` 入队（`action/flow/result-publication.ts:321-340`）。
+
+### 8.7 投递可靠性与补偿
+
+- 投递状态机：失败时写 `failed` 并计算 `nextRetryAt`（指数退避），尝试次数达到上限写 `dead` + `deadLetteredAt`（`getFailedDeliveryRetryState`，`lib/email-center/retry-policy.ts:22`；退避 `getNextEmailRetryAt`，`lib/email-center/retry-policy.ts:5`）；字段见 `db/schema.ts:358-359`。
+- 限流：按分钟桶计数，超限则拒绝发送（`claimEmailSendRateLimit` / `assertEmailSendRateLimit`，`lib/email-center/rate-limit.ts:27,63`），上限读 `getEmailSendRateLimitPerMinute`（`lib/email-center/config.ts:121`）。
+- provider webhook：`app/api/email/provider-events/route.ts` 先校验 secret，再 `parseEmailProviderEventPayload` + `applyEmailProviderEvent`（`lib/email-center/provider-events.ts:63,168`）；`sent` / `delivered` → `sent`，`deferred` → 按退避转 `failed`，其它 → `dead`。
+- 幂等键：投递键 `result:{flowId}:[{scope}:]{accepted|rejected}:{userFlowId}`、批次键 `result-batch:...`（`lib/email-center/idempotency.ts:15,29`），由唯一索引 `email_delivery_idempotency_key_uidx`（`db/schema.ts:377`）与 `email_batch_idempotency_key_uidx`（`db/schema.ts:340`）兜底。
+- 后台补偿任务：`queue/emailMaintenance.ts:11` 每 5 分钟跑 `retryDueEmailDeliveries` 重投到期投递；`queue/emailMaintenance.ts:30` 每日 03:00 清理过期投递尝试与限流桶。
+
+### 8.8 记录与模板的部门可见性隔离
+
+- 发送记录 / 批次按「解析后的流程部门」严格隔离：`scopedDeliveryFlowCondition` 对 `coalesce(email_delivery.fk_flow_id, email_batch.fk_flow_id)` 施加 `strictlyVisibleFlowPredicate`，未归属部门（`department IS NULL`）与已删除流程对部门账号不可见、仅管理员可见（`action/email/list.ts:52-58`、`lib/flow-access.ts:47-77`）。
+- 重试等写路径与列表可见性同口径：先解析 `coalesce(投递流程, 批次流程)` 的部门，再 `assertFlowEditable`（`action/email/delivery.ts:33,51`）。
+- 模板按行上的 `department` 判定读/写范围，见 §8.4。
 
 ## 9. 实施迁移记录
 
@@ -472,7 +521,7 @@ render(<SomeEmail />)
 createTransport(...)
 ```
 
-可以通过 lint 规则或代码 review 约束。短期可以通过 `rg "sendRawEmail|createTransport|@react-email/render"` 检查。
+该约束已由自动化测试 `lib/email-center/constraints.test.ts:71-88` 强制执行：它扫描 `action` / `app` / `components` / `lib` / `queue` 下的源码，除白名单 `lib/email-center/delivery.ts`、`lib/email-center/provider.ts`、`lib/email-center/render.ts`、`lib/email-center/interview-withdrawal.tsx`、`lib/email/result-email.tsx`、`lib/email/interview-schedule.tsx` 外，出现 `sendRawEmail(`、`createTransport(`、`@react-email/render` 即判定失败。
 
 ## 10. 权限设计
 
@@ -486,6 +535,8 @@ createTransport(...)
 | 测试发送 | 部长 role >= 3 |
 | 创建结果通知任务 | 部长 role >= 3 |
 | 重试失败邮件 | 部长 role >= 3 |
+
+邮件中心页面入口由 `app/dashboard/emails/layout.tsx:5-8` 的 `verifyRole(3)` 把关。角色之外还叠加部门 scope：发送记录 / 批次的可见性与可操作范围、模板的读/写范围都按 `DepartmentScope` 收窄（`action/email/list.ts:52-58`、`lib/email-center/template-access.ts:56,93`），管理员 `scope.kind === "all"` 不受限。
 
 讲师 role 2 不直接进入邮件中心。讲师触发面试预约时，邮件由业务 action 代为创建，但记录归邮件中心保存。
 
@@ -595,7 +646,7 @@ createTransport(...)
 
 1. 新增 `lib/email-center/types.ts` 和 `registry.ts`。
 2. 新增 `createEmailDelivery`，支持单封邮件记录。
-3. 将 `sendRawEmail` 封装为 `sendEmailDelivery`。
+3. SMTP 发送收口到 `sendEmailDelivery`，实际发信经 `sendEmailViaProvider`。
 4. 改造面试预约邮件走 `createEmailDelivery`。
 5. 扩展发送记录查询，能看到面试邮件。
 6. 将页面改名为 `邮件中心`，保留旧 UI 但增加 `发送记录` 覆盖所有邮件。

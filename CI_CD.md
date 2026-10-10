@@ -24,7 +24,7 @@ CI/CD 包含代码质量检查、测试、以及 Docker 镜像构建与部署。
 | 工作流 | 触发 |
 |--------|------|
 | `ci.yml` | Pull Request |
-| `deploy.yml` | 手动 `workflow_dispatch` |
+| `deploy.yml` | 手动 `workflow_dispatch`，且仅当 ref 为 `v3` 分支或 `v*` 标签；标签部署还要求同一 commit 已有成功的 `release.yml` 运行 |
 | `release.yml` | 推送 `v*` 标签 |
 
 手动触发 `deploy.yml` 时可填写外部生产数据库备份/快照编号作为审计标签；留空时部署会在服务器 `/data/sast-people-next/backups` 自动创建并校验一份 PostgreSQL custom-format 逻辑备份，自动生成编号。备份创建或校验失败会阻止迁移和应用切换。
@@ -46,11 +46,13 @@ CI/CD 包含代码质量检查、测试、以及 Docker 镜像构建与部署。
 | `SERVER_HOST` | 目标服务器 IP 或域名 |
 | `SERVER_USER` | SSH 用户名 |
 | `SSH_PRIVATE_KEY` | SSH 私钥 |
-| `SSH_HOST_FINGERPRINT` | 部署服务器 SSH 主机公钥的 SHA256 指纹 |
+| `TCR_USERNAME` | 腾讯云账号 ID / UIN（组织级 secret），用于登录私有 TCR |
+| `TCR_PASSWORD` | TCR 镜像仓库登录密码（组织级 secret） |
 | `NEXT_PUBLIC_SENTRY_DSN` | 构建期公开 Sentry DSN，会被 Next.js inline 到前端产物 |
-| `SENTRY_AUTH_TOKEN` | 可选；配置后 CI 构建会启用 Sentry build plugin |
+| `FEEDBACK_FEISHU_GROUP_URL` | 关于页展示的飞书群邀请链接；部署时会同步写入服务器 `.env` |
+| `SENTRY_AUTH_TOKEN` | 可选；`next.config.ts` 在 `CI=true` 且该变量存在时启用 Sentry build plugin。仓库工作流目前未把它注入构建环境，需要显式加进去才会生效 |
 
-生产运行时变量不再由 GitHub Actions 写入。它们由服务器上的 `/data/sast-people-next/.env` 管理，并通过 `docker-compose.yml` 的 `env_file` 注入容器。
+生产运行时变量不再由 GitHub Actions 写入 —— 唯一的例外是 `FEEDBACK_FEISHU_GROUP_URL`：配置了该仓库 secret 时，部署步骤会把它写入服务器 `.env`（覆盖同名旧值）。其余变量由服务器上的 `/data/sast-people-next/.env` 管理，并通过 `docker-compose.yml` 的 `env_file` 注入容器。
 
 如果只修改运行时变量，例如数据库、会话密钥、飞书密钥或邮箱密码，不需要重新构建镜像，也不需要 SCP 镜像 tar：
 
@@ -75,13 +77,15 @@ docker compose up -d --force-recreate
 
 ## 镜像版本管理
 
-每次部署生成两个标签：
-- `sast/sast-people-next:latest` — 临时标签，部署后清理
-- `sast/sast-people-next:<commit-hash>` — 永久版本标签
+每次部署推送两个标签（均为该 commit 的短 hash）：
+- `sast/sast-people-next:<commit-hash>` — 应用镜像
+- `sast/sast-people-next:<commit-hash>-migrator` — 一次性迁移镜像
 
-服务器上维护两个滚动标签：
+部署过程中还会打上服务器本地滚动标签，`docker-compose.yml` 使用 `:current`：
 - `current` — 当前运行版本
 - `backup` — 上一版本（用于快速回滚）
+
+部署成功收尾时只清理**部署服务器本地**的引用：删除本轮 `<commit-hash>` / `<commit-hash>-migrator` 的本地标签，并把本地 `sast/sast-people-next` 的历史版本标签只保留最近 3 个（`docker rmi` 逐个删除更早的），最后 `docker image prune -f`。`docker rmi` 不会删除镜像仓库里的标签，**已推送到 TCR 的 `<commit-hash>` 标签仍会保留**（需要清理仓库标签只能走 TCR 侧操作）。服务器上也没有 `latest` 标签，回滚靠本地的 `current` / `backup` 滚动标签。
 
 回滚命令：`docker tag sast/sast-people-next:backup sast/sast-people-next:current && docker compose up -d`
 

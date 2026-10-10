@@ -1,8 +1,8 @@
 "use client";
 import { MarkProblemTable } from "@/components/review/markProblemTable";
-import { useUserPointList as getUserPointList } from "@/hooks/useUserPointList";
+import { useUserPointList as getUserPointList, type LockedUserPoint } from "@/hooks/useUserPointList";
 import { useLocalFlowId } from "@/hooks/useLocalFlowId";
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { userPoint } from "@/db/schema";
 import { InferSelectModel } from "drizzle-orm";
 import { useUserFlowId } from "@/hooks/useUserFlow";
@@ -22,15 +22,19 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
   const [points, setPoints] = useState<
     Array<InferSelectModel<typeof userPoint>>
   >([]);
+  const [locks, setLocks] = useState<LockedUserPoint[]>([]);
+  const [reloadToken, setReloadToken] = useState(0);
   const [loading, setLoading] = useState(false);
   const [pointsError, setPointsError] = useState<string | null>(null);
 
   const userFlowId = userFlowData?.userFlowId ?? 0;
+  const reloadPoints = useCallback(() => setReloadToken((token) => token + 1), []);
 
   useEffect(() => {
     const fetchPoints = async () => {
       if (!userFlowId || userFlowId <= 0) {
         setPoints([]);
+        setLocks([]);
         setLoading(false);
         return;
       }
@@ -39,9 +43,11 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
       setPointsError(null);
       try {
         const data = await getUserPointList(userFlowId);
-        setPoints(data);
+        setPoints(data.points);
+        setLocks(data.locks);
       } catch (error) {
         setPoints([]);
+        setLocks([]);
         setPointsError(
           error instanceof Error ? error.message : '加载评分记录失败',
         );
@@ -51,7 +57,7 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
     };
 
     void fetchPoints();
-  }, [userFlowId]);
+  }, [userFlowId, reloadToken]);
 
   if (flowId === null) {
     return (
@@ -66,7 +72,7 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
     );
   }
 
-  if (userFlowLoading || loading) {
+  if (userFlowLoading || (loading && points.length === 0)) {
     return <Loading />;
   }
 
@@ -124,7 +130,12 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
 
   return (
     <>
-      <MarkProblemTable points={points} userFlowId={userFlowId} />
+      <MarkProblemTable
+        points={points}
+        locks={locks}
+        userFlowId={userFlowId}
+        onReloadPoints={reloadPoints}
+      />
     </>
   );
 };
