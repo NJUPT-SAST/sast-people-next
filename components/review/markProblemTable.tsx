@@ -53,6 +53,10 @@ const getResponseConflicts = (payload: unknown): number[] => {
 /** 网络半死时不让页面永久卡在「正在提交」：单题自动保存与批量提交各自超时上限 */
 const AUTOSAVE_TIMEOUT_MS = 15_000;
 const BATCH_SUBMIT_TIMEOUT_MS = 30_000;
+const AUTOSAVE_TIMEOUT_MESSAGE =
+  '保存超时，分数尚未保存；请检查网络后再改一次，或点确认评分整批重发';
+const BATCH_TIMEOUT_MESSAGE =
+  '提交超时，未确认服务端是否已保存；请重新打开该考生核对分数后再确认';
 
 export const MarkProblemTable = ({
   points,
@@ -252,8 +256,6 @@ export const MarkProblemTable = ({
           signal: controller.signal,
         })
           .then(async (response) => {
-            window.clearTimeout(autosaveTimeoutId);
-
             if (!response.ok) {
               const error = await response.json().catch(() => null);
               throw new UserPointRequestError(
@@ -291,12 +293,10 @@ export const MarkProblemTable = ({
             });
           })
           .catch((error: unknown) => {
-            window.clearTimeout(autosaveTimeoutId);
-
             if (autosaveTimedOut) {
               setScoreErrors((previous) => ({
                 ...previous,
-                [id]: '保存超时，分数尚未保存；请检查网络后再改一次，或点确认评分整批重发',
+                [id]: AUTOSAVE_TIMEOUT_MESSAGE,
               }));
               return;
             }
@@ -317,6 +317,10 @@ export const MarkProblemTable = ({
               ...previous,
               [id]: error instanceof Error ? error.message : '评分自动保存失败',
             }));
+          })
+          /* 超时计时器留到响应体读完再清：响应头到了但 body 卡住同样要算超时 */
+          .finally(() => {
+            window.clearTimeout(autosaveTimeoutId);
           });
       }, 500);
     });
@@ -398,9 +402,8 @@ export const MarkProblemTable = ({
       controller.abort();
     }, BATCH_SUBMIT_TIMEOUT_MS);
 
-    let response: Response;
     try {
-      response = await fetch('/api/user-point', {
+      const response = await fetch('/api/user-point', {
         method: 'POST',
         body: JSON.stringify({
           action: 'batch',
@@ -408,34 +411,44 @@ export const MarkProblemTable = ({
         }),
         signal: controller.signal,
       });
-    } catch (error) {
+      const payload = await response.json().catch(() => null);
+
+      /* 响应头到了但响应体卡住也算超时（此时 abort 只会让读 body 失败，不会让 fetch 失败） */
       if (timedOut) {
+        throw new UserPointRequestError(BATCH_TIMEOUT_MESSAGE, 0, []);
+      }
+
+      if (!response.ok) {
+        const conflicts = getResponseConflicts(payload);
+
+        /* 冲突时整批回滚（没冲突的题这一批也没写），必须让讲师再点一次确认才完成 */
         throw new UserPointRequestError(
-          '提交超时，未确认服务端是否已保存；请重新打开该考生核对分数后再确认',
-          0,
+          response.status === 409 && conflicts.length > 0
+            ? `${getResponseMessage(payload, '部分题目已由其他批卷人保存')}，已转为只读；请再点一次「确认评分并返回扫码页」完成提交`
+            : getResponseMessage(payload, '批量更新失败'),
+          response.status,
+          conflicts,
+        );
+      }
+
+      /* 2xx 但响应体读不出来：服务端可能已写入，不能当作成功直接返回扫码页 */
+      if (payload === null) {
+        throw new UserPointRequestError(
+          '已提交但未能读取服务端响应，请重新打开该考生核对分数',
+          response.status,
           [],
         );
+      }
+
+      return payload;
+    } catch (error) {
+      if (timedOut && !(error instanceof UserPointRequestError)) {
+        throw new UserPointRequestError(BATCH_TIMEOUT_MESSAGE, 0, []);
       }
       throw error;
     } finally {
       window.clearTimeout(timeoutId);
     }
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => null);
-      const conflicts = getResponseConflicts(error);
-
-      /* 冲突时整批回滚（没冲突的题这一批也没写），必须让讲师再点一次确认才完成 */
-      throw new UserPointRequestError(
-        response.status === 409 && conflicts.length > 0
-          ? `${getResponseMessage(error, '部分题目已由其他批卷人保存')}，已转为只读；请再点一次「确认评分并返回扫码页」完成提交`
-          : getResponseMessage(error, '批量更新失败'),
-        response.status,
-        conflicts,
-      );
-    }
-
-    return response.json();
   };
 
   const buildValidatedPayload = () => {

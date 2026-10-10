@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { MarkProblemTable } from "./markProblemTable";
@@ -316,6 +316,91 @@ describe("MarkProblemTable", () => {
     expect(secondPayload.data.map((value: { fkProblemId: number }) => value.fkProblemId)).toEqual([
       1,
     ]);
+  });
+
+  it('times out the batch submit when the response body never finishes', async () => {
+    jest.useFakeTimers();
+    try {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        if (body.action !== 'batch') {
+          return { ok: true, status: 200, json: async () => ({ success: true }) };
+        }
+
+        const { promise, reject } = Promise.withResolvers<unknown>();
+        init.signal?.addEventListener('abort', () =>
+          reject(new DOMException('aborted', 'AbortError')),
+        );
+        return { ok: true, status: 200, json: () => promise };
+      });
+
+      render(
+        <MarkProblemTable
+          userFlowId={3}
+          locks={[]}
+          onReloadPoints={reloadPoints}
+          points={[{ fkProblemId: 1, points: 20 }] as never}
+        />,
+      );
+
+      const input = screen.getAllByRole('spinbutton')[0];
+      await user.clear(input);
+      await user.type(input, '88');
+      await user.clear(screen.getAllByRole('spinbutton')[1]);
+      await user.type(screen.getAllByRole('spinbutton')[1], '40');
+      await user.click(screen.getByRole('button', { name: /确认评分并返回扫码页/i }));
+
+      expect(mockToastPromise).toHaveBeenCalledTimes(1);
+      const request = mockToastPromise.mock.calls[0][0] as Promise<unknown>;
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(30_000);
+      });
+
+      await expect(request).rejects.toThrow('提交超时');
+      expect(push).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not treat a batch response with an unreadable body as success', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.action !== 'batch') {
+        return { ok: true, status: 200, json: async () => ({ success: true }) };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new Error('unexpected end of JSON input');
+        },
+      };
+    });
+
+    render(
+      <MarkProblemTable
+        userFlowId={3}
+        locks={[]}
+        onReloadPoints={reloadPoints}
+        points={[{ fkProblemId: 1, points: 20 }] as never}
+      />,
+    );
+
+    const input = screen.getAllByRole('spinbutton')[0];
+    await user.clear(input);
+    await user.type(input, '88');
+    await user.clear(screen.getAllByRole('spinbutton')[1]);
+    await user.type(screen.getAllByRole('spinbutton')[1], '40');
+    await user.click(screen.getByRole('button', { name: /确认评分并返回扫码页/i }));
+
+    const request = mockToastPromise.mock.calls[0][0] as Promise<unknown>;
+    await expect(request).rejects.toThrow('已提交但未能读取服务端响应');
+    expect(push).not.toHaveBeenCalled();
   });
 
   it('shows the candidate name next to the student id', async () => {
