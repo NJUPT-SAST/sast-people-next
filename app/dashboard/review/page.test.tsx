@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 
 import Review from "./page";
-import { useDepartmentFlowList } from "@/hooks/useFlowList";
+import { useReviewableFlowList } from "@/hooks/useFlowList";
 
 jest.mock("@/hooks/useFlowList", () => ({
-  useDepartmentFlowList: jest.fn(),
+  useReviewableFlowList: jest.fn(),
 }));
 jest.mock("@/components/route", () => ({
   PageHeader: ({ children }: { children: React.ReactNode }) => <header>{children}</header>,
@@ -34,7 +34,7 @@ jest.mock("@/components/review/reviewSheet", () => ({
   ReviewSheet: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-const mockUseFlowList = jest.mocked(useDepartmentFlowList);
+const mockUseFlowList = jest.mocked(useReviewableFlowList);
 
 describe("Review", () => {
   beforeEach(() => {

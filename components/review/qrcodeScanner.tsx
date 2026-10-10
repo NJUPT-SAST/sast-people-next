@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMediaDevices } from 'react-media-devices';
 import { useZxing } from 'react-zxing';
 import { Camera, Pause, QrCode, RefreshCw } from 'lucide-react';
@@ -12,16 +12,10 @@ import { useLocalFlowId } from '@/hooks/useLocalFlowId';
 import { userType } from '@/types/user';
 import { toast } from 'sonner';
 import { resolveUserFlowForReview } from './resolveUserFlow';
+import { ReviewCandidateDialog } from './reviewCandidateDialog';
 
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
 import {
   Select,
   SelectContent,
@@ -31,6 +25,7 @@ import {
 } from '../ui/select';
 
 const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
+  const router = useRouter();
   const { devices } = useMediaDevices({
     constraints: { video: true, audio: false },
   });
@@ -264,7 +259,7 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
           </div>
         )}
       </div>
-      <Dialog
+      <ReviewCandidateDialog
         open={showDialog}
         onOpenChange={(open) => {
           setShowDialog(open);
@@ -272,37 +267,17 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
             setUserInfo(undefined);
           }
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>确认学生信息</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3 text-sm">
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">学号</p>
-              <p className="font-medium">{userInfo?.studentId}</p>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">姓名</p>
-              <p className="font-medium">{userInfo?.name}</p>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">专业</p>
-              <p className="font-medium">{userInfo?.major || '未填写'}</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>
-              取消
-            </Button>
-            <Button asChild>
-              <Link href={`/dashboard/review/marking?user=${userInfo?.studentId}`}>
-                确认并开始阅卷
-              </Link>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        candidate={{
+          name: userInfo?.name,
+          studentId: userInfo?.studentId,
+          college: userInfo?.college,
+          major: userInfo?.major,
+        }}
+        onConfirm={() => {
+          setShowDialog(false);
+          router.push(`/dashboard/review/marking?user=${userInfo?.studentId}`);
+        }}
+      />
     </div>
   );
 };

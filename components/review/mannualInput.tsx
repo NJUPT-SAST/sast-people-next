@@ -6,15 +6,8 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { findUserByStuID } from './checkUser';
 import { resolveUserFlowForReview } from './resolveUserFlow';
+import { ReviewCandidateDialog } from './reviewCandidateDialog';
 import { selectProbSchema } from '@/types/problem';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 
 export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
   const [studentId, setStudentId] = useState('');
@@ -149,26 +142,20 @@ export const MannualInput = ({ activeFlowIds }: { activeFlowIds?: number[] }) =>
         </Button>
       </div>
     </div>
-    <Dialog open={showCandidateDialog} onOpenChange={setShowCandidateDialog}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>确认考生信息</DialogTitle>
-          <DialogDescription>请确认这就是要阅卷的考生，确认后将进入评分页面。</DialogDescription>
-        </DialogHeader>
-        {candidate && (
-          <div className="grid gap-2 rounded-md border bg-muted/30 p-4 text-sm">
-            <div className="flex justify-between gap-4"><span className="text-muted-foreground">姓名</span><span className="font-medium">{candidate.name}</span></div>
-            <div className="flex justify-between gap-4"><span className="text-muted-foreground">学号</span><span className="font-mono font-medium">{candidate.studentId ?? candidateStudentId}</span></div>
-            {candidate.college && <div className="flex justify-between gap-4"><span className="text-muted-foreground">学院</span><span className="text-right">{candidate.college}</span></div>}
-            {candidate.major && <div className="flex justify-between gap-4"><span className="text-muted-foreground">专业</span><span>{candidate.major}</span></div>}
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setShowCandidateDialog(false)}>取消</Button>
-          <Button onClick={() => { setShowCandidateDialog(false); router.push(`/dashboard/review/marking?user=${candidateStudentId}`); }}>确认进入阅卷</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ReviewCandidateDialog
+      open={showCandidateDialog}
+      onOpenChange={setShowCandidateDialog}
+      candidate={{
+        name: candidate?.name,
+        studentId: candidate?.studentId ?? candidateStudentId,
+        college: candidate?.college,
+        major: candidate?.major,
+      }}
+      onConfirm={() => {
+        setShowCandidateDialog(false);
+        router.push(`/dashboard/review/marking?user=${candidateStudentId}`);
+      }}
+    />
     </>
   );
 };

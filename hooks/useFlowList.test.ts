@@ -1,4 +1,6 @@
-jest.mock("@/db/drizzle", () => ({ db: { select: jest.fn() } }));
+jest.mock("@/db/drizzle", () => ({
+  db: { select: jest.fn(), selectDistinct: jest.fn() },
+}));
 jest.mock("@/lib/authz", () => ({
   getDepartmentScope: jest.fn(async () => ({ kind: "all" })),
 }));
@@ -21,9 +23,10 @@ import { visibleFlowPredicate } from "@/lib/flow-access";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { MissingLinkAdminAccessTokenError } from "@/lib/link/session";
 import { isLinkAuthorizationError } from "@/lib/link/client";
-import { useDepartmentFlowList, useFlowList } from "@/hooks/useFlowList";
+import { useDepartmentFlowList, useFlowList, useReviewableFlowList } from "@/hooks/useFlowList";
 
 const mockSelect = jest.mocked(db.select);
+const mockSelectDistinct = jest.mocked(db.selectDistinct);
 const mockListPeopleUsersByLinkIds = jest.mocked(listPeopleUsersByLinkIds);
 const mockIsLinkAuthorizationError = jest.mocked(isLinkAuthorizationError);
 const mockGetDepartmentScope = jest.mocked(getDepartmentScope);
@@ -31,6 +34,7 @@ const mockVisibleFlowPredicate = jest.mocked(visibleFlowPredicate);
 describe("useFlowList", () => {
   beforeEach(() => {
     mockSelect.mockReset();
+    mockSelectDistinct.mockReset();
     mockListPeopleUsersByLinkIds.mockReset();
     mockIsLinkAuthorizationError.mockReset();
     mockIsLinkAuthorizationError.mockReturnValue(false);
@@ -100,5 +104,53 @@ describe("useFlowList", () => {
     mockListPeopleUsersByLinkIds.mockRejectedValue(lookupError);
 
     await expect(useFlowList()).rejects.toThrow(lookupError);
+  });
+
+  it("keeps only flows that actually have problems in the reviewable list", async () => {
+    const mockOrderBy = jest.fn().mockResolvedValue([
+      { id: 7, ownerId: 42, title: "笔试流程", isDeleted: false },
+      { id: 8, ownerId: 42, title: "面试流程", isDeleted: false },
+    ]);
+    const mockWhere = jest.fn(() => ({ orderBy: mockOrderBy }));
+    const mockStepOrderBy = jest.fn().mockResolvedValue([]);
+    const mockStepWhere = jest.fn(() => ({ orderBy: mockStepOrderBy }));
+    mockSelect
+      .mockReturnValueOnce({ from: jest.fn(() => ({ where: mockWhere })) } as never)
+      .mockReturnValueOnce({ from: jest.fn(() => ({ where: mockStepWhere })) } as never);
+    mockSelectDistinct.mockReturnValue({
+      from: jest.fn(() => ({
+        innerJoin: jest.fn(() => ({
+          where: jest.fn().mockResolvedValue([{ flowId: 7 }]),
+        })),
+      })),
+    } as never);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(new Map());
+
+    await expect(useReviewableFlowList()).resolves.toEqual([
+      expect.objectContaining({ id: 7, title: "笔试流程" }),
+    ]);
+  });
+
+  it("returns no reviewable flows when the department has none", async () => {
+    const mockWhere = jest.fn(() => ({
+      orderBy: jest.fn().mockResolvedValue([
+        { id: 8, ownerId: 42, title: "面试流程", isDeleted: false },
+      ]),
+    }));
+    const mockStepOrderBy = jest.fn().mockResolvedValue([]);
+    const mockStepWhere = jest.fn(() => ({ orderBy: mockStepOrderBy }));
+    mockSelect
+      .mockReturnValueOnce({ from: jest.fn(() => ({ where: mockWhere })) } as never)
+      .mockReturnValueOnce({ from: jest.fn(() => ({ where: mockStepWhere })) } as never);
+    mockSelectDistinct.mockReturnValue({
+      from: jest.fn(() => ({
+        innerJoin: jest.fn(() => ({
+          where: jest.fn().mockResolvedValue([]),
+        })),
+      })),
+    } as never);
+    mockListPeopleUsersByLinkIds.mockResolvedValue(new Map());
+
+    await expect(useReviewableFlowList()).resolves.toEqual([]);
   });
 });

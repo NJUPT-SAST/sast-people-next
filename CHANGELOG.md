@@ -118,6 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **归属冲突时的提交提示与实际行为不符**（`components/review/markProblemTable.tsx`）：批量提交撞上他人已保存的题目时是**整批回滚**（没有冲突的题这一批也没写），原文案「部分题目已被其他批卷人保存」容易被理解成其余已保存，讲师直接离开就会漏掉这次提交。现在提示明确要求「请再点一次『确认评分并返回扫码页』完成提交」，并修正了代码注释。
 - **已退回（`withdrawn`）的报名仍能被讲师写分**（`action/user-flow/user-point/upsert.ts`）：扫码/手输入口会拦住，但直开批卷页或之前已打开的页面照样写入。现在讲师（role < 3）写 `withdrawn` 考生被拒并回显原因，分数不落库；部长及以上仍可写，作为结果被误确认后的更正通道。
 - **批卷页头部只显示学号**（`action/user-flow/find.ts`、`app/api/user-flow/route.ts`、`hooks/useUserFlow.ts`、`components/review/markProblemTable.tsx`）：现场只能凭学号认人，容易批错考生。现在头部显示「正在批改：姓名（学号）」。
+- **阅卷范围选择器会列出没有笔试题的流程**（`app/dashboard/review/page.tsx`、`hooks/useFlowList.ts`）：下拉的数据源是「本部门 + 时间窗内」的全部流程，讲师选到面试/免试/WOC/SOC 这类没有题目的流程后，勾不了题、保存不了范围，只能重选，白折腾一趟。现在新增 `useReviewableFlowList`：只保留**至少有一个未删除步骤挂题目**的流程（这些流程才参与阅卷范围的时间窗校验）。
+- **扫码与手输学号的确认弹窗不一致**（`components/review/reviewCandidateDialog.tsx`、`components/review/qrcodeScanner.tsx`、`components/review/mannualInput.tsx`）：扫码侧标题是「确认学生信息」、只列学号/姓名/专业、确认按钮是链接；手输侧标题是「确认考生信息」、多一列学院、按钮文案是「确认进入阅卷」——同一件事两套界面，现场核对容易漏看学号或学院。现在两个入口共用同一个 `ReviewCandidateDialog`：标题「确认考生信息」+ 说明，字段统一为姓名、学号（等宽字体）、学院（取不到时隐藏）、专业（取不到显示「未填写」），按钮统一为「取消」+「确认并开始阅卷」，并且都用 `router.push` 进入评分页。
 
 #### 面试 / 笔试工作台
 

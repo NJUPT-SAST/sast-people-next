@@ -8,7 +8,7 @@ import {
   SelectedRangeDisplay,
 } from "@/components/review/selectedRangeDisplay";
 import { ReviewSheet } from "@/components/review/reviewSheet";
-import { useDepartmentFlowList as getFlowList } from "@/hooks/useFlowList";
+import { useReviewableFlowList as getFlowList } from "@/hooks/useFlowList";
 
 const Review: React.FC = async () => {
   const flowList = await getFlowList();
