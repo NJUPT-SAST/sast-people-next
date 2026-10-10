@@ -624,7 +624,7 @@ export async function renderInterviewScheduleEmailPreview(...): Promise<...>;
 
 如果可以接受 SAST 共享日历作为组织者，可以使用 `tenant_access_token` 和共享日历。这样实现更简单，但组织者语义不同。
 
-当前实现采用「共享日历承载日程 + 讲师作为参与人」的方式，新建日程使用 `FEISHU_INTERVIEW_CALENDAR_ID` 指定的共享日历。
+当前实现使用讲师的 `user_access_token` 在 `FEISHU_INTERVIEW_CALENDAR_ID` 指定的共享日历创建日程，讲师是日程组织者；讲师同时作为参与人加入并自动接受，以同步个人日历。
 
 ### 12.4 当前 legacy 飞书登录
 

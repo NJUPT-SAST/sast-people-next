@@ -85,7 +85,7 @@ docker compose up -d --force-recreate
 - `current` — 当前运行版本
 - `backup` — 上一版本（用于快速回滚）
 
-部署成功收尾时会清理本轮临时标签，并把本地历史版本镜像只保留最近 3 个（`docker rmi` 逐个删除更早的），因此版本标签并不是永久保留，也不是 `latest`。
+部署成功收尾时只清理**部署服务器本地**的引用：删除本轮 `<commit-hash>` / `<commit-hash>-migrator` 的本地标签，并把本地 `sast/sast-people-next` 的历史版本标签只保留最近 3 个（`docker rmi` 逐个删除更早的），最后 `docker image prune -f`。`docker rmi` 不会删除镜像仓库里的标签，**已推送到 TCR 的 `<commit-hash>` 标签仍会保留**（需要清理仓库标签只能走 TCR 侧操作）。服务器上也没有 `latest` 标签，回滚靠本地的 `current` / `backup` 滚动标签。
 
 回滚命令：`docker tag sast/sast-people-next:backup sast/sast-people-next:current && docker compose up -d`
 
