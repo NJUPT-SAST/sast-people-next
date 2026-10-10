@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof ReviewPointConflictError) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error.message, conflicts: error.conflicts },
         { status: 409 },
       );
     }

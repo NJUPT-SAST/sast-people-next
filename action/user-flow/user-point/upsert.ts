@@ -4,6 +4,7 @@ import { verifyScopedRole, type DepartmentScope } from "@/lib/authz";
 import type { FlowScopedSession } from "@/action/flow/department-utils";
 import { assertUserFlowInScope } from "@/lib/flow-access";
 import { logServerError } from "@/lib/server-error-log";
+import { MANAGER_ROLE } from "@/lib/link/role";
 import { and, desc, eq, gte, inArray, InferInsertModel, sql } from "drizzle-orm";
 
 type PointInsertValue = InferInsertModel<typeof userPoint>;
@@ -29,6 +30,9 @@ type ScoreAuditChange = {
   nextScore: number;
   previousNote: string | null;
   nextNote: string | null;
+  /* 本题改动前后的阅卷人：覆盖他人评分时 previousJudgerId != nextJudgerId */
+  previousJudgerId: number | null;
+  nextJudgerId: number;
 };
 
 type ValidatedScoreChanges = {
@@ -96,7 +100,12 @@ async function writeAggregatedScoreAudit(
   for (const change of changes) {
     const previous = mergedByProblemId.get(change.problemId);
     mergedByProblemId.set(change.problemId, previous
-      ? { ...change, previousScore: previous.previousScore, previousNote: previous.previousNote }
+      ? {
+        ...change,
+        previousScore: previous.previousScore,
+        previousNote: previous.previousNote,
+        previousJudgerId: previous.previousJudgerId ?? null,
+      }
       : change);
   }
 
@@ -116,9 +125,12 @@ async function writeAggregatedScoreAudit(
 }
 
 export class ReviewPointConflictError extends Error {
-  constructor(message = "评分已被其他批卷人保存，请刷新后查看") {
+  readonly conflicts: number[];
+
+  constructor(message = "本题已由其他批卷人保存", conflicts: number[] = []) {
     super(message);
     this.name = "ReviewPointConflictError";
+    this.conflicts = conflicts;
   }
 }
 
@@ -176,6 +188,7 @@ async function validateScoreChanges(
   tx: Tx,
   { userFlowId, problemIds, values }: NormalizedPointValues,
   scope: DepartmentScope,
+  actorId: number,
 ): Promise<ValidatedScoreChanges> {
   await tx.execute(
     sql`select 1 from ${userFlow} where ${userFlow.id} = ${userFlowId} for update`,
@@ -218,7 +231,12 @@ async function validateScoreChanges(
       .innerJoin(flowStep, eq(problem.fkFlowStepId, flowStep.id))
       .where(inArray(problem.id, problemIds)),
       tx
-      .select({ problemId: userPoint.fkProblemId, points: userPoint.points, note: userPoint.note })
+      .select({
+        problemId: userPoint.fkProblemId,
+        points: userPoint.points,
+        note: userPoint.note,
+        judgerId: userPoint.fkJudgerId,
+      })
       .from(userPoint)
       .where(
         and(
@@ -234,7 +252,10 @@ async function validateScoreChanges(
 
   const problemById = new Map(problemRows.map((item) => [item.id, item]));
   const previousPointByProblemId = new Map(
-    existingPoints.map((item) => [item.problemId, { points: item.points, note: item.note ?? null }]),
+    existingPoints.map((item) => [
+      item.problemId,
+      { points: item.points, note: item.note ?? null, judgerId: item.judgerId ?? null },
+    ]),
   );
 
   const changes = values.map((value) => {
@@ -261,6 +282,8 @@ async function validateScoreChanges(
       nextScore: value.points,
       previousNote: previous?.note ?? null,
       nextNote,
+      previousJudgerId: previous?.judgerId ?? null,
+      nextJudgerId: actorId,
     };
   });
 
@@ -270,13 +293,17 @@ async function validateScoreChanges(
     changes: changes.filter(
       (change) =>
         change.previousScore !== change.nextScore ||
-        change.previousNote !== change.nextNote,
+        change.previousNote !== change.nextNote ||
+        change.previousJudgerId !== change.nextJudgerId,
     ),
   };
 }
 
+/** 覆盖他人已保存评分的最低角色：部长及以上；讲师只能写本人或无人占用的题 */
+export const canOverrideOthersScore = (role: number) => role >= MANAGER_ROLE;
+
 function getScoreOverwriteCondition(session: Pick<FlowScopedSession, "uid" | "role">) {
-  if (session.role >= 3) {
+  if (canOverrideOthersScore(session.role)) {
     return sql`true`;
   }
 
@@ -298,7 +325,7 @@ export const upsertPoint = async (
       { fkUserFlowId: userFlowId, fkProblemId: problemId, points: point, note },
     ]);
     const { rows } = await db.transaction(async (tx) => {
-      const validated = await validateScoreChanges(tx, normalized, actor.scope);
+      const validated = await validateScoreChanges(tx, normalized, actor.scope, actor.uid);
       const rows = await tx
         .insert(userPoint)
         .values({
@@ -330,7 +357,7 @@ export const upsertPoint = async (
     });
 
     if (rows.length === 0) {
-      throw new ReviewPointConflictError();
+      throw new ReviewPointConflictError(undefined, [problemId]);
     }
 
   } catch (error) {
@@ -359,7 +386,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
     const normalized = normalizePointValues(values);
     const actorId = actor.uid;
     await db.transaction(async (tx) => {
-      const validated = await validateScoreChanges(tx, normalized, actor.scope);
+      const validated = await validateScoreChanges(tx, normalized, actor.scope, actorId);
       const rows = await tx
         .insert(userPoint)
         .values(
@@ -380,10 +407,15 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
           },
           setWhere: getScoreOverwriteCondition(actor),
         })
-        .returning({ id: userPoint.id });
+        .returning({ problemId: userPoint.fkProblemId });
 
-      if (rows.length !== normalized.values.length) {
-        throw new ReviewPointConflictError("部分题目已被其他批卷人保存，请刷新后查看");
+      const savedProblemIds = new Set(rows.map((row) => row.problemId));
+      const conflicts = normalized.values
+        .map((value) => value.fkProblemId)
+        .filter((problemId) => !savedProblemIds.has(problemId));
+
+      if (conflicts.length > 0) {
+        throw new ReviewPointConflictError("部分题目已由其他批卷人保存", conflicts);
       }
 
       if (validated.changes.length > 0) {

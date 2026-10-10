@@ -33,11 +33,13 @@ jest.mock("sonner", () => ({
 
 describe("MarkProblemTable", () => {
   const fetchMock = jest.fn();
+  const reloadPoints = jest.fn();
 
   beforeEach(() => {
     mockToastPromise.mockClear();
     mockToastError.mockClear();
     push.mockClear();
+    reloadPoints.mockClear();
     fetchMock.mockReset();
     global.fetch = fetchMock as never;
   });
@@ -52,6 +54,8 @@ describe("MarkProblemTable", () => {
     render(
       <MarkProblemTable
         userFlowId={3}
+        locks={[]}
+        onReloadPoints={reloadPoints}
         points={[
           { fkProblemId: 1, points: 20 },
           { fkProblemId: 2, points: 10 },
@@ -97,6 +101,8 @@ describe("MarkProblemTable", () => {
     render(
       <MarkProblemTable
         userFlowId={3}
+        locks={[]}
+        onReloadPoints={reloadPoints}
         points={[{ fkProblemId: 1, points: 20 }] as never}
       />,
     );
@@ -130,6 +136,8 @@ describe("MarkProblemTable", () => {
     render(
       <MarkProblemTable
         userFlowId={3}
+        locks={[]}
+        onReloadPoints={reloadPoints}
         points={[{ fkProblemId: 1, points: 20 }] as never}
       />,
     );
@@ -147,5 +155,74 @@ describe("MarkProblemTable", () => {
     await Promise.resolve();
 
     expect(screen.getByText('算法题 的得分必须在 0 到 100 之间')).toBeInTheDocument();
+  });
+
+  it('renders problems saved by another grader as read-only and excludes them from the batch', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    render(
+      <MarkProblemTable
+        userFlowId={3}
+        locks={[{ problemId: 2, judgerId: 7, judgerName: '张三' }]}
+        onReloadPoints={reloadPoints}
+        points={[
+          { fkProblemId: 1, points: 20 },
+          { fkProblemId: 2, points: 30 },
+        ] as never}
+      />,
+    );
+
+    const [ownInput, lockedInput] = screen.getAllByRole('spinbutton');
+    expect(lockedInput).toBeDisabled();
+    expect(ownInput).toBeEnabled();
+    expect(screen.getByText(/本题已由 张三 批改保存/)).toBeInTheDocument();
+    expect(screen.getByText('1 题由他人批改')).toBeInTheDocument();
+
+    await user.clear(ownInput);
+    await user.type(ownInput, '88');
+    await user.click(screen.getByRole('button', { name: /确认评分并返回扫码页/i }));
+
+    await waitFor(() => {
+      const batchCall = fetchMock.mock.calls.find(
+        ([, init]) => JSON.parse(String((init as RequestInit).body)).action === 'batch',
+      );
+      expect(batchCall).toBeDefined();
+      const payload = JSON.parse(String((batchCall?.[1] as RequestInit).body));
+      expect(payload.data.map((value: { fkProblemId: number }) => value.fkProblemId)).toEqual([1]);
+    });
+  });
+
+  it('turns a problem read-only and reloads scores when the server rejects an autosave', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        success: false,
+        message: '本题已由其他批卷人保存',
+        conflicts: [1],
+      }),
+    });
+
+    render(
+      <MarkProblemTable
+        userFlowId={3}
+        locks={[]}
+        onReloadPoints={reloadPoints}
+        points={[{ fkProblemId: 1, points: 20 }] as never}
+      />,
+    );
+
+    const scoreInput = screen.getAllByRole('spinbutton')[0];
+    await user.clear(scoreInput);
+    await user.type(scoreInput, '88');
+
+    await waitFor(() => expect(reloadPoints).toHaveBeenCalled());
+    expect(screen.getByText(/本题已由其他批卷人批改保存/)).toBeInTheDocument();
+    expect(screen.getAllByRole('spinbutton')[0]).toBeDisabled();
   });
 });

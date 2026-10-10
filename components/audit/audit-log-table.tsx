@@ -258,6 +258,18 @@ function getScoreChanges(metadata: Record<string, unknown>) {
     : [];
 }
 
+/** 归属变更说明：只有覆盖了别人的评分才需要额外标注（本人续改、首次评分都不标注） */
+function getScoreChangeOwnerLabel(change: Record<string, unknown>) {
+  const previousJudgerId = change.previousJudgerId;
+  const previousJudgerName = change.previousJudgerName;
+
+  if (typeof previousJudgerId !== "number" || previousJudgerId === change.nextJudgerId) {
+    return null;
+  }
+
+  return `覆盖 ${typeof previousJudgerName === "string" && previousJudgerName ? previousJudgerName : `批卷人 #${previousJudgerId}`} 的评分`;
+}
+
 function getAuditSummary(item: AuditLogItem) {
   const metadata = getMetadata(item.metadata);
   const targetUserLabel = getTargetUserLabel(item);
@@ -271,7 +283,9 @@ function getAuditSummary(item: AuditLogItem) {
         ? "未评分"
         : String(change.previousScore);
     const suffix = scoreChanges.length > 1 ? ` 等 ${scoreChanges.length} 题` : "";
-    return `${targetUserLabel ?? "考生"} · ${title} ${previous} → ${String(change.nextScore)} 分${suffix}`;
+    const ownerLabel = getScoreChangeOwnerLabel(change);
+    const ownerNote = ownerLabel ? `（${ownerLabel}）` : "";
+    return `${targetUserLabel ?? "考生"} · ${title} ${previous} → ${String(change.nextScore)} 分${suffix}${ownerNote}`;
   }
 
   if (targetUserLabel) {
@@ -323,23 +337,31 @@ function MetadataDetails({ item }: { item: AuditLogItem }) {
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">评分变更</p>
           <div className="overflow-hidden rounded-md border">
-            {scoreChanges.map((change, index) => (
-              <div
-                key={`${String(change.problemId)}-${index}`}
-                className="flex items-center justify-between gap-4 border-b px-3 py-2 text-sm last:border-b-0"
-              >
-                <span className="font-medium">
-                  {String(change.problemTitle ?? `题目 #${String(change.problemId)}`)}
-                </span>
-                <span className="shrink-0 text-muted-foreground">
-                  {change.previousScore === null || change.previousScore === undefined
-                    ? "未评分"
-                    : String(change.previousScore)}
-                  {" → "}
-                  {String(change.nextScore)} 分
-                </span>
-              </div>
-            ))}
+            {scoreChanges.map((change, index) => {
+              const ownerLabel = getScoreChangeOwnerLabel(change);
+              return (
+                <div
+                  key={`${String(change.problemId)}-${index}`}
+                  className="flex items-center justify-between gap-4 border-b px-3 py-2 text-sm last:border-b-0"
+                >
+                  <span className="font-medium">
+                    {String(change.problemTitle ?? `题目 #${String(change.problemId)}`)}
+                  </span>
+                  {ownerLabel && (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {ownerLabel}
+                    </span>
+                  )}
+                  <span className="shrink-0 text-muted-foreground">
+                    {change.previousScore === null || change.previousScore === undefined
+                      ? "未评分"
+                      : String(change.previousScore)}
+                    {" → "}
+                    {String(change.nextScore)} 分
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

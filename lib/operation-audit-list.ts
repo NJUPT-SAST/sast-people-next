@@ -20,6 +20,7 @@ import { listLinkUsers } from "@/lib/link/admin";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { logServerError } from "@/lib/server-error-log";
+import type { userType } from "@/types/user";
 import {
   and,
   count,
@@ -37,6 +38,19 @@ const MAX_PAGE_SIZE = 50;
 const LINK_ACTOR_SEARCH_PAGE_SIZE = 100;
 const LINK_ACTOR_SEARCH_CONCURRENCY = 4;
 const MAX_LINK_ACTOR_SEARCH_RESULTS = 1000;
+
+/** 评分审计（review.score.upsert）里的逐题变更：用于解析阅卷人姓名 */
+const getScoreChanges = (metadata: unknown): Record<string, unknown>[] => {
+  if (typeof metadata !== "object" || metadata === null) return [];
+
+  const changes = (metadata as Record<string, unknown>).scoreChanges;
+  if (!Array.isArray(changes)) return [];
+
+  return changes.filter(
+    (change): change is Record<string, unknown> =>
+      typeof change === "object" && change !== null && !Array.isArray(change),
+  );
+};
 
 export type OperationAuditListParams = {
   page?: string | number;
@@ -436,11 +450,20 @@ export async function listOperationAudit(params: OperationAuditListParams) {
         : []),
     ];
   });
-  let peopleMap: Awaited<ReturnType<typeof listPeopleUsersByLinkIds>> = new Map();
+  const judgerIds = rawLogs.flatMap((log) =>
+    getScoreChanges(log.metadata).flatMap((change) =>
+      [change.previousJudgerId, change.nextJudgerId].filter(
+        (id): id is number => typeof id === 'number',
+      ),
+    ),
+  );
+
+  let peopleMap: Map<number, userType> = new Map();
   try {
     peopleMap = await listPeopleUsersByLinkIds([
       ...rawLogs.map((log) => log.actorId),
       ...targetUserIds,
+      ...judgerIds,
     ]);
   } catch (error) {
     logServerError("operation-audit:people-lookup", error, {
@@ -460,9 +483,31 @@ export async function listOperationAudit(params: OperationAuditListParams) {
             ? log.resourceId
             : resourceTargetUserIdByKey.get(resourceKey);
     const targetUserIds = metadata?.targetUserIds;
+    const scoreChanges = getScoreChanges(metadata);
+    /* 评分审计要能看出"谁改的、谁被覆盖"：把阅卷人 id 换算成姓名供列表展示 */
+    const enrichedMetadata = scoreChanges.length === 0
+      ? metadata
+      : {
+          ...metadata,
+          scoreChanges: scoreChanges.map((change) => {
+            const previousJudgerId = change.previousJudgerId;
+            const nextJudgerId = change.nextJudgerId;
+
+            return {
+              ...change,
+              ...(typeof previousJudgerId === 'number'
+                ? { previousJudgerName: peopleMap.get(previousJudgerId)?.name ?? null }
+                : {}),
+              ...(typeof nextJudgerId === 'number'
+                ? { nextJudgerName: peopleMap.get(nextJudgerId)?.name ?? null }
+                : {}),
+            };
+          }),
+        };
 
     return {
       ...log,
+      metadata: enrichedMetadata,
       actorName: peopleMap.get(log.actorId)?.name ?? null,
       actorStudentId: peopleMap.get(log.actorId)?.studentId ?? null,
       actorRole: log.actorRole ?? peopleMap.get(log.actorId)?.role ?? null,

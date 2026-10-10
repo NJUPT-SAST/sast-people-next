@@ -148,8 +148,10 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `fk_user_flow_id` | `integer` | 关联 `user_flow.id`（CASCADE） |
 | `fk_problem_id` | `integer` | 关联 `problem.id`（CASCADE） |
 | `points` | `integer` | 得分 |
-| `fk_judger_id` | `integer` | 阅卷人 Link 用户 ID |
+| `fk_judger_id` | `integer` | 阅卷人 Link 用户 ID（题目归属，见下） |
 | `created_at` | `timestamp` | 评分时间 |
+
+> **归属规则**：`fk_judger_id` 是「谁先保存算谁的」。讲师（role 2）只能写**本人或尚无阅卷人**的题，改动他人已保存的题会被 409 拒绝（`ReviewPointConflictError`，响应体带 `conflicts` 题目 ID）；部长及以上（role ≥ 3）可覆盖他人评分，覆盖前后阅卷人记入操作审计 `review.score.upsert` 的 `scoreChanges[].previousJudgerId` / `nextJudgerId`（读取审计时换算成姓名，列表标注「覆盖 讲师甲 的评分」）。批卷页（`/dashboard/review/marking`）据此把他人已保存的题渲染为只读，并从自动保存与批量提交中排除；保存过程中才撞上并发抢题的，前端用 409 返回的 `conflicts` 就地转只读并重新拉取对方分数。
 
 > 删除 `user_flow` 或 `problem` 时级联删除评分记录。
 

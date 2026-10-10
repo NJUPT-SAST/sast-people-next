@@ -2,11 +2,12 @@
 
 import { InferSelectModel } from 'drizzle-orm';
 import { CheckCircle2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { useLocalProblemList } from '@/hooks/useLocalProblemList';
+import type { LockedUserPoint } from '@/hooks/useUserPointList';
 import { userPoint } from '@/db/schema';
 
 import { Badge } from '../ui/badge';
@@ -16,12 +17,49 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
+/** 服务端 409（评分已被他人保存）：带出冲突题目，前端据此把题目转为只读 */
+class UserPointRequestError extends Error {
+  readonly status: number;
+  readonly conflicts: number[];
+
+  constructor(message: string, status: number, conflicts: number[]) {
+    super(message);
+    this.name = 'UserPointRequestError';
+    this.status = status;
+    this.conflicts = conflicts;
+  }
+}
+
+const getResponseMessage = (payload: unknown, fallback: string) => {
+  if (typeof payload === 'object' && payload !== null && 'message' in payload) {
+    const message = (payload as { message?: unknown }).message;
+    if (typeof message === 'string' && message) return message;
+  }
+
+  return fallback;
+};
+
+const getResponseConflicts = (payload: unknown): number[] => {
+  if (typeof payload === 'object' && payload !== null && 'conflicts' in payload) {
+    const conflicts = (payload as { conflicts?: unknown }).conflicts;
+    if (Array.isArray(conflicts)) {
+      return conflicts.filter((value): value is number => typeof value === 'number');
+    }
+  }
+
+  return [];
+};
+
 export const MarkProblemTable = ({
   points,
+  locks,
   userFlowId,
+  onReloadPoints,
 }: {
   points: Array<InferSelectModel<typeof userPoint>>;
+  locks: LockedUserPoint[];
   userFlowId: number;
+  onReloadPoints: () => void;
 }) => {
   const router = useRouter();
   const studentId = useSearchParams().get('user');
@@ -41,8 +79,47 @@ export const MarkProblemTable = ({
   );
   const [scoreErrors, setScoreErrors] = useState<Record<number, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /* 保存时才发现被他人占用的题（服务端 409）：本地转入只读，等待重新拉取到对方分数 */
+  const [runtimeLockedIds, setRuntimeLockedIds] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
   const saveSequenceByProblemId = useRef(new Map<number, number>());
   const problems = useLocalProblemList();
+
+  /* problemId → 占用者姓名（null 表示占用者未知，只显示"其他批卷人"） */
+  const lockNames = useMemo(() => {
+    const names = new Map<number, string | null>();
+    locks.forEach((lock) => names.set(lock.problemId, lock.judgerName));
+    runtimeLockedIds.forEach((problemId) => {
+      if (!names.has(problemId)) names.set(problemId, null);
+    });
+    return names;
+  }, [locks, runtimeLockedIds]);
+
+  const applyLockedProblems = useCallback(
+    (problemIds: number[]) => {
+      if (problemIds.length === 0) return;
+
+      setRuntimeLockedIds((previous) => new Set([...previous, ...problemIds]));
+      setEditedScores((previous) => {
+        const next = { ...previous };
+        problemIds.forEach((problemId) => delete next[problemId]);
+        return next;
+      });
+      setEditedNotes((previous) => {
+        const next = { ...previous };
+        problemIds.forEach((problemId) => delete next[problemId]);
+        return next;
+      });
+      setScoreErrors((previous) => {
+        const next = { ...previous };
+        problemIds.forEach((problemId) => delete next[problemId]);
+        return next;
+      });
+      onReloadPoints();
+    },
+    [onReloadPoints],
+  );
 
   const getDisplayScore = useCallback((problemId: number, existedScore: number | null) => {
     if (editedScores[problemId] !== undefined) return editedScores[problemId];
@@ -50,6 +127,49 @@ export const MarkProblemTable = ({
     if (existedScore === null) return '';
     return String(existedScore);
   }, [editedScores, persistedScores]);
+
+  /* 重新拉取时只回填未被本地编辑的题：用 ref 读取最新编辑状态，避免把编辑状态放进 effect 依赖 */
+  const editedScoresRef = useRef(editedScores);
+  const editedNotesRef = useRef(editedNotes);
+
+  useEffect(() => {
+    editedScoresRef.current = editedScores;
+    editedNotesRef.current = editedNotes;
+  }, [editedScores, editedNotes]);
+
+  /* 重新拉取评分记录后（例如题目刚被他人占用），把未被本地编辑的题对齐到服务端值 */
+  useEffect(() => {
+    setPersistedScores((previous) => {
+      const next = { ...previous };
+      let changed = false;
+
+      points.forEach((point) => {
+        if (point.fkProblemId === null || editedScoresRef.current[point.fkProblemId] !== undefined) return;
+        if (next[point.fkProblemId] === point.points) return;
+
+        next[point.fkProblemId] = point.points;
+        changed = true;
+      });
+
+      return changed ? next : previous;
+    });
+
+    setPersistedNotes((previous) => {
+      const next = { ...previous };
+      let changed = false;
+
+      points.forEach((point) => {
+        if (point.fkProblemId === null || editedNotesRef.current[point.fkProblemId] !== undefined) return;
+        const note = point.note ?? null;
+        if (next[point.fkProblemId] === note) return;
+
+        next[point.fkProblemId] = note;
+        changed = true;
+      });
+
+      return changed ? next : previous;
+    });
+  }, [points]);
 
   const parseScore = (value: string) => {
     const trimmedValue = value.trim();
@@ -88,6 +208,9 @@ export const MarkProblemTable = ({
       ...Object.keys(editedNotes).map(Number),
     ]);
     const timers = Array.from(changedProblemIds).map((id) => {
+      /* 已被其他批卷人占用的题不参与自动保存 */
+      if (lockNames.has(id)) return null;
+
       const sequence = (saveSequenceByProblemId.current.get(id) ?? 0) + 1;
       saveSequenceByProblemId.current.set(id, sequence);
       const problem = problems.find((item) => item.id === id);
@@ -119,8 +242,12 @@ export const MarkProblemTable = ({
         })
           .then(async (response) => {
             if (!response.ok) {
-              const error = await response.json();
-              throw new Error(error.message || '评分自动保存失败');
+              const error = await response.json().catch(() => null);
+              throw new UserPointRequestError(
+                getResponseMessage(error, '评分自动保存失败'),
+                response.status,
+                getResponseConflicts(error),
+              );
             }
 
             if (
@@ -158,6 +285,11 @@ export const MarkProblemTable = ({
               return;
             }
 
+            if (error instanceof UserPointRequestError && error.status === 409) {
+              applyLockedProblems(error.conflicts.length > 0 ? error.conflicts : [id]);
+              return;
+            }
+
             setScoreErrors((previous) => ({
               ...previous,
               [id]: error instanceof Error ? error.message : '评分自动保存失败',
@@ -172,7 +304,7 @@ export const MarkProblemTable = ({
       });
       controllers.forEach((controller) => controller.abort());
     };
-  }, [editedScores, editedNotes, persistedNotes, points, problems, userFlowId, getDisplayScore]);
+  }, [editedScores, editedNotes, persistedNotes, points, problems, userFlowId, getDisplayScore, lockNames, applyLockedProblems]);
 
 
   const getDisplayNote = (problemId: number, existedNote: string | null) => {
@@ -245,24 +377,29 @@ export const MarkProblemTable = ({
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || '批量更新失败');
+      const error = await response.json().catch(() => null);
+      throw new UserPointRequestError(
+        getResponseMessage(error, '批量更新失败'),
+        response.status,
+        getResponseConflicts(error),
+      );
     }
 
     return response.json();
   };
 
   const buildValidatedPayload = () => {
-    const values = problemPoints.map((problemPoint, index) => {
-      const existed = points.find((point) => point.fkProblemId === problems[index].id);
+    /* 他人批改的题不参与提交，避免整批因归属冲突回滚 */
+    const editable = problems.flatMap((problem, index) =>
+      lockNames.has(problem.id) ? [] : [{ problem, problemPoint: problemPoints[index] }],
+    );
+
+    const values = editable.map(({ problem, problemPoint }) => {
+      const existed = points.find((point) => point.fkProblemId === problem.id);
       const score = parseScore(
-        getDisplayScore(problems[index].id, existed ? existed.points : null),
+        getDisplayScore(problem.id, existed ? existed.points : null),
       );
-      const errorMessage = validateScore(
-        problems[index].name,
-        problems[index].maxPoint,
-        score,
-      );
+      const errorMessage = validateScore(problem.name, problem.maxPoint, score);
 
       if (errorMessage) {
         toast.error(errorMessage);
@@ -294,6 +431,12 @@ export const MarkProblemTable = ({
       return;
     }
 
+    /* 范围内全部题目都已被他人占用：直接返回扫码页 */
+    if (values.length === 0) {
+      router.push('/dashboard/review');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -307,7 +450,11 @@ export const MarkProblemTable = ({
       await request;
       setEditedScores({});
       router.push('/dashboard/review');
-    } catch {
+    } catch (error) {
+      /* 归属冲突：把冲突题转只读并拉取对方分数，其余题目已保存，可再次确认返回 */
+      if (error instanceof UserPointRequestError && error.status === 409) {
+        applyLockedProblems(error.conflicts);
+      }
       return;
     } finally {
       setIsSubmitting(false);
@@ -316,6 +463,7 @@ export const MarkProblemTable = ({
 
   const totalScore = problemPoints.reduce((sum, item) => sum + item.points, 0);
   const totalMaxScore = problems.reduce((sum, item) => sum + item.maxPoint, 0);
+  const lockedProblemCount = problems.filter((problem) => lockNames.has(problem.id)).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -330,6 +478,9 @@ export const MarkProblemTable = ({
                   <Badge variant="outline">
                     当前总分 {totalScore} / {totalMaxScore}
                   </Badge>
+                  {lockedProblemCount > 0 && (
+                    <Badge variant="outline">{lockedProblemCount} 题由他人批改</Badge>
+                  )}
                   {Object.keys(scoreErrors).length > 0 ? (
                     <Badge variant="outline">有待修正评分</Badge>
                   ) : hasUnsavedChanges ? (
@@ -353,6 +504,8 @@ export const MarkProblemTable = ({
               const displayScore = getDisplayScore(problem.id, existed ? existed.points : null);
               const parsedScore = parseScore(displayScore);
               const inputError = scoreErrors[problem.id];
+              const lockedBy = lockNames.get(problem.id);
+              const isLocked = lockNames.has(problem.id);
               return (
                 <div
                   key={problem.id}
@@ -379,8 +532,13 @@ export const MarkProblemTable = ({
                       min={0}
                       max={problem.maxPoint}
                       value={displayScore}
+                      disabled={isLocked}
                       aria-describedby={
-                        inputError ? `problem-score-error-${problem.id}` : undefined
+                        isLocked
+                          ? `problem-score-locked-${problem.id}`
+                          : inputError
+                            ? `problem-score-error-${problem.id}`
+                            : undefined
                       }
                       aria-invalid={Boolean(inputError)}
                       onChange={(event) => {
@@ -406,7 +564,15 @@ export const MarkProblemTable = ({
                         });
                       }}
                     />
-                    {inputError && (
+                    {isLocked && (
+                      <p
+                        id={`problem-score-locked-${problem.id}`}
+                        className="text-sm text-destructive"
+                      >
+                        本题已由{lockedBy ? ` ${lockedBy} ` : '其他批卷人'}批改保存，无法修改；如需调整请联系部长。
+                      </p>
+                    )}
+                    {!isLocked && inputError && (
                       <p
                         id={`problem-score-error-${problem.id}`}
                         className="text-sm text-destructive"
@@ -420,6 +586,7 @@ export const MarkProblemTable = ({
                     <Textarea
                       id={`problem-note-${problem.id}`}
                       value={getDisplayNote(problem.id, existed?.note ?? null)}
+                      disabled={isLocked}
                       onChange={(event) =>
                         setEditedNotes((previous) => ({ ...previous, [problem.id]: event.target.value }))
                       }

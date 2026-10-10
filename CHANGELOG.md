@@ -106,6 +106,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **已归档的通过/不通过结果在流程发布前无法改判**（`action/user-flow/evaluation.ts`、`components/manage/approvalsContent.tsx`）：审批页「已归档」里的「改为通过 / 改为不通过」按钮此前点了必然报「该候选人结果已确认，不能再修改」——`approveEvaluation` / `rejectEvaluation` 的终态锁把 `passed`/`failed` 一律挡住，而这两个状态正是第一次终审自己写下的（生产 Sentry：`role 4` 在 `/dashboard/approvals` 上 `approve-evaluation` 报错）。现在终态锁只保留「已撤回」（防止把撤回的报名复活），已通过/不通过的结果只要流程还没发布（发布中/已发布由 `moveUserFlowInTx` 锁定）就能互相改判，面评状态与候选人状态一起翻转并写操作审计；操作失败时前端直接显示服务端消息，不再只给一句「操作失败」。`integration/evaluation-result-flip.integration.test.ts` 覆盖改判、发布锁定与撤回拦截。
 
+#### 批卷评分归属
+
+- **一题被两位讲师同时批改时，先保存者把题锁死、另一位讲师从此改不动**（`action/user-flow/user-point/upsert.ts`、`hooks/useUserPointList.ts`、`components/review/markProblemTable.tsx`、`app/api/user-point/route.ts`）：题目归属（`user_point.fk_judger_id`）本来就是「谁先保存算谁的」，但读路径完全没体现归属——另一位讲师照样能输入，逐题自动保存返回 409（「评分已被其他批卷人保存，请刷新后查看」），而刷新后分数仍是对方的、再输入还是同一个错；更糟的是「确认评分并返回扫码页」会把范围内全部题目一起提交，只要有一题是别人的就整批回滚 → 讲师既改不了分、也回不了扫码页，只能按返回键逃出去（`14ca26a` 的整批原子性反而把人钉在页面上）。现在批卷页按归属渲染：他人已保存的题显示「本题已由 XXX 批改保存，无法修改；如需调整请联系部长」并禁用输入，不进自动保存、不进批量载荷（部长及以上仍可覆盖，归属语义不变）；保存时才撞上并发抢题（409）的，用响应携带的 `conflicts` 把该题就地转只读并重新拉取对方分数，其余题目照常保存、可正常确认返回。错误文案不再出现「请刷新后查看」。
+- **评分覆盖在审计里看不出「谁改的、覆盖了谁」**（`action/user-flow/user-point/upsert.ts`、`lib/operation-audit-list.ts`、`components/audit/audit-log-table.tsx`）：`review.score.upsert` 的 `scoreChanges` 只记分数与备注，部长覆盖讲师评分后无法追溯归属变化。现在每条变更记录 `previousJudgerId` / `nextJudgerId`（读取时换算成姓名），审计列表摘要与「评分变更」逐题标注「覆盖 讲师甲 的评分」；「同分但换了阅卷人」也算一次变更，避免改派不留痕，而同一人重复保存同一分数仍不产生新记录。`integration/review-score-ownership.integration.test.ts` 覆盖占用、整批回滚、部长覆盖与审计前后阅卷人。
+
 #### 面试 / 笔试工作台
 
 - **讲师看不到笔试候选人的 QQ**（`components/recruitment/table.tsx`、`action/user-flow/user-point/calScore.ts`）：QQ 被两处 `role >= 3` 同时挡住——服务端 `calScore` 取用户资料时按 `canViewSensitiveInfo: role >= 3` 拉取（讲师拿到的 `qq` 直接是 null），客户端又对 `role < 3` 过滤掉 QQ 列。讲师正是要按 QQ 拉笔试群/联系候选人的角色（成员目录的口径也一直是 QQ role ≥ 2、手机号 role ≥ 3）。现在 `lib/link/people-user.ts` 把敏感字段拆成 `canViewPhone` / `canViewQq` 两个开关（`lib/link/user-lookup.ts` 的 `LookupOptions` 新增 `canViewQq`，缺省跟随原开关），`calScore` 用 `canViewQq: session.role >= 2`，QQ 列对 `role >= 2` 显示；手机号仍只在部长及以上下发（`e2e/recruitment-workspace-visibility.spec.ts` 覆盖）。
