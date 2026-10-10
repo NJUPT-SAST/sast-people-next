@@ -63,6 +63,23 @@ describe('user flow review eligibility', () => {
     });
   });
 
+  it('returns the candidate name for the grading header', async () => {
+    findUserFlowId.mockResolvedValue({
+      id: 8,
+      progressStatus: 'ongoing',
+      name: '张同学',
+    });
+
+    const response = await GET(requestFor() as never);
+
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      userFlowId: 8,
+      name: '张同学',
+      canReview: true,
+    });
+  });
+
   it('explains that withdrawn candidates cannot be reviewed', async () => {
     findUserFlowId.mockResolvedValue({ id: 8, progressStatus: 'withdrawn' });
 

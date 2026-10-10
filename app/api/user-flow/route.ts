@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       userFlowId: userFlow.id,
+      name: userFlow.name,
       canReview,
       message: canReview
         ? undefined

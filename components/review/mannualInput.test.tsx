@@ -59,8 +59,9 @@ describe("MannualInput", () => {
 
     expect(findUserByStuID).toHaveBeenCalledWith("2026001");
     expect(screen.getByRole("dialog")).toHaveTextContent("张三");
+    expect(screen.getByRole("dialog")).toHaveTextContent("软件工程");
     expect(push).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "确认进入阅卷" }));
+    await user.click(screen.getByRole("button", { name: "确认并开始阅卷" }));
     expect(resolveUserFlowForReview).toHaveBeenCalledWith("2026001", 1);
     expect(push).toHaveBeenCalledWith("/dashboard/review/marking?user=2026001");
   });

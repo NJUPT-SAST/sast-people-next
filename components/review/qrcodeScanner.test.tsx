@@ -7,7 +7,12 @@ import QRCodeScanner from "./qrcodeScanner";
 let onDecodeResult: ((result: { getText: () => string }) => void) | undefined;
 const useUserInfoById = jest.fn();
 const resolveUserFlowForReview = jest.fn();
+const routerPush = jest.fn();
 const stableDevices = [{ deviceId: "camera-1", label: "前置摄像头" }];
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPush }),
+}));
 
 jest.mock("react-zxing", () => ({
   useZxing: (options: { onDecodeResult: (result: { getText: () => string }) => void }) => {
@@ -48,6 +53,7 @@ jest.mock("../ui/dialog", () => ({
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 jest.mock("../ui/select", () => ({
@@ -61,6 +67,7 @@ jest.mock("../ui/select", () => ({
 describe("QRCodeScanner", () => {
   beforeEach(() => {
     resolveUserFlowForReview.mockReset();
+    routerPush.mockClear();
     useUserInfoById.mockResolvedValue({
       studentId: "2026001",
       name: "张三",
@@ -94,12 +101,14 @@ describe("QRCodeScanner", () => {
       expect(useUserInfoById).toHaveBeenCalledWith(9);
       expect(resolveUserFlowForReview).toHaveBeenCalledWith("2026001", 1);
       expect(screen.getByText("2026001")).toBeInTheDocument();
+      expect(screen.getByText("软件工程")).toBeInTheDocument();
       expect(
-        screen.getByRole("link", { name: "确认并开始阅卷" }),
-      ).toHaveAttribute(
-        "href",
-        "/dashboard/review/marking?user=2026001",
-      );
+        screen.getByRole("button", { name: "确认并开始阅卷" }),
+      ).toBeInTheDocument();
+      expect(routerPush).not.toHaveBeenCalled();
     });
+
+    await user.click(screen.getByRole("button", { name: "确认并开始阅卷" }));
+    expect(routerPush).toHaveBeenCalledWith("/dashboard/review/marking?user=2026001");
   });
 });

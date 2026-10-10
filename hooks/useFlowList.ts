@@ -1,6 +1,6 @@
 import { db } from "@/db/drizzle";
 import { displayFlow } from "@/types/flow";
-import { flow, flowStep } from "@/db/schema";
+import { flow, flowStep, problem } from "@/db/schema";
 import { getDepartmentScope } from "@/lib/authz";
 import { isDepartmentEnabled } from "@/const/department";
 import { visibleFlowPredicate } from "@/lib/flow-access";
@@ -27,6 +27,32 @@ export const useFlowList = async (): Promise<displayFlow[]> =>
 export const useDepartmentFlowList = async (): Promise<displayFlow[]> => {
   const scope = await getDepartmentScope();
   return loadFlowList(visibleFlowPredicate(scope));
+};
+
+/**
+ * 阅卷范围选择器专用：只保留**真的有题目**的流程（至少一个未删除步骤挂着题目）。
+ * 否则讲师会在下拉里选到面试/WOC/免试这类没有笔试题的流程，勾完范围保存后才报
+ * 「当前流程下没有可阅卷题目」，白跑一趟。
+ */
+export const useReviewableFlowList = async (): Promise<displayFlow[]> => {
+  const scope = await getDepartmentScope();
+  const flowList = await loadFlowList(visibleFlowPredicate(scope));
+  const flowIds = flowList.map((item) => item.id);
+
+  if (flowIds.length === 0) {
+    return [];
+  }
+
+  const rows = await db
+    .selectDistinct({ flowId: flowStep.fkFlowId })
+    .from(flowStep)
+    .innerJoin(problem, eq(problem.fkFlowStepId, flowStep.id))
+    .where(
+      and(inArray(flowStep.fkFlowId, flowIds), eq(flowStep.isDeleted, false)),
+    );
+
+  const gradeableFlowIds = new Set(rows.map((row) => row.flowId));
+  return flowList.filter((item) => gradeableFlowIds.has(item.id));
 };
 
 const loadFlowList = async (

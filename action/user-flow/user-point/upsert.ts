@@ -134,6 +134,17 @@ export class ReviewPointConflictError extends Error {
   }
 }
 
+/**
+ * 评分校验失败，且原因需要回显给批卷页（结果已确认、试卷已变更、超出新满分…）。
+ * 这类错误由 API 映射成 422 并把原文给前端，不像内部错误那样被兜底成「操作失败」。
+ */
+export class ScoreValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScoreValidationError";
+  }
+}
+
 function normalizePointValues(values: Array<PointInsertValue>): NormalizedPointValues {
   if (!Array.isArray(values) || values.length === 0) {
     throw new Error("评分列表不能为空");
@@ -188,7 +199,7 @@ async function validateScoreChanges(
   tx: Tx,
   { userFlowId, problemIds, values }: NormalizedPointValues,
   scope: DepartmentScope,
-  actorId: number,
+  actor: Pick<FlowScopedSession, "uid" | "role">,
 ): Promise<ValidatedScoreChanges> {
   await tx.execute(
     sql`select 1 from ${userFlow} where ${userFlow.id} = ${userFlowId} for update`,
@@ -206,7 +217,7 @@ async function validateScoreChanges(
     .limit(1);
 
   if (!targetUserFlow) {
-    throw new Error("未找到考生流程");
+    throw new ScoreValidationError("未找到考生流程");
   }
 
   // 只能给本部门可见的候选人评分
@@ -216,7 +227,15 @@ async function validateScoreChanges(
     targetUserFlow.progressStatus === "passed" ||
     targetUserFlow.progressStatus === "failed"
   ) {
-    throw new Error("该考生笔试结果已确认，不能再修改评分");
+    throw new ScoreValidationError("该考生笔试结果已确认，不能再修改评分");
+  }
+
+  /* 已退回/未参与的报名不再给讲师评分；部长及以上仍可改（误确认后的更正通道） */
+  if (
+    targetUserFlow.progressStatus === "withdrawn" &&
+    !canOverrideOthersScore(actor.role)
+  ) {
+    throw new ScoreValidationError("该考生已退回当前流程，不能再修改评分");
   }
 
   const [problemRows, existingPoints] = await Promise.all([
@@ -247,7 +266,7 @@ async function validateScoreChanges(
   ]);
 
   if (problemRows.length !== problemIds.length) {
-    throw new Error("部分题目不存在");
+    throw new ScoreValidationError("试卷已变更，部分题目不存在，请重新设置阅卷范围");
   }
 
   const problemById = new Map(problemRows.map((item) => [item.id, item]));
@@ -262,15 +281,15 @@ async function validateScoreChanges(
     const targetProblem = problemById.get(value.fkProblemId);
 
     if (!targetProblem) {
-      throw new Error("题目不存在");
+      throw new ScoreValidationError("试卷已变更，部分题目不存在，请重新设置阅卷范围");
     }
 
     if (targetProblem.flowId !== targetUserFlow.flowId) {
-      throw new Error("题目不属于当前考生流程");
+      throw new ScoreValidationError("题目不属于当前考生流程，请重新设置阅卷范围");
     }
 
     if (value.points > targetProblem.maxScore) {
-      throw new Error(`得分不能超过题目满分 ${targetProblem.maxScore}`);
+      throw new ScoreValidationError(`得分不能超过题目满分 ${targetProblem.maxScore}`);
     }
 
     const previous = previousPointByProblemId.get(value.fkProblemId);
@@ -283,7 +302,7 @@ async function validateScoreChanges(
       previousNote: previous?.note ?? null,
       nextNote,
       previousJudgerId: previous?.judgerId ?? null,
-      nextJudgerId: actorId,
+      nextJudgerId: actor.uid,
     };
   });
 
@@ -325,7 +344,7 @@ export const upsertPoint = async (
       { fkUserFlowId: userFlowId, fkProblemId: problemId, points: point, note },
     ]);
     const { rows } = await db.transaction(async (tx) => {
-      const validated = await validateScoreChanges(tx, normalized, actor.scope, actor.uid);
+      const validated = await validateScoreChanges(tx, normalized, actor.scope, actor);
       const rows = await tx
         .insert(userPoint)
         .values({
@@ -386,7 +405,7 @@ export const batchUpsertPoint = async (values: Array<PointInsertValue>) => {
     const normalized = normalizePointValues(values);
     const actorId = actor.uid;
     await db.transaction(async (tx) => {
-      const validated = await validateScoreChanges(tx, normalized, actor.scope, actorId);
+      const validated = await validateScoreChanges(tx, normalized, actor.scope, actor);
       const rows = await tx
         .insert(userPoint)
         .values(

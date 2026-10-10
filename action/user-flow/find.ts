@@ -37,5 +37,7 @@ export const findUserFlowId = async (
   return {
     id: result.id,
     progressStatus: result.progressStatus,
+    /* 批卷页展示姓名，避免现场只按学号认人批错考生 */
+    name: userInfo.name ?? null,
   };
 };

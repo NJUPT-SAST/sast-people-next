@@ -108,8 +108,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### 批卷评分归属
 
-- **一题被两位讲师同时批改时，先保存者把题锁死、另一位讲师从此改不动**（`action/user-flow/user-point/upsert.ts`、`hooks/useUserPointList.ts`、`components/review/markProblemTable.tsx`、`app/api/user-point/route.ts`）：题目归属（`user_point.fk_judger_id`）本来就是「谁先保存算谁的」，但读路径完全没体现归属——另一位讲师照样能输入，逐题自动保存返回 409（「评分已被其他批卷人保存，请刷新后查看」），而刷新后分数仍是对方的、再输入还是同一个错；更糟的是「确认评分并返回扫码页」会把范围内全部题目一起提交，只要有一题是别人的就整批回滚 → 讲师既改不了分、也回不了扫码页，只能按返回键逃出去（`14ca26a` 的整批原子性反而把人钉在页面上）。现在批卷页按归属渲染：他人已保存的题显示「本题已由 XXX 批改保存，无法修改；如需调整请联系部长」并禁用输入，不进自动保存、不进批量载荷（部长及以上仍可覆盖，归属语义不变）；保存时才撞上并发抢题（409）的，用响应携带的 `conflicts` 把该题就地转只读并重新拉取对方分数，其余题目照常保存、可正常确认返回。错误文案不再出现「请刷新后查看」。
+- **一题被两位讲师同时批改时，先保存者把题锁死、另一位讲师从此改不动**（`action/user-flow/user-point/upsert.ts`、`hooks/useUserPointList.ts`、`components/review/markProblemTable.tsx`、`app/api/user-point/route.ts`）：题目归属（`user_point.fk_judger_id`）本来就是「谁先保存算谁的」，但读路径完全没体现归属——另一位讲师照样能输入，逐题自动保存返回 409（「评分已被其他批卷人保存，请刷新后查看」），而刷新后分数仍是对方的、再输入还是同一个错；更糟的是「确认评分并返回扫码页」会把范围内全部题目一起提交，只要有一题是别人的就整批回滚 → 讲师既改不了分、也回不了扫码页，只能按返回键逃出去（`14ca26a` 的整批原子性反而把人钉在页面上）。现在批卷页按归属渲染：他人已保存的题显示「本题已由 XXX 批改保存，无法修改；如需调整请联系部长」并禁用输入，不进自动保存、不进批量载荷（部长及以上仍可覆盖，归属语义不变）；保存时才撞上并发抢题（409）的，用响应携带的 `conflicts` 把该题就地转只读并重新拉取对方分数；注意批量提交是整批回滚，需要再点一次确认才会写入其余题目。错误文案不再出现「请刷新后查看」。
 - **评分覆盖在审计里看不出「谁改的、覆盖了谁」**（`action/user-flow/user-point/upsert.ts`、`lib/operation-audit-list.ts`、`components/audit/audit-log-table.tsx`）：`review.score.upsert` 的 `scoreChanges` 只记分数与备注，部长覆盖讲师评分后无法追溯归属变化。现在每条变更记录 `previousJudgerId` / `nextJudgerId`（读取时换算成姓名），审计列表摘要与「评分变更」逐题标注「覆盖 讲师甲 的评分」；「同分但换了阅卷人」也算一次变更，避免改派不留痕，而同一人重复保存同一分数仍不产生新记录。`integration/review-score-ownership.integration.test.ts` 覆盖占用、整批回滚、部长覆盖与审计前后阅卷人。
+
+#### 批卷加固（线下阅卷现场）
+
+- **批量提交可能永久卡在「正在提交评分」**（`components/review/markProblemTable.tsx`）：批量提交的 `fetch` 既没有超时也没有中断，网络半死（TCP 不响应、代理 hang、慢查询）时按钮一直 loading、toast 常驻，讲师只能刷新页面并丢掉未保存的输入。现在单题自动保存 15s、批量提交 30s 超时上限：批量超时会明确提示「提交超时，未确认服务端是否已保存；请重新打开该考生核对分数后再确认」并恢复可点击，单题超时提示「保存超时，分数尚未保存；请检查网络后再改一次，或点确认评分整批重发」且保留输入值。
+- **现场常见的四类失败原因被兜底成「操作失败」**（`action/user-flow/user-point/upsert.ts`、`app/api/user-point/route.ts`）：结果已确认、题目已从试卷中删除、题目不属于该考生流程、超出被改小后的满分——这些原本都是普通 `Error`，被 `apiErrorResponse` 归为 500 且不回显内部文案，讲师只能看到「操作失败」而无法判断。现在统一走新的 `ScoreValidationError` → HTTP 422 并回显原文（「该考生笔试结果已确认，不能再修改评分」「该考生已退回当前流程，不能再修改评分」「得分不能超过题目满分 80」「试卷已变更，部分题目不存在，请重新设置阅卷范围」「题目不属于当前考生流程，请重新设置阅卷范围」）。
+- **归属冲突时的提交提示与实际行为不符**（`components/review/markProblemTable.tsx`）：批量提交撞上他人已保存的题目时是**整批回滚**（没有冲突的题这一批也没写），原文案「部分题目已被其他批卷人保存」容易被理解成其余已保存，讲师直接离开就会漏掉这次提交。现在提示明确要求「请再点一次『确认评分并返回扫码页』完成提交」，并修正了代码注释。
+- **已退回（`withdrawn`）的报名仍能被讲师写分**（`action/user-flow/user-point/upsert.ts`）：扫码/手输入口会拦住，但直开批卷页或之前已打开的页面照样写入。现在讲师（role < 3）写 `withdrawn` 考生被拒并回显原因，分数不落库；部长及以上仍可写，作为结果被误确认后的更正通道。
+- **批卷页头部只显示学号**（`action/user-flow/find.ts`、`app/api/user-flow/route.ts`、`hooks/useUserFlow.ts`、`components/review/markProblemTable.tsx`）：现场只能凭学号认人，容易批错考生。现在头部显示「正在批改：姓名（学号）」。
+- **阅卷范围选择器会列出没有笔试题的流程**（`app/dashboard/review/page.tsx`、`hooks/useFlowList.ts`）：下拉的数据源是「本部门 + 时间窗内」的全部流程，讲师选到面试/免试/WOC/SOC 这类没有题目的流程后，勾不了题、保存不了范围，只能重选，白折腾一趟。现在新增 `useReviewableFlowList`：只保留**至少有一个未删除步骤挂题目**的流程（这些流程才参与阅卷范围的时间窗校验）。
+- **扫码与手输学号的确认弹窗不一致**（`components/review/reviewCandidateDialog.tsx`、`components/review/qrcodeScanner.tsx`、`components/review/mannualInput.tsx`）：扫码侧标题是「确认学生信息」、只列学号/姓名/专业、确认按钮是链接；手输侧标题是「确认考生信息」、多一列学院、按钮文案是「确认进入阅卷」——同一件事两套界面，现场核对容易漏看学号或学院。现在两个入口共用同一个 `ReviewCandidateDialog`：标题「确认考生信息」+ 说明，字段统一为姓名、学号（等宽字体）、学院（取不到时隐藏）、专业（取不到显示「未填写」），按钮统一为「取消」+「确认并开始阅卷」，并且都用 `router.push` 进入评分页。
 
 #### 面试 / 笔试工作台
 
