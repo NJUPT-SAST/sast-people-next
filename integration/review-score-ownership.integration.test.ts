@@ -58,6 +58,7 @@ import { db } from "@/db/drizzle";
 import { flow, flowStep, operationAudit, problem, userFlow, userPoint } from "@/db/schema";
 import {
   ReviewPointConflictError,
+  ScoreValidationError,
   batchUpsertPoint,
   upsertPoint,
 } from "@/action/user-flow/user-point/upsert";
@@ -103,6 +104,8 @@ describe("评分归属与覆盖审计", () => {
   let userFlowId = 0;
   let firstProblemId = 0;
   let sharedProblemId = 0;
+  let passedUserFlowId = 0;
+  let withdrawnUserFlowId = 0;
 
   const actAs = (uid: number, role: number) => {
     mockSession.uid = uid;
@@ -148,6 +151,29 @@ describe("评分归属与覆盖审计", () => {
       })
       .returning({ id: userFlow.id });
     userFlowId = candidate.id;
+
+    /* 结果已确认 / 已退回的考生：用于验证写路径的状态守卫 */
+    const finalStatusCandidates = await db
+      .insert(userFlow)
+      .values([
+        {
+          fkFlowId: flowRow.id,
+          fkUserId: CANDIDATE_ID + 10,
+          progressStatus: "passed",
+          department: "publicity",
+          fkCurrentStepId: step.id,
+        },
+        {
+          fkFlowId: flowRow.id,
+          fkUserId: CANDIDATE_ID + 11,
+          progressStatus: "withdrawn",
+          department: "publicity",
+          fkCurrentStepId: step.id,
+        },
+      ])
+      .returning({ id: userFlow.id });
+    passedUserFlowId = finalStatusCandidates[0].id;
+    withdrawnUserFlowId = finalStatusCandidates[1].id;
   });
 
   afterAll(async () => {
@@ -155,12 +181,19 @@ describe("评分归属与覆盖审计", () => {
       .delete(operationAudit)
       .where(
         and(
-          eq(operationAudit.resourceId, userFlowId),
           eq(operationAudit.resourceType, "user_flow"),
+          inArray(operationAudit.resourceId, [
+            userFlowId,
+            passedUserFlowId,
+            withdrawnUserFlowId,
+          ]),
         ),
       );
-    if (userFlowId > 0) {
-      await db.delete(userFlow).where(eq(userFlow.id, userFlowId));
+    const candidateRows = [userFlowId, passedUserFlowId, withdrawnUserFlowId].filter(
+      (id) => id > 0,
+    );
+    if (candidateRows.length > 0) {
+      await db.delete(userFlow).where(inArray(userFlow.id, candidateRows));
     }
     if (createdFlowIds.length > 0) {
       const stepRows = await db
@@ -232,6 +265,40 @@ describe("评分归属与覆盖审计", () => {
       nextScore: 95,
       previousJudgerId: LECTURER_A,
       nextJudgerId: MANAGER_C,
+    });
+  });
+
+  it("结果已确认或已退回的考生，讲师写分被明确拒绝且不落库", async () => {
+    actAs(LECTURER_A, 2);
+
+    const passedError = await upsertPoint(passedUserFlowId, firstProblemId, 70).catch(
+      (thrown: unknown) => thrown,
+    );
+    expect(passedError).toBeInstanceOf(ScoreValidationError);
+    expect((passedError as ScoreValidationError).message).toBe(
+      "该考生笔试结果已确认，不能再修改评分",
+    );
+    expect(await readPoint(passedUserFlowId, firstProblemId)).toBeNull();
+
+    const withdrawnError = await upsertPoint(
+      withdrawnUserFlowId,
+      firstProblemId,
+      70,
+    ).catch((thrown: unknown) => thrown);
+    expect(withdrawnError).toBeInstanceOf(ScoreValidationError);
+    expect((withdrawnError as ScoreValidationError).message).toBe(
+      "该考生已退回当前流程，不能再修改评分",
+    );
+    expect(await readPoint(withdrawnUserFlowId, firstProblemId)).toBeNull();
+  });
+
+  it("部长仍可给已退回的考生改分（误确认后的更正通道）", async () => {
+    actAs(MANAGER_C, 3);
+
+    await expect(upsertPoint(withdrawnUserFlowId, firstProblemId, 70)).resolves.toBeUndefined();
+    expect(await readPoint(withdrawnUserFlowId, firstProblemId)).toEqual({
+      points: 70,
+      judgerId: MANAGER_C,
     });
   });
 

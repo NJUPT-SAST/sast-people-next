@@ -50,14 +50,20 @@ const getResponseConflicts = (payload: unknown): number[] => {
   return [];
 };
 
+/** 网络半死时不让页面永久卡在「正在提交」：单题自动保存与批量提交各自超时上限 */
+const AUTOSAVE_TIMEOUT_MS = 15_000;
+const BATCH_SUBMIT_TIMEOUT_MS = 30_000;
+
 export const MarkProblemTable = ({
   points,
   locks,
+  candidateName,
   userFlowId,
   onReloadPoints,
 }: {
   points: Array<InferSelectModel<typeof userPoint>>;
   locks: LockedUserPoint[];
+  candidateName?: string | null;
   userFlowId: number;
   onReloadPoints: () => void;
 }) => {
@@ -225,6 +231,11 @@ export const MarkProblemTable = ({
 
       const controller = new AbortController();
       controllers.set(id, controller);
+      let autosaveTimedOut = false;
+      const autosaveTimeoutId = window.setTimeout(() => {
+        autosaveTimedOut = true;
+        controller.abort();
+      }, AUTOSAVE_TIMEOUT_MS);
 
       return window.setTimeout(() => {
         void fetch('/api/user-point', {
@@ -241,6 +252,8 @@ export const MarkProblemTable = ({
           signal: controller.signal,
         })
           .then(async (response) => {
+            window.clearTimeout(autosaveTimeoutId);
+
             if (!response.ok) {
               const error = await response.json().catch(() => null);
               throw new UserPointRequestError(
@@ -278,6 +291,16 @@ export const MarkProblemTable = ({
             });
           })
           .catch((error: unknown) => {
+            window.clearTimeout(autosaveTimeoutId);
+
+            if (autosaveTimedOut) {
+              setScoreErrors((previous) => ({
+                ...previous,
+                [id]: '保存超时，分数尚未保存；请检查网络后再改一次，或点确认评分整批重发',
+              }));
+              return;
+            }
+
             if (
               controller.signal.aborted ||
               saveSequenceByProblemId.current.get(id) !== sequence
@@ -368,20 +391,47 @@ export const MarkProblemTable = ({
   const batchUpsertPoint = async (
     values: Array<InferSelectModel<typeof userPoint>>,
   ) => {
-    const response = await fetch('/api/user-point', {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'batch',
-        data: values,
-      }),
-    });
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, BATCH_SUBMIT_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch('/api/user-point', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'batch',
+          data: values,
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (timedOut) {
+        throw new UserPointRequestError(
+          '提交超时，未确认服务端是否已保存；请重新打开该考生核对分数后再确认',
+          0,
+          [],
+        );
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => null);
+      const conflicts = getResponseConflicts(error);
+
+      /* 冲突时整批回滚（没冲突的题这一批也没写），必须让讲师再点一次确认才完成 */
       throw new UserPointRequestError(
-        getResponseMessage(error, '批量更新失败'),
+        response.status === 409 && conflicts.length > 0
+          ? `${getResponseMessage(error, '部分题目已由其他批卷人保存')}，已转为只读；请再点一次「确认评分并返回扫码页」完成提交`
+          : getResponseMessage(error, '批量更新失败'),
         response.status,
-        getResponseConflicts(error),
+        conflicts,
       );
     }
 
@@ -451,7 +501,7 @@ export const MarkProblemTable = ({
       setEditedScores({});
       router.push('/dashboard/review');
     } catch (error) {
-      /* 归属冲突：把冲突题转只读并拉取对方分数，其余题目已保存，可再次确认返回 */
+      /* 归属冲突：整批已回滚，把冲突题转只读并拉取对方分数；讲师需再点一次确认才会写入其余题目 */
       if (error instanceof UserPointRequestError && error.status === 409) {
         applyLockedProblems(error.conflicts);
       }
@@ -472,7 +522,9 @@ export const MarkProblemTable = ({
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex flex-col gap-2">
-                <CardTitle>正在批改：{studentId}</CardTitle>
+                <CardTitle>
+                  正在批改：{candidateName ? `${candidateName}（${studentId}）` : studentId}
+                </CardTitle>
                 <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
                   <Badge variant="secondary">共 {problems.length} 题</Badge>
                   <Badge variant="outline">

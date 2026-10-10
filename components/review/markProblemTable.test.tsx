@@ -225,4 +225,115 @@ describe("MarkProblemTable", () => {
     expect(screen.getByText(/本题已由其他批卷人批改保存/)).toBeInTheDocument();
     expect(screen.getAllByRole('spinbutton')[0]).toBeDisabled();
   });
+
+  it('shows the real reason when the server rejects the score with 422', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        success: false,
+        message: '该考生笔试结果已确认，不能再修改评分',
+      }),
+    });
+
+    render(
+      <MarkProblemTable
+        userFlowId={3}
+        locks={[]}
+        onReloadPoints={reloadPoints}
+        points={[{ fkProblemId: 1, points: 20 }] as never}
+      />,
+    );
+
+    const scoreInput = screen.getAllByRole('spinbutton')[0];
+    await user.clear(scoreInput);
+    await user.type(scoreInput, '88');
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('该考生笔试结果已确认，不能再修改评分'),
+      ).toBeInTheDocument(),
+    );
+    await expect(scoreInput).toHaveValue(88);
+    expect(screen.getAllByRole('spinbutton')[0]).toBeEnabled();
+  });
+
+  it('asks for one more confirm after a batch conflict and then submits the rest', async () => {
+    const user = userEvent.setup();
+    let batchAttempts = 0;
+    fetchMock.mockImplementation(
+      async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        if (body.action === 'batch') {
+          batchAttempts += 1;
+          if (batchAttempts === 1) {
+            return {
+              ok: false,
+              status: 409,
+              json: async () => ({
+                success: false,
+                message: '部分题目已由其他批卷人保存',
+                conflicts: [2],
+              }),
+            };
+          }
+        }
+        return { ok: true, json: async () => ({ success: true }) };
+      },
+    );
+
+    render(
+      <MarkProblemTable
+        userFlowId={3}
+        locks={[]}
+        onReloadPoints={reloadPoints}
+        points={[
+          { fkProblemId: 1, points: 20 },
+          { fkProblemId: 2, points: 30 },
+        ] as never}
+      />,
+    );
+
+    const inputs = screen.getAllByRole('spinbutton');
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], '88');
+    await user.clear(inputs[1]);
+    await user.type(inputs[1], '40');
+
+    await user.click(screen.getByRole('button', { name: /确认评分并返回扫码页/i }));
+    await waitFor(() => expect(reloadPoints).toHaveBeenCalled());
+    expect(push).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /确认评分并返回扫码页/i }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/dashboard/review'));
+    const batchCalls = fetchMock.mock.calls.filter(
+      ([, init]) => JSON.parse(String((init as RequestInit).body)).action === 'batch',
+    );
+    expect(batchCalls).toHaveLength(2);
+    const secondPayload = JSON.parse(String((batchCalls[1][1] as RequestInit).body));
+    expect(secondPayload.data.map((value: { fkProblemId: number }) => value.fkProblemId)).toEqual([
+      1,
+    ]);
+  });
+
+  it('shows the candidate name next to the student id', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    render(
+      <MarkProblemTable
+        userFlowId={3}
+        locks={[]}
+        candidateName="张同学"
+        onReloadPoints={reloadPoints}
+        points={[] as never}
+      />,
+    );
+
+    expect(screen.getByText('正在批改：张同学（2026001）')).toBeInTheDocument();
+  });
 });

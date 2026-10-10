@@ -133,6 +133,7 @@ export const MarkProblemTableServer = ({ user }: { user: string }) => {
       <MarkProblemTable
         points={points}
         locks={locks}
+        candidateName={userFlowData?.name ?? null}
         userFlowId={userFlowId}
         onReloadPoints={reloadPoints}
       />

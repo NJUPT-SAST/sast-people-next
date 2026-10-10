@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   ReviewPointConflictError,
+  ScoreValidationError,
   batchUpsertPoint,
   upsertPoint,
 } from '@/action/user-flow/user-point/upsert';
@@ -85,6 +86,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: '无效的操作类型' }, { status: 400 });
     }
   } catch (error) {
+    if (error instanceof ScoreValidationError) {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 422 },
+      );
+    }
+
     if (error instanceof ReviewPointConflictError) {
       return NextResponse.json(
         { success: false, message: error.message, conflicts: error.conflicts },
