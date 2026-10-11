@@ -571,13 +571,16 @@ export const RecruitmentContent = ({
     }
   };
 
+  /* 平均分只统计已批卷的考生：未批卷记录的 totalScore 是 coalesce 出来的 0，算进去会把均分拉低；
+     一个都没批时给「—」而不是 0.00，避免看起来像全组零分。 */
+  const gradedScores = safeScoreData.filter((row) => row.isGraded);
   const averageScore =
-    safeScoreData.length === 0
-      ? 0
-      : safeScoreData.reduce(
+    gradedScores.length === 0
+      ? null
+      : gradedScores.reduce(
           (acc, cur) => acc + parseInt(cur.totalScore ?? '0', 10),
           0,
-        ) / safeScoreData.length;
+        ) / gradedScores.length;
 
   const errorPanel = (
     <div className="rounded-lg border bg-card p-10 text-center">
@@ -734,8 +737,10 @@ export const RecruitmentContent = ({
                   <BadgeCheck className="size-4" />
                   <span>平均分</span>
                   <span className="font-semibold tabular-nums text-foreground">
-                    {averageScore.toFixed(2)}
+                    {averageScore === null ? '—' : averageScore.toFixed(2)}
                   </span>
+                  {/* 分母与「总人数」不同：不写出来两个数字并排看着对不上 */}
+                  <span className="text-xs">已批卷 {gradedScores.length} 人</span>
                 </div>
               </div>
             )}

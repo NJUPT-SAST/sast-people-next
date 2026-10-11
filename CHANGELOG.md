@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **笔试「平均分」不再把未批卷的考生算进分母**（`components/recruitment/recruitmentContent.tsx`）：未批卷记录的 `totalScore` 是 `coalesce(sum(points), 0)` 出来的 0，之前照样参与平均——批卷进度一低均分就被拉低，全组都没批时还显示 0.00（看起来像全组零分）。现在只统计**已批卷**的考生，并在数字旁标出「已批卷 n 人」（分母与「总人数」不同，不写出来两个数字并排看着对不上）；一个都没批时显示「—」。
 - **筛选不再跨轮次 / 跨流程残留**（`components/recruitment/evaluationTable.tsx`、`components/recruitment/table.tsx`）：此前一面选中的状态胶囊、志愿 / 时段 / 组别筛选与搜索词会跟着切到二面或另一条流程上，新列表看起来「怎么没人」；现在切轮次、切流程会清空搜索与全部筛选（笔试管理同样清空搜索、列筛选与勾选）。笔试管理的「结果已发布，名单已锁定」只在名单上方提示一次，空态也不再两句同义文案并列。
 - **办公类一面名单确认也可以选择「谁不发邮件」**（`components/recruitment/officeRosterDialog.tsx`、`components/recruitment/recruitmentContent.tsx`、`action/user-flow/office-rounds.ts`、`lib/email-center/batch.ts`）：一面与二面共用同一张名单弹窗，邮件列对两面都可用——未勾选的候选人只写结果、不发通知，确认后也不会再给他们建投递；弹窗顶部提示「N 人本次不发邮件」。此前只有二面与技术流程有这一选择。
 - **名单确认弹窗与名单弹窗去重**（`components/recruitment/officeRosterDialog.tsx`、`components/recruitment/officeRoundOneRosterDialog.tsx`、`components/recruitment/ResultPublicationPanel.tsx`）：弹窗描述不再重复徽章里的人数（「待确认名单（N 人）」「共 N 人」），模板核对说明压成一行、按钮不再独占一行。

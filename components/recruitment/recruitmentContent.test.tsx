@@ -192,6 +192,51 @@ describe("RecruitmentContent", () => {
     expect(screen.getByTestId("scores")).toHaveTextContent("92");
   });
 
+  it("leaves ungraded candidates out of the written-exam average", () => {
+    render(
+      <RecruitmentContent
+        flowTypes={[]}
+        initialData={
+          [
+            { totalScore: "90", isGraded: true },
+            { totalScore: "70", isGraded: true },
+            { totalScore: "0", isGraded: false },
+          ] as unknown as Awaited<ReturnType<typeof calScore>>
+        }
+        initialEvalData={[]}
+        defaultFlowId="1"
+        mode="written"
+        role={3}
+      />,
+    );
+
+    /* (90 + 70) / 2：未批卷的 0 分不进分母 */
+    expect(screen.getByText("80.00")).toBeInTheDocument();
+    expect(screen.getByText("已批卷 2 人")).toBeInTheDocument();
+  });
+
+  it("shows no average while nobody has been graded", () => {
+    render(
+      <RecruitmentContent
+        flowTypes={[]}
+        initialData={
+          [
+            { totalScore: "0", isGraded: false },
+            { totalScore: "0", isGraded: false },
+          ] as unknown as Awaited<ReturnType<typeof calScore>>
+        }
+        initialEvalData={[]}
+        defaultFlowId="1"
+        mode="written"
+        role={3}
+      />,
+    );
+
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("已批卷 0 人")).toBeInTheDocument();
+    expect(screen.queryByText("0.00")).not.toBeInTheDocument();
+  });
+
   it("remembers the flow the user switches to for the next visit", async () => {
     const user = userEvent.setup();
     jest.mocked(getEvaluationCandidates).mockResolvedValueOnce([]);
