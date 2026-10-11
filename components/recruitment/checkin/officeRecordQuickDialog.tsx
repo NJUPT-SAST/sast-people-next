@@ -8,6 +8,7 @@ import {
   getOfficeInterviewRecord,
   type OfficeInterviewRecord,
 } from "@/action/user-flow/office-record";
+import { OfficeRoundSummary } from "@/components/recruitment/officeRoundSummary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,24 +128,12 @@ export const OfficeRecordQuickDialog = ({
           <p className="py-6 text-center text-xs text-muted-foreground">正在读取…</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {roundData && roundData.evaluations.length > 0 ? (
-              <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/20 p-2.5 text-xs">
-                <p className="font-medium">
-                  本轮已记录 {roundData.evaluations.length} 份
-                  {roundData.averageScore !== null
-                    ? ` · 均分 ${roundData.averageScore}`
-                    : ""}
-                </p>
-                {roundData.evaluations.map((item) => (
-                  <p key={item.id} className="text-muted-foreground">
-                    {item.isMine ? "我" : item.authorName ?? "部长"}：
-                    {item.score ?? "—"} 分
-                    {item.recommendation
-                      ? ` · ${item.recommendation === "passed" ? "建议通过" : "建议不通过"}`
-                      : ""}
-                  </p>
-                ))}
-              </div>
+            {roundData ? (
+              <OfficeRoundSummary
+                count={roundData.evaluations.length}
+                averageScore={roundData.averageScore}
+                evaluations={roundData.evaluations}
+              />
             ) : null}
 
             {myRecord ? (

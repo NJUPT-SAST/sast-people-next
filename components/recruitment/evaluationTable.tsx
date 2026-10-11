@@ -99,6 +99,7 @@ import { externalHref } from "@/lib/link";
 import { departmentLabel } from "@/const/department";
 import { FeishuOAuthStatus } from "@/components/feishu-oauth-status";
 import { ViewUserInfoSheet } from "@/components/manage/viewUserInfoSheet";
+import { OfficeRoundSummary } from "@/components/recruitment/officeRoundSummary";
 import {
   getInterviewMeetingRoom,
   interviewMeetingRooms,
@@ -1064,6 +1065,8 @@ export const EvaluationTable = ({
   ).join("\u0000");
   /* 办公类部门没有讲师这一级：面评文案随流程切换 */
   const reviewerLabel = scoringEnabled ? "部长" : "讲师";
+  /* 弹窗里也要指明在写哪一轮：两轮在同一张列表上来回切，不写轮次容易记错地方 */
+  const officeRoundLabel = officeRound === 1 ? "一面" : officeRound === 2 ? "二面" : null;
 
   useEffect(() => {
     // Drop the filter only when the selected group is gone, so a stale value
@@ -2352,21 +2355,21 @@ export const EvaluationTable = ({
           if (!open) cancelEdit();
         }}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className={scoringEnabled ? undefined : "sm:max-w-xl"}>
           <DialogHeader>
             <DialogTitle>
               {scoringEnabled ? "填写面试记录" : "面评记录"}
             </DialogTitle>
             <DialogDescription>
               {editingCandidate
-                ? `${editingCandidate.name}（${editingCandidate.studentId ?? "无学号"}）`
+                ? `${officeRoundLabel ? `${officeRoundLabel} · ` : ""}${editingCandidate.name}（${editingCandidate.studentId ?? "无学号"}）`
                 : scoringEnabled
                   ? "面试记录只做留档：填写记录内容与面试分数。"
                   : "面试结束后填写评价内容和妙记链接。"}
             </DialogDescription>
           </DialogHeader>
           <div
-            className="grid gap-4 py-2"
+            className="grid gap-3 py-1"
             onKeyDown={(event) => {
               /* 键盘保存：Ctrl/⌘ + Enter，长记录不用再去点按钮 */
               if (
@@ -2379,6 +2382,16 @@ export const EvaluationTable = ({
               }
             }}
           >
+            {/* 办公类：写之前先看清本轮已经有人打了几分（与签到叫号的随手面评同一块） */}
+            {editingCandidate && scoringEnabled && officeRound !== null ? (
+              <OfficeRoundSummary
+                count={editingCandidate.evaluationCount ?? 0}
+                averageScore={editingCandidate.averageScore ?? null}
+                evaluations={(editingCandidate.evaluations ?? []).filter(
+                  (evaluation) => evaluation.round === officeRound,
+                )}
+              />
+            ) : null}
             {editingCandidate && !scoringEnabled && (
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="mb-1 text-xs text-muted-foreground">作品链接</p>
@@ -2388,9 +2401,55 @@ export const EvaluationTable = ({
                 />
               </div>
             )}
-            <div className="space-y-2">
+            {/* 办公类：分数是判定依据，现场多在手机上一句话填完——
+                排布与签到叫号的随手面评一致：分数在前、控件全宽、标签弱化 */}
+            {scoringEnabled && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex flex-wrap items-baseline gap-1.5">
+                  <label htmlFor="evaluation-score" className="text-xs text-muted-foreground">
+                    面试分数 <span className="text-destructive">*</span>
+                  </label>
+                  <span className="text-xs text-muted-foreground">0-100 整数</span>
+                </div>
+                <Input
+                  id="evaluation-score"
+                  autoFocus
+                  inputMode="numeric"
+                  placeholder="如 85"
+                  value={score}
+                  onChange={(event) => {
+                    setScore(event.target.value);
+                    if (scoreError) setScoreError(null);
+                  }}
+                  aria-invalid={Boolean(scoreError)}
+                  aria-describedby={
+                    scoreError ? "evaluation-score-error" : undefined
+                  }
+                  required
+                  className="h-10 w-full tabular-nums"
+                />
+                {scoreError && (
+                  <p
+                    id="evaluation-score-error"
+                    role="alert"
+                    className="text-sm text-destructive"
+                  >
+                    {scoreError}
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <label htmlFor="evaluation-content" className="text-sm font-medium">
+                <label
+                  htmlFor="evaluation-content"
+                  className={cn(
+                    "flex items-baseline gap-1.5",
+                    scoringEnabled
+                      ? "text-xs text-muted-foreground"
+                      : "text-sm font-medium",
+                  )}
+                >
                   {scoringEnabled ? "面试记录内容" : "面评内容"}{" "}
                   <span className="text-destructive">*</span>
                 </label>
@@ -2405,7 +2464,8 @@ export const EvaluationTable = ({
               )}
               <Textarea
                 id="evaluation-content"
-                autoFocus
+                autoFocus={!scoringEnabled}
+                rows={5}
                 placeholder={scoringEnabled ? "记录候选人的表现、亮点与不足…" : "请输入面评内容..."}
                 value={content}
                 onChange={(e) => {
@@ -2417,7 +2477,7 @@ export const EvaluationTable = ({
                   evaluationError ? "evaluation-content-error" : undefined
                 }
                 required
-                className="min-h-[160px] resize-y"
+                className="resize-y"
               />
               {evaluationError && (
                 <p id="evaluation-content-error" role="alert" className="text-sm text-destructive">
@@ -2425,50 +2485,11 @@ export const EvaluationTable = ({
                 </p>
               )}
             </div>
-            {scoringEnabled && (
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <label htmlFor="evaluation-score" className="text-sm font-medium">
-                    面试分数 <span className="text-destructive">*</span>
-                  </label>
-                  <span className="text-xs text-muted-foreground">0-100 整数</span>
-                </div>
-                <Input
-                  id="evaluation-score"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={100}
-                  step={1}
-                  placeholder="85"
-                  value={score}
-                  onChange={(event) => {
-                    setScore(event.target.value);
-                    if (scoreError) setScoreError(null);
-                  }}
-                  aria-invalid={Boolean(scoreError)}
-                  aria-describedby={
-                    scoreError ? "evaluation-score-error" : undefined
-                  }
-                  required
-                  className="h-10 w-32 tabular-nums"
-                />
-                {scoreError && (
-                  <p
-                    id="evaluation-score-error"
-                    role="alert"
-                    className="text-sm text-destructive"
-                  >
-                    {scoreError}
-                  </p>
-                )}
-              </div>
-            )}
             {/* 办公类的面试意见可选：只作参考留档，不参与结果判定 */}
             {scoringEnabled && (
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <label className="text-sm font-medium">面试意见（参考）</label>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex flex-wrap items-baseline gap-1.5">
+                  <label className="text-xs text-muted-foreground">面试意见（参考）</label>
                   <span className="text-xs text-muted-foreground">
                     可选，不影响结果
                   </span>
@@ -2484,7 +2505,7 @@ export const EvaluationTable = ({
                   <SelectTrigger
                     id="evaluation-recommendation"
                     aria-label="面试意见（参考）"
-                    className="h-10 w-full max-w-xs"
+                    className="h-10 w-full"
                   >
                     <SelectValue placeholder="不填" />
                   </SelectTrigger>
