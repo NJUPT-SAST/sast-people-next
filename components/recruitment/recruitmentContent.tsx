@@ -422,6 +422,31 @@ export const RecruitmentContent = ({
     setPublicationStatus(status);
   }, []);
 
+  /* 管理员清分后重拉评分列表：总分、未批卷状态与逐题明细都要按服务端重算。
+     用信号量而不是回调，避免把读 requestId ref 的函数带进渲染期（切流程由 handleFlowChange 负责）。 */
+  const [scoreRefreshToken, setScoreRefreshToken] = useState(0);
+  const scoreFlowIdRef = useRef(flowId);
+  useEffect(() => {
+    scoreFlowIdRef.current = flowId;
+  }, [flowId]);
+  useEffect(() => {
+    if (scoreRefreshToken === 0) return;
+    const targetFlowId = scoreFlowIdRef.current;
+    if (!targetFlowId) return;
+    const requestId = ++flowRequestId.current;
+    calScore(parseInt(targetFlowId))
+      .then((scores) => {
+        if (requestId !== flowRequestId.current) return;
+        setScoreData(scores);
+        setLoadError(null);
+      })
+      .catch(() => {
+        if (requestId !== flowRequestId.current) return;
+        setScoreData([]);
+        setLoadError(LOAD_ERROR_MESSAGE);
+      });
+  }, [scoreRefreshToken]);
+
   const refreshEvalData = async () => {
     if (!flowId) return;
     const requestId = ++flowRequestId.current;
@@ -854,6 +879,7 @@ export const RecruitmentContent = ({
                   safeScoreData,
                   currentFlowDepartment,
                 ),
+                onScoresChanged: () => setScoreRefreshToken((value) => value + 1),
               })}
               data={safeScoreData}
               flowTypeId={parseInt(flowId)}

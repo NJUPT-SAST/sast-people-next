@@ -24,6 +24,8 @@ export const calScore = async (flowId: number) => {
     const [examResult, problems, pointRows] = await Promise.all([
       db.select({
           uid: userFlow.fkUserId,
+          /* 清分要按报名记录定位（笔试无组别：同一用户同流程只有一条记录），聚合取其一 */
+          userFlowId: sql<number>`min(${userFlow.id})`,
           stepId: flowStep.order,
           status: userFlow.progressStatus,
           totalScore,
@@ -89,15 +91,20 @@ export const calScore = async (flowId: number) => {
       studentId: userMap.get(row.uid)?.studentId ?? null,
       qq: userMap.get(row.uid)?.qq ?? null,
       isGraded: gradedUidSet.has(row.uid),
-      problemScores: problems.map((item) => ({
-        ...pointMap.get(`${row.uid}-${item.id}`),
-        id: item.id,
-        title: item.title,
-        score: item.score,
-        points: pointMap.get(`${row.uid}-${item.id}`)?.points ?? 0,
-        judgerName: pointMap.get(`${row.uid}-${item.id}`)?.judgerName ?? null,
-        note: pointMap.get(`${row.uid}-${item.id}`)?.note ?? null,
-      })),
+      problemScores: problems.map((item) => {
+        const point = pointMap.get(`${row.uid}-${item.id}`);
+        return {
+          ...point,
+          id: item.id,
+          title: item.title,
+          score: item.score,
+          points: point?.points ?? 0,
+          /* 有评分记录才算批过：清分后回到 false，界面显示「未批」而不是 0 分 */
+          graded: point !== undefined,
+          judgerName: point?.judgerName ?? null,
+          note: point?.note ?? null,
+        };
+      }),
     }));
   } catch (error) {
     logServerError('review:calScore', error, {

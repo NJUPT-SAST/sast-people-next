@@ -113,8 +113,16 @@ jest.mock("@/components/recruitment/officeRecordDialog", () => ({
     ) : null,
 }));
 
+const mockMakeColumnsOptions: { current?: { onScoresChanged?: () => void } } = {};
+
 jest.mock("@/components/recruitment/columns", () => ({
-  makeColumns: () => [],
+  makeColumns: (
+    _role: number,
+    options?: { onScoresChanged?: () => void },
+  ) => {
+    mockMakeColumnsOptions.current = options;
+    return [];
+  },
 }));
 jest.mock("@/components/loading", () => ({ Loading: () => <div>Loading</div> }));
 
@@ -156,6 +164,31 @@ describe("RecruitmentContent", () => {
       first.resolve([{ totalScore: "75" }] as Awaited<ReturnType<typeof calScore>>);
     });
 
+    expect(screen.getByTestId("scores")).toHaveTextContent("92");
+  });
+
+  it("reloads the score list after an admin clears a problem", async () => {
+    mockCalScore.mockResolvedValue([
+      { totalScore: "92" },
+    ] as unknown as Awaited<ReturnType<typeof calScore>>);
+
+    render(
+      <RecruitmentContent
+        flowTypes={[]}
+        initialData={[]}
+        initialEvalData={[]}
+        defaultFlowId="1"
+        mode="written"
+        role={4}
+      />,
+    );
+
+    /* 表格里的「清分」走 makeColumns 的 onScoresChanged：重拉当前流程的分数列表 */
+    await act(async () => {
+      mockMakeColumnsOptions.current?.onScoresChanged?.();
+    });
+
+    expect(mockCalScore).toHaveBeenCalledWith(1);
     expect(screen.getByTestId("scores")).toHaveTextContent("92");
   });
 

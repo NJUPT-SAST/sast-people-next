@@ -94,6 +94,59 @@ describe('AuditLogTable', () => {
     expect(screen.getAllByText(/60\s*→\s*88 分/).length).toBeGreaterThan(0);
   });
 
+  it('reads a cleared score as 清除 without claiming an overwrite', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AuditLogTable
+        totalCount={1}
+        filters={filters}
+        logs={[
+          {
+            id: 3,
+            actorId: 12,
+            actorRole: 4,
+            actorType: 'user',
+            actorName: '管理员丁',
+            actorStudentId: 'T003',
+            action: 'review.score.clear',
+            resourceType: 'user_flow',
+            resourceId: 10,
+            resourceLabel: '考生流程：2026 春招',
+            department: null,
+            createdAt: new Date('2026-08-21T12:00:00Z'),
+            metadata: {
+              targetUserId: 22,
+              clearedCount: 1,
+              scoreChanges: [
+                {
+                  problemId: 5,
+                  problemTitle: '算法题',
+                  previousScore: 60,
+                  nextScore: null,
+                  previousJudgerId: 10,
+                  previousJudgerName: '讲师甲',
+                  nextJudgerId: null,
+                },
+              ],
+            },
+            targetUser: { id: 22, name: '同学丁', studentId: '2026003' },
+            targetUsers: [],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText(/同学丁（2026003） · 算法题 60 → 清除/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('清除评分').length).toBeGreaterThan(0);
+    /* 清分不是覆盖：不该出现「覆盖 X 的评分」 */
+    expect(screen.queryAllByText(/覆盖 .* 的评分/)).toHaveLength(0);
+
+    await user.click(screen.getAllByRole('button', { name: '查看详情' })[0]);
+    expect(screen.getByText('评分变更')).toBeInTheDocument();
+    expect(screen.getAllByText(/60\s*→\s*清除/).length).toBeGreaterThan(0);
+  });
+
   it('marks a score change that overwrote another grader', async () => {
     const user = userEvent.setup();
 
