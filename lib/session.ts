@@ -250,6 +250,34 @@ export async function updateLinkSessionTokens(
     .where(eq(peopleSession.id, sessionId));
 }
 
+/**
+ * 清除某一用途的 Link 凭据（Link 整族撤销 refresh token 后调用）。
+ * 清空后下一次读取走 `MissingLinkAccessTokenError` /
+ * `MissingLinkAdminAccessTokenError` 的既有分支，引导用户重新走 OAuth authorize。
+ */
+export async function clearLinkSessionTokens(
+  sessionId: string,
+  purpose: "session" | "admin",
+) {
+  const values =
+    purpose === "admin"
+      ? {
+          linkAdminAccessToken: null,
+          linkAdminRefreshToken: null,
+          linkAdminAccessTokenExpiresAt: null,
+        }
+      : {
+          linkAccessToken: null,
+          linkRefreshToken: null,
+          linkAccessTokenExpiresAt: null,
+        };
+
+  await db
+    .update(peopleSession)
+    .set(values)
+    .where(eq(peopleSession.id, sessionId));
+}
+
 /* Link 资料（角色 + 部门）回源的最小间隔：5 分钟内不重复打 Link，角色变化则立即写入 */
 const DEPARTMENT_SYNC_TTL_MS = 5 * 60 * 1000;
 

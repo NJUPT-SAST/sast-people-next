@@ -20,6 +20,7 @@ jest.mock("@/lib/secret", () => ({
 }));
 
 import {
+  clearLinkSessionTokens,
   createSession,
   deleteExpiredSessions,
   deleteSession,
@@ -117,6 +118,16 @@ describe("server sessions", () => {
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.not.objectContaining({ linkAccessToken: expect.anything() }),
     );
+  });
+
+  it("clears the stored Link credentials for a revoked purpose", async () => {
+    await clearLinkSessionTokens("a".repeat(43), "admin");
+
+    expect(mockUpdateSet).toHaveBeenCalledWith({
+      linkAdminAccessToken: null,
+      linkAdminRefreshToken: null,
+      linkAdminAccessTokenExpiresAt: null,
+    });
   });
 
   it("does not load expired session records", async () => {

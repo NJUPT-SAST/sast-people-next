@@ -179,6 +179,18 @@ Link 侧预期将 `user.state` 设为 `is_deleted`。
 
 People 不提供用户资料修改能力。资料页展示为只读，并提供跳转 Link 资料页的入口。
 
+### 6.6 Link 凭据失效与重新授权
+
+Link 对 refresh token 的终态约定是 `POST /oauth/token` 返回 `400 invalid_grant`：角色变更、密码变更、封禁、注销都会整族撤销该用户的 refresh token family，且不可恢复。
+
+People 的处理：
+
+- `POST /oauth/token` 的非 2xx 抛 `LinkOAuthTokenError`，保留 HTTP `status` 与 OAuth `error` 字段，调用方可区分终态与瞬时错误（`isLinkRefreshTokenRevokedError`）。
+- 刷新收到 `400 invalid_grant`（终态）时清除该 session 中对应用途的 Link 凭据（`clearLinkSessionTokens`：`session` / `admin` 列置 null；一次性管理员会话复用登录 token 时两列都清），本次请求与后续请求都按「缺 token」处理，由既有分支引导重新授权：
+  - 会话调用缺 token → `MissingLinkAccessTokenError` → `/login`（重新点击 SAST Link 登录）。
+  - 管理端调用缺管理 token（role ≥ 2）→ `MissingLinkAdminAccessTokenError`，`/dashboard` 布局跳 `/api/auth/link/start` 重新授权。
+- 网络错误与 Link 5xx 视为瞬时故障，保留 token，下个请求继续尝试刷新；另一实例已并发刷新出新 token 时复用新 token，不清除。
+
 ## 7. Link API 依赖
 
 People v3 当前依赖以下 Link API：

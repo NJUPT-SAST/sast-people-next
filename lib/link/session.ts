@@ -2,8 +2,8 @@ import "server-only";
 
 import { shouldUseMockLink } from "@/lib/link/client";
 import { mockAccessTokenFor } from "@/lib/link/mock";
-import { refreshLinkOAuthToken } from "@/lib/link/oauth";
-import { getSession, updateLinkSessionTokens } from "@/lib/session";
+import { refreshLinkOAuthToken, isLinkRefreshTokenRevokedError } from "@/lib/link/oauth";
+import { clearLinkSessionTokens, getSession, updateLinkSessionTokens } from "@/lib/session";
 
 // Multiple RSC requests can resume at the same time after a period of inactivity.
 // Keep one refresh request in flight per session/token purpose so a rotated refresh
@@ -69,6 +69,7 @@ const getLinkTokenFromSession = async (
 
   const refreshPromise = refreshLinkToken({
     sessionId: session.id,
+    purpose,
     storagePurpose,
     refreshToken,
   });
@@ -84,10 +85,12 @@ const getLinkTokenFromSession = async (
 
 const refreshLinkToken = async ({
   sessionId,
+  purpose,
   storagePurpose,
   refreshToken,
 }: {
   sessionId: string;
+  purpose: "session" | "admin";
   storagePurpose: "session" | "admin";
   refreshToken: string;
 }) => {
@@ -121,6 +124,16 @@ const refreshLinkToken = async ({
       if (latestToken && !shouldRefreshLinkToken(latestExpiresAt)) {
         return latestToken;
       }
+    }
+    // Link 整族撤销 refresh token 是终态：清掉本地死 token，让本次与后续请求都走
+    // 「缺 token」分支重新授权，而不是每个请求再打一次注定失败的 refresh。
+    if (isLinkRefreshTokenRevokedError(error)) {
+      await clearLinkSessionTokens(sessionId, storagePurpose);
+      if (purpose !== storagePurpose) {
+        // 一次性管理员会话复用登录 token：管理列里存着同一份已死的凭据，一并清掉。
+        await clearLinkSessionTokens(sessionId, purpose);
+      }
+      throwMissingTokenError(purpose);
     }
     throw error;
   }

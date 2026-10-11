@@ -99,6 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Link 会话
+
+- **refresh token 被 Link 整族撤销后每个服务端请求都重试一次 refresh**（`lib/link/oauth.ts`、`lib/link/session.ts`、`lib/session.ts`）：Link 在角色变更 / 密码变更 / 封禁 / 注销时整族撤销某用户的 refresh token family（审计 `revoked_reason` 如 `admin_role_change`），而 People 会话继续持有已经死亡的 refresh token——`POST /oauth/token` 的非 200 被抛成不带状态码的普通 `Error`，刷新失败后又原样 rethrow，死 token 留在 session 表里、`shouldRefreshLinkToken()` 下次仍为 true，于是每个请求都再打一次 Link（同一用户 2 分钟内 20+ 条 `invalid_grant`），用户全站报错却拿不到重新登录的引导。现在：OAuth token 端点非 2xx 抛结构化 `LinkOAuthTokenError`（携带 HTTP `status` 与 OAuth `error`）；刷新收到终态的 `400 invalid_grant` 时清除该用途的本地凭据（`clearLinkSessionTokens`，一次性管理员会话复用登录 token 的会把镜像的管理列一并清空），本次与后续请求都走既有的 `MissingLinkAccessTokenError` / `MissingLinkAdminAccessTokenError` 分支（`/login` 或 `/api/auth/link/start` 重新授权），不再形成每请求一次的重试循环；网络错误与 Link 5xx 视为瞬时故障保留 token，另一实例已并发轮换出新 token 的竞态分支依旧优先复用、不清除。`lib/link/session.test.ts`、`lib/link/oauth.test.ts`、`lib/session.test.ts` 覆盖撤销、瞬时失败与并发复用三种路径。
+
 #### 操作审计
 
 - **管理员的操作记录显示为「部长」**（`migrations/0069_audit_view_as_actor_role_fix.sql`）：PR #250 合并前的分支版本把操作审计写成 `session.role`（「切换身份查看」的临时视角角色），管理员以部长视角浏览时做的操作在审计里记成了部长；合并版（f1d9d5c）起所有写路径固定记录 `session.realRole`，本次迁移再把那段窗口里已经写错的历史行改成真实角色——只改「同一次 `session.view-as.start`（`metadata.role` = 被模拟角色）到对应 stop（无 stop 按视角 cookie 12 小时封顶）之间、`actor_role` 恰等于被模拟角色」的行，靠真实角色不可能写出这些行；修正值取该窗口 start 行记录的真实角色，没有 start/stop 记录的数据不会被触碰。

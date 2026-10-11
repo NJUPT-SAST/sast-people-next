@@ -56,4 +56,22 @@ describe("Link OAuth token client", () => {
     );
   });
 
+  it("surfaces the HTTP status and OAuth error code on failed token requests", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: "invalid_grant",
+        error_description: "refresh token has been revoked",
+      }),
+    });
+
+    await expect(refreshLinkOAuthToken("dead-refresh")).rejects.toMatchObject({
+      name: "LinkOAuthTokenError",
+      status: 400,
+      oauthError: "invalid_grant",
+      message: "refresh token has been revoked",
+    });
+  });
+
 });

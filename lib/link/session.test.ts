@@ -3,23 +3,29 @@
 const mockGetSession = jest.fn();
 const mockRefreshLinkOAuthToken = jest.fn();
 const mockUpdateLinkSessionTokens = jest.fn();
+const mockClearLinkSessionTokens = jest.fn();
 
 jest.mock("@/lib/link/client", () => ({
   shouldUseMockLink: () => false,
 }));
 
 jest.mock("@/lib/link/oauth", () => ({
+  ...jest.requireActual("@/lib/link/oauth"),
   refreshLinkOAuthToken: (...args: unknown[]) => mockRefreshLinkOAuthToken(...args),
 }));
 
 jest.mock("@/lib/session", () => ({
   getSession: (...args: unknown[]) => mockGetSession(...args),
   updateLinkSessionTokens: (...args: unknown[]) => mockUpdateLinkSessionTokens(...args),
+  clearLinkSessionTokens: (...args: unknown[]) => mockClearLinkSessionTokens(...args),
 }));
 
+import { LinkOAuthTokenError } from "@/lib/link/oauth";
 import {
   getLinkAccessTokenFromSession,
   getLinkAdminAccessTokenFromSession,
+  MissingLinkAccessTokenError,
+  MissingLinkAdminAccessTokenError,
 } from "./session";
 
 const expiredSession = {
@@ -37,6 +43,7 @@ describe("Link session token refresh", () => {
     mockGetSession.mockReset();
     mockRefreshLinkOAuthToken.mockReset();
     mockUpdateLinkSessionTokens.mockReset();
+    mockClearLinkSessionTokens.mockReset();
   });
 
   it("shares one refresh request across concurrent session and admin lookups", async () => {
@@ -83,5 +90,106 @@ describe("Link session token refresh", () => {
 
     await expect(getLinkAccessTokenFromSession()).resolves.toBe("new-access");
     expect(mockUpdateLinkSessionTokens).not.toHaveBeenCalled();
+  });
+
+  it("clears the session token when Link revokes the refresh token", async () => {
+    mockGetSession.mockResolvedValue(expiredSession);
+    mockRefreshLinkOAuthToken.mockRejectedValue(
+      new LinkOAuthTokenError("refresh token revoked", 400, "invalid_grant"),
+    );
+
+    await expect(getLinkAccessTokenFromSession()).rejects.toBeInstanceOf(
+      MissingLinkAccessTokenError,
+    );
+    expect(mockClearLinkSessionTokens).toHaveBeenCalledTimes(1);
+    expect(mockClearLinkSessionTokens).toHaveBeenCalledWith("session-1", "session");
+  });
+
+  it("clears the admin credentials when a one-pass admin refresh is revoked", async () => {
+    const adminSession = { ...expiredSession, linkAdminRefreshToken: "dead-admin-refresh" };
+    mockGetSession.mockResolvedValue(adminSession);
+    mockRefreshLinkOAuthToken.mockRejectedValue(
+      new LinkOAuthTokenError("refresh token revoked", 400, "invalid_grant"),
+    );
+
+    await expect(getLinkAdminAccessTokenFromSession()).rejects.toBeInstanceOf(
+      MissingLinkAdminAccessTokenError,
+    );
+    expect(mockClearLinkSessionTokens).toHaveBeenCalledTimes(1);
+    expect(mockClearLinkSessionTokens).toHaveBeenCalledWith("session-1", "admin");
+  });
+
+  it("clears both session and mirrored admin tokens when the shared login token is revoked", async () => {
+    mockGetSession.mockResolvedValue(expiredSession);
+    mockRefreshLinkOAuthToken.mockRejectedValue(
+      new LinkOAuthTokenError("refresh token revoked", 400, "invalid_grant"),
+    );
+
+    await expect(getLinkAdminAccessTokenFromSession()).rejects.toBeInstanceOf(
+      MissingLinkAdminAccessTokenError,
+    );
+    expect(mockClearLinkSessionTokens.mock.calls).toEqual([
+      ["session-1", "session"],
+      ["session-1", "admin"],
+    ]);
+  });
+
+  it("stops retrying Link once the revoked token has been cleared", async () => {
+    let stored: {
+      linkAccessToken: string | null;
+      linkRefreshToken: string | null;
+      linkAccessTokenExpiresAt: Date | null;
+    } = {
+      linkAccessToken: "old-access",
+      linkRefreshToken: "old-refresh",
+      linkAccessTokenExpiresAt: new Date(Date.now() - 1_000),
+    };
+    mockGetSession.mockImplementation(async () => ({ ...expiredSession, ...stored }));
+    mockClearLinkSessionTokens.mockImplementation(async () => {
+      stored = {
+        linkAccessToken: null,
+        linkRefreshToken: null,
+        linkAccessTokenExpiresAt: null,
+      };
+    });
+    mockRefreshLinkOAuthToken.mockRejectedValue(
+      new LinkOAuthTokenError("refresh token revoked", 400, "invalid_grant"),
+    );
+
+    await expect(getLinkAccessTokenFromSession()).rejects.toBeInstanceOf(
+      MissingLinkAccessTokenError,
+    );
+    await expect(getLinkAccessTokenFromSession()).rejects.toBeInstanceOf(
+      MissingLinkAccessTokenError,
+    );
+
+    expect(mockRefreshLinkOAuthToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the token on transient refresh failures", async () => {
+    mockGetSession.mockResolvedValue(expiredSession);
+    const transientError = new LinkOAuthTokenError("upstream unavailable", 503, null);
+    mockRefreshLinkOAuthToken.mockRejectedValue(transientError);
+
+    await expect(getLinkAccessTokenFromSession()).rejects.toBe(transientError);
+    expect(mockClearLinkSessionTokens).not.toHaveBeenCalled();
+  });
+
+  it("does not clear a token that another instance already rotated away from", async () => {
+    const latestSession = {
+      ...expiredSession,
+      linkAccessToken: "new-access",
+      linkRefreshToken: "new-refresh",
+      linkAccessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+    };
+    mockGetSession
+      .mockResolvedValueOnce(expiredSession)
+      .mockResolvedValueOnce(latestSession);
+    mockRefreshLinkOAuthToken.mockRejectedValue(
+      new LinkOAuthTokenError("refresh token revoked", 400, "invalid_grant"),
+    );
+
+    await expect(getLinkAccessTokenFromSession()).resolves.toBe("new-access");
+    expect(mockClearLinkSessionTokens).not.toHaveBeenCalled();
   });
 });
