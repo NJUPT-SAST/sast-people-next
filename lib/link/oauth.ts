@@ -9,6 +9,31 @@ export type LinkOAuthTokenResponse = {
   id_token?: string;
 };
 
+/**
+ * Link OAuth 端点返回非 2xx 时的结构化错误：保留 HTTP status 与 OAuth `error`
+ * 字段，调用方据此区分「终态（如 refresh token 已被整族撤销）」与瞬时错误。
+ */
+export class LinkOAuthTokenError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly oauthError: string | null,
+  ) {
+    super(message);
+    this.name = "LinkOAuthTokenError";
+  }
+}
+
+/**
+ * Link 契约：refresh 返回 `400 invalid_grant` 即终态 —— 角色变更 / 密码变更 /
+ * 封禁 / 注销都会整族撤销 refresh token，且不可恢复。此时继续拿同一个 refresh
+ * token 重试只会无限循环，必须清除本地凭据并重新走 authorize。
+ */
+export const isLinkRefreshTokenRevokedError = (error: unknown) =>
+  error instanceof LinkOAuthTokenError &&
+  error.status === 400 &&
+  error.oauthError === "invalid_grant";
+
 const getLinkOAuthClient = () => {
   const clientId = process.env.LINK_CLIENT_ID;
   const clientSecret = process.env.LINK_CLIENT_SECRET;
@@ -62,7 +87,11 @@ const requestLinkOAuthToken = async (body: Record<string, string>) => {
       payload?.message ??
       payload?.error ??
       `Link OAuth token request failed: ${response.status}`;
-    throw new Error(message);
+    throw new LinkOAuthTokenError(
+      message,
+      response.status,
+      typeof payload?.error === "string" ? payload.error : null,
+    );
   }
 
   return payload as LinkOAuthTokenResponse;

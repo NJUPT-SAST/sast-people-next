@@ -250,6 +250,58 @@ export async function updateLinkSessionTokens(
     .where(eq(peopleSession.id, sessionId));
 }
 
+/**
+ * 清除某一用途的 Link 凭据（Link 整族撤销 refresh token 后调用），返回是否真的清理。
+ *
+ * 行锁内只在该用途当前存着的 refresh token 仍是 `rejectedRefreshToken` 时才清：期间
+ * 另一实例可能已经轮换出新凭据（`refreshInFlight` 只协调单个实例），无条件按
+ * `sessionId` 清理会把好凭据一起清掉，所以比较的是解密后的存值而非密文（AES-GCM 每次
+ * 加密结果不同，无法按密文比对）。
+ */
+export async function clearLinkSessionTokens(
+  sessionId: string,
+  purpose: "session" | "admin",
+  rejectedRefreshToken: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({
+        refreshToken:
+          purpose === "admin"
+            ? peopleSession.linkAdminRefreshToken
+            : peopleSession.linkRefreshToken,
+      })
+      .from(peopleSession)
+      .where(eq(peopleSession.id, sessionId))
+      .for("update")
+      .limit(1);
+
+    if (!row) return false;
+    if (decryptStoredToken(row.refreshToken) !== rejectedRefreshToken) {
+      return false;
+    }
+
+    const values =
+      purpose === "admin"
+        ? {
+            linkAdminAccessToken: null,
+            linkAdminRefreshToken: null,
+            linkAdminAccessTokenExpiresAt: null,
+          }
+        : {
+            linkAccessToken: null,
+            linkRefreshToken: null,
+            linkAccessTokenExpiresAt: null,
+          };
+
+    await tx
+      .update(peopleSession)
+      .set(values)
+      .where(eq(peopleSession.id, sessionId));
+    return true;
+  });
+}
+
 /* Link 资料（角色 + 部门）回源的最小间隔：5 分钟内不重复打 Link，角色变化则立即写入 */
 const DEPARTMENT_SYNC_TTL_MS = 5 * 60 * 1000;
 

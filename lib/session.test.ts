@@ -10,9 +10,19 @@ jest.mock("next/headers", () => ({
   cookies: jest.fn(async () => mockCookieStore),
 }));
 
-jest.mock("@/db/drizzle", () => ({
-  db: { insert: jest.fn(), update: jest.fn(), delete: jest.fn(), select: jest.fn() },
-}));
+jest.mock("@/db/drizzle", () => {
+  const db = {
+    insert: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    select: jest.fn(),
+    transaction: jest.fn(),
+  };
+  db.transaction.mockImplementation((callback: (tx: typeof db) => unknown) =>
+    callback(db),
+  );
+  return { db };
+});
 
 jest.mock("@/lib/secret", () => ({
   encryptSecret: jest.fn((value: string) => `encrypted:${value}`),
@@ -20,6 +30,7 @@ jest.mock("@/lib/secret", () => ({
 }));
 
 import {
+  clearLinkSessionTokens,
   createSession,
   deleteExpiredSessions,
   deleteSession,
@@ -58,6 +69,7 @@ describe("server sessions", () => {
     mockSelect.mockReset();
     mockSelectWhere.mockClear();
     mockSelectLimit.mockReset();
+    jest.mocked(decryptSecret).mockReset();
   });
 
   it("stores Link credentials encrypted on the server and sets only an opaque ID cookie", async () => {
@@ -117,6 +129,52 @@ describe("server sessions", () => {
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.not.objectContaining({ linkAccessToken: expect.anything() }),
     );
+  });
+
+  it("clears the stored Link credentials for the rejected refresh token", async () => {
+    mockSelect.mockReturnValue({
+      from: jest.fn(() => ({
+        where: jest.fn(() => ({
+          for: jest.fn(() => ({
+            limit: jest.fn().mockResolvedValue([
+              { refreshToken: "encrypted:dead-refresh" },
+            ]),
+          })),
+        })),
+      })),
+    } as never);
+    jest.mocked(decryptSecret).mockReturnValue("dead-refresh");
+
+    await expect(
+      clearLinkSessionTokens("a".repeat(43), "admin", "dead-refresh"),
+    ).resolves.toBe(true);
+
+    expect(mockUpdateSet).toHaveBeenCalledWith({
+      linkAdminAccessToken: null,
+      linkAdminRefreshToken: null,
+      linkAdminAccessTokenExpiresAt: null,
+    });
+  });
+
+  it("does not clear credentials that another instance already rotated", async () => {
+    mockSelect.mockReturnValue({
+      from: jest.fn(() => ({
+        where: jest.fn(() => ({
+          for: jest.fn(() => ({
+            limit: jest.fn().mockResolvedValue([
+              { refreshToken: "encrypted:newer-refresh" },
+            ]),
+          })),
+        })),
+      })),
+    } as never);
+    jest.mocked(decryptSecret).mockReturnValue("newer-refresh");
+
+    await expect(
+      clearLinkSessionTokens("a".repeat(43), "session", "dead-refresh"),
+    ).resolves.toBe(false);
+
+    expect(mockUpdateSet).not.toHaveBeenCalled();
   });
 
   it("does not load expired session records", async () => {
