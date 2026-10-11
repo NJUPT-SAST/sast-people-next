@@ -106,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### 办公类签到叫号
 
-- **别的部门的候选人也露着「写面评」，一点就报「读取面试记录失败」**（`action/user-flow/checkin.ts`、`components/recruitment/checkin/checkinConsole.tsx`）：场地是多个办公部门共用的，叫号页刻意不按部门切分数据，于是「写面评」入口对每个部门的面试位与队列行都渲染；但面评写进的是候选人**报名归属部门**，服务端 `createEvaluation` / `getOfficeInterviewRecord` 仍按部门收口（`integration/office-interview-rounds.integration.test.ts` 守住这条），点开必然拿到「无权操作其他部门的候选人」，随手面评弹窗只显示一句「读取面试记录失败」。现在订单快照按部门给出 `canWriteRecord`（管理员全放行、部长仅本部门），不是本部门的面试位与队列行不再渲染该入口；叫号 / 开始面试 / 结束面试这些场地动作仍按共用场地跨部门可用。
+- **别的部门的候选人也露着「写面评」，一点就报「读取面试记录失败」**（`action/user-flow/checkin.ts`、`components/recruitment/checkin/checkinConsole.tsx`）：场地是多个办公部门共用的，叫号页刻意不按部门切分数据，于是「写面评」入口对每个部门的面试位与队列行都渲染；但面评写进的是候选人**报名归属部门**，服务端 `createEvaluation` / `getOfficeInterviewRecord` 仍按部门收口（`integration/office-interview-rounds.integration.test.ts` 守住这条），点开必然拿到「无权操作其他部门的候选人」，随手面评弹窗只显示一句「读取面试记录失败」。现在快照按**候选人报名归属部门**给出 `canWriteRecord`（与 `createEvaluation` / `getOfficeInterviewRecord` 同一个 `canAccessDepartment` 谓词——流程部门与报名归属被改派成不一致时也不会露出点不通的入口；管理员全放行、部长仅本部门），不是本部门的面试位与队列行不再渲染该入口；叫号 / 开始面试 / 结束面试这些场地动作仍按共用场地跨部门可用。
 - **「写面评」在「已叫号」就出现**（同文件）：候选人还没进场（`called`）面试位上就与「开始面试」并排摆着「写面评」；现在要开始面试（`interviewing`）之后才出现，队列里已完成的行仍能补写。
 - **已完成行的状态徽标与按钮分处两行右端**（同文件）：`已完成` 徽标挂在第一行右端、`写面评` 按钮挂在第二行右端，右边缘错开成两截；现在两者收进同一行的右侧簇。
 

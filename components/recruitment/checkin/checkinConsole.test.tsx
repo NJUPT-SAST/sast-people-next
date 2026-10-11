@@ -119,11 +119,18 @@ const makeEntry = (overrides: Partial<CheckinEntry> = {}): CheckinEntry => ({
   callCount: 1,
   skipCount: 0,
   note: null,
+  candidateDepartment: "office",
+  canWriteRecord: true,
   ...overrides,
 });
 
+/**
+ * 一个部门块。`write=false` 模拟「候选人报名归属在别的部门」——面评入口按报名归属判定，
+ * 与 createEvaluation / getOfficeInterviewRecord 同一谓词。
+ */
 const makeSnapshot = (
   overrides: Partial<VenueDepartmentSnapshot> = {},
+  write = true,
 ): VenueSnapshot => ({
   round: 1,
   updatedAt: "2026-10-11T05:45:00.000Z",
@@ -146,6 +153,8 @@ const makeSnapshot = (
             status: "called",
             round: 1,
             calledAt: "2026-10-11T05:10:00.000Z",
+            candidateDepartment: "office",
+            canWriteRecord: write,
           },
         }),
         /* 面试中：可以写 */
@@ -162,12 +171,20 @@ const makeSnapshot = (
             status: "interviewing",
             round: 1,
             calledAt: "2026-10-11T05:20:00.000Z",
+            candidateDepartment: "office",
+            canWriteRecord: write,
           },
         }),
       ],
       entries: [
         makeEntry({ status: "waiting", queueNo: "B003", queueSeq: 3, id: 13 }),
-        makeEntry({ status: "done", queueNo: "B004", queueSeq: 4, id: 14 }),
+        makeEntry({
+          status: "done",
+          queueNo: "B004",
+          queueSeq: 4,
+          id: 14,
+          canWriteRecord: write,
+        }),
       ],
       awaiting: [],
       counts: {
@@ -179,7 +196,6 @@ const makeSnapshot = (
         cancelled: 0,
         total: 4,
       },
-      canWriteRecord: true,
       ...overrides,
     },
   ],
@@ -201,14 +217,17 @@ describe("CheckinConsole 写面评入口", () => {
     expect(screen.getByTestId("record-target")).toHaveTextContent("B004·1");
   });
 
-  it("别的部门：叫号/推进照旧，但不给写面评入口（面评按部门归属）", async () => {
-    const snapshot = makeSnapshot({
-      flowId: 122,
-      title: "2026 校科协科宣部 面试",
-      department: "publicity",
-      departmentLabel: "科宣部",
-      canWriteRecord: false,
-    });
+  it("别的部门：叫号/推进照旧，但不给写面评入口（面评按报名归属）", async () => {
+    const snapshot = makeSnapshot(
+      {
+        flowId: 122,
+        title: "2026 校科协科宣部 面试",
+        department: "publicity",
+        departmentLabel: "科宣部",
+      },
+      /* 候选人报名归属不在本部门（例如存量记录被改派）→ 服务端会拒绝写入 */
+      false,
+    );
     render(<CheckinConsole initial={snapshot} initialDept="publicity" />);
 
     expect(screen.queryAllByRole("button", { name: "写面评" })).toHaveLength(0);

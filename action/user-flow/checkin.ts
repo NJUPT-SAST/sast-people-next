@@ -3,7 +3,7 @@
 import { db } from "@/db/drizzle";
 import { flow, interviewCheckin, interviewStation, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
-import { getDepartmentScope, isOfficeDepartmentKey } from "@/lib/authz";
+import { canAccessDepartment, getDepartmentScope, isOfficeDepartmentKey } from "@/lib/authz";
 import { MANAGER_ROLE } from "@/lib/link/role";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
@@ -84,6 +84,10 @@ export type StationOccupant = {
   status: InterviewCheckinStatusKey;
   round: number;
   calledAt: string | null;
+  /** 报名归属部门（面评写进这里） */
+  candidateDepartment: string | null;
+  /** 当前用户能否给这位候选人写面评（只有全场快照算真值，见 `CheckinEntry.canWriteRecord`） */
+  canWriteRecord: boolean;
 };
 
 export type CheckinStation = {
@@ -131,6 +135,15 @@ export type CheckinEntry = {
   /** 过号次数：>1 之后不再自动叫号 */
   skipCount: number;
   note: string | null;
+  /** 报名归属部门（面评写进这里，不是流程部门） */
+  candidateDepartment: string | null;
+  /**
+   * 当前用户能否给这位候选人写面评。
+   *
+   * 只有全场快照会算出真值（`getVenueSnapshot` 按 `canAccessDepartment(scope, candidateDepartment)`），
+   * 其余写入路径返回的单条记录留 `false` —— 界面不拿它渲染入口，取保守值即可。
+   */
+  canWriteRecord: boolean;
 };
 
 export type AwaitingCandidate = {
@@ -156,15 +169,6 @@ export type VenueDepartmentSnapshot = {
   /** 本轮已报名但尚未在本部门签到的候选人 */
   awaiting: AwaitingCandidate[];
   counts: CheckinQueueCounts;
-  /**
-   * 当前用户能否给这个部门的候选人写面评。
-   *
-   * 舞台是共用的（谁都能叫号/推进），但面评的归属仍按部门收敛：办公类面评写进
-   * `user_flow.department` 所属部门，服务端 `createEvaluation` / `getOfficeInterviewRecord`
-   * 只认本部门（管理员放行）。界面据此决定要不要露出「写面评」——
-   * 否则点了必然得到「无权操作其他部门的候选人」，白跑一趟。
-   */
-  canWriteRecord: boolean;
 };
 
 export type VenueSnapshot = {
@@ -284,6 +288,8 @@ type RawEntryRow = {
   skipCount: number;
   note: string | null;
   interviewSlot: string | null;
+  /** 报名归属部门（`user_flow.department`）：面评写进的部门，与流程部门可能被改派成不一致 */
+  candidateDepartment: string | null;
 };
 
 const entrySelection = {
@@ -308,6 +314,7 @@ const entrySelection = {
   skipCount: interviewCheckin.skipCount,
   note: interviewCheckin.note,
   interviewSlot: userFlow.interviewSlot,
+  candidateDepartment: userFlow.department,
 };
 
 const checkinQuery = () =>
@@ -350,6 +357,9 @@ const mapEntriesWithUsers = async (
       callCount: row.callCount,
       skipCount: row.skipCount,
       note: row.note,
+      candidateDepartment: row.candidateDepartment,
+      /* 快照会按 scope 重写；写入路径返回的单条记录不需要这个入口 */
+      canWriteRecord: false,
     };
   });
 };
@@ -434,6 +444,7 @@ const loadStations = async (flowIds: number[]): Promise<CheckinStation[]> => {
           status: interviewCheckin.status,
           round: interviewCheckin.round,
           calledAt: interviewCheckin.calledAt,
+          candidateDepartment: userFlow.department,
         })
         .from(interviewCheckin)
         .innerJoin(userFlow, eq(interviewCheckin.fkUserFlowId, userFlow.id))
@@ -464,6 +475,9 @@ const loadStations = async (flowIds: number[]): Promise<CheckinStation[]> => {
       status: row.status as InterviewCheckinStatusKey,
       round: row.round,
       calledAt: toIso(row.calledAt),
+      candidateDepartment: row.candidateDepartment,
+      /* 快照会按 scope 重写 */
+      canWriteRecord: false,
     });
   }
 
@@ -564,6 +578,10 @@ export const getVenueSnapshot = async (
 
   const departments = flows.map((flowRow, index) => {
     const ownLabel = departmentOfFlow.get(flowRow.id) ?? "";
+    /* 面评入口按**报名归属部门**判定：与 createEvaluation / getOfficeInterviewRecord 用同一个谓词。
+       流程部门与报名归属在存量记录被改派后会不一致，只看 flow.department 会露出点了必被拒的入口 */
+    const canWriteRecord = (candidateDepartment: string | null) =>
+      canAccessDepartment(scope, candidateDepartment);
     const decorate = <T extends { uid: number; choice: number | null }>(row: T) => ({
       otherDepartments: [...(volunteerDepartmentsByUid.get(row.uid) ?? [])].filter(
         (label) => label && label !== ownLabel,
@@ -576,6 +594,7 @@ export const getVenueSnapshot = async (
         ...entry,
         ...decorate(entry),
         block: buildCheckinBlock(entry, blockers),
+        canWriteRecord: canWriteRecord(entry.candidateDepartment),
       }));
     const awaiting = (awaitingByFlow[index] ?? []).map((candidate) => ({
       ...candidate,
@@ -587,13 +606,20 @@ export const getVenueSnapshot = async (
       title: flowRow.title,
       department: flowRow.department,
       departmentLabel: ownLabel,
-      stations: stations.filter((station) => station.flowId === flowRow.id),
+      stations: stations
+        .filter((station) => station.flowId === flowRow.id)
+        .map((station) => ({
+          ...station,
+          occupant: station.occupant
+            ? {
+                ...station.occupant,
+                canWriteRecord: canWriteRecord(station.occupant.candidateDepartment),
+              }
+            : null,
+        })),
       entries: flowEntries,
       awaiting,
       counts: countCheckinQueue(flowEntries),
-      canWriteRecord:
-        scope.kind === "all" ||
-        (scope.kind === "department" && scope.department === flowRow.department),
     };
   });
 

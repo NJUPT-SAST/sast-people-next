@@ -2465,7 +2465,8 @@ export const EvaluationTable = ({
               <Textarea
                 id="evaluation-content"
                 autoFocus={!scoringEnabled}
-                rows={5}
+                /* 办公类压缩成 5 行；技术流程的长面评保持原来的最小高度 */
+                rows={scoringEnabled ? 5 : undefined}
                 placeholder={scoringEnabled ? "记录候选人的表现、亮点与不足…" : "请输入面评内容..."}
                 value={content}
                 onChange={(e) => {
@@ -2477,7 +2478,7 @@ export const EvaluationTable = ({
                   evaluationError ? "evaluation-content-error" : undefined
                 }
                 required
-                className="resize-y"
+                className={cn("resize-y", !scoringEnabled && "min-h-[160px]")}
               />
               {evaluationError && (
                 <p id="evaluation-content-error" role="alert" className="text-sm text-destructive">

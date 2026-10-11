@@ -678,10 +678,10 @@ const DepartmentBlock = ({
               onCall={() => onCall(station)}
               onOccupantAction={(to) => onOccupantAction(station, to)}
               onOpenRecord={
-                /* 面评按部门归属：别的部门的位/队列不露「写面评」入口，
-                   而且面试真正开始（面试中）之后才需要写记录 */
-                department.canWriteRecord &&
-                station.occupant?.status === "interviewing"
+                /* 面评入口按**候选人报名归属**判定（别的部门不露），并且面试真正开始
+                   （面试中）之后才需要写记录 */
+                station.occupant?.canWriteRecord &&
+                station.occupant.status === "interviewing"
                   ? () =>
                       onOpenRecord({
                         userFlowId: station.occupant!.userFlowId,
@@ -712,7 +712,7 @@ const DepartmentBlock = ({
                 pending={pendingCheckinId === entry.id}
                 onTransition={onTransition}
                 onOpenRecord={
-                  department.canWriteRecord
+                  entry.canWriteRecord
                     ? () =>
                         onOpenRecord({
                           userFlowId: entry.userFlowId,
