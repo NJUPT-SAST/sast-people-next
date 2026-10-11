@@ -78,6 +78,7 @@ export const operationAuditActionGroups = {
   review: [
     "review.score.upsert",
     "review.score.batch_upsert",
+    "review.score.clear",
   ],
   email: [
     "email.batch.create",

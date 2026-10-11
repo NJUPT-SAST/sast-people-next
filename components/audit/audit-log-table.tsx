@@ -57,6 +57,7 @@ function formatAuditDateTime(value: Date | string) {
 const actionLabels: Record<string, string> = {
   "review.score.upsert": "保存评分",
   "review.score.batch_upsert": "确认评分并返回",
+  "review.score.clear": "清除评分",
   "email.batch.create": "创建邮件批次",
   "email.batch_send": "发送邮件批次",
   "email.recover_stale": "恢复中断邮件",
@@ -258,16 +259,36 @@ function getScoreChanges(metadata: Record<string, unknown>) {
     : [];
 }
 
-/** 归属变更说明：只有覆盖了别人的评分才需要额外标注（本人续改、首次评分都不标注） */
+/** 归属变更说明：只有覆盖了别人的评分才需要额外标注（本人续改、首次评分、清分都不标注） */
 function getScoreChangeOwnerLabel(change: Record<string, unknown>) {
   const previousJudgerId = change.previousJudgerId;
   const previousJudgerName = change.previousJudgerName;
 
-  if (typeof previousJudgerId !== "number" || previousJudgerId === change.nextJudgerId) {
+  /* 清分（nextScore 为 null）不是覆盖：题目回到未批卷，归属也就没了 */
+  if (
+    change.nextScore === null ||
+    change.nextScore === undefined ||
+    typeof previousJudgerId !== "number" ||
+    previousJudgerId === change.nextJudgerId
+  ) {
     return null;
   }
 
   return `覆盖 ${typeof previousJudgerName === "string" && previousJudgerName ? previousJudgerName : `批卷人 #${previousJudgerId}`} 的评分`;
+}
+
+/** 「未评分 → 8 分」；清分记录的 nextScore 为 null，读作「→ 清除」 */
+function formatScoreChange(change: Record<string, unknown>) {
+  const previous =
+    change.previousScore === null || change.previousScore === undefined
+      ? "未评分"
+      : String(change.previousScore);
+  const next =
+    change.nextScore === null || change.nextScore === undefined
+      ? "清除"
+      : `${String(change.nextScore)} 分`;
+
+  return `${previous} → ${next}`;
 }
 
 function getAuditSummary(item: AuditLogItem) {
@@ -278,14 +299,10 @@ function getAuditSummary(item: AuditLogItem) {
   if (scoreChanges.length > 0) {
     const change = scoreChanges[0];
     const title = String(change.problemTitle ?? `题目 #${String(change.problemId)}`);
-    const previous =
-      change.previousScore === null || change.previousScore === undefined
-        ? "未评分"
-        : String(change.previousScore);
     const suffix = scoreChanges.length > 1 ? ` 等 ${scoreChanges.length} 题` : "";
     const ownerLabel = getScoreChangeOwnerLabel(change);
     const ownerNote = ownerLabel ? `（${ownerLabel}）` : "";
-    return `${targetUserLabel ?? "考生"} · ${title} ${previous} → ${String(change.nextScore)} 分${suffix}${ownerNote}`;
+    return `${targetUserLabel ?? "考生"} · ${title} ${formatScoreChange(change)}${suffix}${ownerNote}`;
   }
 
   if (targetUserLabel) {
@@ -353,11 +370,7 @@ function MetadataDetails({ item }: { item: AuditLogItem }) {
                     </span>
                   )}
                   <span className="shrink-0 text-muted-foreground">
-                    {change.previousScore === null || change.previousScore === undefined
-                      ? "未评分"
-                      : String(change.previousScore)}
-                    {" → "}
-                    {String(change.nextScore)} 分
+                    {formatScoreChange(change)}
                   </span>
                 </div>
               );

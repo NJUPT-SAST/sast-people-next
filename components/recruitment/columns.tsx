@@ -1,7 +1,9 @@
 'use client';
 import type { ScoreRow } from '@/action/user-flow/user-point/calScore';
+import { clearPoints } from '@/action/user-flow/user-point/clear';
 import { Column, ColumnDef } from '@tanstack/react-table';
-import React from 'react';
+import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -15,7 +17,8 @@ import {
 } from '../ui/dialog';
 import { ViewUserInfoSheet } from '@/components/manage/viewUserInfoSheet';
 import { departmentLabel } from '@/const/department';
-import { ArrowDown, ArrowUp, ArrowUpDown, MessageSquareText } from 'lucide-react';
+import { ADMIN_ROLE } from '@/lib/link/role';
+import { ArrowDown, ArrowUp, ArrowUpDown, Eraser, MessageSquareText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const statusLabel: Record<string, string> = {
@@ -93,13 +96,175 @@ export const SortableHeader = ({
   );
 };
 
+/**
+ * 得分组成弹窗。考生身份写在标题下：弹窗盖住表格的姓名 / 学号列，明细必须自带身份。
+ * 管理员可以「清分」：删除评分记录让题目回到「未批卷」（不是改成 0 分——那样该题仍被原阅卷人占用）。
+ */
+const ScoreBreakdownDialog = ({
+  row,
+  canClearScores,
+  onScoresChanged,
+}: {
+  row: ScoreRow;
+  canClearScores: boolean;
+  onScoresChanged?: () => void;
+}) => {
+  const [pendingClear, setPendingClear] = useState<{
+    problemIds: number[];
+    label: string;
+  } | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const gradedProblemIds = row.problemScores
+    .filter((item) => item.graded)
+    .map((item) => item.id);
+
+  const runClear = async (problemIds: number[]) => {
+    setClearing(true);
+    try {
+      const result = await clearPoints(row.userFlowId, problemIds);
+      if (!result.success) {
+        toast.error(result.error.message);
+        setPendingClear(null);
+        return;
+      }
+      toast.success(
+        result.clearedProblemIds.length > 1
+          ? `已清除 ${result.clearedProblemIds.length} 道题的得分，题目回到未批卷`
+          : '已清除该题得分，题目回到未批卷',
+      );
+      setPendingClear(null);
+      onScoresChanged?.();
+    } catch {
+      toast.error('清分失败，请稍后重试');
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          查看得分
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[82dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>得分组成</DialogTitle>
+          <DialogDescription>
+            {row.name}（{row.studentId ?? '无学号'}）
+          </DialogDescription>
+        </DialogHeader>
+        {canClearScores && gradedProblemIds.length > 0 && !pendingClear && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-fit"
+            onClick={() =>
+              setPendingClear({
+                problemIds: gradedProblemIds,
+                label: `清空全部 ${gradedProblemIds.length} 道题的得分`,
+              })
+            }
+          >
+            <Eraser data-icon="inline-start" aria-hidden="true" />
+            清空全部得分
+          </Button>
+        )}
+        {pendingClear && (
+          <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+            <p className="text-sm leading-6">
+              {pendingClear.label}后，这些题会回到「未批卷」，原分数与阅卷人只留在操作审计里。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPendingClear(null)}
+                disabled={clearing}
+              >
+                取消
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                loading={clearing}
+                onClick={() => void runClear(pendingClear.problemIds)}
+              >
+                确认清分
+              </Button>
+            </div>
+          </div>
+        )}
+        <div className="grid gap-3">
+          {row.problemScores.map((item) => (
+            <div
+              key={item.id}
+              className="rounded-xl border bg-muted/15 p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <span className="min-w-0 break-words text-sm font-medium leading-6">{item.title}</span>
+                <div className="flex shrink-0 items-center gap-2">
+                  {item.graded ? (
+                    <Badge variant="outline" className="tabular-nums px-2.5 py-1 text-sm">
+                      {item.points}/{item.score}
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="border-muted-foreground/30 bg-muted px-2.5 py-1 text-sm text-muted-foreground"
+                    >
+                      未批
+                    </Badge>
+                  )}
+                  {canClearScores && item.graded && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={clearing || pendingClear !== null}
+                      onClick={() =>
+                        setPendingClear({
+                          problemIds: [item.id],
+                          label: `清除「${item.title}」的得分`,
+                        })
+                      }
+                    >
+                      <Eraser aria-hidden="true" />
+                      清分
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {item.graded && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>阅卷：{item.judgerName ?? '未记录'}</span>
+                </div>
+              )}
+              {item.note && (
+                <div className="mt-3 flex gap-2 rounded-lg bg-background/70 px-3 py-2.5 text-sm leading-6 text-muted-foreground">
+                  <MessageSquareText className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="whitespace-pre-wrap">{item.note}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 export const makeColumns = (
   role: number,
   /**
    * 投递部门列只在流程没有归属、或候选人的归属与流程不一致（共享流程 / 未归属记录）时才显示：
    * 部门自有流程下它与页签、流程名重复，讲师看到一列同值纯噪音。
    */
-  { showDepartment = true }: { showDepartment?: boolean } = {},
+  {
+    showDepartment = true,
+    onScoresChanged,
+  }: { showDepartment?: boolean; onScoresChanged?: () => void } = {},
 ): ColumnDef<ScoreRow>[] => {
   const departmentColumn: ColumnDef<ScoreRow> = {
     accessorKey: 'department',
@@ -241,45 +406,11 @@ export const makeColumns = (
       }
 
       return (
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="outline">
-              查看得分
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[82dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>得分组成</DialogTitle>
-              <DialogDescription>
-                {row.original.name}（{row.original.studentId ?? '无学号'}）
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-3">
-              {scores.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border bg-muted/15 p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <span className="min-w-0 break-words text-sm font-medium leading-6">{item.title}</span>
-                    <Badge variant="outline" className="shrink-0 tabular-nums px-2.5 py-1 text-sm">
-                      {item.points}/{item.score}
-                    </Badge>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>阅卷：{item.judgerName ?? '未记录'}</span>
-                  </div>
-                  {item.note && (
-                    <div className="mt-3 flex gap-2 rounded-lg bg-background/70 px-3 py-2.5 text-sm leading-6 text-muted-foreground">
-                      <MessageSquareText className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
-                      <span className="whitespace-pre-wrap">{item.note}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <ScoreBreakdownDialog
+          row={row.original}
+          canClearScores={role >= ADMIN_ROLE}
+          onScoresChanged={onScoresChanged}
+        />
       );
     },
   },

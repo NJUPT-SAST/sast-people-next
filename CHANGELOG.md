@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 办公流程面试表格按志愿口径展示：`志愿`（第一志愿/第二志愿）+ `另一志愿部门`，隐藏作品列（办公类不收集作品）。
 - 流程类型名称按归属部门显示：`软件研发部WOC / 多媒体部WOD / 软件研发部SOC / 多媒体部SOD / 软件研发部免试 / 多媒体部笔试 …`（`flowTypeLabel`），流程创建下拉、面试工作台页签、流程列表与部门归属表统一使用。
 - 邮件模板新增 `interview.schedule.change.rejected`（面试改期未通过通知，含驳回理由变量）。
+- **管理员可给笔试「清分」**（`action/user-flow/user-point/clear.ts`、`components/recruitment/columns.tsx`、`action/user-flow/user-point/calScore.ts`）：得分组成弹窗里管理员（role 4）可逐题「清分」或「清空全部得分」——删除该题的评分记录，让题目回到**「未批卷」**（与改成 0 分不同：0 分仍被原阅卷人占用，别的讲师改不了这道题），考生总分与已批卷状态随之重算，该题任何讲师都能重新认领。清分是不可逆删除，原分数 / 备注 / 阅卷人写进操作审计（`review.score.clear`，审计列表读作「60 → 清除」并可回看是谁的评分被清掉）；**结果已确认（通过 / 不通过）或名单正在发布 / 已发布时拒绝清分**。同时得分组成弹窗里没有评分记录的题显示「未批」而不是「0/满分」——清分后的状态一眼可见。
 
 ### Changed
 
