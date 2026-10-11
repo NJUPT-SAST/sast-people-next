@@ -186,9 +186,11 @@ Link 对 refresh token 的终态约定是 `POST /oauth/token` 返回 `400 invali
 People 的处理：
 
 - `POST /oauth/token` 的非 2xx 抛 `LinkOAuthTokenError`，保留 HTTP `status` 与 OAuth `error` 字段，调用方可区分终态与瞬时错误（`isLinkRefreshTokenRevokedError`）。
-- 刷新收到 `400 invalid_grant`（终态）时清除该 session 中对应用途的 Link 凭据（`clearLinkSessionTokens`：`session` / `admin` 列置 null；一次性管理员会话复用登录 token 时两列都清），本次请求与后续请求都按「缺 token」处理，由既有分支引导重新授权：
+- 刷新收到 `400 invalid_grant`（终态）时清除该 session 中对应用途的 Link 凭据（`clearLinkSessionTokens`：`session` / `admin` 列置 null），本次请求与后续请求都按「缺 token」处理，由既有分支引导重新授权：
   - 会话调用缺 token → `MissingLinkAccessTokenError` → `/login`（重新点击 SAST Link 登录）。
   - 管理端调用缺管理 token（role ≥ 2）→ `MissingLinkAdminAccessTokenError`，`/dashboard` 布局跳 `/api/auth/link/start` 重新授权。
+- 管理端请求在没有自己的 refresh token 时会复用登录 token，与 session 请求共享同一次刷新（同一个 `refreshInFlight` key），所以缺失令牌错误按**每个请求自己的 purpose** 转换，而不是由先发起刷新者的 purpose 决定。
+- 清理在事务内以行锁 + 「刚失败的 refresh token 仍是当前存值」为条件（`refreshInFlight` 只协调单个实例）：期间另一实例已经轮换出的新凭据不会被误清，此时复用新凭据。
 - 网络错误与 Link 5xx 视为瞬时故障，保留 token，下个请求继续尝试刷新；另一实例已并发刷新出新 token 时复用新 token，不清除。
 
 ## 7. Link API 依赖
