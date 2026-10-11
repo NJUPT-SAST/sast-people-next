@@ -59,14 +59,19 @@ jest.mock("@/db/drizzle", () => {
   const st = {
     /* 按调用顺序排队的 select 返回：第一条给 user_flow，第二条给该考生已有的评分记录 */
     selectResults: [] as unknown[][],
+    selectConditions: [] as unknown[],
     deleteCondition: undefined as unknown,
   };
 
-  const chain = (resolve: () => unknown) => {
+  const chain = (resolve: () => unknown, capture?: (condition: unknown) => void) => {
     const builder: Record<string, unknown> = {};
     for (const method of ["from", "leftJoin", "where", "orderBy", "limit", "for"]) {
       builder[method] = () => builder;
     }
+    builder.where = (condition: unknown) => {
+      capture?.(condition);
+      return builder;
+    };
     builder.then = (
       onFulfilled: (rows: unknown) => unknown,
       onRejected?: (error: unknown) => unknown,
@@ -78,7 +83,10 @@ jest.mock("@/db/drizzle", () => {
     select: () => ({
       from: () => {
         const rows = st.selectResults.shift() ?? [];
-        return chain(() => rows);
+        return chain(
+          () => rows,
+          (condition) => st.selectConditions.push(condition),
+        );
       },
     }),
     delete: () => ({
@@ -99,7 +107,11 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { userPoint } from "@/db/schema";
 import { clearPoints } from "./clear";
 
-type MockState = { selectResults: unknown[][]; deleteCondition: unknown };
+type MockState = {
+  selectResults: unknown[][];
+  selectConditions: unknown[];
+  deleteCondition: unknown;
+};
 
 const drizzleMock = jest.requireMock<{ __state: MockState }>("@/db/drizzle");
 const mockState = drizzleMock.__state;
@@ -119,6 +131,7 @@ const gradedPoints = [
 
 beforeEach(() => {
   mockState.selectResults = [];
+  mockState.selectConditions = [];
   mockState.deleteCondition = undefined;
   mockSession.role = 4;
   mockSession.realRole = 4;
@@ -181,14 +194,21 @@ describe("clearPoints 清分边界", () => {
     expect(params).toEqual(expect.arrayContaining([21, 11, 12]));
   });
 
-  it("删除条件同时限定报名记录与题目，不会误删其他考生的分", async () => {
-    mockState.selectResults = [[record], gradedPoints];
+  it("只清传进来的题：读取与删除都限定在该报名记录与这些题目上", async () => {
+    /* mock 不解析 where：让返回的行与「只清第 11 题」一致，断言才锁得住真实范围 */
+    mockState.selectResults = [[record], [gradedPoints[0]]];
 
     await clearPoints(21, [11]);
 
-    expect(mockState.deleteCondition).toEqual(
-      and(eq(userPoint.fkUserFlowId, 21), inArray(userPoint.fkProblemId, [11, 12])),
+    /* 查已保存的评分时就带上报名记录与题目范围（不是全量读出来再筛） */
+    expect(mockState.selectConditions[1]).toEqual(
+      and(eq(userPoint.fkUserFlowId, 21), inArray(userPoint.fkProblemId, [11])),
     );
+    expect(mockState.deleteCondition).toEqual(
+      and(eq(userPoint.fkUserFlowId, 21), inArray(userPoint.fkProblemId, [11])),
+    );
+    const { params } = new PgDialect().sqlToQuery(mockState.deleteCondition as never);
+    expect(params).toEqual([21, 11]);
   });
 
   it("没有评分记录时不写审计", async () => {
