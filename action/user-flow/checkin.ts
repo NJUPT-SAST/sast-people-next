@@ -3,7 +3,7 @@
 import { db } from "@/db/drizzle";
 import { flow, interviewCheckin, interviewStation, userFlow } from "@/db/schema";
 import { verifyRole } from "@/lib/dal";
-import { isOfficeDepartmentKey } from "@/lib/authz";
+import { getDepartmentScope, isOfficeDepartmentKey } from "@/lib/authz";
 import { MANAGER_ROLE } from "@/lib/link/role";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
@@ -156,6 +156,15 @@ export type VenueDepartmentSnapshot = {
   /** 本轮已报名但尚未在本部门签到的候选人 */
   awaiting: AwaitingCandidate[];
   counts: CheckinQueueCounts;
+  /**
+   * 当前用户能否给这个部门的候选人写面评。
+   *
+   * 舞台是共用的（谁都能叫号/推进），但面评的归属仍按部门收敛：办公类面评写进
+   * `user_flow.department` 所属部门，服务端 `createEvaluation` / `getOfficeInterviewRecord`
+   * 只认本部门（管理员放行）。界面据此决定要不要露出「写面评」——
+   * 否则点了必然得到「无权操作其他部门的候选人」，白跑一趟。
+   */
+  canWriteRecord: boolean;
 };
 
 export type VenueSnapshot = {
@@ -491,6 +500,8 @@ export const getVenueSnapshot = async (
 ): Promise<VenueSnapshot> => {
   const round = normalizeRound(roundInput);
   await verifyVenueAccess();
+  /* 叫号/签到不看部门 scope，但面评仍按部门收敛，界面要靠它决定露不露出「写面评」 */
+  const scope = await getDepartmentScope();
 
   const flowRows = await db
     .select({
@@ -580,6 +591,9 @@ export const getVenueSnapshot = async (
       entries: flowEntries,
       awaiting,
       counts: countCheckinQueue(flowEntries),
+      canWriteRecord:
+        scope.kind === "all" ||
+        (scope.kind === "department" && scope.department === flowRow.department),
     };
   });
 
