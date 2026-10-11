@@ -44,6 +44,7 @@ type RecruitmentRowLike = {
   stepId: number;
   status: string;
   isGraded?: boolean;
+  totalScore?: string | null;
   qq?: unknown;
 };
 
@@ -190,6 +191,16 @@ export function DataTable<TData, TValue>({
         .filter((item) => item.count > 0)
     : [];
   const selectedCount = selectedMutableRows.length;
+  /* 分数线以上的有多少人：与状态胶囊同一口径，按整份名单统计，不随搜索 / 状态筛选变化 */
+  const scoreThreshold = String(totalScoreColumn?.getFilterValue() ?? '').trim();
+  const parsedThreshold = Number.parseInt(scoreThreshold, 10);
+  const thresholdCount = Number.isFinite(parsedThreshold)
+    ? allRows.filter(
+        (row) =>
+          Number.parseInt(toRecruitmentRow(row).totalScore ?? '', 10) >=
+          parsedThreshold,
+      ).length
+    : 0;
   const emptyMessage =
     allRows.length > 0 ? '没有符合条件的考生。' : '当前流程下还没有考生记录。';
   const filterChipClass = (active: boolean) =>
@@ -253,10 +264,16 @@ export function DataTable<TData, TValue>({
                 }
                 className="h-9 w-[6rem] shrink-0 sm:w-[8rem]"
               />
+              {/* 划线时要先知道「这个分数以上有多少人」再决定线画在哪 */}
+              {scoreThreshold && (
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                  {`≥ ${scoreThreshold} 分 ${thresholdCount} 人`}
+                </span>
+              )}
             </div>
             {role >= 3 && (
               <div className="flex min-w-0 items-center gap-2.5">
-                {selectedCount > 0 && (
+                {!resultsLocked && (
                   <span className="shrink-0 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
                     {`已选 ${selectedCount} 人`}
                   </span>

@@ -222,6 +222,52 @@ describe("Recruitment DataTable", () => {
     expect(screen.getAllByText("目标同学").length).toBeGreaterThan(0);
   });
 
+  it("counts the candidates at or above the score threshold", async () => {
+    const user = userEvent.setup();
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          { uid: 1, stepId: 3, name: "高分同学", totalScore: "90", status: "ongoing" },
+          { uid: 2, stepId: 3, name: "压线同学", totalScore: "60", status: "ongoing" },
+          { uid: 3, stepId: 3, name: "低分同学", totalScore: "59", status: "ongoing" },
+          { uid: 4, stepId: 3, name: "未批卷同学", totalScore: "0", status: "ungraded" },
+        ]}
+      />,
+    );
+
+    const scoreFilter = screen.getByRole("textbox", {
+      name: "按总分筛选，输入分数线",
+    });
+    await user.type(scoreFilter, "60");
+
+    /* 60 分及以上 2 人（压线算进）：划线前先看人数 */
+    expect(screen.getAllByText("≥ 60 分 2 人").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the selected count visible from zero", async () => {
+    const user = userEvent.setup();
+    render(
+      <DataTable
+        columns={columns}
+        flowTypeId={9}
+        role={3}
+        data={[
+          { uid: 1, stepId: 3, name: "张三", totalScore: "90", status: "ongoing" },
+          { uid: 2, stepId: 3, name: "李四", totalScore: "70", status: "ongoing" },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText("已选 0 人").length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByLabelText("select-1")[0]);
+
+    expect(screen.getAllByText("已选 1 人").length).toBeGreaterThan(0);
+  });
+
   it("applies batch outcomes only to selected rows that stay in the filter", async () => {
     const user = userEvent.setup();
 
@@ -243,7 +289,7 @@ describe("Recruitment DataTable", () => {
     await user.type(search, "目标");
 
     // The selected row is filtered out, so it must not be counted or changed.
-    expect(screen.queryByText(/已选/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("已选 0 人").length).toBeGreaterThan(0);
     const passButton = screen.getByRole("button", { name: "设为通过" });
     expect(passButton).toBeDisabled();
     await user.click(passButton);
