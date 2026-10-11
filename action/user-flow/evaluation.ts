@@ -1021,6 +1021,10 @@ export const getAllEvaluations = async () => {
           row.evaluation.fkReviewedBy,
         ])
         .filter((id): id is number => id !== null),
+      {
+        /* 审批页（部长及以上）要按 QQ 搜候选人：QQ 的可见阈值与成员目录一致（role ≥ 2） */
+        canViewQq: session.role >= 2,
+      },
     );
 
     return rows.map((row) => ({
@@ -1049,6 +1053,9 @@ export const getAllEvaluations = async () => {
         : null,
       candidateStudentId: row.candidateId
         ? (userMap.get(row.candidateId)?.studentId ?? null)
+        : null,
+      candidateQq: row.candidateId
+        ? (userMap.get(row.candidateId)?.qq ?? null)
         : null,
     }));
   } catch (error) {

@@ -8,6 +8,7 @@ import { Button } from '../ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -228,17 +229,9 @@ export const makeColumns = (
   {
     accessorKey: 'problemScores',
     header: '得分组成',
-    cell: ({ getValue }) => {
-      const scores = getValue() as
-        | Array<{
-            id: number;
-            title: string;
-            score: number;
-            points: number;
-            judgerName: string | null;
-            note: string | null;
-          }>
-        | undefined;
+    cell: ({ row }) => {
+      /* 弹窗会盖住表格的姓名 / 学号列，题目明细必须自带考生身份，否则看不出这是谁的分 */
+      const scores = row.original.problemScores;
       if (!scores?.length) {
         return (
           <Button size="sm" variant="outline" disabled>
@@ -257,6 +250,9 @@ export const makeColumns = (
           <DialogContent className="max-h-[82dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>得分组成</DialogTitle>
+              <DialogDescription>
+                {row.original.name}（{row.original.studentId ?? '无学号'}）
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-3">
               {scores.map((item) => (

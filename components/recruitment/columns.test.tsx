@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 
 jest.mock("@/components/manage/viewUserInfoSheet", () => ({
@@ -80,6 +81,83 @@ describe("recruitment columns", () => {
       <>{cell?.({ getValue: () => null } as never)}</>,
     );
     expect(hiddenContainer).toHaveTextContent("-");
+  });
+
+  it("shows the candidate identity in the score breakdown dialog", async () => {
+    const user = userEvent.setup();
+    const scoresColumn = columns.find(
+      (column) =>
+        "accessorKey" in column && column.accessorKey === "problemScores",
+    );
+    const cell = scoresColumn?.cell as
+      | ((props: never) => ReactNode)
+      | undefined;
+    expect(typeof cell).toBe("function");
+
+    render(
+      <>
+        {cell?.({
+          row: {
+            original: {
+              name: "张三",
+              studentId: "2026001",
+              problemScores: [
+                {
+                  id: 1,
+                  title: "第一题",
+                  score: 10,
+                  points: 8,
+                  judgerName: "李老师",
+                  note: null,
+                },
+              ],
+            },
+          },
+        } as never)}
+      </>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "查看得分" }));
+
+    expect(await screen.findByText("张三（2026001）")).toBeInTheDocument();
+  });
+
+  it("marks a missing student id in the score breakdown dialog", async () => {
+    const user = userEvent.setup();
+    const scoresColumn = columns.find(
+      (column) =>
+        "accessorKey" in column && column.accessorKey === "problemScores",
+    );
+    const cell = scoresColumn?.cell as
+      | ((props: never) => ReactNode)
+      | undefined;
+
+    render(
+      <>
+        {cell?.({
+          row: {
+            original: {
+              name: "李四",
+              studentId: null,
+              problemScores: [
+                {
+                  id: 1,
+                  title: "第一题",
+                  score: 10,
+                  points: 8,
+                  judgerName: null,
+                  note: null,
+                },
+              ],
+            },
+          },
+        } as never)}
+      </>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "查看得分" }));
+
+    expect(await screen.findByText("李四（无学号）")).toBeInTheDocument();
   });
 
   it("filters rows by total score", () => {
