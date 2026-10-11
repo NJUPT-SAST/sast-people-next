@@ -112,8 +112,14 @@ describe("score breakdown dialog", () => {
     expect(screen.getByText("8/10")).toBeInTheDocument();
     expect(screen.getByText("未批")).toBeInTheDocument();
     expect(screen.getByText("阅卷：李老师")).toBeInTheDocument();
-    /* 未批的题没有阅卷人可显示，也不该有清分入口 */
-    expect(screen.getAllByRole("button", { name: "清分" })).toHaveLength(1);
+    /* 未批的题没有阅卷人可显示，也不该有清分入口；批过的题只挂一个小橡皮图标 */
+    expect(screen.getAllByRole("button", { name: /^清除「/ })).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "清除「第一题」的得分" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "清除「第二题」的得分" }),
+    ).not.toBeInTheDocument();
   });
 
   it("marks a missing student id instead of leaving it blank", async () => {
@@ -132,7 +138,9 @@ describe("score breakdown dialog", () => {
     await openScoreDialog(user);
 
     expect(await screen.findByText("得分组成")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "清分" })).not.toBeInTheDocument();
+    expect(
+      screen.queryAllByRole("button", { name: /^清除「/ }),
+    ).toHaveLength(0);
     expect(
       screen.queryByRole("button", { name: "清空全部得分" }),
     ).not.toBeInTheDocument();
@@ -145,7 +153,9 @@ describe("score breakdown dialog", () => {
     renderScoreDialog({ onScoresChanged });
 
     await openScoreDialog(user);
-    await user.click(await screen.findByRole("button", { name: "清分" }));
+    await user.click(
+      await screen.findByRole("button", { name: "清除「第一题」的得分" }),
+    );
 
     expect(mockClearPoints).not.toHaveBeenCalled();
     expect(
@@ -182,7 +192,9 @@ describe("score breakdown dialog", () => {
     renderScoreDialog();
 
     await openScoreDialog(user);
-    await user.click(await screen.findByRole("button", { name: "清分" }));
+    await user.click(
+      await screen.findByRole("button", { name: "清除「第一题」的得分" }),
+    );
     await user.click(screen.getByRole("button", { name: "确认清分" }));
 
     expect(mockToastError).toHaveBeenCalledWith(
