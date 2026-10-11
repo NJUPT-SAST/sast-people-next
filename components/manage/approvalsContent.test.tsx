@@ -39,6 +39,7 @@ function row({
   reviewerName = null,
   department = null,
   score = null,
+  candidateQq = null,
 }: {
   id: number;
   candidateName: string;
@@ -47,6 +48,7 @@ function row({
   reviewerName?: string | null;
   department?: string | null;
   score?: number | null;
+  candidateQq?: string | null;
 }) {
   return {
     evaluation: {
@@ -76,6 +78,7 @@ function row({
     candidateId: id + 100,
     candidateName,
     candidateStudentId: `B26${id}`,
+    candidateQq,
     flowTitle: "2026 免试招新",
     flowType: "recruitment_exemption",
   };
@@ -194,6 +197,36 @@ describe("ApprovalsContent", () => {
     expect(screen.getAllByText("投递组别").length).toBeGreaterThan(0);
 
     await user.type(screen.getByLabelText("搜索归档面评"), "李四");
+
+    expect(screen.queryByText("张三")).not.toBeInTheDocument();
+    expect(screen.getByText("李四")).toBeInTheDocument();
+  });
+
+  it("searches archived evaluations by the candidate QQ", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApprovalsContent
+        initialEvaluations={[
+          row({
+            id: 2,
+            candidateName: "张三",
+            status: "approved",
+            recommendation: "passed",
+            candidateQq: "12345678",
+          }),
+          row({
+            id: 3,
+            candidateName: "李四",
+            status: "approved",
+            recommendation: "passed",
+            candidateQq: "87654321",
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: /已归档/ }));
+    await user.type(screen.getByLabelText("搜索归档面评"), "87654321");
 
     expect(screen.queryByText("张三")).not.toBeInTheDocument();
     expect(screen.getByText("李四")).toBeInTheDocument();

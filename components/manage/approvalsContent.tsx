@@ -48,6 +48,8 @@ export type EvaluationRow = {
   candidateId: number | null;
   candidateName: string | null;
   candidateStudentId: string | null;
+  /* 候选人 QQ：只用于审批页搜索（与成员目录同一可见阈值，role ≥ 2 才有值） */
+  candidateQq?: string | null;
   flowTitle: string | null;
   flowType: string | null;
   publicationStatus?: string | null;
@@ -262,6 +264,7 @@ export const ApprovalsContent = ({
     const matchesQuery = !normalizedArchiveQuery || [
       row.candidateName,
       row.candidateStudentId,
+      row.candidateQq,
       row.authorName,
       row.reviewerName,
       row.flowTitle,
@@ -339,7 +342,7 @@ export const ApprovalsContent = ({
               <Input
                 value={archiveQuery}
                 onChange={(event) => setArchiveQuery(event.target.value)}
-                placeholder="搜索姓名、学号、面评人或流程"
+                placeholder="搜索姓名、学号、QQ、面评人或流程"
                 aria-label="搜索归档面评"
                 className="h-9 w-full pl-8"
               />
