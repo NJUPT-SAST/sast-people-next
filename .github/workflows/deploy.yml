@@ -129,7 +129,7 @@ jobs:
           service=$(printf '%s' "$challenge" | sed -n 's/.*service="\([^"]*\)".*/\1/p')
           [ -n "$realm" ] || realm="$REGISTRY/service/token"
           [ -n "$service" ] || service=token-service
-          token_url="$realm?service=$service&scope=repository:${REPO}:pull,push"
+          token_url="$realm?service=$service&scope=repository:${REPO}:pull,push,delete"
 
           token_status=$(curl -sS -o "$TMP_DIR/token.json" -w '%{http_code}' \
             -u "$TCR_USERNAME:$TCR_PASSWORD" "$token_url" 2>/dev/null || echo 000)
@@ -225,15 +225,26 @@ jobs:
               continue
             fi
 
-            if curl -fsS -o /dev/null -X DELETE \
+            delete_status=$(curl -sS -o "$TMP_DIR/delete.json" -w '%{http_code}' -X DELETE \
               -H "Authorization: Bearer $TOKEN" \
-              "$REGISTRY/v2/$REPO/manifests/$digest"; then
-              echo "  已删除旧 tag $tag"
-              removed=$((removed + 1))
-            else
-              echo "::warning::删除 $tag 失败（TCR 可能不允许 API 删除）"
-              failed=$((failed + 1))
-            fi
+              "$REGISTRY/v2/$REPO/manifests/$digest" 2>/dev/null || echo 000)
+            case "$delete_status" in
+              2*)
+                echo "  已删除旧 tag $tag"
+                removed=$((removed + 1))
+                ;;
+              *)
+                echo "::warning::删除 $tag 失败（HTTP ${delete_status}）"
+                # 80 个 tag 逐个打响应体会淹掉日志：只展开第一个失败的原因
+                if [ "$failed" = "0" ]; then
+                  echo "::group::第一个删除失败的响应"
+                  head -c 300 "$TMP_DIR/delete.json" 2>/dev/null || true
+                  echo ""
+                  echo "::endgroup::"
+                fi
+                failed=$((failed + 1))
+                ;;
+            esac
           done < "$TMP_DIR/tags.txt"
 
           remaining_status=$(curl -sS -o "$TMP_DIR/tags-after.json" -w '%{http_code}' \
