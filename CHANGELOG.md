@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **减噪**：等待态不染色（绝大多数行都是等待）、次要动作（过号 / 取消签到）收进 `⋯`、每行两行结构（号码 + 姓名一行），修掉了手机上按钮把姓名挤成「王…」的问题。
   - **演示数据**：mock Link 新增 12 个办公类面试候选人（`uid 301-312`，`department: null`，学号 `B24xxxxxx` 与技术类演示账号区分），种子里一面在等候 办公室 8 / 科宣部 6 / 外联部 4 / 赛事部 5，另有 8 人未签到，二面若干已完成/等候 —— 可以连着点十几次「叫下一位」。
   - 导航新增「签到叫号」（业务分组，部长及以上，需部门归属）。
+- 面试工作台的办公类**面试记录弹窗**补上与签到叫号同一块**「本轮已记录 n 份 · 均分 x」一览**（`components/recruitment/officeRoundSummary.tsx`，两处共用），并在弹窗描述里写明**一面/二面**：两轮在同一张列表上来回切时不会再写错轮次，写之前就能看清本轮有谁打过、打了几分、填了什么意见，不必再点开分数列的弹层；一览只取当前轮的面评，上一轮的记录不混进份数与均分。技术流程的面评弹窗不变。
 - **「取消报名」只在候选人尚未进入流程时可用**（`components/userFlow/flowCard.tsx`、`action/user-flow/unregister.ts`）：提交报名时 `register` 会把当前步骤写成「报名」的下一步（`order=2`），所以「刚报名、还没被处理」（当前步骤仍在报名后的前两步内）都能取消；推进到再下一步（某个后续步骤已结束）后卡片上的取消报名按钮不再显示，服务端把「步骤校验 + 删除」放进同一事务，删除条件直接写成「当前步骤 ∈ 报名后的前两步（或未记录当前步骤）」，用受影响行数判定成功 —— 校验与删除之间不再有竞态窗口，旧页面 / 直连请求同样被挡。准入判定用持久化的 `currentStepOrder`（`activeStepOrder` 在步骤缺失时会回退，只用于展示）。
 - 办公类一面名单确认弹窗新增**「打开邮件模板页核对」**按钮（新标签页打开 `/dashboard/emails?tab=templates&department=<本部门>`）：勾选「已核对模板」前可以先跳过去看本部门的一/二面通过、不通过模板，核对完回来继续确认名单并发送，名单勾选状态不丢。
 - 管理员**切换身份查看**：顶栏「切换身份」可按任意身份（新同学/部员/讲师/部长/管理员）× 任意启用部门浏览系统，用来核对各部门实际看到的导航、数据范围与界面效果。实现是浏览器上的加密临时视角 cookie（`VIEW_AS`，只对管理员会话生效，伪造无法提权），会话本身、uid、Link token 都不改；顶栏常驻琥珀色提示条 + 「退出切换」一键回到管理员，每次切换/退出都写操作审计（`session.view-as.start` / `session.view-as.stop`）。为配合它，`verifySession` 额外返回 `realRole` 与 `viewAs`，`app/dashboard/layout.tsx` 回写 Link 资料时固定用真实角色，避免临时视角被写进会话。
@@ -98,8 +99,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `interview_slot_change_request` 升级：新增 `fk_interview_schedule_id`、`requested_starts_at/requested_ends_at`，`requested_slot` 允许为空（技术部门按时间申请），`reason` 改为必填；新增日程索引。
 - 办公类流程配置与其它部门流程一致：创建时选择归属部门并配置本流程的面试时段，不再需要「可投递的办公部门」列表与「部门映射」；`user_flow.second_choice_department` 列删除，由 `choice` + 各自流程的报名记录取代。
 - 邮件模板的办公类特例取消：`office_round1.*` / `office_round2.*` 与其它模板一样按 `(template_key, department)` 存部门覆盖，QQ 群号写在本部门模板的 `group_number` 里。
+- 面试工作台的办公类**面试记录弹窗排版对齐签到叫号的随手面评**（`components/recruitment/evaluationTable.tsx`）：分数移到最前，标签改成弱化小字并与提示同行（不再一段贴左一段贴右），分数 / 内容 / 意见三个控件一律全宽，记录内容从固定 160px 高改成 5 行可拉伸，弹窗宽度回到默认 512px；技术流程的面评弹窗保持原样（仍 `sm:max-w-xl`、讲师建议与妙记链接不变）。
+- 笔试「得分组成」弹窗的**清分入口收成一个小橡皮图标**（`components/recruitment/columns.tsx`）：管理员在每道已批的题上原本挂着一个红色「清分」文字按钮，四道题就是四块红；现在只留一个小橡皮图标（平时灰、指向它才变红，`aria-label` 仍写明「清除「题目」的得分」），卡片、分数胶囊、阅卷人与评语的分块一律照旧；顶部「清空全部得分」不变。
 
 ### Fixed
+
+#### 办公类签到叫号
+
+- **别的部门的候选人也露着「写面评」，一点就报「读取面试记录失败」**（`action/user-flow/checkin.ts`、`components/recruitment/checkin/checkinConsole.tsx`）：场地是多个办公部门共用的，叫号页刻意不按部门切分数据，于是「写面评」入口对每个部门的面试位与队列行都渲染；但面评写进的是候选人**报名归属部门**，服务端 `createEvaluation` / `getOfficeInterviewRecord` 仍按部门收口（`integration/office-interview-rounds.integration.test.ts` 守住这条），点开必然拿到「无权操作其他部门的候选人」，随手面评弹窗只显示一句「读取面试记录失败」。现在快照按**候选人报名归属部门**给出 `canWriteRecord`（与 `createEvaluation` / `getOfficeInterviewRecord` 同一个 `canAccessDepartment` 谓词——流程部门与报名归属被改派成不一致时也不会露出点不通的入口；管理员全放行、部长仅本部门），不是本部门的面试位与队列行不再渲染该入口；叫号 / 开始面试 / 结束面试这些场地动作仍按共用场地跨部门可用。
+- **「写面评」在「已叫号」就出现**（同文件）：候选人还没进场（`called`）面试位上就与「开始面试」并排摆着「写面评」；现在要开始面试（`interviewing`）之后才出现，队列里已完成的行仍能补写。
+- **已完成行的状态徽标与按钮分处两行右端**（同文件）：`已完成` 徽标挂在第一行右端、`写面评` 按钮挂在第二行右端，右边缘错开成两截；现在两者收进同一行的右侧簇。
 
 #### Link 会话
 

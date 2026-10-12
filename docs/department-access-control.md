@@ -57,6 +57,7 @@ People 侧的归属字段：
 - 鉴权用的是 `verifyRole(MANAGER_ROLE)`（所有部长，role ≥ 3），而非 `verifyScopedRole`：`app/dashboard/checkin/layout.tsx:8-15`、`app/checkin/board/layout.tsx:14`。
 - 因此全部门的部长都能看到全部办公部门的排队/签到数据。原因是场地与面试位在办公部门之间共用，签到台与叫号大屏需要跨部门统一视图，按部门 scope 收敛反而会让现场看不到别的部门队列。
 - 导航项「签到叫号」在 `components/route.tsx:99-105` 标了 `requiresDepartment: true`（未归属部门的账号不进这个入口），但页面本身不按 `department` 收敛数据。
+- **例外里的例外：面评仍按部门收敛**。叫号页的「写面评」入口只在该候选人**报名归属部门**（`user_flow.department`）落在自己 scope 内时出现（快照里的 `canWriteRecord`，`action/user-flow/checkin.ts` `getVenueSnapshot` 用 `canAccessDepartment`，与 `createEvaluation` / `getOfficeInterviewRecord` 同一谓词——流程部门被改派后两者可能不一致，所以不看 `flow.department`），因为面评写进报名归属部门，服务端照旧按 scope 收口（`integration/office-interview-rounds.integration.test.ts` 覆盖）。叫号 / 开始面试 / 结束面试等场地动作不受此限。
 
 ### 1.2 切换身份查看
 

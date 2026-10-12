@@ -217,11 +217,13 @@ const ScoreBreakdownDialog = ({
                       未批
                     </Badge>
                   )}
+                  {/* 清分是不可逆的删除：只留一个小橡皮图标；平时不染色，指向它时才变红 */}
                   {canClearScores && item.graded && (
                     <Button
-                      size="sm"
+                      size="icon-sm"
                       variant="ghost"
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`清除「${item.title}」的得分`}
                       disabled={clearing || pendingClear !== null}
                       onClick={() =>
                         setPendingClear({
@@ -230,8 +232,7 @@ const ScoreBreakdownDialog = ({
                         })
                       }
                     >
-                      <Eraser aria-hidden="true" />
-                      清分
+                      <Eraser className="size-4" aria-hidden="true" />
                     </Button>
                   )}
                 </div>

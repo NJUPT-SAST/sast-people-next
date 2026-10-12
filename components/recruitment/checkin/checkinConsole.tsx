@@ -124,7 +124,7 @@ const CheckinConsole = ({
   const [pendingCheckinId, setPendingCheckinId] = useState<number | null>(null);
   const [pendingStationId, setPendingStationId] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<CheckinStation | null>(null);
-  /* 现场随手写面评：不离开本页（面试中/已完成都能写） */
+  /* 现场随手写面评：不离开本页；入口只在**本部门**（面评按部门归属）且面试已开始/已结束时出现 */
   const [recordTarget, setRecordTarget] = useState<OfficeRecordTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [showAddStation, setShowAddStation] = useState(false);
@@ -678,7 +678,10 @@ const DepartmentBlock = ({
               onCall={() => onCall(station)}
               onOccupantAction={(to) => onOccupantAction(station, to)}
               onOpenRecord={
-                station.occupant
+                /* 面评入口按**候选人报名归属**判定（别的部门不露），并且面试真正开始
+                   （面试中）之后才需要写记录 */
+                station.occupant?.canWriteRecord &&
+                station.occupant.status === "interviewing"
                   ? () =>
                       onOpenRecord({
                         userFlowId: station.occupant!.userFlowId,
@@ -708,13 +711,16 @@ const DepartmentBlock = ({
                 freeStations={freeStations}
                 pending={pendingCheckinId === entry.id}
                 onTransition={onTransition}
-                onOpenRecord={() =>
-                  onOpenRecord({
-                    userFlowId: entry.userFlowId,
-                    queueNo: entry.queueNo,
-                    name: entry.name,
-                    round: entry.round,
-                  })
+                onOpenRecord={
+                  entry.canWriteRecord
+                    ? () =>
+                        onOpenRecord({
+                          userFlowId: entry.userFlowId,
+                          queueNo: entry.queueNo,
+                          name: entry.name,
+                          round: entry.round,
+                        })
+                    : undefined
                 }
               />
             ))}
@@ -865,7 +871,8 @@ const QueueRow = ({
     to: InterviewCheckinStatusKey,
     stationId?: number,
   ) => void;
-  onOpenRecord: () => void;
+  /** 未传表示当前用户不能给这个部门的候选人写面评（别的部门） */
+  onOpenRecord?: () => void;
 }) => {
   const meta = interviewCheckinStatusMeta[entry.status];
   const isWaiting = entry.status === "waiting" || entry.status === "skipped";
@@ -897,9 +904,6 @@ const QueueRow = ({
           {entry.queueNo}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{entry.name}</span>
-        {isWaiting ? null : (
-          <Badge className={meta.badgeClassName}>{meta.label}</Badge>
-        )}
       </div>
 
       <div className="flex items-center justify-between gap-2">
@@ -907,6 +911,10 @@ const QueueRow = ({
           {notes}
         </p>
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* 状态徽标与操作同一行右端：分两行摆会在右边缘错开，读起来像两截 */}
+          {isWaiting ? null : (
+            <Badge className={meta.badgeClassName}>{meta.label}</Badge>
+          )}
           {isWaiting && freeStations.length > 0 ? (
             <Select
               value=""
@@ -936,7 +944,7 @@ const QueueRow = ({
             </Button>
           ) : null}
 
-          {entry.status === "done" ? (
+          {entry.status === "done" && onOpenRecord ? (
             <Button size="sm" variant="secondary" onClick={onOpenRecord}>
               <ClipboardPenLine className="size-4" />
               写面评

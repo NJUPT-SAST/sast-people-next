@@ -583,8 +583,8 @@ describe("EvaluationTable", () => {
     const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
     await user.click(rowMenu.getByRole("button", { name: "修改记录" }));
 
-    // 编辑的是本人那一份：分数与记录内容回填
-    expect(screen.getByLabelText(/面试分数/)).toHaveValue(80);
+    // 编辑的是本人那一份：分数与记录内容回填（分数框是带 inputMode 的文本框，值按字符串读）
+    expect(screen.getByLabelText(/面试分数/)).toHaveValue("80");
     expect(screen.getByLabelText(/面试记录内容/)).toHaveValue("原面试记录");
     // 办公类弹窗没有讲师建议组，也没有妙记/作品区块；只有可选的面试意见
     expect(screen.queryByRole("group", { name: /讲师建议/ })).not.toBeInTheDocument();
@@ -2232,6 +2232,58 @@ describe("EvaluationTable", () => {
     expect(screen.queryByRole("group", { name: /讲师建议/ })).not.toBeInTheDocument();
     expect(screen.queryByText("妙记链接")).not.toBeInTheDocument();
     expect(screen.queryByText("作品链接")).not.toBeInTheDocument();
+  });
+
+  it("names the round and shows what this round already has in the office record dialog", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      [
+        makeCandidate({
+          userFlowId: 1,
+          name: "办公同学",
+          round: 1,
+          averageScore: 88,
+          evaluationCount: 1,
+          evaluations: [
+            {
+              id: 21,
+              score: 88,
+              content: "本轮他人记录",
+              recommendation: "failed",
+              status: "submitted",
+              authorId: 9,
+              authorName: "乙部长",
+              round: 1,
+              isMine: false,
+            },
+            /* 上一轮的记录不能混进本轮的份数/均分一览 */
+            {
+              id: 22,
+              score: 47,
+              content: "上一轮记录",
+              recommendation: null,
+              status: "submitted",
+              authorId: 9,
+              authorName: "乙部长",
+              round: 2,
+              isMine: false,
+            },
+          ],
+        }),
+      ],
+      { scoringEnabled: true, roundView: 1 },
+    );
+
+    const rowMenu = within(screen.getAllByTestId("row-menu")[0]);
+    await user.click(rowMenu.getByRole("button", { name: "填写面试记录" }));
+
+    const dialog = screen.getByRole("dialog");
+    /* 写之前先看清本轮有谁打过、打了几分：与签到叫号的随手面评同一块 */
+    expect(dialog).toHaveTextContent("本轮已记录 1 份 · 均分 88");
+    expect(dialog).toHaveTextContent("乙部长：88 分 · 建议不通过");
+    expect(dialog).not.toHaveTextContent("47 分");
+    /* 两轮在同一张列表上来回切，弹窗要说明现在写的是哪一轮 */
+    expect(dialog).toHaveTextContent("一面 · 办公同学");
   });
 
   it("keeps the lecturer wording in the technical interview flows", async () => {
