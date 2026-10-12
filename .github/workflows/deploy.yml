@@ -151,11 +151,17 @@ jobs:
             echo "::warning::scope actions=${actions} 拿不到 token（HTTP ${token_status}）"
           done
           if [ -z "${TOKEN:-}" ]; then
-            echo "::warning::拿不到 TCR token（最后一次 HTTP ${token_status}），跳过 tag 清理（仓库 tag 会继续累积）"
             echo "::group::token 响应（前 400 字节）"
             head -c 400 "$TMP_DIR/token.json" 2>/dev/null || true
             echo ""
             echo "::endgroup::"
+            # 仓库满员时 TCR 会拒绝为该仓库签发任何 token（响应体写明 tag 已达上限），
+            # 于是脚本既拿不到 token 也删不了 tag —— 这是先有鸡还是先有蛋，只能到控制台清一次。
+            if grep -q "reached its limit" "$TMP_DIR/token.json" 2>/dev/null; then
+              echo "::error::TCR 仓库已到 tag 上限（100），此时注册表拒绝签发任何 token，脚本无法自行清理。请到 TCR 控制台删除旧的 <commit-hash> / <commit-hash>-migrator 标签（保留最近的几个即可），或升级套餐；之后每次部署都会自动维护保留窗口，不会再满。"
+              exit 1
+            fi
+            echo "::warning::拿不到 TCR token（最后一次 HTTP ${token_status}），跳过 tag 清理（仓库 tag 会继续累积）"
             exit 0
           fi
 
