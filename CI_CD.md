@@ -78,8 +78,10 @@ docker compose up -d --force-recreate
 ## 镜像版本管理
 
 每次部署往 TCR 推送两个标签：
-- `sast/sast-people-next:<commit-hash>` — 应用镜像（按 commit 打，供部署与「重拉某个历史版本」）
-- `sast/sast-people-next:migrator` — 一次性迁移镜像（**固定 tag，每次部署覆盖**）
+- `sast/sast-people-next-v2:<commit-hash>` — 应用镜像（按 commit 打，供部署与「重拉某个历史版本」）
+- `sast/sast-people-next-v2:migrator` — 一次性迁移镜像（**固定 tag，每次部署覆盖**）
+
+仓库名由 workflow 的 `REGISTRY_REPO` 决定（服务器上的本地镜像名与 `docker-compose.yml` 仍是 `sast/sast-people-next:current`，两者刻意分开）。历史的 `sast/sast-people-next` 仓库曾堆到个人版的 100 tag 上限，而**仓库满员时注册表拒绝为该仓库签发任何 token**（pull/push 也不行），API 自清因此走不通；改用新仓库名后，个人版会在推送时**自动创建**该仓库（命名空间 `sast` 不变），从 0 个 tag 重新开始。
 
 TCR 个人版每个仓库上限 **100 个 tag**，而应用镜像每次部署都要占一个，所以 `deploy.yml` 在推送前会先清理仓库里的旧 tag（步骤 `Prune old image tags from TCR`）：保留**当前 ref 最近 `TAG_RETENTION_COMMITS`（默认 20）个提交**对应的 tag、本次要推的 tag，以及固定 tag `migrator`，其余（含早期 `<commit-hash>-migrator` 那种旧格式）走 Registry v2 API 删除。判定按「还在不在保留集合里」，不依赖 tag 的时间顺序（tag 名是短 sha，本身不带时间信息）。
 
