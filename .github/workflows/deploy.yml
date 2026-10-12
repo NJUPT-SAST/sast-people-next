@@ -48,6 +48,11 @@ env:
   REGISTRY_PREFIX: sast
   TCR_HOST: ccr.ccs.tencentyun.com
   TCR_NAMESPACE: sast
+  # 镜像仓库名（注册表里的 path）：原 sast-people-next 的 100 个 tag 已到个人版上限，而
+  # 仓库满员时注册表连 token 都不签发，无法用 API 自清 —— 于是换用一个新的仓库名，
+  # 个人版在推送时会自动创建（命名空间 sast 不变）。旧的 sast-people-next 保留原样待清理。
+  # 注意：服务器上的本地镜像名仍是 ${REGISTRY_PREFIX}/${SERVICE_NAME}（docker-compose 的 :current 依赖它）。
+  REGISTRY_REPO: sast-people-next-v2
   # 迁移镜像只用这一个固定 tag（每次部署覆盖），不按 commit 打 tag
   MIGRATOR_TAG: migrator
   # TCR 个人版每个仓库上限 100 个 tag：应用镜像只保留最近这么多次部署对应的 tag，
@@ -114,7 +119,7 @@ jobs:
           REGISTRY="${{ env.TCR_HOST }}"
           # 必须带协议：TCR_HOST 只是域名，少了 https:// 的话 curl 会走 80 端口、拿到 308 重定向页而不是 JSON
           REGISTRY_URL="https://$REGISTRY"
-          REPO="${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}"
+          REPO="${{ env.TCR_NAMESPACE }}/${{ env.REGISTRY_REPO }}"
           KEEP="${{ env.TAG_RETENTION_COMMITS }}"
           TMP_DIR="${RUNNER_TEMP:-/tmp}"
 
@@ -286,7 +291,7 @@ jobs:
           context: .
           target: runner
           push: true
-          tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
+          tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.REGISTRY_REPO }}:${{ steps.vars.outputs.sha_short }}
           build-args: |
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
           cache-from: |
@@ -300,7 +305,7 @@ jobs:
           context: .
           target: migrator
           push: true
-          tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ env.MIGRATOR_TAG }}
+          tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.REGISTRY_REPO }}:${{ env.MIGRATOR_TAG }}
           cache-from: |
             type=gha,scope=migrator
             type=gha
@@ -356,7 +361,7 @@ jobs:
             SERVICE_DIR="/data/${{ env.SERVICE_NAME }}"
             IMAGE_NAME="${{ env.REGISTRY_PREFIX }}/${{ env.SERVICE_NAME }}"
             TCR_HOST="${{ env.TCR_HOST }}"
-            REMOTE_IMAGE="${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}"
+            REMOTE_IMAGE="${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.REGISTRY_REPO }}"
             NEW_VERSION_TAG="${{ steps.vars.outputs.sha_short }}"
 
             cd ${SERVICE_DIR}
