@@ -77,15 +77,17 @@ docker compose up -d --force-recreate
 
 ## 镜像版本管理
 
-每次部署推送两个标签（均为该 commit 的短 hash）：
-- `sast/sast-people-next:<commit-hash>` — 应用镜像
-- `sast/sast-people-next:<commit-hash>-migrator` — 一次性迁移镜像
+每次部署往 TCR 推送两个标签：
+- `sast/sast-people-next:<commit-hash>` — 应用镜像（按 commit 打，供部署与「重拉某个历史版本」）
+- `sast/sast-people-next:migrator` — 一次性迁移镜像（**固定 tag，每次部署覆盖**）
+
+TCR 个人版每个仓库上限 **100 个 tag**，而应用镜像每次部署都要占一个，所以 `deploy.yml` 在推送前会先清理仓库里的旧 tag（步骤 `Prune old image tags from TCR`）：保留**当前 ref 最近 `TAG_RETENTION_COMMITS`（默认 20）个提交**对应的 tag、本次要推的 tag，以及固定 tag `migrator`，其余（含早期 `<commit-hash>-migrator` 那种旧格式）走 Registry v2 API 删除。判定按「还在不在保留集合里」，不依赖 tag 的时间顺序（tag 名是短 sha，本身不带时间信息）。清理拿不到 token / 列不出列表 / 单个删除失败时只打 `::warning::` 并继续部署；只有清理后仍有 100 个（下一个 tag 必然推不上去）才 `::error::` 终止，提示去 TCR 控制台清理或升级套餐。
 
 部署过程中还会打上服务器本地滚动标签，`docker-compose.yml` 使用 `:current`：
 - `current` — 当前运行版本
 - `backup` — 上一版本（用于快速回滚）
 
-部署成功收尾时只清理**部署服务器本地**的引用：删除本轮 `<commit-hash>` / `<commit-hash>-migrator` 的本地标签，并把本地 `sast/sast-people-next` 的历史版本标签只保留最近 3 个（`docker rmi` 逐个删除更早的），最后 `docker image prune -f`。`docker rmi` 不会删除镜像仓库里的标签，**已推送到 TCR 的 `<commit-hash>` 标签仍会保留**（需要清理仓库标签只能走 TCR 侧操作）。服务器上也没有 `latest` 标签，回滚靠本地的 `current` / `backup` 滚动标签。
+部署成功收尾时只清理**部署服务器本地**的引用：删除本轮 `<commit-hash>` / `migrator` 的本地标签，并把本地 `sast/sast-people-next` 的历史版本标签只保留最近 3 个（`docker rmi` 逐个删除更早的），最后 `docker image prune -f`。`docker rmi` 不会删除镜像仓库里的标签——仓库里的标签由上面那段 CI 清理收敛，超出保留窗口的版本需要重拉时得重新部署。服务器上也没有 `latest` 标签，回滚靠本地的 `current` / `backup` 滚动标签。
 
 回滚命令：`docker tag sast/sast-people-next:backup sast/sast-people-next:current && docker compose up -d`
 
