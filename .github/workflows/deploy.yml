@@ -48,6 +48,11 @@ env:
   REGISTRY_PREFIX: sast
   TCR_HOST: ccr.ccs.tencentyun.com
   TCR_NAMESPACE: sast
+  # 迁移镜像只用这一个固定 tag（每次部署覆盖），不按 commit 打 tag
+  MIGRATOR_TAG: migrator
+  # TCR 个人版每个仓库上限 100 个 tag：应用镜像只保留最近这么多次部署对应的 tag，
+  # 更早的在推送前由 CI 删掉（见 "Prune old image tags from TCR"）
+  TAG_RETENTION_COMMITS: "20"
 
 jobs:
   deploy:
@@ -81,6 +86,8 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          # tag 保留窗口按提交历史算，浅克隆要够深（见 TAG_RETENTION_COMMITS）
+          fetch-depth: 50
 
       - name: Get short Git commit hash
         id: vars
@@ -96,6 +103,124 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$TCR_PASSWORD" | docker login "$TCR_HOST" --username "$TCR_USERNAME" --password-stdin
+
+      - name: Prune old image tags from TCR
+        env:
+          TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
+          TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+        run: |
+          set -uo pipefail
+          # 只管清理，绝不因为注册表不给删就把部署拦下来：删不掉的都记到日志/告警里
+          REGISTRY="${{ env.TCR_HOST }}"
+          REPO="${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}"
+          KEEP="${{ env.TAG_RETENTION_COMMITS }}"
+          TMP_DIR="${RUNNER_TEMP:-/tmp}"
+
+          # 保留集合：当前 ref 最近 KEEP 个提交的短 sha（部署 tag 就是它们）+ 本次要推的 tag + 固定 tag。
+          # tag 名本身是短 sha、不带时间信息，所以按「还在不在保留集合里」判定，不猜时间顺序。
+          {
+            git log -n "$KEEP" --format=%h
+            echo "${{ steps.vars.outputs.sha_short }}"
+            echo "${{ env.MIGRATOR_TAG }}"
+          } | sort -u > "$TMP_DIR/keep-tags.txt"
+
+          TOKEN=$(curl -fsS -u "$TCR_USERNAME:$TCR_PASSWORD" \
+            "$REGISTRY/service/token?service=registry&scope=repository:${REPO}:pull,push,delete" \
+            | jq -r '.token // .access_token // empty' 2>/dev/null) || true
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::warning::拿不到 TCR token，跳过 tag 清理（仓库 tag 会继续累积）"
+            exit 0
+          fi
+
+          if ! curl -fsS -H "Authorization: Bearer $TOKEN" \
+            "$REGISTRY/v2/$REPO/tags/list" -o "$TMP_DIR/tags.json"; then
+            echo "::warning::列不出 TCR tag 列表，跳过清理"
+            exit 0
+          fi
+
+          kept=0
+          removed=0
+          gone=0
+          failed=0
+
+          # 保留窗口里那些 tag 的 digest 也要保护起来：v2 的 DELETE 按 digest 删，
+          # 会把指向同一个 manifest 的所有 tag 一起删掉。内容没变的构建（例如只改文档的 commit）
+          # 与前一个 commit 共用 digest，只按 tag 名判重就会把窗口内的 tag 一起删掉。
+          #
+          # 例外：固定 tag migrator 不参与这个保护 —— 它每次部署都会被重新推上来，而历史上那批
+          # `<sha>-migrator` 大多与它共用同一个 digest；保护它等于让那些旧 tag 永远删不掉、把 100 个名额一直占着。
+          : > "$TMP_DIR/keep-digests.txt"
+          while IFS= read -r keep_tag; do
+            [ -n "$keep_tag" ] || continue
+            [ "$keep_tag" = "${{ env.MIGRATOR_TAG }}" ] && continue
+            keep_headers=""
+            if ! keep_headers=$(curl -fsI \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+                -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+                -H "Accept: application/vnd.oci.image.index.v1+json" \
+                "$REGISTRY/v2/$REPO/manifests/$keep_tag"); then
+              keep_headers=""
+            fi
+            keep_digest=$(printf '%s\n' "$keep_headers" \
+              | tr -d '\r' \
+              | awk 'tolower($1) == "docker-content-digest:" { print $2 }')
+            [ -n "$keep_digest" ] && echo "$keep_digest" >> "$TMP_DIR/keep-digests.txt"
+          done < "$TMP_DIR/keep-tags.txt"
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            if grep -qxF -- "$tag" "$TMP_DIR/keep-tags.txt"; then
+              kept=$((kept + 1))
+              continue
+            fi
+
+            # v2 删除要按 digest（tag 名是短 sha，不携带时间信息，所以按「还在不在保留集合里」判定）
+            headers=""
+            if ! headers=$(curl -fsI \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+                -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+                -H "Accept: application/vnd.oci.image.index.v1+json" \
+                "$REGISTRY/v2/$REPO/manifests/$tag"); then
+              headers=""
+            fi
+            digest=$(printf '%s\n' "$headers" \
+              | tr -d '\r' \
+              | awk 'tolower($1) == "docker-content-digest:" { print $2 }')
+
+            if [ -n "$digest" ] && grep -qxF -- "$digest" "$TMP_DIR/keep-digests.txt"; then
+              echo "  跳过 $tag（与保留窗口内的镜像共用 digest，删了会连带删掉它）"
+              kept=$((kept + 1))
+              continue
+            fi
+
+            if [ -z "$digest" ]; then
+              # 多半是随共用 digest 一起被删掉了（上一个 DELETE 把这些 tag 一并抹掉），也可能是注册表拒绝读
+              echo "  跳过 $tag（读不到 manifest）"
+              gone=$((gone + 1))
+              continue
+            fi
+
+            if curl -fsS -o /dev/null -X DELETE \
+              -H "Authorization: Bearer $TOKEN" \
+              "$REGISTRY/v2/$REPO/manifests/$digest"; then
+              echo "  已删除旧 tag $tag"
+              removed=$((removed + 1))
+            else
+              echo "::warning::删除 $tag 失败（TCR 可能不允许 API 删除）"
+              failed=$((failed + 1))
+            fi
+          done < <(jq -r '.tags[]?' "$TMP_DIR/tags.json")
+
+          remaining=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
+            "$REGISTRY/v2/$REPO/tags/list" | jq -r '.tags | length')
+          echo "TCR tag：删除 ${removed} 个、保留 ${kept} 个、读不到 manifest ${gone} 个、失败 ${failed} 个；现有 ${remaining} 个（上限 100）"
+          # 只在「下一个 tag 一定推不上去」时报错：98/99 还能挤下这次部署，不该拦
+          if [ "${remaining:-0}" -ge 100 ]; then
+            echo "::error::TCR 里仍有 ${remaining} 个 tag（个人版上限 100）。API 删除在这个仓库不生效，请到 TCR 控制台清理或升级套餐。"
+            exit 1
+          fi
 
       - name: Build and push image to TCR
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
@@ -117,7 +242,7 @@ jobs:
           context: .
           target: migrator
           push: true
-          tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}-migrator
+          tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ env.MIGRATOR_TAG }}
           cache-from: |
             type=gha,scope=migrator
             type=gha
@@ -160,12 +285,13 @@ jobs:
           TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
           FEEDBACK_FEISHU_GROUP_URL: ${{ secrets.FEEDBACK_FEISHU_GROUP_URL }}
           DATABASE_BACKUP_REF: ${{ inputs.database_backup_ref }}
+          MIGRATOR_TAG: ${{ env.MIGRATOR_TAG }}
           DEPLOY_RUN_ID: ${{ github.run_id }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: TCR_USERNAME,TCR_PASSWORD,FEEDBACK_FEISHU_GROUP_URL,DATABASE_BACKUP_REF,DEPLOY_RUN_ID
+          envs: TCR_USERNAME,TCR_PASSWORD,FEEDBACK_FEISHU_GROUP_URL,DATABASE_BACKUP_REF,DEPLOY_RUN_ID,MIGRATOR_TAG
           script: |
             set -e
 
@@ -206,17 +332,17 @@ jobs:
             }
             docker tag "${REMOTE_IMAGE}:${NEW_VERSION_TAG}" "${IMAGE_NAME}:${NEW_VERSION_TAG}"
             for i in 1 2 3; do
-              if docker --config "$DOCKER_CONFIG" pull "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator"; then
+              if docker --config "$DOCKER_CONFIG" pull "${REMOTE_IMAGE}:${MIGRATOR_TAG}"; then
                 break
               fi
               echo "  Migration image pull failed (${i}/3); retrying in 10 seconds..."
               sleep 10
             done
-            docker image inspect "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator" >/dev/null 2>&1 || {
+            docker image inspect "${REMOTE_IMAGE}:${MIGRATOR_TAG}" >/dev/null 2>&1 || {
               echo "Migration image pull failed; aborting deployment."
               exit 1
             }
-            docker tag "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator" "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator"
+            docker tag "${REMOTE_IMAGE}:${MIGRATOR_TAG}" "${IMAGE_NAME}:${MIGRATOR_TAG}"
 
             echo ""
             echo "[2/9] Checking runtime .env..."
@@ -306,7 +432,7 @@ jobs:
               --name sast-people-next-migrate \
               --env-file .env \
               --network postgres \
-              "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator"; then
+              "${IMAGE_NAME}:${MIGRATOR_TAG}"; then
               echo "Database migration failed; application image was not activated."
               exit 1
             fi
@@ -317,7 +443,7 @@ jobs:
               --name sast-people-next-permission-check \
               --env-file .env \
               --network postgres \
-              "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator" \
+              "${IMAGE_NAME}:${MIGRATOR_TAG}" \
               node scripts/check-db-permissions.mjs; then
               echo "Application database permission check failed; application image was not activated."
               exit 1
@@ -399,12 +525,12 @@ jobs:
             echo ""
             echo "[9/9] Cleaning up..."
             docker rmi "${REMOTE_IMAGE}:${NEW_VERSION_TAG}" || true
-            docker rmi "${REMOTE_IMAGE}:${NEW_VERSION_TAG}-migrator" || true
-            docker rmi "${IMAGE_NAME}:${NEW_VERSION_TAG}-migrator" || true
+            docker rmi "${REMOTE_IMAGE}:${MIGRATOR_TAG}" || true
+            docker rmi "${IMAGE_NAME}:${MIGRATOR_TAG}" || true
 
             echo "  Pruning old version images (keep latest 3)..."
             docker image ls --format '{{.Tag}}' "${IMAGE_NAME}" \
-              | grep -v -E '^(current|backup|latest)$' \
+              | grep -v -E '^(current|backup|latest|migrator)$' \
               | tail -n +4 \
               | xargs -r -I {} docker rmi "${IMAGE_NAME}:{}"
             docker image prune -f
