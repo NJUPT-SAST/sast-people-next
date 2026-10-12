@@ -116,6 +116,43 @@ jobs:
           KEEP="${{ env.TAG_RETENTION_COMMITS }}"
           TMP_DIR="${RUNNER_TEMP:-/tmp}"
 
+          if ! command -v node >/dev/null 2>&1; then
+            echo "::warning::runner 上没有 node（解析 JSON 用），跳过 tag 清理"
+            exit 0
+          fi
+
+          # token 服务地址与 service 名从注册表自己的 401 challenge 里读：TCR 是
+          # realm=/service/token、service=token-service（写死 service=registry 会被拒），
+          # 而且 scope 要带 push（实测只请求 pull 会 401）。
+          challenge=$(curl -sI "$REGISTRY/v2/" | tr -d '\r' | awk 'tolower($1) == "www-authenticate:" { sub(/^[^ ]+[ ]+/, ""); print; exit }')
+          realm=$(printf '%s' "$challenge" | sed -n 's/.*realm="\([^"]*\)".*/\1/p')
+          service=$(printf '%s' "$challenge" | sed -n 's/.*service="\([^"]*\)".*/\1/p')
+          [ -n "$realm" ] || realm="$REGISTRY/service/token"
+          [ -n "$service" ] || service=token-service
+          token_url="$realm?service=$service&scope=repository:${REPO}:pull,push,delete"
+
+          token_status=$(curl -sS -o "$TMP_DIR/token.json" -w '%{http_code}' \
+            -u "$TCR_USERNAME:$TCR_PASSWORD" "$token_url" 2>/dev/null || echo 000)
+          TOKEN=$(node -e 'const fs=require("fs");try{const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(d.token||d.access_token||"")}catch{}' "$TMP_DIR/token.json" 2>/dev/null || true)
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::warning::拿不到 TCR token（HTTP ${token_status}，${token_url}），跳过 tag 清理（仓库 tag 会继续累积）"
+            echo "::group::token 响应（前 400 字节）"
+            head -c 400 "$TMP_DIR/token.json" 2>/dev/null || true
+            echo ""
+            echo "::endgroup::"
+            exit 0
+          fi
+
+          list_status=$(curl -sS -o "$TMP_DIR/tags.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" "$REGISTRY/v2/$REPO/tags/list" 2>/dev/null || echo 000)
+          if [ "$list_status" != "200" ]; then
+            echo "::warning::列不出 TCR tag 列表（HTTP ${list_status}），跳过清理"
+            head -c 400 "$TMP_DIR/tags.json" 2>/dev/null || true
+            exit 0
+          fi
+          node -e 'const fs=require("fs");try{for(const t of JSON.parse(fs.readFileSync(process.argv[1],"utf8")).tags||[]) console.log(t)}catch{}' \
+            "$TMP_DIR/tags.json" > "$TMP_DIR/tags.txt"
+
           # 保留集合：当前 ref 最近 KEEP 个提交的短 sha（部署 tag 就是它们）+ 本次要推的 tag + 固定 tag。
           # tag 名本身是短 sha、不带时间信息，所以按「还在不在保留集合里」判定，不猜时间顺序。
           {
@@ -123,20 +160,6 @@ jobs:
             echo "${{ steps.vars.outputs.sha_short }}"
             echo "${{ env.MIGRATOR_TAG }}"
           } | sort -u > "$TMP_DIR/keep-tags.txt"
-
-          TOKEN=$(curl -fsS -u "$TCR_USERNAME:$TCR_PASSWORD" \
-            "$REGISTRY/service/token?service=registry&scope=repository:${REPO}:pull,push,delete" \
-            | jq -r '.token // .access_token // empty' 2>/dev/null) || true
-          if [ -z "${TOKEN:-}" ]; then
-            echo "::warning::拿不到 TCR token，跳过 tag 清理（仓库 tag 会继续累积）"
-            exit 0
-          fi
-
-          if ! curl -fsS -H "Authorization: Bearer $TOKEN" \
-            "$REGISTRY/v2/$REPO/tags/list" -o "$TMP_DIR/tags.json"; then
-            echo "::warning::列不出 TCR tag 列表，跳过清理"
-            exit 0
-          fi
 
           kept=0
           removed=0
@@ -202,22 +225,35 @@ jobs:
               continue
             fi
 
-            if curl -fsS -o /dev/null -X DELETE \
+            delete_status=$(curl -sS -o "$TMP_DIR/delete.json" -w '%{http_code}' -X DELETE \
               -H "Authorization: Bearer $TOKEN" \
-              "$REGISTRY/v2/$REPO/manifests/$digest"; then
-              echo "  已删除旧 tag $tag"
-              removed=$((removed + 1))
-            else
-              echo "::warning::删除 $tag 失败（TCR 可能不允许 API 删除）"
-              failed=$((failed + 1))
-            fi
-          done < <(jq -r '.tags[]?' "$TMP_DIR/tags.json")
+              "$REGISTRY/v2/$REPO/manifests/$digest" 2>/dev/null || echo 000)
+            case "$delete_status" in
+              2*)
+                echo "  已删除旧 tag $tag"
+                removed=$((removed + 1))
+                ;;
+              *)
+                echo "::warning::删除 $tag 失败（HTTP ${delete_status}）"
+                # 80 个 tag 逐个打响应体会淹掉日志：只展开第一个失败的原因
+                if [ "$failed" = "0" ]; then
+                  echo "::group::第一个删除失败的响应"
+                  head -c 300 "$TMP_DIR/delete.json" 2>/dev/null || true
+                  echo ""
+                  echo "::endgroup::"
+                fi
+                failed=$((failed + 1))
+                ;;
+            esac
+          done < "$TMP_DIR/tags.txt"
 
-          remaining=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
-            "$REGISTRY/v2/$REPO/tags/list" | jq -r '.tags | length')
-          echo "TCR tag：删除 ${removed} 个、保留 ${kept} 个、读不到 manifest ${gone} 个、失败 ${failed} 个；现有 ${remaining} 个（上限 100）"
+          remaining_status=$(curl -sS -o "$TMP_DIR/tags-after.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" "$REGISTRY/v2/$REPO/tags/list" 2>/dev/null || echo 000)
+          remaining=$(node -e 'const fs=require("fs");try{process.stdout.write(String((JSON.parse(fs.readFileSync(process.argv[1],"utf8")).tags||[]).length))}catch{process.stdout.write("")}' "$TMP_DIR/tags-after.json" 2>/dev/null || true)
+          [ -n "$remaining" ] || remaining="?"
+          echo "TCR tag：删除 ${removed} 个、保留 ${kept} 个、读不到 manifest ${gone} 个、失败 ${failed} 个；现有 ${remaining} 个（HTTP ${remaining_status}，上限 100）"
           # 只在「下一个 tag 一定推不上去」时报错：98/99 还能挤下这次部署，不该拦
-          if [ "${remaining:-0}" -ge 100 ]; then
+          if [ "${remaining:-0}" -ge 100 ] 2>/dev/null; then
             echo "::error::TCR 里仍有 ${remaining} 个 tag（个人版上限 100）。API 删除在这个仓库不生效，请到 TCR 控制台清理或升级套餐。"
             exit 1
           fi
