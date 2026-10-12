@@ -135,13 +135,23 @@ jobs:
             *) realm="https://$realm" ;;
           esac
           [ -n "$service" ] || service=token-service
-          token_url="$realm?service=$service&scope=repository:${REPO}:pull,push,delete"
-
-          token_status=$(curl -sS -o "$TMP_DIR/token.json" -w '%{http_code}' \
-            -u "$TCR_USERNAME:$TCR_PASSWORD" "$token_url" 2>/dev/null || echo 000)
-          TOKEN=$(node -e 'const fs=require("fs");try{const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(d.token||d.access_token||"")}catch{}' "$TMP_DIR/token.json" 2>/dev/null || true)
+          # 这个 token 服务对无效凭据不校验、对真实凭据校验权限，所以「delete 能不能拿到」只能实测：
+          # 逐个 scope 试，第一个能拿到 token 的就算数，并把用的是哪个写进日志。
+          TOKEN=""
+          token_status=""
+          for actions in "pull,push,delete" "pull,push" "pull,push,*"; do
+            token_url="$realm?service=$service&scope=repository:${REPO}:${actions}"
+            token_status=$(curl -sS -o "$TMP_DIR/token.json" -w '%{http_code}' \
+              -u "$TCR_USERNAME:$TCR_PASSWORD" "$token_url" 2>/dev/null || echo 000)
+            TOKEN=$(node -e 'const fs=require("fs");try{const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(d.token||d.access_token||"")}catch{}' "$TMP_DIR/token.json" 2>/dev/null || true)
+            if [ -n "${TOKEN:-}" ]; then
+              echo "取到 TCR token（scope actions=${actions}，HTTP ${token_status}，${token_url}）"
+              break
+            fi
+            echo "::warning::scope actions=${actions} 拿不到 token（HTTP ${token_status}）"
+          done
           if [ -z "${TOKEN:-}" ]; then
-            echo "::warning::拿不到 TCR token（HTTP ${token_status}，${token_url}），跳过 tag 清理（仓库 tag 会继续累积）"
+            echo "::warning::拿不到 TCR token（最后一次 HTTP ${token_status}），跳过 tag 清理（仓库 tag 会继续累积）"
             echo "::group::token 响应（前 400 字节）"
             head -c 400 "$TMP_DIR/token.json" 2>/dev/null || true
             echo ""
