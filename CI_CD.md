@@ -81,7 +81,11 @@ docker compose up -d --force-recreate
 - `sast/sast-people-next:<commit-hash>` — 应用镜像（按 commit 打，供部署与「重拉某个历史版本」）
 - `sast/sast-people-next:migrator` — 一次性迁移镜像（**固定 tag，每次部署覆盖**）
 
-TCR 个人版每个仓库上限 **100 个 tag**，而应用镜像每次部署都要占一个，所以 `deploy.yml` 在推送前会先清理仓库里的旧 tag（步骤 `Prune old image tags from TCR`）：保留**当前 ref 最近 `TAG_RETENTION_COMMITS`（默认 20）个提交**对应的 tag、本次要推的 tag，以及固定 tag `migrator`，其余（含早期 `<commit-hash>-migrator` 那种旧格式）走 Registry v2 API 删除。判定按「还在不在保留集合里」，不依赖 tag 的时间顺序（tag 名是短 sha，本身不带时间信息）。清理拿不到 token / 列不出列表 / 单个删除失败时只打 `::warning::` 并继续部署；只有清理后仍有 100 个（下一个 tag 必然推不上去）才 `::error::` 终止，提示去 TCR 控制台清理或升级套餐。
+TCR 个人版每个仓库上限 **100 个 tag**，而应用镜像每次部署都要占一个，所以 `deploy.yml` 在推送前会先清理仓库里的旧 tag（步骤 `Prune old image tags from TCR`）：保留**当前 ref 最近 `TAG_RETENTION_COMMITS`（默认 20）个提交**对应的 tag、本次要推的 tag，以及固定 tag `migrator`，其余（含早期 `<commit-hash>-migrator` 那种旧格式）走 Registry v2 API 删除。判定按「还在不在保留集合里」，不依赖 tag 的时间顺序（tag 名是短 sha，本身不带时间信息）。
+
+Registry v2 的 `DELETE /manifests/<digest>` 会把指向同一个 manifest 的**所有** tag 一起删掉，而内容没变的构建（例如只改文档的 commit）会与上一个 commit 共用 digest，所以只按 tag 名判重会误删保留窗口里的 tag——脚本会先取出保留窗口那些 tag 的 digest，候选 digest 命中就跳过。唯一的例外是固定 tag `migrator`：它每次部署都会被重新推上来，而历史上那批 `<sha>-migrator` 大多与它共用 digest，保护它等于让那些旧 tag 永远删不掉，所以它不参与这层保护（这个 tag 被连带删掉时，同一次运行的后续推送会立刻把它建回来）。
+
+清理拿不到 token / 列不出列表 / 单个删除失败时只打 `::warning::` 并继续部署；只有清理后仍有 100 个（下一个 tag 必然推不上去）才 `::error::` 终止，提示去 TCR 控制台清理或升级套餐。
 
 部署过程中还会打上服务器本地滚动标签，`docker-compose.yml` 使用 `:current`：
 - `current` — 当前运行版本

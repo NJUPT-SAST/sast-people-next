@@ -140,7 +140,34 @@ jobs:
 
           kept=0
           removed=0
+          gone=0
           failed=0
+
+          # 保留窗口里那些 tag 的 digest 也要保护起来：v2 的 DELETE 按 digest 删，
+          # 会把指向同一个 manifest 的所有 tag 一起删掉。内容没变的构建（例如只改文档的 commit）
+          # 与前一个 commit 共用 digest，只按 tag 名判重就会把窗口内的 tag 一起删掉。
+          #
+          # 例外：固定 tag migrator 不参与这个保护 —— 它每次部署都会被重新推上来，而历史上那批
+          # `<sha>-migrator` 大多与它共用同一个 digest；保护它等于让那些旧 tag 永远删不掉、把 100 个名额一直占着。
+          : > "$TMP_DIR/keep-digests.txt"
+          while IFS= read -r keep_tag; do
+            [ -n "$keep_tag" ] || continue
+            [ "$keep_tag" = "${{ env.MIGRATOR_TAG }}" ] && continue
+            keep_headers=""
+            if ! keep_headers=$(curl -fsI \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+                -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+                -H "Accept: application/vnd.oci.image.index.v1+json" \
+                "$REGISTRY/v2/$REPO/manifests/$keep_tag"); then
+              keep_headers=""
+            fi
+            keep_digest=$(printf '%s\n' "$keep_headers" \
+              | tr -d '\r' \
+              | awk 'tolower($1) == "docker-content-digest:" { print $2 }')
+            [ -n "$keep_digest" ] && echo "$keep_digest" >> "$TMP_DIR/keep-digests.txt"
+          done < "$TMP_DIR/keep-tags.txt"
+
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             if grep -qxF -- "$tag" "$TMP_DIR/keep-tags.txt"; then
@@ -162,9 +189,16 @@ jobs:
               | tr -d '\r' \
               | awk 'tolower($1) == "docker-content-digest:" { print $2 }')
 
+            if [ -n "$digest" ] && grep -qxF -- "$digest" "$TMP_DIR/keep-digests.txt"; then
+              echo "  跳过 $tag（与保留窗口内的镜像共用 digest，删了会连带删掉它）"
+              kept=$((kept + 1))
+              continue
+            fi
+
             if [ -z "$digest" ]; then
-              echo "::warning::读不到 $tag 的 digest，跳过"
-              failed=$((failed + 1))
+              # 多半是随共用 digest 一起被删掉了（上一个 DELETE 把这些 tag 一并抹掉），也可能是注册表拒绝读
+              echo "  跳过 $tag（读不到 manifest）"
+              gone=$((gone + 1))
               continue
             fi
 
@@ -181,7 +215,7 @@ jobs:
 
           remaining=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
             "$REGISTRY/v2/$REPO/tags/list" | jq -r '.tags | length')
-          echo "TCR tag：删除 ${removed} 个、保留 ${kept} 个、失败 ${failed} 个；现有 ${remaining} 个（上限 100）"
+          echo "TCR tag：删除 ${removed} 个、保留 ${kept} 个、读不到 manifest ${gone} 个、失败 ${failed} 个；现有 ${remaining} 个（上限 100）"
           # 只在「下一个 tag 一定推不上去」时报错：98/99 还能挤下这次部署，不该拦
           if [ "${remaining:-0}" -ge 100 ]; then
             echo "::error::TCR 里仍有 ${remaining} 个 tag（个人版上限 100）。API 删除在这个仓库不生效，请到 TCR 控制台清理或升级套餐。"
