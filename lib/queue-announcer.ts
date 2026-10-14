@@ -79,9 +79,21 @@ export const selectAnnouncements = (
   return { batch, state: nextState };
 };
 
+/**
+ * 播报里「到哪儿」的说法。
+ *
+ * 面试位名有两种现场习惯：位置名（`1 号位`）和部长自己的名字（`张伟`）。
+ * 位置名直接用；名字补上「的面试位」，否则会念成「到 张伟」——听不出是去哪。
+ */
+export const announcementStation = (stationLabel: string): string => {
+  const label = stationLabel.trim();
+  if (!label) return "面试位";
+  return /位$/.test(label) ? label : `${label} 的面试位`;
+};
+
 /** 一条播报：`请 办公室 A003 号，许清和 同学，到 1 号位` */
 export const announcementText = (target: AnnounceTarget): string =>
-  `请 ${target.departmentLabel} ${target.queueNo} 号，${target.name} 同学，到 ${target.stationLabel}`;
+  `请 ${target.departmentLabel} ${target.queueNo} 号，${target.name} 同学，到 ${announcementStation(target.stationLabel)}`;
 
 /** 一拍多条时合并成一句，避免连着念好几句。 */
 export const batchAnnouncementText = (

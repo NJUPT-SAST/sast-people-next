@@ -106,6 +106,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### 办公类签到叫号
 
+- **扫码签到一直报「二维码内容无效，请重试」**（`components/userInfo/showQrCode.tsx`、`app/dashboard/page.tsx`、`components/recruitment/checkin/checkinScanner.tsx`）：身份码的载荷一直是 `{"uid":"123",...}`（`ShowQrCode` 的 prop 声明成字符串、仪表盘再传一次 `userInfo.id.toString()`），而签到台解析时要求 `typeof payload.uid === "number"`，于是扫任何人的身份码都直接落进 catch，现场只能改用姓名/学号手动签到；同一个码在阅卷台能用，只是因为那边不做类型校验、靠隐式转换侥幸通过（`JSON.parse` 返回 `any`，TS 也拦不住）。现在身份码统一按**数字** uid 编码（prop 收窄为 `number`，仪表盘传 `userInfo.id`），签到台也把扫到的 uid 统一 `Number()` + `Number.isSafeInteger()` 收敛后再用——已经打开着的旧标签页里那张字符串码仍能扫。
+- **大屏语音播报把「部长姓名」当成地点念**（`lib/queue-announcer.ts`）：面试位名允许填部长姓名（「新增面试位」的说明里就写着「如「1 号位」或部长姓名」），但播报把面试位名原样当地名，填了名字就会念成「到 张伟」；现在以「位」结尾的位置名照旧直接用，其余补成「到 张伟 的面试位」，名称为空时回退成「到 面试位」。
+
 - **别的部门的候选人也露着「写面评」，一点就报「读取面试记录失败」**（`action/user-flow/checkin.ts`、`components/recruitment/checkin/checkinConsole.tsx`）：场地是多个办公部门共用的，叫号页刻意不按部门切分数据，于是「写面评」入口对每个部门的面试位与队列行都渲染；但面评写进的是候选人**报名归属部门**，服务端 `createEvaluation` / `getOfficeInterviewRecord` 仍按部门收口（`integration/office-interview-rounds.integration.test.ts` 守住这条），点开必然拿到「无权操作其他部门的候选人」，随手面评弹窗只显示一句「读取面试记录失败」。现在快照按**候选人报名归属部门**给出 `canWriteRecord`（与 `createEvaluation` / `getOfficeInterviewRecord` 同一个 `canAccessDepartment` 谓词——流程部门与报名归属被改派成不一致时也不会露出点不通的入口；管理员全放行、部长仅本部门），不是本部门的面试位与队列行不再渲染该入口；叫号 / 开始面试 / 结束面试这些场地动作仍按共用场地跨部门可用。
 - **「写面评」在「已叫号」就出现**（同文件）：候选人还没进场（`called`）面试位上就与「开始面试」并排摆着「写面评」；现在要开始面试（`interviewing`）之后才出现，队列里已完成的行仍能补写。
 - **已完成行的状态徽标与按钮分处两行右端**（同文件）：`已完成` 徽标挂在第一行右端、`写面评` 按钮挂在第二行右端，右边缘错开成两截；现在两者收进同一行的右侧簇。

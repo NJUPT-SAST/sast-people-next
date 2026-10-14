@@ -47,7 +47,7 @@ export default async function Home({
         </div>
         {userInfo.phone && (
           <div className="flex w-full items-center sm:w-auto">
-            <ShowQrCode uid={userInfo.id.toString()} />
+            <ShowQrCode uid={userInfo.id} />
           </div>
         )}
       </PageHeader>

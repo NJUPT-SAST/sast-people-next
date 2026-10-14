@@ -75,6 +75,21 @@ describe("announcement text", () => {
     expect(announcementText(target())).toBe("请 办公室 A003 号，许清和 同学，到 1 号位");
   });
 
+  it("turns a station named after its interviewer into a place", () => {
+    expect(announcementText(target({ stationLabel: "张伟" }))).toBe(
+      "请 办公室 A003 号，许清和 同学，到 张伟 的面试位",
+    );
+    expect(announcementText(target({ stationLabel: "张伟部长" }))).toBe(
+      "请 办公室 A003 号，许清和 同学，到 张伟部长 的面试位",
+    );
+  });
+
+  it("falls back to a bare station when the label is blank", () => {
+    expect(announcementText(target({ stationLabel: "  " }))).toBe(
+      "请 办公室 A003 号，许清和 同学，到 面试位",
+    );
+  });
+
   it("merges a burst into one sentence", () => {
     expect(
       batchAnnouncementText([

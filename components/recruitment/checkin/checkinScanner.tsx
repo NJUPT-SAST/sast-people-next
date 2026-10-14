@@ -33,6 +33,20 @@ import {
 } from "@/components/ui/select";
 
 /**
+ * 身份码里的 uid：数字，或（早期版本编码出来的）纯十进制数字串。
+ * 刻意不走宽松的 `Number()`——那会把 `true` / `[]` / `""` 悄悄变成 1 / 0。
+ */
+const parseIdentityUid = (raw: unknown): number | null => {
+  const uid =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && /^\d+$/.test(raw.trim())
+        ? Number(raw.trim())
+        : Number.NaN;
+  return Number.isSafeInteger(uid) ? uid : null;
+};
+
+/**
  * 共享签到台的扫码：扫候选人的「身份码」，命中其全部办公类报名
  * （可能同时有第一/第二志愿两条），逐条签到。
  */
@@ -99,11 +113,13 @@ const CheckinScanner = ({
       setIsResolving(true);
 
       try {
-        const payload = JSON.parse(atob(result.getText())) as { uid?: number };
-        if (typeof payload?.uid !== "number") {
+        const payload = JSON.parse(atob(result.getText())) as { uid?: unknown };
+        /* 身份码的历史版本把 uid 序列化成字符串，这里统一收敛成数字再校验 */
+        const uid = parseIdentityUid(payload?.uid);
+        if (uid === null) {
           throw new Error("bad payload");
         }
-        await handleDecodedUid(payload.uid);
+        await handleDecodedUid(uid);
       } catch {
         toast.error("二维码内容无效，请重试");
       } finally {
