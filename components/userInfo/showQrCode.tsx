@@ -13,7 +13,11 @@ import { QrCode, ShieldCheck } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import originalDayjs from '@/lib/dayjs';
 
-export const ShowQrCode = ({ uid }: { uid: string }) => {
+/**
+ * 身份码载荷：`uid` 必须是**数字**。
+ * 签到台（`checkinScanner`）、阅卷台（`qrcodeScanner`）都按用户 id 解析。
+ */
+export const ShowQrCode = ({ uid }: { uid: number }) => {
   const [qrValue] = React.useState(() =>
     btoa(
       JSON.stringify({

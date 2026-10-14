@@ -204,6 +204,31 @@ describe("CheckinScanner", () => {
     expect(checkInCandidate).not.toHaveBeenCalled();
   });
 
+  it("accepts the identity code whose uid was serialized as a string", async () => {
+    const user = userEvent.setup();
+    resolveCheckinCandidates.mockResolvedValue({
+      uid: 9001,
+      matches: [
+        {
+          flowId: 141,
+          departmentLabel: "办公室",
+          choice: 1,
+          existing: null,
+          candidate: candidate(),
+          block: null,
+        },
+      ],
+    });
+
+    await startScanning(user);
+    await decode({ uid: "9001", time: Date.now() });
+
+    await waitFor(() => {
+      expect(resolveCheckinCandidates).toHaveBeenCalledWith(1, 9001);
+    });
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
   it("rejects an unreadable QR payload", async () => {
     const user = userEvent.setup();
     await startScanning(user);

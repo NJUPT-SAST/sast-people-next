@@ -99,11 +99,13 @@ const CheckinScanner = ({
       setIsResolving(true);
 
       try {
-        const payload = JSON.parse(atob(result.getText())) as { uid?: number };
-        if (typeof payload?.uid !== "number") {
+        const payload = JSON.parse(atob(result.getText())) as { uid?: unknown };
+        /* 身份码的历史版本把 uid 序列化成字符串，这里统一收敛成数字再校验 */
+        const uid = Number(payload?.uid);
+        if (!Number.isSafeInteger(uid)) {
           throw new Error("bad payload");
         }
-        await handleDecodedUid(payload.uid);
+        await handleDecodedUid(uid);
       } catch {
         toast.error("二维码内容无效，请重试");
       } finally {
