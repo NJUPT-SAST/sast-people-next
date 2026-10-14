@@ -229,6 +229,18 @@ describe("CheckinScanner", () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  it("rejects a uid that is neither a number nor a digit string", async () => {
+    const user = userEvent.setup();
+    await startScanning(user);
+
+    await decode({ uid: true, time: Date.now() });
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith("二维码内容无效，请重试");
+    });
+    expect(resolveCheckinCandidates).not.toHaveBeenCalled();
+  });
+
   it("rejects an unreadable QR payload", async () => {
     const user = userEvent.setup();
     await startScanning(user);
