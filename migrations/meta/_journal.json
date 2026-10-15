@@ -540,6 +540,13 @@
       "when": 1789250000022,
       "tag": "0077_terminal_user_flow_final_step",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1789250000025,
+      "tag": "0080_grading_fairness_profile",
+      "breakpoints": true
     }
   ]
 }

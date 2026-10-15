@@ -40,6 +40,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `problem` | 笔试题目 | 无用户字段 |
 | `flow_result_publication` | 流程结果发布记录与快照 | `confirmed_by` 保存 Link 用户 ID |
 | `user_point` | 题目评分记录 | `fk_judger_id` 保存 Link 用户 ID |
+| `grading_fairness_profile` | 阅卷公平性分析参数（每流程一行，迁移 0080） | `updated_by` 保存 Link 用户 ID |
 | `interview_evaluation` | 面评记录和审批状态 | `fk_user_id` 保存 Link 用户 ID（面评撰写人）；`fk_reviewed_by` 保存 Link 用户 ID（审批人） |
 | `email_template_setting` | 结果邮件模板配置 | 无用户字段 |
 | `email_template_content` | 通用邮件文案模板配置 | 无用户字段 |
@@ -191,6 +192,22 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 > **归属规则**：`fk_judger_id` 是「谁先保存算谁的」。讲师（role 2）只能写**本人或尚无阅卷人**的题，改动他人已保存的题会被 409 拒绝（`ReviewPointConflictError`，响应体带 `conflicts` 题目 ID）；部长及以上（role ≥ 3）可覆盖他人评分，覆盖前后阅卷人记入操作审计 `review.score.upsert` 的 `scoreChanges[].previousJudgerId` / `nextJudgerId`（读取审计时换算成姓名，列表标注「覆盖 讲师甲 的评分」）。批卷页（`/dashboard/review/marking`）据此把他人已保存的题渲染为只读，并从自动保存与批量提交中排除；保存过程中才撞上并发抢题的，前端用 409 返回的 `conflicts` 就地转只读并重新拉取对方分数。
 
 > 删除 `user_flow` 或 `problem` 时级联删除评分记录。
+
+### `grading_fairness_profile`
+
+阅卷公平性分析的校正参数（迁移 0080）。`fk_flow_id` 唯一：一个流程一行。**只影响 `/dashboard/review/analytics` 给出的参考分，不写回 `user_point`，也不影响官方成绩与结果发布**；模型定义见 [GRADING_FAIRNESS_MODEL.md](GRADING_FAIRNESS_MODEL.md)。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 主键 |
+| `fk_flow_id` | `integer` | 关联 `flow.id`（CASCADE），唯一 |
+| `lambda` | `real` | 全局校正强度 0..1，默认 0（只看不校） |
+| `judger_weights` | `jsonb` | `{ [阅卷人 Link 用户 ID]: 0..2 }` 人工权重覆盖，未列出的按 1 |
+| `note` | `text` | 备注（≤ 500 字，可空） |
+| `updated_by` | `integer` | 最后保存人 Link 用户 ID（部长及以上） |
+| `created_at` / `updated_at` | `timestamp` | 与其它表一致 |
+
+> 读写入口：`action/user-flow/grading-fairness/profile.ts`（`loadGradingFairnessProfile` / `saveGradingFairnessProfile`），均要求 role ≥ 3 并做部门越权校验。
 
 ## 7. 面评表
 

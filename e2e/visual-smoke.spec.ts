@@ -59,6 +59,11 @@ const keyRoutes: Array<{
     user: "lecturer",
   },
   {
+    path: "/dashboard/review/analytics",
+    marker: "讲师宽严",
+    user: "admin",
+  },
+  {
     path: "/dashboard/emails",
     marker: "统一管理系统邮件模板、发送任务和发送记录",
     user: "admin",

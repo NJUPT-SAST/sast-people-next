@@ -41,6 +41,9 @@ docs/*
 !docs/email-center-flow-redesign.md
 !docs/department-access-control.md
 !docs/RELEASE_CHECKLIST.md
+!docs/GRADING_FAIRNESS_MODEL.md
+!docs/assets/
+!docs/assets/**
 
 # debug
 npm-debug.log*

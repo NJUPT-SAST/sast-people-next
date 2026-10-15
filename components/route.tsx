@@ -14,6 +14,7 @@ import {
   QrCode,
   ScrollText,
   Info,
+  Scale,
   MessageSquareText,
   Building2,
   type LucideIcon,
@@ -63,6 +64,15 @@ export const menuItems: MenuItem[] = [
     icon: Workflow,
     path: '/user-flow',
     group: 'me',
+  },
+  {
+    /* 必须排在「试卷批改」之前：当前项是按数组顺序做前缀匹配的（/review 会吞掉 /review/analytics） */
+    title: '阅卷分析',
+    icon: Scale,
+    path: '/review/analytics',
+    group: 'manage',
+    requiresDepartment: true,
+    minRole: MANAGER_ROLE,
   },
   {
     title: '试卷批改',
@@ -165,9 +175,20 @@ export const menuItems: MenuItem[] = [
   },
 ];
 
+/**
+ * 当前菜单项是否处于激活态：按**最长前缀**只让一个菜单项高亮。
+ * 逐项独立判断 `pathname.includes(...)` 会让 `/dashboard/review/analytics`
+ * 同时点亮 `/review` 与 `/review/analytics`。
+ */
 export function isItemActive(pathname: string, itemPath: string): boolean {
   if (!itemPath) return pathname === '/dashboard';
-  return pathname.includes(`/dashboard${itemPath}`);
+  const target = `/dashboard${itemPath}`;
+  if (!pathname.includes(target)) return false;
+  return menuItems.every((item) => {
+    if (!item.path || item.path === itemPath) return true;
+    const other = `/dashboard${item.path}`;
+    return !pathname.includes(other) || other.length <= target.length;
+  });
 }
 
 export function getMenuItemTitle(item: MenuItem, role?: number): string {
