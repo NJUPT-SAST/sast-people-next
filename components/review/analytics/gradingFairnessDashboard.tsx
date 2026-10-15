@@ -868,8 +868,9 @@ export function GradingFairnessDashboard({
               {hasComparableJudgers ? (
                 <p>
                   <span className="font-medium text-foreground">校正只重新分配。</span>
-                  统一补一个偏移（按题目满分加权）后整届总分不变（实时数值见上方参数面板），
-                  同一讲师内部的名次也不会改变。
+                  统一补一个偏移（按题目满分加权）后整届总分不变（实时数值见上方参数面板）；
+                  同一讲师评的每条观测拿到相同的得分率偏移，但考生的题目集合或满分结构不同时，
+                  汇总成总分后名次仍可能变动。
                 </p>
               ) : (
                 <p>
