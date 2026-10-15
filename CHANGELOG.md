@@ -104,6 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **笔试流程判定了结果，卡片却还挂着「当前步骤：批卷」**（`action/user-flow/edit.ts`、迁移 `0077_terminal_user_flow_final_step.sql`）：终态（`passed` / `failed`）过去写回候选人**当时所在的步骤**——判定结果是在「批卷」页录入的，于是当前步骤停在「批卷」，而候选人卡片的步骤圆点按终态画：已通过时**后面的「录取确认」已经是绿色**（卡片同时说「已通过考核」和「当前步骤：批卷」），未通过时反过来——流程已经结束，后面还挂着一个「未开始」的圆点。现在三条终态写入路径（成绩管理页的设为通过/不通过、管理员手动通过/不通过）一律把当前步骤写在流程**最后一步**，与办公类面试的「结果确认」（`office-rounds.ts` 的 `resultStepId`）、免试/面评的「管理员审核」（`evaluation.ts` 的 `findEvaluationStepIdInTx`）同一约定；「未参与」（`withdrawn`）不动当前步骤，候选人停在离开的那一步。存量终态行由迁移对齐到各自流程的最后一步（当前步骤为空、或不是最后一步的都对齐，不动未参与行），已发布的流程同样受益——发布锁定的是结果，不是这个步骤指针。
+
 #### 办公类签到叫号
 
 - **扫码签到一直报「二维码内容无效，请重试」**（`components/userInfo/showQrCode.tsx`、`app/dashboard/page.tsx`、`components/recruitment/checkin/checkinScanner.tsx`）：身份码的载荷一直是 `{"uid":"123",...}`（`ShowQrCode` 的 prop 声明成字符串、仪表盘再传一次 `userInfo.id.toString()`），而签到台解析时要求 `typeof payload.uid === "number"`，于是扫任何人的身份码都直接落进 catch，现场只能改用姓名/学号手动签到；同一个码在阅卷台能用，只是因为那边不做类型校验、靠隐式转换侥幸通过（`JSON.parse` 返回 `any`，TS 也拦不住）。现在身份码统一按**数字** uid 编码（prop 收窄为 `number`，仪表盘传 `userInfo.id`），签到台也把扫到的 uid 统一 `Number()` + `Number.isSafeInteger()` 收敛后再用——已经打开着的旧标签页里那张字符串码仍能扫。

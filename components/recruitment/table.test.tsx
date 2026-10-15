@@ -4,13 +4,10 @@ import { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "./table";
 
-const mockBatchEndByUid = jest.fn().mockResolvedValue(undefined);
 const mockBatchSetOutcomeByUid = jest.fn().mockResolvedValue({ updatedUserIds: [1] });
 const mockToastPromise = jest.fn((promise: Promise<unknown>) => promise);
 
 jest.mock("@/action/user-flow/edit", () => ({
-  batchEndByUid: (...args: Parameters<typeof mockBatchEndByUid>) =>
-    mockBatchEndByUid(...args),
   batchSetOutcomeByUid: (...args: Parameters<typeof mockBatchSetOutcomeByUid>) =>
     mockBatchSetOutcomeByUid(...args),
 }));
@@ -52,7 +49,6 @@ describe("Recruitment DataTable", () => {
   ];
 
   beforeEach(() => {
-    mockBatchEndByUid.mockClear();
     mockBatchSetOutcomeByUid.mockClear();
     mockToastPromise.mockClear();
   });

@@ -126,6 +126,7 @@ test.describe("recruitment written outcome", () => {
   let database: Client;
   let flowId = 0;
   let flowTitle = "";
+  let finalStepId = 0;
 
   test.beforeAll(async () => {
     database = await connectDatabase();
@@ -170,6 +171,11 @@ test.describe("recruitment written outcome", () => {
       steps.rows.find((step) => step.order === 2)?.id ?? 0;
     if (!judgingStepId) {
       throw new Error("Failed to create temporary flow steps");
+    }
+
+    finalStepId = steps.rows.find((step) => step.order === 3)?.id ?? 0;
+    if (!finalStepId) {
+      throw new Error("Failed to create the temporary final step");
     }
 
     const problem = await database.query<{ id: number }>(
@@ -251,6 +257,31 @@ test.describe("recruitment written outcome", () => {
         return result.rows[0]?.progress_status;
       })
       .toBe("passed");
+
+    /*
+     * 终态必须落在流程最后一步：判定虽然是在「批卷」页录入的，但结果属于「录取确认」。
+     * 停在「批卷」时候选人卡片会同时显示「已通过考核」和「当前步骤：批卷」，
+     * 后面的圆点却已经是绿色的（见 migrations/0077_terminal_user_flow_final_step.sql）。
+     */
+    await expect
+      .poll(async () => {
+        const result = await database.query<{ fk_current_step_id: number | null }>(
+          `select fk_current_step_id
+           from user_flow
+           where fk_flow_id = $1 and fk_user_id = $2`,
+          [flowId, users.outcomeCandidate.uid],
+        );
+        return result.rows[0]?.fk_current_step_id ?? null;
+      })
+      .toBe(finalStepId);
+
+    /* 候选人自己看到的卡片同样要停在最后一步，而不是还挂在「批卷」上 */
+    await signInAs(context, users.outcomeCandidate);
+    await page.goto("/dashboard/user-flow");
+    const card = page.locator('[data-slot="card"]', { hasText: flowTitle });
+    await expect(card).toBeVisible();
+    await expect(card.getByText("当前步骤：录取确认")).toBeVisible();
+    await expect(card.getByText("当前步骤：批卷")).toHaveCount(0);
   });
 });
 

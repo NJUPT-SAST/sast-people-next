@@ -8,7 +8,7 @@ import { assertFlowEditable, assertUserFlowInScope } from '@/lib/flow-access';
 import { logServerError } from '@/lib/server-error-log';
 import { writeOperationAudit } from '@/lib/operation-audit';
 import { assertFlowResultsEditable } from '@/lib/flow-result-publication-guard';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 async function findStepIdByOrder(
   flowId: number,
@@ -20,6 +20,36 @@ async function findStepIdByOrder(
     .where(and(eq(flowStep.fkFlowId, flowId), eq(flowStep.order, order)))
     .limit(1);
   return step?.id ?? null;
+}
+
+/**
+ * 流程的最终步骤：终态（passed / failed）必须落在它上面。
+ *
+ * 卡片把「当前步骤」和步骤圆点画在同一行（`components/userFlow/flowCard.tsx`）：
+ * 终态行若停在中间步骤，就会出现「已通过考核 / 当前步骤：批卷 / 第三步已通过」这种自相矛盾的展示
+ * （未通过时则是流程已结束却还挂着一个「未开始」的步骤）。
+ *
+ * 笔试流程的判定结果是在「批卷」页录入的，但结果属于最后一步「录取确认」（按分数线筛选并确认
+ * 最终通过名单）——与 `evaluation.ts` 的 `findEvaluationStepIdInTx`、办公类面试的 `resultStepId`
+ * 同一约定：终态一律写在流程最后一步。
+ */
+async function findFinalStepId(flowId: number): Promise<number | null> {
+  const [byType] = await db
+    .select({ id: flowStep.id })
+    .from(flowStep)
+    .where(and(eq(flowStep.fkFlowId, flowId), eq(flowStep.type, 'finished')))
+    .orderBy(desc(flowStep.order), desc(flowStep.id))
+    .limit(1);
+  if (byType) return byType.id;
+
+  /* 自定义流程可能没有 finished 步骤：退回到 order 最大的那一步 */
+  const [last] = await db
+    .select({ id: flowStep.id })
+    .from(flowStep)
+    .where(eq(flowStep.fkFlowId, flowId))
+    .orderBy(desc(flowStep.order), desc(flowStep.id))
+    .limit(1);
+  return last?.id ?? null;
 }
 
 const TERMINAL_STATUSES = ['passed', 'failed', 'withdrawn'] as const;
@@ -113,7 +143,9 @@ export const finish = async (userFlowId: number) => {
     const record = await db.select({ userFlowId: userFlow.id, fkUserId: userFlow.fkUserId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
     if (!record[0]) throw new Error("User flow not found");
     const { fkUserId } = record[0];
-    await db.update(userFlow).set({ progressStatus: "passed", updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
+    /* 终态写在流程最后一步：卡片按「当前步骤」画圆点，停在中间步骤会和「已通过考核」互相打架 */
+    const finalStepId = await findFinalStepId(flowRecord.flowId);
+    await db.update(userFlow).set({ progressStatus: "passed", fkCurrentStepId: finalStepId, updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
     await writeOperationAudit({ actorId: session.uid, actorRole: session.realRole, action: 'user_flow.finish', resourceType: 'user_flow', resourceId: userFlowId, department: flowRecord.department, metadata: { userId: fkUserId } });
   } catch (error) {
     logServerError("user-flow:finish", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "finish-user-flow", userFlowId });
@@ -132,7 +164,9 @@ export const reject = async (userFlowId: number) => {
     await assertUserFlowCanBeManuallyAdjusted(userFlowId);
     await assertDirectOutcomeAllowed(userFlowId);
     const [record] = await db.select({ fkUserId: userFlow.fkUserId }).from(userFlow).where(eq(userFlow.id, userFlowId)).limit(1);
-    await db.update(userFlow).set({ progressStatus: "failed", updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
+    /* 终态写在流程最后一步：卡片按「当前步骤」画圆点，停在中间步骤会和「未通过考核」互相打架 */
+    const finalStepId = await findFinalStepId(flowRecord.flowId);
+    await db.update(userFlow).set({ progressStatus: "failed", fkCurrentStepId: finalStepId, updatedAt: new Date() }).where(eq(userFlow.id, userFlowId));
     await writeOperationAudit({ actorId: session.uid, actorRole: session.realRole, action: 'user_flow.reject', resourceType: 'user_flow', resourceId: userFlowId, department: flowRecord.department, metadata: { userId: record?.fkUserId ?? null } });
   } catch (error) {
     logServerError("user-flow:reject", error, { path: "/dashboard/manage", userId: session?.uid ?? null, role: session?.role ?? null, action: "reject-user-flow", userFlowId });
@@ -192,28 +226,13 @@ export const batchUpdate = async (flowId: number, stepOrder: number) => {
   }
 };
 
-export const batchEndByUid = async (
-  flowId: number,
-  stepOrder: number,
-  statusStr: 'rejected' | 'accepted',
-  uids: number[],
-) => {
-  let session: FlowScopedSession | null = null;
-  try {
-    session = await verifyManager();
-    const flowDepartment = await assertFlowInScope(session.scope, flowId);
-    await assertFlowResultsEditable(flowId);
-    await assertBatchDirectOutcomeAllowed(flowId);
-    const stepId = await findStepIdByOrder(flowId, stepOrder);
-    const progressStatus = statusStr === 'accepted' ? 'passed' : 'failed';
-    await db.update(userFlow).set({ progressStatus, fkCurrentStepId: stepId, updatedAt: new Date() }).where(and(eq(userFlow.fkFlowId, flowId), inArray(userFlow.fkUserId, uids)));
-    await writeOperationAudit({ actorId: session.uid, actorRole: session.realRole, action: 'user_flow.batch_end', resourceType: 'flow', resourceId: flowId, department: flowDepartment, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
-  } catch (error) {
-    logServerError("user-flow:batchEndByUid", error, { path: "/dashboard/review", userId: session?.uid ?? null, role: session?.role ?? null, action: "batch-end-user-flow", flowId, metadata: { stepOrder, status: statusStr, targetUserIds: uids } });
-    throw error;
-  }
-};
-
+/**
+ * 批量设置结果（笔试「成绩管理」页：设为通过 / 不通过 / 未参与）。
+ *
+ * `stepOrder` 是候选人**当前所处步骤**，只进审计（记录判定是在哪一步录入的）；
+ * 结果本身按约定落在流程最后一步（`findFinalStepId`），否则卡片会把「当前步骤」画在中间步骤上，
+ * 与终态标签自相矛盾。未参与（withdrawn）不动当前步骤：候选人停在离开的那一步。
+ */
 export const batchSetOutcomeByUid = async (
   flowId: number,
   stepOrder: number,
@@ -227,7 +246,8 @@ export const batchSetOutcomeByUid = async (
     const flowDepartment = await assertFlowInScope(session.scope, flowId);
     await assertFlowResultsEditable(flowId);
     await assertBatchDirectOutcomeAllowed(flowId);
-    const stepId = await findStepIdByOrder(flowId, stepOrder);
+    const finalStepId =
+      statusStr === 'withdrawn' ? null : await findFinalStepId(flowId);
     const updatedUserIds = await db.transaction(async (tx) => {
       const targetRows = await tx
         .select({ id: userFlow.id, userId: userFlow.fkUserId })
@@ -244,7 +264,11 @@ export const batchSetOutcomeByUid = async (
 
       await tx
         .update(userFlow)
-        .set({ progressStatus: statusStr, fkCurrentStepId: stepId, updatedAt: new Date() })
+        .set({
+          progressStatus: statusStr,
+          ...(finalStepId === null ? {} : { fkCurrentStepId: finalStepId }),
+          updatedAt: new Date(),
+        })
         .where(inArray(userFlow.id, targetRows.map((row) => row.id)));
 
       return targetRows.map((row) => row.userId);
