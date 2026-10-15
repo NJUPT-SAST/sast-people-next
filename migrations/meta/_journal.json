@@ -533,6 +533,13 @@
       "when": 1789250000020,
       "tag": "0075_interview_checkin_skip_count",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1789250000022,
+      "tag": "0077_terminal_user_flow_final_step",
+      "breakpoints": true
     }
   ]
 }
