@@ -14,6 +14,7 @@ import {
   QrCode,
   ScrollText,
   Info,
+  Scale,
   MessageSquareText,
   Building2,
   type LucideIcon,
@@ -63,6 +64,15 @@ export const menuItems: MenuItem[] = [
     icon: Workflow,
     path: '/user-flow',
     group: 'me',
+  },
+  {
+    /* 必须排在「试卷批改」之前：当前项是按数组顺序做前缀匹配的（/review 会吞掉 /review/analytics） */
+    title: '阅卷分析',
+    icon: Scale,
+    path: '/review/analytics',
+    group: 'manage',
+    requiresDepartment: true,
+    minRole: MANAGER_ROLE,
   },
   {
     title: '试卷批改',

@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  real,
   serial,
   smallint,
   text,
@@ -822,3 +823,32 @@ export const feedbackReport = pgTable("feedback_report", {
   createdAtIdx: index("feedback_report_created_at_idx").on(table.createdAt),
   departmentIdx: index("feedback_report_department_idx").on(table.department),
 }));
+
+/**
+ * 阅卷公平性配置（每个流程一行，部长及以上可改）：
+ * 分析讲师宽严、给出「校正后参考分」时使用的全局校正强度 λ 与阅卷人人工权重。
+ * 只作用于公平性分析的参考结果，不写回 user_point，也不影响官方成绩。
+ */
+export const gradingFairnessProfile = pgTable("grading_fairness_profile", {
+  id: serial("id").primaryKey(),
+  fkFlowId: integer("fk_flow_id")
+    .references(() => flow.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+  /* 全局校正强度 λ：0 = 只看不校，1 = 完全按模型校正 */
+  lambda: real("lambda").notNull().default(0),
+  /* 人工权重：阅卷人 ID（字符串键）→ 0..2，未列出的讲师按默认 1 计 */
+  judgerWeights: jsonb("judger_weights")
+    .$type<Record<string, number>>()
+    .notNull()
+    .default({}),
+  /* 配置说明（为什么给某位讲师加权/降权），最多 500 字 */
+  note: text("note"),
+  /* Link 用户 ID — 最后修改人 */
+  updatedBy: integer("updated_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+});

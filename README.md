@@ -25,6 +25,7 @@ SAST People 负责招新与评审流程；用户身份、资料、角色与账�
 - 候选人主动发起面试改期申请（理由必填）：办公类由部长审批，技术类由预约讲师审批，并同步飞书日程/视频会议与通知邮件。
 - 办公类部门面试按**每个部门一条独立流程**运行（仅部长层级，无讲师层级）：候选人按部门分别报名并选择第一/第二志愿类型，志愿之间无互斥，不收集作品链接。
 - 笔试评卷支持二维码扫码、手输学号查卷与分数汇总。
+- 阅卷公平性分析（`/dashboard/review/analytics`，部长及以上）：用「三因子加法固定效应 + 经验贝叶斯收缩」从**同考生同题目**的比较里分离每位讲师的宽严，给出 95% 区间、可信度与可辨识性判定，并可按 λ 与讲师人工权重即时预览校正后的分数与名次变化。页面按「结论 → 指标 → 森林图/参数 → 名次 → 诊断」组织；**数据不足以分离时不给任何数字与校正控件**，退化为描述性阅卷量并说明如何补足重叠样本。结果**仅供人工参考，不写回官方成绩**。模型规范见 [docs/GRADING_FAIRNESS_MODEL.md](docs/GRADING_FAIRNESS_MODEL.md)。
 - 笔试招新的通过/不通过确认，附结果邮件锁定。
 - 讲师面试评审与管理员最终审批。
 - 飞书面试排期：OAuth 绑定、日程事件、视频会议预约、IM 卡片与提醒。
@@ -368,6 +369,7 @@ instrumentation*.ts     运行时与客户端 instrumentation 入口
 | `/dashboard/exams` | 笔试工作台（评卷与名单） |
 | `/dashboard/recruitment` | 兼容入口：按流程类型重定向到 `/dashboard/exams` 或 `/dashboard/interviews` |
 | `/dashboard/review` | 评卷 |
+| `/dashboard/review/analytics` | 阅卷公平性分析（讲师宽严与校正预览，部长及以上） |
 | `/dashboard/interviews` | 面试管理（技术部门 + 办公类） |
 | `/dashboard/checkin` | 办公部门共享的面试签到叫号台（大屏在 `/checkin/board`） |
 | `/dashboard/user-flow` | 用户流程管理 |
@@ -395,6 +397,7 @@ Schema 定义在 `db/schema.ts`。迁移位于 `migrations/`，必须按数字�
 | `user_flow` | 用户报名与流转状态 |
 | `problem` | 笔试卷题目 |
 | `user_point` | 评卷记录 |
+| `grading_fairness_profile` | 每个流程的阅卷公平性校正参数（λ 与讲师人工权重） |
 | `flow_result_publication` | 结果发布记录与分数快照 |
 | `interview_evaluation` | 面试评审与最终审批 |
 | `interview_schedule` | 飞书面试日程与会议记录 |
@@ -450,6 +453,7 @@ CI 编排见 [CI_CD.md](CI_CD.md)；发布与预发人工检查见 [docs/RELEASE
 | [CI_CD.md](CI_CD.md) | 质检、测试、部署与发布工作流 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更记录 |
 | [docs/PEOPLE_DATABASE_SCHEMA.md](docs/PEOPLE_DATABASE_SCHEMA.md) | People 数据库结构权威定义 |
+| [docs/GRADING_FAIRNESS_MODEL.md](docs/GRADING_FAIRNESS_MODEL.md) | 阅卷公平性模型规范（可辨识性判据、收缩与校正不变量、局限） |
 | [docs/SAST_PEOPLE_V3_LINK_DEV.md](docs/SAST_PEOPLE_V3_LINK_DEV.md) | v3 Link 集成方案 |
 | [docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md](docs/FEISHU_INTERVIEW_SCHEDULING_PLAN.md) | 面试排期设计 |
 | [docs/FEISHU_GITHUB_NOTIFICATIONS.md](docs/FEISHU_GITHUB_NOTIFICATIONS.md) | 飞书 GitHub 通知配置 |

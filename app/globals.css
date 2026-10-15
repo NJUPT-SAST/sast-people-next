@@ -27,6 +27,9 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -63,6 +66,10 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
+  /* 语义色：与 destructive 同族的「偏差/异常」色，供数据可视化使用 */
+  --error: oklch(0.577 0.245 27.325);
+  --warning: oklch(0.75 0.15 75);
+  --success: oklch(0.6 0.13 155);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: #18a058;
@@ -98,6 +105,10 @@
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
+  /* 语义色：与 destructive 同族的「偏差/异常」色，供数据可视化使用 */
+  --error: oklch(0.704 0.191 22.216);
+  --warning: oklch(0.82 0.15 80);
+  --success: oklch(0.72 0.15 155);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: #18a058;

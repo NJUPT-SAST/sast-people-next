@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **阅卷公平性分析**（`/dashboard/review/analytics`，部长及以上，部门 scope 内）：把「讲师宽严」从「考生水平 + 题目难度」里分离出来，供人工参考（**不写回 `user_point`、不影响官方成绩与结果发布**）。模型规范见 [docs/GRADING_FAIRNESS_MODEL.md](docs/GRADING_FAIRNESS_MODEL.md)。
+  - 模型：单题得分率上的三因子加法固定效应 `r = μ + α(考生) + β(题目) + γ(讲师) + ε`，`lib/grading-fairness/{matrix,model}.ts` 为纯函数（零依赖、可单测）；按 (考生, 题目, 讲师) 关联图的**连通分量**分别拟合，**可辨识性用设计矩阵的秩判定**（不是经验法则）：秩亏时只给一个有界解画残差图，宽严一律报「不可判定」、`rawBias` 也归 0，不做任何校正。
+  - 估计与收缩：正规方程 + 部分主元 LU（秩容差 `1e-9·max diag`）；标准误用「相对全体讲师加权平均」的对比向量 `c_j` 一次分解多次回代；DerSimonian–Laird 估计讲师间真实差异 τ，可信度 `w = τ²/(τ²+s_j²)`、`bias(j) = w·δ_j`（小样本讲师自动回归 0）；τ²=0 是一个有效结论（显示「未检测到系统性差异」，λ 失效），不允许强行放大。
+  - 校正语义：`r′ = clip(r − λ·m_j·bias(j) + λ·O, 0, 1)`，`O = Σ n_k m_k bias(k)/N`；λ 为全局强度、m_j 为人工权重（0..2）、可信度由数据给出不可手改。不变量：整届总分守恒（仅受整数舍入影响）、同一讲师内部保序、λ=0 逐点恒等、τ²=0 恒等；`preserveTotal` 可关掉统一偏移。
+  - 页面：页头 = 标题独占一行 + 当前流程名/规模 + 流程下拉选择器（`flowPicker`，写 `?flowId=`）；正文自上而下「结论条（图标 + 粗体标题 + 说明）→ 固定 6 格指标行 → 讲师宽严（森林图 + 色例 + 校正前后哑铃图，两栏等高，右栏为一行一名讲师的校正参数）→ 名次变化（整宽，带筛选/导出）→ 诊断（残差热力图 1/2 + 口径说明 1/2）」，另有路由级加载骨架。森林图行尾给出宽严数值/判定/样本数（不可判定行画空心虚线点），哑铃图行尾给出差值；λ 与人工权重在客户端 `O(N)` 即时重算（带「不校正/半量/全量」快捷档与未保存改动提示），拟合只在服务端算一次。**按生产规模设计**（十几名讲师 × 十几题 × 300+ 考生）：名次表默认只渲染前 50 名、可切「全部 / 仅名次变化」并一键显示全部，可导出当前视图的 CSV；结论条只列偏离最大的 3 名讲师。**不可判定时不给任何校正控件**，退化为「讲师阅卷量（描述性，仅供参考）」并标注「不可直接比较」+ 需要重叠样本的说明；窄屏用横向滚动保持字号，图与表都不压缩（含 `overflow-x-auto` 的卡片加 `min-w-0`，避免 flex 子项把整页撑出横向滚动）。新增语义色令牌 `--error/--warning/--success`（`app/globals.css`，浅色/深色各一套），并给 shadcn `Slider` 补上 `thumbAriaLabel`（无障碍名）。
+  - 持久化：新表 `grading_fairness_profile`（迁移 `0080_grading_fairness_profile.sql`，每流程一行：`lambda`、`judger_weights` jsonb、`note`、`updated_by`），入口在 `action/user-flow/grading-fairness/{load,profile,errors}.ts`；读写都要部长及以上 + 部门越权校验，λ 与权重用 zod 校验。
+  - 数据口径与笔试工作台 `calScore` 一致：可见性走 `isFlowVisibleToScope`（全局流程若本部门有报名也放行），观测与未归属计数再按 `user_flow.department` 过滤（全局流程里本部门部长只看本部门考生的卷子，管理员不受限）；流程列表与详情同一套口径、只统计有阅卷人的评分行。
+  - 导航新增「阅卷分析」（管理分组，部长及以上，需部门归属）；演示数据把 flow 101 改成 uid 2 与 uid 11（讲师二）**共同批卷**（201/202 两名考生由两人分别评不同题 = 重叠样本），使宽严可辨识、可演示校正效果。
+  - 测试：`lib/grading-fairness/*.test.ts` 32 条（精确还原宽严、朴素均值差被题目分配污染的反例、现状形态与秩亏反例不可判定、收缩方向、守恒/保序/恒等/名次反转、退化分支）+ 图表与面板 28 条行为断言（含 λ 驱动校正、保存参数、不可判定态）+ `integration/grading-fairness-{load,profile}.integration.test.ts` 14 条（加载的部门 scope、未归属计数、软删除、全局流程只算本部门考生；配置往返、upsert 单行、跨部门与讲师拒绝、非法参数拒绝）。
 - 办公类部门面试**现场签到叫号**（多部门共享，`/dashboard/checkin` + 大屏 `/checkin/board`）：
   - 新表 `interview_checkin`（迁移 `0073_interview_checkin.sql`，枚举 `interview_checkin_status_enum`）：一人一轮一条（`fk_user_flow_id, round` 唯一），记录叫号与 `waiting/called/interviewing/done/skipped/cancelled` 现场状态；与 `user_flow.progress_status`（流程结论）正交，面试结束后保留作现场留档。
   - 新表 `interview_station` + `interview_checkin.fk_station_id`（迁移 `0074_interview_stations.sql`）：每个部门可配置多个「面试位」（= 同时并行面试几人）。新增面试位必须**选部门（仅办公室/科宣部/外联部/赛事部）+ 填名称**（如「1 号位」或部长姓名），支持改名 / 暂停 / 删除；一位同时只接待一人。非办公部门的流程不能建位、不能签到。

@@ -24,6 +24,16 @@ if (typeof Element !== 'undefined') {
   }
 }
 
+/* jsdom 也没有 ResizeObserver，Radix Slider 等组件依赖它测量尺寸 */
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  Object.assign(globalThis, { ResizeObserver: ResizeObserverStub });
+}
+
 type MockNextImageProps = React.ComponentPropsWithoutRef<'img'> & {
   priority?: boolean;
   fill?: boolean;

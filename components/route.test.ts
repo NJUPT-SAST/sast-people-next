@@ -25,6 +25,7 @@ describe("getVisibleMenuItems", () => {
     expect(pathsFor(MANAGER_ROLE)).toEqual([
       "",
       "/user-flow",
+      "/review/analytics",
       "/review",
       "/manage",
       "/exams",
@@ -41,6 +42,7 @@ describe("getVisibleMenuItems", () => {
     expect(pathsFor(ADMIN_ROLE)).toEqual([
       "",
       "/user-flow",
+      "/review/analytics",
       "/review",
       "/manage",
       "/exams",
