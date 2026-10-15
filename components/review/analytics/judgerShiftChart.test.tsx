@@ -195,6 +195,63 @@ describe("JudgerShiftChart", () => {
     }
   });
 
+  it("按可比簇分组：簇边界插入分隔标签，不可判定组排在最后", () => {
+    const rows: JudgerShiftChartRow[] = [
+      {
+        judgerId: 1,
+        name: "甲",
+        rawMeanRatio: 0.6,
+        adjustedMeanRatio: 0.65,
+        observationCount: 10,
+        clusterIndex: 0,
+      },
+      {
+        judgerId: 2,
+        name: "乙",
+        rawMeanRatio: 0.7,
+        adjustedMeanRatio: 0.68,
+        observationCount: 10,
+        clusterIndex: 0,
+      },
+      {
+        judgerId: 3,
+        name: "丙",
+        rawMeanRatio: 0.5,
+        adjustedMeanRatio: 0.5,
+        observationCount: 4,
+        clusterIndex: -1,
+      },
+    ];
+    const { container } = render(<JudgerShiftChart rows={rows} />);
+
+    const labels = Array.from(container.querySelectorAll('[data-part="cluster-label"]'));
+    expect(labels.map((node) => node.textContent)).toEqual([
+      "阅卷组 1 · 2 名讲师 · 仅组内可比",
+      "不可判定 · 没有其他讲师评过同一名考生",
+    ]);
+    /* 分隔线横跨绘图区，标签在成员行上方 */
+    const dividers = Array.from(container.querySelectorAll('[data-part="cluster-divider"]'));
+    expect(dividers).toHaveLength(2);
+    const labelYs = labels.map((node) => Number(node.getAttribute("y")));
+    expect(labelYs[0]).toBeLessThan(
+      Number(queryElement(container, '[data-part="raw-point"][data-judger-id="1"]').getAttribute("cy")),
+    );
+    expect(
+      Number(queryElement(container, '[data-part="raw-point"][data-judger-id="2"]').getAttribute("cy")),
+    ).toBeLessThan(labelYs[1]);
+    /* 每名讲师照常画原始点、校正点与连接线 */
+    expect(container.querySelectorAll('[data-part="raw-point"]')).toHaveLength(rows.length);
+    expect(container.querySelectorAll('[data-part="adjusted-point"]')).toHaveLength(rows.length);
+    expect(container.querySelectorAll('[data-part="connector"]')).toHaveLength(rows.length);
+  });
+
+  it("只有一个可比簇时不插分隔标签", () => {
+    const { container } = render(<JudgerShiftChart rows={ROWS} />);
+
+    expect(container.querySelectorAll('[data-part="cluster-label"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-part="cluster-divider"]')).toHaveLength(0);
+  });
+
   it("空数据渲染占位", () => {
     const { container } = render(<JudgerShiftChart rows={[]} />);
 

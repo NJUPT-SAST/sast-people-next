@@ -16,16 +16,16 @@ const ROWS: HeatmapRow[] = [
     key: "j1",
     label: "甲讲师",
     cells: [
-      { columnKey: "p1", value: 0.5 },
-      { columnKey: "p2", value: null },
+      { columnKey: "p1", value: 0.5, count: 3 },
+      { columnKey: "p2", value: null, count: 0 },
     ],
   },
   {
     key: "j2",
     label: "乙讲师",
     cells: [
-      { columnKey: "p1", value: 3 },
-      { columnKey: "p2", value: -2 },
+      { columnKey: "p1", value: 3, count: 1 },
+      { columnKey: "p2", value: -2, count: 12 },
     ],
   },
 ];
@@ -91,17 +91,32 @@ describe("JudgerResidualHeatmap", () => {
     expect(empty.getAttribute("data-value")).toBeNull();
   });
 
-  it("每格 <title> 写清讲师 / 题目 / 数值", () => {
+  it("每格 <title> 写清讲师 / 题目 / 数值 / 样本数", () => {
     const { container } = render(<JudgerResidualHeatmap rows={ROWS} columns={COLUMNS} />);
 
     expect(findCell(container, "j2", "p2").querySelector("title")?.textContent).toBe(
-      "乙讲师 · 很长很长的题目名称 · -2.00σ",
+      "乙讲师 · 很长很长的题目名称 · -2.00σ · n=12",
     );
     expect(findCell(container, "j2", "p1").querySelector("title")?.textContent).toBe(
-      "乙讲师 · 题目一 · +3.00σ",
+      "乙讲师 · 题目一 · +3.00σ · n=1",
     );
+    /* 没有观测的格子：样本数为 0，明确写出来，避免把「无数据」读成「没有差异」 */
     expect(findCell(container, "j1", "p2").querySelector("title")?.textContent).toBe(
-      "甲讲师 · 很长很长的题目名称 · 无数据",
+      "甲讲师 · 很长很长的题目名称 · 无数据 · n=0",
+    );
+    expect(findCell(container, "j1", "p1").querySelector("title")?.textContent).toBe(
+      "甲讲师 · 题目一 · +0.50σ · n=3",
+    );
+  });
+
+  it("未提供样本数时不写 n（n=1 的格子是噪声，规范 §10.2 要求把样本数放进 <title>）", () => {
+    const rows: HeatmapRow[] = [
+      { key: "j1", label: "甲讲师", cells: [{ columnKey: "p1", value: 0.5 }] },
+    ];
+    const { container } = render(<JudgerResidualHeatmap rows={rows} columns={COLUMNS} />);
+
+    expect(findCell(container, "j1", "p1").querySelector("title")?.textContent).toBe(
+      "甲讲师 · 题目一 · +0.50σ",
     );
   });
 

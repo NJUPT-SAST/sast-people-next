@@ -4,14 +4,16 @@
  * 覆盖：
  *  - 可辨识设计下精确还原讲师宽严，而朴素均值差不能（§2.1 / §3）；
  *  - 现状形态（每流程单讲师）与秩亏反例 ⇒ 不可判定、不校正；
+ *  - 讲师级可辨识：孤立讲师只让自己不可判定、可比簇各自居中；
  *  - 收缩方向、可信度单调性；
- *  - 守恒性、λ=0 恒等、讲师内保序、校正方向、名次反转；
+ *  - 守恒性（按题目满分加权）、λ=0 恒等、保序的前提、校正方向、名次反转；
  *  - 退化分支（空输入、满分非正、超满分、自由度不足、完美拟合）。
  *
  * 阅卷结构约束（来自生产实现）：`user_point` 唯一键是 (考生, 题目)，
  * 因此同一考生的同一道题只可能有一名阅卷人；「重叠」只能表现为
  * 「同一考生由多名讲师分别评不同题」或「同一道题由多名讲师分别评不同考生」。
- * 可辨识性不靠经验法则，一律以设计矩阵的秩判定为准。
+ * 可辨识性不靠经验法则：一律以设计矩阵的零空间判定，且**逐讲师**判定
+ * （「同一道题由多名讲师评不同考生」只有在考生也被交叉时才够用）。
  */
 
 import { fitGradingModel, adjustedRatio, buildLeaderboard, standardizedResidual } from "@/lib/grading-fairness/model";
@@ -350,6 +352,189 @@ describe("校正：守恒性、恒等性与方向", () => {
     const doubled = adjustedRatio(row, fit, { lambda: 1, judgerWeights: { 11: 2 } });
     const raw = row.points / row.maxPoints;
     expect(Math.abs(doubled - raw)).toBeGreaterThan(Math.abs(full - raw));
+  });
+});
+
+describe("fitGradingModel：讲师级可辨识与可比簇", () => {
+  const difficulty: Record<number, number> = { 1: 0.04, 2: 0.01, 3: -0.01, 4: -0.04 };
+  const ability = (candidateId: number) => 0.55 + (candidateId % 7) * 0.01;
+  /* 核心：3 名讲师共享考生、题目子集互相搭接 ⇒ 两两可比 */
+  const core = buildObservations(
+    [
+      { judger: 11, candidates: [1, 2, 3, 4, 5, 6], problems: [1, 2], severity: 0.1 },
+      { judger: 12, candidates: [1, 2, 3, 4, 5, 6], problems: [3, 4], severity: -0.1 },
+      { judger: 13, candidates: [1, 2, 3, 4, 5, 6], problems: [1, 3], severity: 0 },
+    ],
+    difficulty,
+    ability,
+  );
+  /* 孤立讲师：与核心共用题目（所以仍在同一分量），但他的两名考生没有别的讲师评过 */
+  const orphan = buildObservations(
+    [{ judger: 14, candidates: [21, 22], problems: [1, 2], severity: 0.3 }],
+    difficulty,
+    ability,
+  );
+  const coreFit = fitGradingModel(core);
+  const mixedFit = fitGradingModel([...core, ...orphan]);
+
+  it("只有核心时 3 名讲师落在同一个可比簇", () => {
+    expect(coreFit.identifiable).toBe(true);
+    expect(coreFit.clusterCount).toBe(1);
+    expect(coreFit.comparableJudgerCount).toBe(3);
+    expect(coreFit.judgers.every((estimate) => estimate.clusterIndex === 0)).toBe(true);
+  });
+
+  it("孤立讲师只让自己不可判定，不再拖垮同分量的其他讲师", () => {
+    expect(mixedFit.componentCount).toBe(1);
+    expect(mixedFit.identifiable).toBe(false);
+    expect(mixedFit.judgerCount).toBe(4);
+    expect(mixedFit.comparableJudgerCount).toBe(3);
+
+    for (const judgerId of [11, 12, 13]) {
+      const estimate = estimateOf(mixedFit, judgerId);
+      expect(estimate.identifiable).toBe(true);
+      expect(estimate.clusterIndex).toBe(0);
+      expect(estimate.standardError).not.toBeNull();
+      expect(estimate.verdict).not.toBe("unknown");
+    }
+
+    const isolated = estimateOf(mixedFit, 14);
+    expect(isolated.identifiable).toBe(false);
+    expect(isolated.clusterIndex).toBe(-1);
+    expect(isolated.rawBias).toBe(0);
+    expect(isolated.bias).toBe(0);
+    expect(isolated.standardError).toBeNull();
+    expect(isolated.verdict).toBe("unknown");
+  });
+
+  it("孤立讲师几乎不改变核心讲师的宽严估计（只通过共享题目带来 1e-5 量级扰动）", () => {
+    for (const judgerId of [11, 12, 13]) {
+      expect(estimateOf(mixedFit, judgerId).rawBias).toBeCloseTo(
+        estimateOf(coreFit, judgerId).rawBias,
+        4,
+      );
+    }
+    expect(estimateOf(mixedFit, 11).rawBias).toBeCloseTo(0.1, 4);
+    expect(estimateOf(mixedFit, 12).rawBias).toBeCloseTo(-0.1, 4);
+  });
+
+  it("多个可比簇各自居中（簇内 n 加权和为零），互不比较", () => {
+    /* 两组考生互不相交、只通过共享题目并入同一分量 ⇒ 两个可比簇，各 3 名讲师 */
+    const observations = buildObservations(
+      [
+        { judger: 11, candidates: [1, 2, 3, 4], problems: [1, 2], severity: 0.1 },
+        { judger: 12, candidates: [1, 2, 3, 4], problems: [3, 4], severity: -0.1 },
+        { judger: 13, candidates: [1, 2, 3, 4], problems: [1, 3], severity: 0 },
+        { judger: 14, candidates: [11, 12, 13, 14], problems: [1, 2], severity: 0.2 },
+        { judger: 15, candidates: [11, 12, 13, 14], problems: [3, 4], severity: 0.05 },
+        { judger: 16, candidates: [11, 12, 13, 14], problems: [1, 3], severity: -0.05 },
+      ],
+      difficulty,
+      ability,
+    );
+    const fit = fitGradingModel(observations);
+
+    expect(fit.componentCount).toBe(1);
+    expect(fit.clusterCount).toBe(2);
+    expect(fit.comparableJudgerCount).toBe(6);
+    expect(fit.identifiable).toBe(true);
+
+    const clusters = new Map<number, number[]>();
+    for (const estimate of fit.judgers) {
+      clusters.set(estimate.clusterIndex, [
+        ...(clusters.get(estimate.clusterIndex) ?? []),
+        estimate.judgerId,
+      ]);
+    }
+    expect([...clusters.keys()].sort()).toEqual([0, 1]);
+    for (const judgerIds of clusters.values()) {
+      expect(judgerIds).toHaveLength(3);
+      /* 簇内按观测数加权居中：Σ n_j·δ_j = 0（收缩前） */
+      const weighted = judgerIds.reduce(
+        (total, judgerId) =>
+          total + estimateOf(fit, judgerId).observationCount * estimateOf(fit, judgerId).rawBias,
+        0,
+      );
+      expect(Math.abs(weighted)).toBeLessThan(1e-9);
+    }
+  });
+});
+
+describe("校正：守恒口径、保序前提与 λ=0 截断", () => {
+  /* 两名讲师观测的平均满分相差悬殊（1000 分题 vs 10 分题） */
+  const uneven: GradingObservation[] = [
+    observation(1, 1, 11, 0.8, 1000),
+    observation(1, 2, 12, 0.8, 10),
+    observation(2, 1, 11, 0.8, 1000),
+    observation(2, 2, 12, 0.8, 10),
+    observation(3, 1, 12, 0.85, 1000),
+    observation(3, 2, 11, 0.8, 10),
+    observation(4, 1, 11, 0.79, 1000),
+    observation(4, 2, 12, 0.8, 10),
+    observation(5, 1, 11, 0.8, 1000),
+    observation(5, 2, 12, 0.8, 10),
+  ];
+  const unevenFit = fitGradingModel(uneven);
+
+  it("构造前提成立：设计可辨识，且两名讲师的平均满分确实不同", () => {
+    expect(unevenFit.identifiable).toBe(true);
+    const perObservationMaxPoints = (judgerId: number) => {
+      const estimate = estimateOf(unevenFit, judgerId);
+      return estimate.maxPointsSum / estimate.observationCount;
+    };
+    expect(perObservationMaxPoints(11)).toBeGreaterThan(perObservationMaxPoints(12) * 3);
+  });
+
+  it("按满分加权后整届原始总分守恒（按观测条数加权会漂 20 分以上）", () => {
+    const leaderboard = buildLeaderboard(uneven, unevenFit, { lambda: 1 });
+    const rawTotal = leaderboard.reduce((total, row) => total + row.rawPoints, 0);
+    const adjustedTotal = leaderboard.reduce((total, row) => total + row.adjustedPoints, 0);
+    expect(Math.abs(adjustedTotal - rawTotal)).toBeLessThanOrEqual(uneven.length * 0.5);
+  });
+
+  it("λ=0 时校正分等于原始分，即使有超过当前满分的评分", () => {
+    const rows: GradingObservation[] = [
+      observation(1, 1, 11, 1.3, 100),
+      observation(1, 2, 12, 0.5, 100),
+      observation(2, 1, 12, 0.7, 100),
+      observation(2, 2, 11, 0.6, 100),
+    ];
+    const fit = fitGradingModel(rows);
+    expect(fit.clampedObservationCount).toBe(1);
+    const leaderboard = buildLeaderboard(rows, fit, { lambda: 0 });
+    for (const row of leaderboard) expect(row.adjustedPoints).toBe(row.rawPoints);
+  });
+
+  it("保序只在「同一讲师 + 题目集合与满分结构相同」时成立", () => {
+    const rows: GradingObservation[] = [
+      observation(1, 1, 11, 0.8, 100),
+      observation(1, 2, 12, 0.8, 10),
+      observation(2, 1, 12, 0.85, 100),
+      observation(2, 2, 11, 0.7, 10),
+      /* 3 号考生由 11 评两道题（满分 110），5 号考生只由 11 评一道题（满分 100） */
+      observation(3, 1, 11, 0.8, 100),
+      observation(3, 2, 11, 0.8, 10),
+      observation(4, 1, 12, 0.88, 100),
+      observation(4, 2, 12, 0.9, 10),
+      observation(5, 1, 11, 0.8, 100),
+    ];
+    const fit = fitGradingModel(rows);
+    const leaderboard = buildLeaderboard(rows, fit, { lambda: 1 });
+    const rowOf = (userFlowId: number) => {
+      const row = leaderboard.find((candidate) => candidate.userFlowId === userFlowId);
+      if (!row) throw new Error(`名次表缺少考生 ${userFlowId}`);
+      return row;
+    };
+
+    /* 同一讲师的每条观测拿到的是同一个得分率偏移 …… */
+    const shiftOf = (index: number) =>
+      adjustedRatio(rows[index], fit, { lambda: 1 }) - rows[index].points / rows[index].maxPoints;
+    expect(shiftOf(4)).toBeCloseTo(shiftOf(8), 12);
+    /* …… 但两名考生的满分结构不同 ⇒ 汇总成总分后名次可以翻转（所以不变量必须带前提） */
+    expect(rowOf(3).rawRatio).toBeCloseTo(rowOf(5).rawRatio, 12);
+    expect(rowOf(5).adjustedRatio).toBeGreaterThan(rowOf(3).adjustedRatio);
+    expect(rowOf(5).rawRank).toBe(rowOf(3).rawRank);
+    expect(rowOf(5).adjustedRank).toBeLessThan(rowOf(3).adjustedRank);
   });
 });
 

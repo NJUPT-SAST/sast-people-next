@@ -3,6 +3,7 @@ import type React from "react";
 import type { JudgerVerdict } from "@/lib/grading-fairness/types";
 import { cn } from "@/lib/utils";
 
+import { groupByCluster } from "./judgerClusters";
 import { JUDGER_VERDICT_META } from "./judgerVerdict";
 
 export type JudgerForestPlotRow = {
@@ -16,6 +17,8 @@ export type JudgerForestPlotRow = {
   /** 可信度权重 0..1 */
   credibility: number;
   verdict: JudgerVerdict;
+  /** 可比簇序号（≥0；-1 = 不可判定）；不同簇之间不可比较，渲染时插入分隔标签 */
+  clusterIndex?: number;
 };
 
 const WIDTH = 760;
@@ -45,6 +48,13 @@ const VERDICT_X = PLOT_RIGHT + 70;
 const COUNT_X = WIDTH - 15;
 const GRID_COLOR = "var(--border)";
 const GRID_DASH = "3 3";
+/** 可比簇分隔标签行的高度与字号 */
+const GROUP_HEADER_HEIGHT = 24;
+const GROUP_LABEL_FONT_SIZE = 10;
+/** 「总体无异质性证据，不校正」注解：另起一行，故行高额外增加 */
+const VERDICT_NOTE_FONT_SIZE = 9;
+const VERDICT_NOTE_HEIGHT = 14;
+const VERDICT_NOTE_TEXT = "总体无异质性证据，不校正";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -91,6 +101,42 @@ function buildTicks(extent: number): number[] {
   return ticks;
 }
 
+type ForestLayoutItem =
+  | { kind: "group"; clusterIndex: number; label: string; y: number }
+  | { kind: "row"; row: JudgerForestPlotRow; y: number; note: boolean };
+
+/**
+ * 行布局：按可比簇切分，簇边界插入一行分隔标签（只有一个簇时不插，避免多余装饰）；
+ * 需要注解的行（τ² = 0 不做校正、但收缩前的 δ 仍显著）再多占一行小字的高度。
+ * `y` 是各元素的垂直中心。
+ */
+function buildLayout(rows: JudgerForestPlotRow[]): {
+  items: ForestLayoutItem[];
+  plotBottom: number;
+} {
+  const groups = groupByCluster(rows);
+  const showGroupLabels = groups.length > 1;
+  const items: ForestLayoutItem[] = [];
+  let cursor = TOP_PAD;
+  for (const group of groups) {
+    if (showGroupLabels) {
+      items.push({
+        kind: "group",
+        clusterIndex: group.clusterIndex,
+        label: group.label,
+        y: cursor + GROUP_HEADER_HEIGHT / 2,
+      });
+      cursor += GROUP_HEADER_HEIGHT;
+    }
+    for (const row of group.rows) {
+      const note = row.credibility === 0 && (row.verdict === "lenient" || row.verdict === "strict");
+      items.push({ kind: "row", row, y: cursor + ROW_HEIGHT / 2, note });
+      cursor += ROW_HEIGHT + (note ? VERDICT_NOTE_HEIGHT : 0);
+    }
+  }
+  return { items, plotBottom: cursor };
+}
+
 export function JudgerForestPlot({
   rows,
   className,
@@ -124,7 +170,7 @@ export function JudgerForestPlot({
 
   const extent = computeExtent(rows);
   const plotWidth = PLOT_RIGHT - PLOT_LEFT;
-  const plotBottom = TOP_PAD + rows.length * ROW_HEIGHT;
+  const { items, plotBottom } = buildLayout(rows);
   const height = plotBottom + BOTTOM_PAD;
   const ticks = buildTicks(extent);
   const maxObservationCount = Math.max(
@@ -216,8 +262,43 @@ export function JudgerForestPlot({
         宽严（百分点，正 = 偏松）
       </text>
 
-      {rows.map((row, index) => {
-        const y = TOP_PAD + ROW_HEIGHT * (index + 0.5);
+      {items.map((item, index) => {
+        if (item.kind === "group") {
+          return (
+            <g
+              key={`cluster-${item.clusterIndex}`}
+              data-part="cluster-header"
+              data-cluster-index={item.clusterIndex}
+            >
+              <title>{item.label}</title>
+              <text
+                data-part="cluster-label"
+                data-cluster-index={item.clusterIndex}
+                x={8}
+                y={item.y - 3}
+                textAnchor="start"
+                dominantBaseline="middle"
+                fontSize={GROUP_LABEL_FONT_SIZE}
+                fill="var(--muted-foreground)"
+              >
+                {item.label}
+              </text>
+              <line
+                data-part="cluster-divider"
+                data-cluster-index={item.clusterIndex}
+                x1={8}
+                x2={PLOT_RIGHT}
+                y1={item.y + 9}
+                y2={item.y + 9}
+                stroke={GRID_COLOR}
+                strokeWidth={1}
+              />
+            </g>
+          );
+        }
+
+        const { row, note } = item;
+        const y = item.y;
         const meta = JUDGER_VERDICT_META[row.verdict] ?? JUDGER_VERDICT_META.unknown;
         const biasPercent = row.bias * 100;
         const standardErrorPercent =
@@ -238,7 +319,9 @@ export function JudgerForestPlot({
         return (
           <g key={`${row.judgerId}-${index}`} data-part="row" data-judger-id={row.judgerId}>
             <title>
-              {`${row.name}：宽严 ${biasLabel}，n=${row.observationCount}，${meta.label}`}
+              {`${row.name}：宽严 ${biasLabel}，n=${row.observationCount}，${meta.label}${
+                note ? `（${VERDICT_NOTE_TEXT}）` : ""
+              }`}
             </title>
 
             <text
@@ -332,6 +415,21 @@ export function JudgerForestPlot({
             >
               {meta.label}
             </text>
+
+            {note ? (
+              <text
+                data-part="verdict-note"
+                data-judger-id={row.judgerId}
+                x={VERDICT_X}
+                y={y + 12}
+                textAnchor="start"
+                dominantBaseline="middle"
+                fontSize={VERDICT_NOTE_FONT_SIZE}
+                fill="var(--muted-foreground)"
+              >
+                {VERDICT_NOTE_TEXT}
+              </text>
+            ) : null}
 
             <text
               data-part="observation-count"

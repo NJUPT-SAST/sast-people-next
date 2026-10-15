@@ -7,7 +7,8 @@ export type HeatmapColumn = { key: string; label: string };
 export type HeatmapRow = {
   key: string;
   label: string;
-  cells: Array<{ columnKey: string; value: number | null }>;
+  /** `count` = 该格聚合的观测数（样本数），写进 <title>：n=1 的格子是噪声，不得据此下结论 */
+  cells: Array<{ columnKey: string; value: number | null; count?: number }>;
 };
 
 /** 格子边长与列间距（pitch），宽卡片里也不会被拉伸放大 */
@@ -187,7 +188,7 @@ export function JudgerResidualHeatmap({
 
       {rows.map((row, rowIndex) => {
         const rowTop = labelBand + rowIndex * CELL_PITCH;
-        const cellValues = new Map(row.cells.map((cell) => [cell.columnKey, cell.value]));
+        const cellByColumn = new Map(row.cells.map((cell) => [cell.columnKey, cell]));
         return (
           <g key={row.key} data-part="row" data-row-key={row.key}>
             <title>{row.label}</title>
@@ -205,13 +206,15 @@ export function JudgerResidualHeatmap({
             </text>
 
             {columns.map((column, columnIndex) => {
-              const rawValue = cellValues.get(column.key);
+              const cell = cellByColumn.get(column.key);
+              const rawValue = cell?.value;
               const value =
                 typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
               const cellX = ROW_LABEL_WIDTH + columnIndex * CELL_PITCH + CELL_GAP / 2;
               const cellY = rowTop + CELL_GAP / 2;
               const valueLabel =
                 value === null ? "无数据" : `${value > 0 ? "+" : ""}${value.toFixed(2)}σ`;
+              const countLabel = typeof cell?.count === "number" ? ` · n=${cell.count}` : "";
               return (
                 <rect
                   key={`${row.key}-${column.key}`}
@@ -240,7 +243,7 @@ export function JudgerResidualHeatmap({
                         : Math.min(1, Math.abs(value) / safeMaxAbs) * MAX_CELL_OPACITY,
                   }}
                 >
-                  <title>{`${row.label} · ${column.label} · ${valueLabel}`}</title>
+                  <title>{`${row.label} · ${column.label} · ${valueLabel}${countLabel}`}</title>
                 </rect>
               );
             })}
