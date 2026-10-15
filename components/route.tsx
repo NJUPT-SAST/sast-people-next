@@ -175,9 +175,20 @@ export const menuItems: MenuItem[] = [
   },
 ];
 
+/**
+ * 当前菜单项是否处于激活态：按**最长前缀**只让一个菜单项高亮。
+ * 逐项独立判断 `pathname.includes(...)` 会让 `/dashboard/review/analytics`
+ * 同时点亮 `/review` 与 `/review/analytics`。
+ */
 export function isItemActive(pathname: string, itemPath: string): boolean {
   if (!itemPath) return pathname === '/dashboard';
-  return pathname.includes(`/dashboard${itemPath}`);
+  const target = `/dashboard${itemPath}`;
+  if (!pathname.includes(target)) return false;
+  return menuItems.every((item) => {
+    if (!item.path || item.path === itemPath) return true;
+    const other = `/dashboard${item.path}`;
+    return !pathname.includes(other) || other.length <= target.length;
+  });
 }
 
 export function getMenuItemTitle(item: MenuItem, role?: number): string {

@@ -5,7 +5,7 @@ import "server-only";
 import { db } from "@/db/drizzle";
 import { flow, gradingFairnessProfile } from "@/db/schema";
 import { verifyScopedRole } from "@/lib/authz";
-import { assertFlowEditableRecord } from "@/lib/flow-access";
+import { assertFlowEditableRecord, isFlowVisibleToScope } from "@/lib/flow-access";
 import { MANAGER_ROLE } from "@/lib/link/role";
 import { logServerError } from "@/lib/server-error-log";
 import type { FlowScopedSession } from "@/action/flow/department-utils";
@@ -152,12 +152,12 @@ export const loadGradingFairnessProfile = async (
     session = await verifyScopedRole(MANAGER_ROLE);
     const targetFlowId = parseFlowId(flowId);
 
-    const flowRow = await resolveEditableFlow(
-      session,
-      targetFlowId,
-      "无权查看其他部门的阅卷公平性配置",
-    );
-    if (!flowRow) return emptyProfile(targetFlowId);
+    /* 读路径与 loadGradingFairnessData 用同一套可见性口径：
+       全局流程（本部门有报名）能看见分析数据，就必须能读回它的配置；
+       写路径仍然要求编辑权限（见 saveGradingFairnessProfile）。 */
+    if (!(await isFlowVisibleToScope(session.scope, targetFlowId))) {
+      return emptyProfile(targetFlowId);
+    }
 
     const [row] = await db
       .select()

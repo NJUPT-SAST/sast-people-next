@@ -1,4 +1,4 @@
-import { getMenuGroups, getVisibleMenuItems } from "./route";
+import { getMenuGroups, getVisibleMenuItems, isItemActive } from "./route";
 import { ADMIN_ROLE, LECTURER_ROLE, MANAGER_ROLE, MEMBER_ROLE } from "@/lib/link/role";
 
 const pathsFor = (role: number, hasDepartment = true) =>
@@ -81,5 +81,25 @@ describe("getVisibleMenuItems", () => {
     const manageGroup = getMenuGroups(MANAGER_ROLE, false).find((group) => group.id === "manage");
 
     expect(manageGroup?.items.map((item) => item.path)).toEqual(["/manage"]);
+  });
+});
+
+describe("isItemActive", () => {
+  it("子路径只点亮最长匹配的菜单项（不会同时点亮 /review 与 /review/analytics）", () => {
+    expect(isItemActive("/dashboard/review/analytics", "/review/analytics")).toBe(true);
+    expect(isItemActive("/dashboard/review/analytics", "/review")).toBe(false);
+  });
+
+  it("父路径自己的页面仍然只点亮父项", () => {
+    expect(isItemActive("/dashboard/review", "/review")).toBe(true);
+    expect(isItemActive("/dashboard/review", "/review/analytics")).toBe(false);
+    expect(isItemActive("/dashboard/review/marking", "/review")).toBe(true);
+    expect(isItemActive("/dashboard/review/marking", "/review/analytics")).toBe(false);
+  });
+
+  it("不匹配的路径不点亮任何项，工作台首页只点亮空路径项", () => {
+    expect(isItemActive("/dashboard/exams", "/review")).toBe(false);
+    expect(isItemActive("/dashboard", "")).toBe(true);
+    expect(isItemActive("/dashboard/exams", "")).toBe(false);
   });
 });

@@ -19,7 +19,13 @@ type SaveProfileInput = {
   note?: string | null;
 };
 
-const saveGradingFairnessProfile = jest.fn(async (_input: SaveProfileInput) => undefined);
+const saveGradingFairnessProfile = jest.fn(async (input: SaveProfileInput) => ({
+  flowId: input.flowId,
+  lambda: input.lambda,
+  judgerWeights: input.judgerWeights ?? {},
+  note: null,
+  updatedAt: "2026-01-01T00:00:00.000Z",
+}));
 jest.mock("@/action/user-flow/grading-fairness/profile", () => ({
   saveGradingFairnessProfile: (input: SaveProfileInput) => saveGradingFairnessProfile(input),
 }));
@@ -153,18 +159,24 @@ describe("GradingFairnessDashboard", () => {
     expect(screen.getByText(/总分变化 0 分/)).toBeInTheDocument();
   });
 
-  it("保存参数把 flowId、λ 与人工权重交给服务端", async () => {
+  it("保存参数把 flowId、λ 与人工权重交给服务端，并在成功后清掉「未保存」提示", async () => {
     const user = userEvent.setup();
     renderDashboard();
 
+    expect(screen.getByText("参数已保存")).toBeInTheDocument();
+
     lambdaThumb().focus();
     await user.keyboard("{End}");
+    expect(screen.getByText("有未保存的改动")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "保存参数" }));
 
     expect(saveGradingFairnessProfile).toHaveBeenCalledTimes(1);
     const payload = saveGradingFairnessProfile.mock.calls[0][0];
     expect(payload.flowId).toBe(501);
     expect(payload.lambda).toBeGreaterThan(0.9);
+    await screen.findByText("参数已保存");
+    expect(screen.queryByText("有未保存的改动")).toBeNull();
   });
 
   it("不可判定时不提供校正控件，改为描述性回退并说明原因", () => {
@@ -184,10 +196,46 @@ describe("GradingFairnessDashboard", () => {
     /* 描述性回退：原始口径照给，但明确标注不可比较 */
     expect(screen.getByText("讲师阅卷量（描述性，仅供参考）")).toBeInTheDocument();
     expect(screen.getByText(/不可直接比较/)).toBeInTheDocument();
-    expect(screen.getByText("要让这里出现可判定的宽严估计，需要「重叠」：同一名考生被 ≥2 名讲师评过（分别评不同题）， 或同一道题被 ≥2 名讲师评过（分别评不同考生）。")).toBeInTheDocument();
+    expect(screen.getByText(/要让这里出现可判定的宽严估计/)).toBeInTheDocument();
     /* 不可校正时不该出现任何校正控件 */
     expect(screen.queryByRole("slider", { name: "全局校正强度" })).toBeNull();
     expect(screen.queryByRole("button", { name: "保存参数" })).toBeNull();
+  });
+
+  it("可判定但没有残差尺度时不报「系统性偏离」，而是说明无法判定", () => {
+    /* 完美拟合（无残差尺度）⇒ 设计可辨识但判定全为 unknown，此时不该出现「发现 N 名讲师偏离」 */
+    const exact: GradingObservation[] = [];
+    const candidates = [1, 2, 3, 4];
+    const problemSets: Record<number, number[]> = { 11: [1, 2], 12: [3, 4], 13: [1, 3] };
+    const difficulty: Record<number, number> = { 1: 80, 2: 20, 3: -40, 4: -100 };
+    const severity: Record<number, number> = { 11: 0, 12: 100, 13: -100 };
+    for (const [judgerIdText, problems] of Object.entries(problemSets)) {
+      const judgerId = Number(judgerIdText);
+      for (const candidate of candidates) {
+        for (const problem of problems) {
+          exact.push({
+            userFlowId: candidate,
+            problemId: problem,
+            judgerId,
+            points: 500 + candidate * 5 + difficulty[problem] + severity[judgerId],
+            maxPoints: 1000,
+          });
+        }
+      }
+    }
+    const exactFit = fitGradingModel(exact);
+    expect(exactFit.identifiable).toBe(true);
+    expect(exactFit.judgers.every((estimate) => estimate.verdict === "unknown")).toBe(true);
+
+    render(
+      <GradingFairnessDashboard
+        data={{ ...data, observations: exact, fit: exactFit }}
+        profile={profile}
+      />,
+    );
+
+    expect(screen.getByText("当前数据不足以判定讲师宽严")).toBeInTheDocument();
+    expect(screen.queryByText(/发现 \d+ 名讲师的打分系统性偏离同侪/)).toBeNull();
   });
 
   it("可判定时给出结论摘要（谁偏松、影响多少名次、能检出多大差异）", () => {

@@ -52,8 +52,9 @@ jest.mock("@/lib/authz", () => {
 import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/drizzle";
-import { flow, gradingFairnessProfile } from "@/db/schema";
+import { flow, gradingFairnessProfile, userFlow } from "@/db/schema";
 import { DepartmentAccessError } from "@/lib/authz";
+import { isFlowVisibleToScope } from "@/lib/flow-access";
 import { MANAGER_ROLE } from "@/lib/link/role";
 import {
   loadGradingFairnessProfile,
@@ -99,6 +100,7 @@ describe("阅卷公平性配置读写", () => {
   let ownFlowId = 0;
   let otherFlowId = 0;
   let untouchedFlowId = 0;
+  let globalFlowId = 0;
 
   const actAs = (uid: number, role: number, department: string) => {
     mockSession.uid = uid;
@@ -137,6 +139,25 @@ describe("阅卷公平性配置读写", () => {
     ownFlowId = rows[0].id;
     otherFlowId = rows[1].id;
     untouchedFlowId = rows[2].id;
+
+    /* 全局流程（department = NULL）+ 本部门的一条报名 ⇒ 对部门账号「可见但不可编辑」 */
+    const [globalFlow] = await db
+      .insert(flow)
+      .values({
+        title: `${TITLE_PREFIX}全局流程`,
+        type: "recruitment",
+        department: null,
+        ownerId: MANAGER_ID,
+      })
+      .returning({ id: flow.id });
+    createdFlowIds.push(globalFlow.id);
+    globalFlowId = globalFlow.id;
+    await db.insert(userFlow).values({
+      fkFlowId: globalFlowId,
+      fkUserId: MANAGER_ID + 900,
+      department: OWN_DEPARTMENT,
+      progressStatus: "ongoing",
+    });
   });
 
   afterAll(async () => {
@@ -198,15 +219,33 @@ describe("阅卷公平性配置读写", () => {
     await expect(loadGradingFairnessProfile(ownFlowId)).resolves.toEqual(resaved);
   });
 
-  it("其他部门的流程被部门越权校验拒绝，且不落库", async () => {
+  it("其他部门的流程：写入被拒，读取返回默认配置且不落库", async () => {
     await expect(
       saveGradingFairnessProfile({ flowId: otherFlowId, lambda: 0.5 }),
     ).rejects.toBeInstanceOf(DepartmentAccessError);
 
-    await expect(loadGradingFairnessProfile(otherFlowId)).rejects.toBeInstanceOf(
-      DepartmentAccessError,
-    );
+    /* 读路径与 loadGradingFairnessData 同一套可见性口径：不可见即返回默认配置，不抛错 */
+    expect(await loadGradingFairnessProfile(otherFlowId)).toEqual({
+      flowId: otherFlowId,
+      lambda: 0,
+      judgerWeights: {},
+      note: null,
+      updatedAt: null,
+    });
     expect(await countProfiles(otherFlowId)).toBe(0);
+  });
+
+  it("全局流程可见即可读配置：能看见分析数据就必须能读回它的配置", async () => {
+    /* 全局流程因本部门有报名而对部门账号可见，但它不属于本部门 ⇒ 没有编辑权限。
+       读取配置不应因此报错（写路径仍要求编辑权限）。 */
+    expect(await isFlowVisibleToScope(mockSession.scope, globalFlowId)).toBe(true);
+
+    await expect(
+      saveGradingFairnessProfile({ flowId: globalFlowId, lambda: 0.5 }),
+    ).rejects.toBeInstanceOf(DepartmentAccessError);
+
+    expect(await loadGradingFairnessProfile(globalFlowId)).toEqual(emptyProfile(globalFlowId));
+    expect(await countProfiles(globalFlowId)).toBe(0);
   });
 
   it("讲师（role 2）无权读写阅卷公平性配置", async () => {

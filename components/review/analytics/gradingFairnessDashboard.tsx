@@ -148,7 +148,9 @@ export function GradingFairnessDashboard({
       fit.judgers.map((estimate) => ({
         judgerId: estimate.judgerId,
         name: judgerNameOf(judgerLabels, estimate.judgerId),
-        bias: estimate.bias,
+        /* 点用收缩前的 δ_j：须线（±1.96·s_j）与判定标签都是基于它算的，
+           用收缩值会与标签自相矛盾（区间跨 0 却标「偏松/偏严」）。校正量在参数面板与结论条里给。 */
+        bias: estimate.rawBias,
         standardError: estimate.standardError,
         observationCount: estimate.observationCount,
         credibility: estimate.credibility,
@@ -240,7 +242,9 @@ export function GradingFairnessDashboard({
     [observations, fit, options],
   );
   const deviationEstimates = fit.judgers.filter(
-    (estimate) => estimate.identifiable && estimate.verdict !== "fair",
+    (estimate) =>
+      estimate.identifiable &&
+      (estimate.verdict === "lenient" || estimate.verdict === "strict"),
   );
   const hasEstimates = fit.judgers.some((estimate) => estimate.identifiable);
   const canCorrect = fit.judgers.some((estimate) => estimate.bias !== 0);
@@ -303,16 +307,21 @@ export function GradingFairnessDashboard({
     URL.revokeObjectURL(url);
   };
 
-  const savedLambda = profile.lambda;
+  /** 已保存基准：保存成功后用服务端返回值更新，否则「有未保存的改动」会一直挂着 */
+  const [saved, setSaved] = useState<GradingFairnessProfile>(profile);
   const isDirty =
-    Math.abs(lambda - savedLambda) > 1e-9 ||
-    preserveTotal !== true ||
-    JSON.stringify(judgerWeights) !== JSON.stringify(profile.judgerWeights);
+    Math.abs(lambda - saved.lambda) > 1e-9 ||
+    JSON.stringify(judgerWeights) !== JSON.stringify(saved.judgerWeights);
 
   const onSave = () => {
     startSaving(async () => {
       try {
-        await saveGradingFairnessProfile({ flowId: data.flow.id, lambda, judgerWeights });
+        const next = await saveGradingFairnessProfile({
+          flowId: data.flow.id,
+          lambda,
+          judgerWeights,
+        });
+        setSaved(next);
         toast.success("已保存该流程的校正参数");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "保存失败");
@@ -350,6 +359,18 @@ export function GradingFairnessDashboard({
       };
     }
     if (deviationEstimates.length === 0) {
+      const judgedCount = fit.judgers.filter(
+        (estimate) => estimate.identifiable && estimate.verdict !== "unknown",
+      ).length;
+      if (judgedCount === 0) {
+        return {
+          tone: "unknown" as const,
+          icon: TriangleAlert,
+          title: "当前数据不足以判定讲师宽严",
+          detail:
+            "设计可辨识，但没有可用的残差尺度（自由度不足或拟合过于完美），无法给出标准误与显著判定；此时不做任何校正。",
+        };
+      }
       return {
         tone: "fair" as const,
         icon: Info,
