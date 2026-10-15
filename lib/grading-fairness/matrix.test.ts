@@ -1,32 +1,57 @@
 /**
- * 线性代数底座：秩判定与求解（阅卷公平性模型的唯一数值依赖）。
+ * 线性代数底座：秩判定、零空间与求解（阅卷公平性模型的唯一数值依赖）。
  */
 
-import { factorize, matrixRank, maxDiagonal } from "@/lib/grading-fairness/matrix";
+import { factorize, nullSpaceBasis, maxDiagonal } from "@/lib/grading-fairness/matrix";
 
-describe("matrixRank", () => {
-  it("满秩方阵的秩等于阶数", () => {
-    const matrix = Float64Array.from([2, 1, 1, 3]);
-    expect(matrixRank(matrix, 2)).toBe(2);
+const multiply = (matrix: Float64Array, n: number, vector: Float64Array): Float64Array => {
+  const result = new Float64Array(n);
+  for (let row = 0; row < n; row += 1) {
+    let sum = 0;
+    for (let column = 0; column < n; column += 1) sum += matrix[row * n + column] * vector[column];
+    result[row] = sum;
+  }
+  return result;
+};
+
+describe("nullSpaceBasis", () => {
+  it("满秩方阵的零空间为空", () => {
+    expect(nullSpaceBasis(Float64Array.from([2, 1, 1, 3]), 2)).toEqual([]);
+    expect(nullSpaceBasis(Float64Array.from([1, 0, 0, 1]), 2)).toEqual([]);
   });
 
-  it("奇异矩阵按实际秩返回", () => {
+  it("奇异矩阵的零空间维数 = 阶数 − 秩，且基向量确实落在零空间里", () => {
     /* 第 2 行 = 第 1 行 × 2 */
     const singular = Float64Array.from([1, 2, 2, 4]);
-    expect(matrixRank(singular, 2)).toBe(1);
-
-    const allOnes = Float64Array.from([1, 1, 1, 1, 1, 1, 1, 1, 1]);
-    expect(matrixRank(allOnes, 3)).toBe(1);
+    const basis = nullSpaceBasis(singular, 2);
+    expect(basis).toHaveLength(1);
+    const image = multiply(singular, 2, basis[0]);
+    expect(Math.abs(image[0])).toBeLessThan(1e-9);
+    expect(Math.abs(image[1])).toBeLessThan(1e-9);
   });
 
-  it("零矩阵秩为 0", () => {
-    expect(matrixRank(new Float64Array(9), 3)).toBe(0);
-    expect(matrixRank(new Float64Array(0), 0)).toBe(0);
+  it("秩 1 的 3×3 全 1 矩阵零空间维数为 2，基向量正交归一", () => {
+    const allOnes = Float64Array.from([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    const basis = nullSpaceBasis(allOnes, 3);
+    expect(basis).toHaveLength(2);
+    for (const vector of basis) {
+      const image = multiply(allOnes, 3, vector);
+      for (const value of image) expect(Math.abs(value)).toBeLessThan(1e-9);
+      const norm = Math.sqrt(vector.reduce((total, value) => total + value * value, 0));
+      expect(norm).toBeCloseTo(1, 9);
+    }
+    const dot = basis[0].reduce((total, value, index) => total + value * basis[1][index], 0);
+    expect(Math.abs(dot)).toBeLessThan(1e-9);
+  });
+
+  it("零矩阵的零空间是整空间（n 个基向量）", () => {
+    expect(nullSpaceBasis(new Float64Array(9), 3)).toHaveLength(3);
+    expect(nullSpaceBasis(new Float64Array(0), 0)).toEqual([]);
   });
 
   it("不修改入参", () => {
     const matrix = Float64Array.from([1, 2, 2, 4]);
-    matrixRank(matrix, 2);
+    nullSpaceBasis(matrix, 2);
     expect(Array.from(matrix)).toEqual([1, 2, 2, 4]);
   });
 });

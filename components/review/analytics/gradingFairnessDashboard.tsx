@@ -5,8 +5,12 @@
  *
  * 信息层级：结论 → 关键指标 → 讲师宽严（主） + 参数（可调） → 名次变化 → 诊断热力图。
  * 拟合结果由服务端算好（`loadGradingFairnessData`），这里只做两件事：
- *  1. 依据 λ / 人工权重 / 是否保持整体均分，即时重算校正后的分数与名次（O(N)）；
+ *  1. 依据 λ / 人工权重 / 是否保持整届总分，即时重算校正后的分数与名次（O(N)）；
  *  2. 把结果画出来，并允许把参数按流程保存。
+ *
+ * 降级：森林图 / 哑铃图 / λ 与人工权重 / 保存按钮都依赖「可比讲师」（两两可比）；
+ * 没有可比讲师时它们让位给描述性表，但热力图与名次表照常渲染——秩亏不影响拟合值、σ̂
+ * 与 λ = 0 时的原始名次，描述性表是唯一能给出阅卷量的地方，两者并存。
  *
  * 该面板**仅供人工参考**：不会写回 `user_point`，也不影响官方成绩。
  */
@@ -54,6 +58,7 @@ import type {
   GradingModelFit,
 } from "@/lib/grading-fairness/types";
 
+import { groupByCluster } from "./judgerClusters";
 import { JudgerForestPlot } from "./judgerForestPlot";
 import { JudgerResidualHeatmap } from "./judgerResidualHeatmap";
 import { JudgerShiftChart } from "./judgerShiftChart";
@@ -155,6 +160,7 @@ export function GradingFairnessDashboard({
         observationCount: estimate.observationCount,
         credibility: estimate.credibility,
         verdict: estimate.verdict,
+        clusterIndex: estimate.clusterIndex,
       })),
     [fit, judgerLabels],
   );
@@ -169,6 +175,7 @@ export function GradingFairnessDashboard({
           rawMeanRatio: estimate.rawMeanRatio,
           adjustedMeanRatio: mean(rows.map((row) => adjustedRatio(row, fit, options))),
           observationCount: estimate.observationCount,
+          clusterIndex: estimate.clusterIndex,
         };
       }),
     [fit, observations, options, judgerLabels],
@@ -212,6 +219,8 @@ export function GradingFairnessDashboard({
           return {
             columnKey: String(problemId),
             value: values && values.length > 0 ? mean(values) : null,
+            /* 规范 §10.2：界面把样本数放进 <title>，n=1 的格子是噪声 */
+            count: values?.length ?? 0,
           };
         }),
       })),
@@ -241,13 +250,19 @@ export function GradingFairnessDashboard({
       ).length,
     [observations, fit, options],
   );
+  /** 只有 credibility > 0（τ² > 0）的讲师才真的会被校正；τ² = 0 时一律 bias = 0 */
   const deviationEstimates = fit.judgers.filter(
     (estimate) =>
-      estimate.identifiable &&
+      estimate.credibility > 0 &&
       (estimate.verdict === "lenient" || estimate.verdict === "strict"),
   );
-  const hasEstimates = fit.judgers.some((estimate) => estimate.identifiable);
+  const hasObservations = fit.observationCount > 0;
+  /** 森林图 / 哑铃图 / λ 与人工权重 / 保存按钮都依赖「可比讲师」；热力图与名次表不依赖 */
+  const hasComparableJudgers = fit.comparableJudgerCount > 0;
   const canCorrect = fit.judgers.some((estimate) => estimate.bias !== 0);
+  /** 按可比簇分组（`judgers` 已按 clusterIndex 排序），簇边界要插入分隔标签 */
+  const clusterGroups = useMemo(() => groupByCluster(fit.judgers), [fit.judgers]);
+  const showClusterLabels = clusterGroups.length > 1;
 
   const commonMaxPoints = useMemo(() => {
     const maxPoints = new Set(leaderboard.map((row) => row.maxPoints));
@@ -347,15 +362,18 @@ export function GradingFairnessDashboard({
             : "流程内还没有任何评分。",
       };
     }
-    if (!hasEstimates) {
+    if (!hasComparableJudgers) {
+      /* 没有可比讲师：原因必须是**真实原因**，否则「1 个分量却说有多个小组」自相矛盾 */
       const single = fit.judgerCount <= 1;
       return {
         tone: "unknown" as const,
         icon: TriangleAlert,
         title: "当前数据无法判定讲师宽严",
         detail: single
-          ? `本流程只有 ${fit.judgerCount} 名阅卷人，无法与其他人比较。需要同一名考生被 ≥2 名讲师评过（不同题），或同一道题被 ≥2 名讲师评过（不同考生）。`
-          : `本流程有 ${fit.componentCount} 个互不相连的阅卷小组，其中 0 个可判定：宽严只有在讲师之间「评过同一名考生或同一道题」时才可分离。`,
+          ? `本流程只有 ${fit.judgerCount} 名阅卷人，无法与其他人比较。需要同一名考生被 ≥2 名讲师评过（各评不同的题）。`
+          : fit.componentCount > 1
+            ? `本流程有 ${fit.componentCount} 个互不相连的阅卷小组，其中 0 个可判定：宽严只有在同一名考生被 ≥2 名讲师评过时才能分离。`
+            : `本流程的 ${fit.judgerCount} 名讲师之间没有考生交叉：每名考生基本只被一名讲师评过；讲师之间共享题目并不能分离宽严，需要让同一名考生被 ≥2 名讲师评过。`,
       };
     }
     if (deviationEstimates.length === 0) {
@@ -371,11 +389,35 @@ export function GradingFairnessDashboard({
             "设计可辨识，但没有可用的残差尺度（自由度不足或拟合过于完美），无法给出标准误与显著判定；此时不做任何校正。",
         };
       }
+      /* 有可比讲师、个体判定也出来了，但没有一名讲师被点名 */
+      const significantWithoutHeterogeneity = fit.judgers.filter(
+        (estimate) =>
+          estimate.credibility === 0 &&
+          (estimate.verdict === "lenient" || estimate.verdict === "strict"),
+      ).length;
+      const hasCredibleJudger = fit.judgers.some((estimate) => estimate.credibility > 0);
+      if (!hasCredibleJudger) {
+        /* τ² = 0：总体异质性证据不足 ⇒ 不做任何校正（bias 全为 0） */
+        return {
+          tone: "fair" as const,
+          icon: Info,
+          title: "未检测到讲师之间的系统性差异",
+          detail: [
+            `讲师间差异 τ = ${(fit.betweenJudgerSd * 100).toFixed(1)}pp，按现有样本量看不出谁偏松谁偏严；校正不会改变任何结果。`,
+            significantWithoutHeterogeneity > 0
+              ? `另有 ${significantWithoutHeterogeneity} 名讲师个体上达到显著阈值，但总体异质性证据不足，不做任何校正。`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(""),
+        };
+      }
+      /* τ² > 0 但没有哪名讲师单独显著：仍会按整体异质性做保守收缩，不能声称「没有变化」 */
       return {
         tone: "fair" as const,
         icon: Info,
         title: "未检测到讲师之间的系统性差异",
-        detail: `讲师间差异 τ = ${(fit.betweenJudgerSd * 100).toFixed(1)}pp，按现有样本量看不出谁偏松谁偏严；校正不会改变任何结果。`,
+        detail: `讲师间差异 τ = ${(fit.betweenJudgerSd * 100).toFixed(1)}pp，但没有哪名讲师的偏离单独达到显著阈值；校正只按整体异质性做保守收缩，不点名任何讲师。`,
       };
     }
     const ranked = [...deviationEstimates].sort(
@@ -401,7 +443,7 @@ export function GradingFairnessDashboard({
           projectedChangedCount > 0
             ? ` ${projectedChangedCount} 名考生名次变化`
             : "名次没有变化（校正对每名考生的影响一致）"
-        }，整体均分不变。`,
+        }，整届总分不变（按满分加权）。`,
         detectable !== null
           ? `按当前样本量可可靠检出约 ${(detectable * 100).toFixed(0)}pp 以上的差异。`
           : null,
@@ -410,7 +452,67 @@ export function GradingFairnessDashboard({
         .join(""),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fit, hasEstimates, deviationEstimates, projectedChangedCount, detectable, data.unattributedCount, judgerLabels]);
+  }, [
+    fit,
+    hasComparableJudgers,
+    deviationEstimates,
+    projectedChangedCount,
+    detectable,
+    data.unattributedCount,
+    judgerLabels,
+  ]);
+
+  /**
+   * 描述性回退：没有可比讲师（或没有任何评分记录）时唯一能给出阅卷量的地方。
+   * 它与热力图 / 名次表可以同时出现——秩亏不影响拟合值与 σ̂，也不影响 λ = 0 时的原始名次。
+   */
+  const descriptiveCard = (
+    <Card className="min-w-0">
+      <CardHeader>
+        <CardTitle className="text-base">讲师阅卷量（描述性，仅供参考）</CardTitle>
+        <CardDescription>
+          宽严无法分离时只能看原始口径：不同讲师的题目与考生构成不同，
+          <strong className="font-medium">这些平均分之间不可直接比较</strong>，也不做任何校正。
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {descriptiveRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">暂无评分数据。</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table className="min-w-[420px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>阅卷讲师</TableHead>
+                  <TableHead className="text-right">评分观测</TableHead>
+                  <TableHead className="text-right">考生数</TableHead>
+                  <TableHead className="text-right">平均得分率（未校正）</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {descriptiveRows.map((row) => (
+                  <TableRow key={row.judgerId}>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.observationCount}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{row.candidateCount}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatPercent(row.rawMeanRatio)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <p className="mt-3 text-xs text-muted-foreground">
+          要让这里出现可判定的宽严估计，需要「重叠」：同一名考生被 ≥2 名讲师评过（各评不同的题）。
+          只让同一道题被多名讲师评过（不同考生）是不够的——考生不交叉时，考生水平差会顶替掉讲师差。
+        </p>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-10 lg:px-6 [&>*]:min-w-0">
@@ -432,176 +534,203 @@ export function GradingFairnessDashboard({
         <Stat label="题目" value={String(fit.problemCount)} />
         <Stat label="阅卷讲师" value={String(fit.judgerCount)} />
         <Stat
-          label="可判定阅卷组"
-          value={`${fit.identifiableComponentCount} / ${fit.componentCount}`}
+          label="可比讲师"
+          value={`${fit.comparableJudgerCount} / ${fit.judgerCount}`}
+          hint={`可判定阅卷组 ${fit.identifiableComponentCount}/${fit.componentCount}`}
         />
-        <Stat label="讲师间差异 τ" value={`${(fit.betweenJudgerSd * 100).toFixed(1)}pp`} />
+        <Stat
+          label="讲师间差异 τ"
+          value={
+            hasComparableJudgers ? `${(fit.betweenJudgerSd * 100).toFixed(1)}pp` : "—"
+          }
+          hint={hasComparableJudgers ? undefined : "无可比讲师"}
+        />
         <Stat
           label="残差尺度 σ̂"
           value={fit.residualSd === null ? "—" : `${(fit.residualSd * 100).toFixed(1)}pp`}
         />
       </dl>
 
-      {hasEstimates ? (
+      {hasObservations ? (
         <>
-          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
-            <Card className="min-w-0">
-              <CardHeader>
-                <CardTitle className="text-base">讲师宽严（森林图）</CardTitle>
-                <CardDescription>
-                  点为宽严估计（正 = 偏松），横线是 95% 区间；点越大样本越多，越实心可信度越高。
-                  区间很宽说明证据不足，而不是「没问题」。
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <div className="overflow-x-auto">
-                  <div className="min-w-[640px]">
-                    <JudgerForestPlot rows={forestRows} />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground lg:hidden">← 左右滑动查看完整坐标轴</p>
-                <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                  {VERDICT_ORDER.map((verdict) => (
-                    <span key={verdict} className="flex items-center gap-1.5">
-                      <span
-                        aria-hidden
-                        className="inline-block size-2.5 rounded-full"
-                        style={{ backgroundColor: JUDGER_VERDICT_META[verdict].color }}
-                      />
-                      {JUDGER_VERDICT_META[verdict].label}
-                    </span>
-                  ))}
-                </div>
-                <div className="flex flex-col gap-2 border-t pt-4">
-                  <p className="text-sm font-medium">校正前后平均得分率</p>
-                  <p className="text-xs text-muted-foreground">
-                    空心环 = 原始，实心点 = 校正后；两点越接近说明校正对该讲师影响越小。
-                  </p>
-                  <div className="mx-auto w-full max-w-[26rem]">
-                    <JudgerShiftChart rows={shiftRows} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="min-w-0">
-              <CardHeader>
-                <CardTitle className="text-base">校正参数</CardTitle>
-                <CardDescription>
-                  可信度由数据给出，不可手改；人工权重用于模型看不到的因素（当天状态、题目分配特殊）。
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="font-medium">全局校正强度 λ</span>
-                    <span className="tabular-nums text-muted-foreground">{lambda.toFixed(2)}</span>
-                  </div>
-                  <Slider
-                    value={[lambda]}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    onValueChange={(values) => setLambda(values[0] ?? 0)}
-                    thumbAriaLabel="全局校正强度"
-                  />
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground">0 = 只看不校</p>
-                    <div className="flex gap-1">
-                      {[0, 0.5, 1].map((preset) => (
-                        <Button
-                          key={preset}
-                          size="sm"
-                          variant={Math.abs(lambda - preset) < 1e-9 ? "secondary" : "ghost"}
-                          className="h-7 px-2 text-xs"
-                          onClick={() => setLambda(preset)}
-                        >
-                          {preset === 0 ? "不校正" : preset === 0.5 ? "半量" : "全量"}
-                        </Button>
-                      ))}
+          {hasComparableJudgers ? (
+            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
+              <Card className="min-w-0">
+                <CardHeader>
+                  <CardTitle className="text-base">讲师宽严（森林图）</CardTitle>
+                  <CardDescription>
+                    点为宽严估计（正 = 偏松），横线是 95% 区间；点越大样本越多，越实心可信度越高。
+                    区间很宽说明证据不足，而不是「没问题」。不同阅卷组之间不可直接比较，已分组隔开。
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[640px]">
+                      <JudgerForestPlot rows={forestRows} />
                     </div>
                   </div>
-                </div>
-
-                <div className="flex flex-col gap-2 border-t pt-3">
-                  <span className="text-sm font-medium">讲师人工权重</span>
-                  {fit.judgers.map((estimate) => {
-                    const weight = judgerManualWeight(options, estimate.judgerId);
-                    return (
-                      <div key={estimate.judgerId} className="flex items-center gap-2">
+                  <p className="text-xs text-muted-foreground lg:hidden">← 左右滑动查看完整坐标轴</p>
+                  <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                    {VERDICT_ORDER.map((verdict) => (
+                      <span key={verdict} className="flex items-center gap-1.5">
                         <span
-                          className="w-14 shrink-0 truncate text-sm"
-                          title={judgerName(estimate.judgerId)}
-                        >
-                          {judgerName(estimate.judgerId)}
-                        </span>
-                        <Slider
-                          className="min-w-0 flex-1"
-                          value={[weight]}
-                          min={0}
-                          max={2}
-                          step={0.1}
-                          onValueChange={(values) =>
-                            setJudgerWeights((previous) => ({
-                              ...previous,
-                              [String(estimate.judgerId)]: values[0] ?? 1,
-                            }))
-                          }
-                          thumbAriaLabel={`${judgerName(estimate.judgerId)} 的人工权重`}
+                          aria-hidden
+                          className="inline-block size-2.5 rounded-full"
+                          style={{ backgroundColor: JUDGER_VERDICT_META[verdict].color }}
                         />
-                        <span className="w-7 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                          {weight.toFixed(1)}
-                        </span>
-                        <span
-                          className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground"
-                          title="可信度（数据给出，不可手改）"
-                        >
-                          {formatCredibility(estimate.credibility)}
-                        </span>
+                        {JUDGER_VERDICT_META[verdict].label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex flex-col gap-2 border-t pt-4">
+                    <p className="text-sm font-medium">校正前后平均得分率</p>
+                    <p className="text-xs text-muted-foreground">
+                      空心环 = 原始，实心点 = 校正后；两点越接近说明校正对该讲师影响越小。
+                    </p>
+                    <div className="mx-auto w-full max-w-[26rem]">
+                      <JudgerShiftChart rows={shiftRows} />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="min-w-0">
+                <CardHeader>
+                  <CardTitle className="text-base">校正参数</CardTitle>
+                  <CardDescription>
+                    可信度由数据给出，不可手改；人工权重用于模型看不到的因素（当天状态、题目分配特殊）。
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="font-medium">全局校正强度 λ</span>
+                      <span className="tabular-nums text-muted-foreground">{lambda.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[lambda]}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onValueChange={(values) => setLambda(values[0] ?? 0)}
+                      thumbAriaLabel="全局校正强度"
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">0 = 只看不校</p>
+                      <div className="flex gap-1">
+                        {[0, 0.5, 1].map((preset) => (
+                          <Button
+                            key={preset}
+                            size="sm"
+                            variant={Math.abs(lambda - preset) < 1e-9 ? "secondary" : "ghost"}
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setLambda(preset)}
+                          >
+                            {preset === 0 ? "不校正" : preset === 0.5 ? "半量" : "全量"}
+                          </Button>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  </div>
 
-                <label className="flex items-start gap-2 border-t pt-3 text-sm">
-                  <Checkbox
-                    checked={preserveTotal}
-                    onCheckedChange={(checked) => setPreserveTotal(checked === true)}
-                  />
-                  <span>
-                    保持整体均分不变
-                    <span className="block text-xs text-muted-foreground">
-                      补一个统一偏移，只重新分配分数，不抬高或压低整届均分。
+                  <div className="flex flex-col gap-2 border-t pt-3">
+                    <span className="text-sm font-medium">讲师人工权重</span>
+                    {clusterGroups.map((group) => (
+                      <div
+                        key={`weights-${group.clusterIndex}`}
+                        className="flex flex-col gap-2"
+                      >
+                        {showClusterLabels ? (
+                          <p
+                            data-part="cluster-label"
+                            data-cluster-index={group.clusterIndex}
+                            className="text-xs text-muted-foreground"
+                          >
+                            {group.label}
+                          </p>
+                        ) : null}
+                        {group.rows.map((estimate) => {
+                          const weight = judgerManualWeight(options, estimate.judgerId);
+                          return (
+                            <div key={estimate.judgerId} className="flex items-center gap-2">
+                              <span
+                                className="w-14 shrink-0 truncate text-sm"
+                                title={judgerName(estimate.judgerId)}
+                              >
+                                {judgerName(estimate.judgerId)}
+                              </span>
+                              <Slider
+                                className="min-w-0 flex-1"
+                                value={[weight]}
+                                min={0}
+                                max={2}
+                                step={0.1}
+                                onValueChange={(values) =>
+                                  setJudgerWeights((previous) => ({
+                                    ...previous,
+                                    [String(estimate.judgerId)]: values[0] ?? 1,
+                                  }))
+                                }
+                                thumbAriaLabel={`${judgerName(estimate.judgerId)} 的人工权重`}
+                              />
+                              <span className="w-7 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                                {weight.toFixed(1)}
+                              </span>
+                              <span
+                                className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground"
+                                title="可信度（数据给出，不可手改）"
+                              >
+                                {formatCredibility(estimate.credibility)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+
+                  <label className="flex items-start gap-2 border-t pt-3 text-sm">
+                    <Checkbox
+                      checked={preserveTotal}
+                      onCheckedChange={(checked) => setPreserveTotal(checked === true)}
+                    />
+                    <span>
+                      保持整届总分不变
+                      <span className="block text-xs text-muted-foreground">
+                        补一个按题目满分加权的统一偏移，只重新分配分数，不抬高或压低整届总分。
+                      </span>
                     </span>
-                  </span>
-                </label>
+                  </label>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" onClick={onSave} disabled={isSaving}>
-                    {isSaving ? "保存中…" : "保存参数"}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={onReset} disabled={isSaving}>
-                    重置
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    {isDirty ? "有未保存的改动" : "参数已保存"}
-                  </span>
-                </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" onClick={onSave} disabled={isSaving}>
+                      {isSaving ? "保存中…" : "保存参数"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={onReset} disabled={isSaving}>
+                      重置
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      {isDirty ? "有未保存的改动" : "参数已保存"}
+                    </span>
+                  </div>
 
-                <p className="text-xs text-muted-foreground">
-                  总分变化 {conservation > 0 ? "+" : ""}
-                  {conservation} 分（整数舍入）
-                  {preserveTotal ? " · 已保持整体均分" : " · 未保持整体均分"}
-                  {changedCount > 0 ? ` · ${changedCount} 名考生名次变化` : " · 无名次变化"}
-                </p>
-                {!canCorrect ? (
                   <p className="text-xs text-muted-foreground">
-                    当前没有可用于校正的量：无论 λ 取多少，结果都与原始分数一致。
+                    总分变化 {conservation > 0 ? "+" : ""}
+                    {conservation} 分（舍入与截断）
+                    {preserveTotal ? " · 已保持整届总分" : " · 未保持整届总分"}
+                    {changedCount > 0 ? ` · ${changedCount} 名考生名次变化` : " · 无名次变化"}
                   </p>
-                ) : null}
-              </CardContent>
-            </Card>
-          </div>
+                  {!canCorrect ? (
+                    <p className="text-xs text-muted-foreground">
+                      当前没有可用于校正的量：无论 λ 取多少，结果都与原始分数一致。
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            descriptiveCard
+          )}
 
           <Card className="min-w-0">
             <CardHeader>
@@ -732,77 +861,40 @@ export function GradingFairnessDashboard({
             </Card>
 
             <div className="grid min-w-0 gap-y-3 rounded-lg border bg-card px-6 py-5 text-sm leading-relaxed text-muted-foreground">
-            <p>
-              <span className="font-medium text-foreground">宽严是相对量。</span>
-              它表示「同考生同题目下，该讲师相对全体加权平均的系统性偏移」，不是「判错了多少」。
-            </p>
-            <p>
-              <span className="font-medium text-foreground">校正只重新分配。</span>
-              统一补一个偏移后整届均分不变（实时数值见上方参数面板），同一讲师内部的名次也不会改变。
-            </p>
-            <p>
-              <span className="font-medium text-foreground">本页只读。</span>
-              不写回评分、不影响官方成绩与结果发布；参数按流程保存，只作下次打开时的默认值。
-              {detectable !== null
-                ? ` 以当前样本量，约 ${Math.round(detectable * 100)}pp 以下的差异看不出来。`
-                : ""}
-            </p>
-            <p>
-              <span className="font-medium text-foreground">出现「不可判定」怎么办？</span>
-              让同一名考生被 ≥2 名讲师评过（分别评不同题），或同一道题被 ≥2 名讲师评过（分别评不同考生）。
-              模型定义与局限见 docs/GRADING_FAIRNESS_MODEL.md。
-            </p>
+              <p>
+                <span className="font-medium text-foreground">宽严是相对量。</span>
+                它表示「同考生同题目下，该讲师相对全体加权平均的系统性偏移」，不是「判错了多少」。
+              </p>
+              {hasComparableJudgers ? (
+                <p>
+                  <span className="font-medium text-foreground">校正只重新分配。</span>
+                  统一补一个偏移（按题目满分加权）后整届总分不变（实时数值见上方参数面板），
+                  同一讲师内部的名次也不会改变。
+                </p>
+              ) : (
+                <p>
+                  <span className="font-medium text-foreground">本流程暂不可校正。</span>
+                  没有可比较的宽严估计，所以这里的名次就是原始名次；无论参数怎么取，分数都不会变化。
+                </p>
+              )}
+              <p>
+                <span className="font-medium text-foreground">本页只读。</span>
+                不写回评分、不影响官方成绩与结果发布；参数按流程保存，只作下次打开时的默认值。
+                {detectable !== null
+                  ? ` 以当前样本量，约 ${Math.round(detectable * 100)}pp 以下的差异看不出来。`
+                  : ""}
+              </p>
+              <p>
+                <span className="font-medium text-foreground">出现「不可判定」怎么办？</span>
+                让同一名考生被 ≥2 名讲师评过（各评不同的题）。只让同一道题被多名讲师评过（不同考生）
+                不够：考生不交叉时，考生水平差会顶替掉讲师差。
+                模型定义与局限见 docs/GRADING_FAIRNESS_MODEL.md。
+              </p>
             </div>
           </div>
         </>
       ) : (
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle className="text-base">讲师阅卷量（描述性，仅供参考）</CardTitle>
-            <CardDescription>
-              宽严无法分离时只能看原始口径：不同讲师的题目与考生构成不同，
-              <strong className="font-medium">这些平均分之间不可直接比较</strong>，也不做任何校正。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {descriptiveRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无评分数据。</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table className="min-w-[420px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>阅卷讲师</TableHead>
-                      <TableHead className="text-right">评分观测</TableHead>
-                      <TableHead className="text-right">考生数</TableHead>
-                      <TableHead className="text-right">平均得分率（未校正）</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {descriptiveRows.map((row) => (
-                      <TableRow key={row.judgerId}>
-                        <TableCell>{row.name}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.observationCount}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.candidateCount}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatPercent(row.rawMeanRatio)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-            <p className="mt-3 text-xs text-muted-foreground">
-              要让这里出现可判定的宽严估计，需要「重叠」：同一名考生被 ≥2 名讲师评过（分别评不同题），
-              或同一道题被 ≥2 名讲师评过（分别评不同考生）。
-            </p>
-          </CardContent>
-        </Card>
+        descriptiveCard
       )}
 
       <p className="text-xs leading-relaxed text-muted-foreground">

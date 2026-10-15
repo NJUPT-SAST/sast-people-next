@@ -5,12 +5,14 @@
  *   r = μ + α(考生) + β(题目) + γ(讲师) + ε        ← 三因子加法固定效应
  * 关键约束：
  *   - 只在关联图连通分量内拟合（不同分量各有截距，不可互比）；
- *   - 秩亏 ⇒ 一律不校正（γ := 0、可信度 0、verdict "unknown"），只给有界解画残差图；
- *   - 讲师宽严按观测数加权居中，于是 Σ n_j·bias_j = 0；
- *   - 校正按 λ·m_j·bias_j 施加，并补一个统一偏移使整届均分守恒。
+ *   - 可辨识性按**讲师**判定（设计矩阵零空间）：只有与其他讲师两两可比的讲师才给宽严估计，
+ *     孤立的讲师报「不可判定」而**不牵连**同分量的其他讲师；
+ *   - 可比的讲师按「两两可比」分成若干**可比簇**，只在簇内居中（不同簇之间不可比）；
+ *   - 不可辨识 ⇒ 不校正（bias := 0、可信度 0、verdict "unknown"），岭解只用于重建残差图；
+ *   - 校正按 λ·m_j·bias_j 施加，并按**题目满分**加权补一个统一偏移，使整届原始总分守恒。
  */
 
-import { factorize, matrixRank, maxDiagonal, type LinearSolver } from "./matrix";
+import { factorize, nullSpaceBasis, maxDiagonal, type LinearSolver } from "./matrix";
 import type {
   FairnessAdjustmentOptions,
   GradingLeaderboardRow,
@@ -34,6 +36,11 @@ const RANK_TOLERANCE = 1e-9;
  * 而不是报出一个无限置信度的结论。
  */
 const RESIDUAL_SD_FLOOR = 1e-9;
+/**
+ * 「对比可估」判定的容差：对比向量与正交归一零空间基的点积低于它即视为 0。
+ * 真实数据里这个点积要么是消元噪声（≲1e-12），要么是 O(0.1~1)，中间地带不存在。
+ */
+const CONTRAST_TOLERANCE = 1e-7;
 
 export const clampRatio = (value: number): number =>
   Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
@@ -88,18 +95,30 @@ function buildColumnMap(ids: number[], offset: number): Map<number, number> {
   return columns;
 }
 
+/** 分量内的一簇「两两可比」讲师：只有簇内才允许相互比较与居中 */
+type ComparableCluster = {
+  judgerIds: number[];
+  /** 簇内观测数之和（簇内居中的权重分母） */
+  observationCount: number;
+  /** 讲师 → 对比向量 c_j = e_j − Σ_{k∈簇} (n_k/N_簇) e_k（已投影到可估子空间） */
+  contrasts: Map<number, Float64Array>;
+  /** 讲师 → 簇内居中后的宽严估计（收缩前） */
+  biases: Map<number, number>;
+};
+
 type ComponentFit = {
-  identifiable: boolean;
+  /** 分量内全部讲师落在同一个可比簇里（且 ≥2 名） */
+  fullyComparable: boolean;
   rank: number;
   observationCount: number;
   residualSumOfSquares: number;
   candidateEffects: Map<number, number>;
   problemEffects: Map<number, number>;
   judgerEffects: Map<number, number>;
-  /** 讲师 → 居中后的宽严估计（收缩前）；不可辨识时为空 */
-  judgerBiases: Map<number, number>;
-  /** 讲师 → 对比向量 c_j = e_j − Σ_k (n_k/N) e_k */
-  judgerContrasts: Map<number, Float64Array>;
+  /** 可比簇（每簇 ≥2 名讲师） */
+  clusters: ComparableCluster[];
+  /** 没有可比对象的讲师：不给任何估计，也不牵连别人 */
+  isolatedJudgerIds: number[];
   solver: LinearSolver;
   parameterCount: number;
 };
@@ -138,15 +157,15 @@ function fitComponent(observations: PreparedObservation[]): ComponentFit {
     }
   }
 
-  /* 讲师之间必须至少有一对可比（否则 γ 根本不存在），再加满秩条件 */
-  const rank = matrixRank(gram, parameterCount);
-  const fullRank = rank === parameterCount;
-  const identifiable = fullRank && judgerIds.length >= 2;
+  /* 秩与零空间由同一次消元给出（零空间维数 = 参数数 − 秩） */
+  const nullBasis = nullSpaceBasis(gram, parameterCount);
+  const rank = parameterCount - nullBasis.length;
+  const fullRank = nullBasis.length === 0;
 
   /* 满秩就精确求解（哪怕只有 1 名讲师：拟合值仍要准）；秩亏才走岭回退 */
   let solver = fullRank ? factorize(gram, parameterCount) : null;
   if (!solver) {
-    /* 秩亏：加岭求一个有界解，仅供重建拟合值 / 残差图，统计量一律不输出 */
+    /* 秩亏：加岭求一个有界解，仅供重建拟合值与残差图（拟合值在零方向下不变） */
     const ridge = Math.max(maxDiagonal(gram, parameterCount), 1) * RIDGE_SCALE;
     const ridged = Float64Array.from(gram);
     for (let index = 0; index < parameterCount; index += 1) {
@@ -157,15 +176,15 @@ function fitComponent(observations: PreparedObservation[]): ComponentFit {
   if (!solver) {
     /* 岭保证正定，理论上不可达；兜底为「全零效应」而不是抛错 */
     return {
-      identifiable: false,
+      fullyComparable: false,
       rank,
       observationCount: observations.length,
       residualSumOfSquares: Number.NaN,
       candidateEffects: new Map(candidateIds.map((id) => [id, 0])),
       problemEffects: new Map(problemIds.map((id) => [id, 0])),
       judgerEffects: new Map(judgerIds.map((id) => [id, 0])),
-      judgerBiases: new Map(),
-      judgerContrasts: new Map(),
+      clusters: [],
+      isolatedJudgerIds: judgerIds,
       solver: { solve: (vector: Float64Array) => Float64Array.from(vector) },
       parameterCount,
     };
@@ -204,7 +223,6 @@ function fitComponent(observations: PreparedObservation[]): ComponentFit {
     residualSumOfSquares += residual * residual;
   }
 
-  /* 对比向量：δ_j = γ_j − Σ_k (n_k/N)·γ_k（n 加权居中 ⇒ Σ n_j δ_j = 0） */
   const observationCounts = new Map<number, number>();
   for (const observation of observations) {
     observationCounts.set(
@@ -212,39 +230,106 @@ function fitComponent(observations: PreparedObservation[]): ComponentFit {
       (observationCounts.get(observation.judgerId) ?? 0) + 1,
     );
   }
-  const total = observations.length;
-  const judgerContrasts = new Map<number, Float64Array>();
-  const judgerBiases = new Map<number, number>();
-  for (const judgerId of judgerIds) {
-    const contrast = new Float64Array(parameterCount);
-    const ownColumn = judgerColumns.get(judgerId);
-    if (ownColumn !== undefined) contrast[ownColumn] += 1;
-    for (const other of judgerIds) {
-      const column = judgerColumns.get(other);
-      if (column === undefined) continue;
-      contrast[column] -= (observationCounts.get(other) ?? 0) / total;
-    }
-    judgerContrasts.set(judgerId, contrast);
 
-    if (identifiable) {
+  /* 讲师的效应列：参照讲师没有独立列，其向量为零向量（γ_ref ≡ 0） */
+  const judgerVectors = judgerIds.map((judgerId) => {
+    const vector = new Float64Array(parameterCount);
+    const column = judgerColumns.get(judgerId);
+    if (column !== undefined) vector[column] = 1;
+    return vector;
+  });
+  /** 该对比是否可估：与零空间正交 ⟺ 落在设计矩阵的行空间里 */
+  const isEstimable = (contrast: Float64Array): boolean =>
+    nullBasis.every((basis) => {
+      let dot = 0;
+      for (let index = 0; index < parameterCount; index += 1) dot += contrast[index] * basis[index];
+      return Math.abs(dot) <= CONTRAST_TOLERANCE;
+    });
+  /** 投影到可估子空间：抹掉浮点噪声残留的零空间分量（否则岭解会把它放大成天文数字） */
+  const projectOut = (contrast: Float64Array): Float64Array => {
+    const projected = Float64Array.from(contrast);
+    for (const basis of nullBasis) {
+      let dot = 0;
+      for (let index = 0; index < parameterCount; index += 1) dot += projected[index] * basis[index];
+      for (let index = 0; index < parameterCount; index += 1) projected[index] -= dot * basis[index];
+    }
+    return projected;
+  };
+
+  /*
+   * 讲师级可辨识：γ_j − γ_k 可估 ⟺ 两列之差与零空间正交。
+   * 该关系可传递（d_jk + d_kl = d_jl），所以等价类就是最小可比单元（可比簇）：
+   * 一个「考生没人评过」的孤立讲师只会让他自己不可判定，不再拖垮整个分量。
+   */
+  const comparability = new DisjointSet();
+  for (let left = 0; left < judgerIds.length; left += 1) {
+    comparability.find(`j:${judgerIds[left]}`);
+    for (let right = left + 1; right < judgerIds.length; right += 1) {
+      const difference = new Float64Array(parameterCount);
+      for (let index = 0; index < parameterCount; index += 1) {
+        difference[index] = judgerVectors[left][index] - judgerVectors[right][index];
+      }
+      if (isEstimable(difference)) {
+        comparability.union(`j:${judgerIds[left]}`, `j:${judgerIds[right]}`);
+      }
+    }
+  }
+  const buckets = new Map<string, number[]>();
+  for (let index = 0; index < judgerIds.length; index += 1) {
+    const root = comparability.find(`j:${judgerIds[index]}`);
+    const bucket = buckets.get(root);
+    if (bucket) bucket.push(index);
+    else buckets.set(root, [index]);
+  }
+
+  /* 簇内居中：δ_j = γ_j − Σ_{k∈簇} (n_k/N_簇)·γ_k（n 加权 ⇒ Σ_{k∈簇} n_k·δ_k = 0） */
+  const clusters: ComparableCluster[] = [];
+  const isolatedJudgerIds: number[] = [];
+  for (const positions of buckets.values()) {
+    if (positions.length < 2) {
+      isolatedJudgerIds.push(...positions.map((position) => judgerIds[position]));
+      continue;
+    }
+    const total = positions.reduce(
+      (sum, position) => sum + (observationCounts.get(judgerIds[position]) ?? 0),
+      0,
+    );
+    const contrasts = new Map<number, Float64Array>();
+    const biases = new Map<number, number>();
+    for (const position of positions) {
+      const contrast = Float64Array.from(judgerVectors[position]);
+      for (const other of positions) {
+        const weight = (observationCounts.get(judgerIds[other]) ?? 0) / total;
+        for (let index = 0; index < parameterCount; index += 1) {
+          contrast[index] -= weight * judgerVectors[other][index];
+        }
+      }
+      const projected = projectOut(contrast);
       let value = 0;
       for (let index = 0; index < parameterCount; index += 1) {
-        value += contrast[index] * coefficients[index];
+        value += projected[index] * coefficients[index];
       }
-      judgerBiases.set(judgerId, value);
+      contrasts.set(judgerIds[position], projected);
+      biases.set(judgerIds[position], value);
     }
+    clusters.push({
+      judgerIds: positions.map((position) => judgerIds[position]),
+      observationCount: total,
+      contrasts,
+      biases,
+    });
   }
 
   return {
-    identifiable,
+    fullyComparable: clusters.length === 1 && isolatedJudgerIds.length === 0,
     rank,
     observationCount: observations.length,
     residualSumOfSquares,
     candidateEffects,
     problemEffects,
     judgerEffects,
-    judgerBiases,
-    judgerContrasts,
+    clusters,
+    isolatedJudgerIds,
     solver,
     parameterCount,
   };
@@ -306,6 +391,8 @@ function emptyFit(skippedObservationCount: number, clampedObservationCount: numb
     identifiable: false,
     componentCount: 0,
     identifiableComponentCount: 0,
+    clusterCount: 0,
+    comparableJudgerCount: 0,
     candidateEffects: {},
     problemEffects: {},
     judgerEffects: {},
@@ -360,29 +447,49 @@ export function fitGradingModel(observations: GradingObservation[]): GradingMode
   const residualSd =
     rawResidualSd !== null && rawResidualSd > RESIDUAL_SD_FLOOR ? rawResidualSd : null;
 
+  /* 可比簇：大的簇排前面（页面按簇分组展示，簇间不可比） */
+  const comparableClusters = components
+    .flatMap((component) => component.clusters)
+    .sort(
+      (left, right) =>
+        right.judgerIds.length - left.judgerIds.length ||
+        (left.judgerIds[0] ?? 0) - (right.judgerIds[0] ?? 0),
+    );
+  const clusterIndexByJudger = new Map<number, number>();
+  comparableClusters.forEach((cluster, index) => {
+    for (const judgerId of cluster.judgerIds) clusterIndexByJudger.set(judgerId, index);
+  });
+  const isolatedJudgerIds = components.flatMap((component) => component.isolatedJudgerIds);
+  const judgerIds = [
+    ...comparableClusters.flatMap((cluster) => cluster.judgerIds),
+    ...isolatedJudgerIds,
+  ];
+
   /* 标准误：s_j = σ̂·sqrt(c_jᵀ(XᵀX)⁻¹c_j)，一次分解、每名讲师一次回代 */
   const standardErrors = new Map<number, number | null>();
+  const rawBiases = new Map<number, number>();
   for (const component of components) {
-    for (const [judgerId, contrast] of component.judgerContrasts) {
-      if (!component.identifiable || residualSd === null) {
-        standardErrors.set(judgerId, null);
-        continue;
+    for (const cluster of component.clusters) {
+      for (const [judgerId, contrast] of cluster.contrasts) {
+        rawBiases.set(judgerId, cluster.biases.get(judgerId) ?? 0);
+        if (residualSd === null) {
+          standardErrors.set(judgerId, null);
+          continue;
+        }
+        const solved = component.solver.solve(contrast);
+        let quadratic = 0;
+        for (let index = 0; index < component.parameterCount; index += 1) {
+          quadratic += contrast[index] * solved[index];
+        }
+        standardErrors.set(judgerId, residualSd * Math.sqrt(Math.max(quadratic, 0)));
       }
-      const solved = component.solver.solve(contrast);
-      let quadratic = 0;
-      for (let index = 0; index < component.parameterCount; index += 1) {
-        quadratic += contrast[index] * solved[index];
-      }
-      standardErrors.set(judgerId, residualSd * Math.sqrt(Math.max(quadratic, 0)));
     }
   }
 
-  const rawBiases = new Map<number, number>();
-  for (const component of components) {
-    for (const [judgerId, bias] of component.judgerBiases) rawBiases.set(judgerId, bias);
-  }
-
-  const judgerIds = Array.from(standardErrors.keys());
+  /*
+   * 讲师间异质性 τ² 在**全部可比讲师**上合并估计（各簇内部已各自居中，
+   * 量纲一致；簇内往往只有 2~3 名讲师，逐簇估 τ² 的矩估计噪声过大）。
+   */
   const betweenJudgerVariance = estimateBetweenJudgerVariance(
     judgerIds.map((judgerId) => rawBiases.get(judgerId) ?? 0),
     judgerIds.map((judgerId) => standardErrors.get(judgerId) ?? null),
@@ -391,6 +498,7 @@ export function fitGradingModel(observations: GradingObservation[]): GradingMode
   const observationCounts = new Map<number, number>();
   const candidateCounts = new Map<number, Map<number, number>>();
   const ratioSums = new Map<number, number>();
+  const maxPointsSums = new Map<number, number>();
   for (const observation of prepared) {
     observationCounts.set(
       observation.judgerId,
@@ -400,18 +508,21 @@ export function fitGradingModel(observations: GradingObservation[]): GradingMode
       observation.judgerId,
       (ratioSums.get(observation.judgerId) ?? 0) + observation.ratio,
     );
+    maxPointsSums.set(
+      observation.judgerId,
+      (maxPointsSums.get(observation.judgerId) ?? 0) + observation.maxPoints,
+    );
     const candidates = candidateCounts.get(observation.judgerId) ?? new Map<number, number>();
     candidates.set(observation.userFlowId, (candidates.get(observation.userFlowId) ?? 0) + 1);
     candidateCounts.set(observation.judgerId, candidates);
   }
 
   const judgerEstimates: JudgerEstimate[] = judgerIds.map((judgerId) => {
-    const component = components.find((candidate) =>
-      candidate.judgerContrasts.has(judgerId),
-    );
-    /* 「可辨识」= 设计矩阵满秩且讲师之间可比；残差尺度缺失只影响统计推断（标准误/判定），
-       不影响点估计：规范 §8 要求此时仍如实输出 δ_j，只是不做校正。 */
-    const identifiable = component?.identifiable ?? false;
+    /* 「可辨识」= 该讲师落在某个可比簇里（≥2 名两两可比的讲师）；孤立的讲师不牵连别人。
+       残差尺度缺失只影响统计推断（标准误 / 判定），不影响点估计：规范 §8 要求此时
+       仍如实输出 δ_j，只是不做校正。 */
+    const clusterIndex = clusterIndexByJudger.get(judgerId) ?? -1;
+    const identifiable = clusterIndex >= 0;
     const rawBias = identifiable ? rawBiases.get(judgerId) ?? 0 : 0;
     const standardError = identifiable ? standardErrors.get(judgerId) ?? null : null;
     const credibility =
@@ -423,6 +534,7 @@ export function fitGradingModel(observations: GradingObservation[]): GradingMode
       judgerId,
       observationCount: observationCounts.get(judgerId) ?? 0,
       candidateCount: candidateCounts.get(judgerId)?.size ?? 0,
+      maxPointsSum: maxPointsSums.get(judgerId) ?? 0,
       rawMeanRatio:
         (ratioSums.get(judgerId) ?? 0) / Math.max(observationCounts.get(judgerId) ?? 0, 1),
       adjustedMeanRatio: 0,
@@ -431,14 +543,16 @@ export function fitGradingModel(observations: GradingObservation[]): GradingMode
       standardError,
       credibility,
       identifiable,
+      clusterIndex,
       verdict: verdictOf(rawBias, standardError, identifiable),
     };
   });
 
-  /* 展示顺序：可判定的在前（按偏松→偏严），不可判定的排最后 */
+  /* 展示顺序：可判定的在前，按可比簇分组（簇内偏松→偏严），不可判定的排最后 */
   judgerEstimates.sort(
     (left, right) =>
       Number(right.identifiable) - Number(left.identifiable) ||
+      left.clusterIndex - right.clusterIndex ||
       right.bias - left.bias ||
       left.judgerId - right.judgerId,
   );
@@ -452,9 +566,14 @@ export function fitGradingModel(observations: GradingObservation[]): GradingMode
     judgerCount: judgerIds.length,
     residualSd,
     betweenJudgerSd: Math.sqrt(betweenJudgerVariance),
-    identifiable: components.every((component) => component.identifiable),
+    identifiable: judgerEstimates.length > 0 && judgerEstimates.every((estimate) => estimate.identifiable),
     componentCount: components.length,
-    identifiableComponentCount: components.filter((component) => component.identifiable).length,
+    identifiableComponentCount: components.filter((component) => component.fullyComparable).length,
+    clusterCount: comparableClusters.length,
+    comparableJudgerCount: comparableClusters.reduce(
+      (total, cluster) => total + cluster.judgerIds.length,
+      0,
+    ),
     candidateEffects: Object.fromEntries(
       components.flatMap((component) => Array.from(component.candidateEffects.entries())),
     ),
@@ -467,7 +586,7 @@ export function fitGradingModel(observations: GradingObservation[]): GradingMode
     judgers: judgerEstimates,
   };
 
-  /* 第二遍：λ=1、m=1、保持整体均分时的校正后平均得分率（供哑铃图） */
+  /* 第二遍：λ=1、m=1、保持整体总分时的校正后平均得分率（供哑铃图） */
   for (const estimate of fit.judgers) {
     const rows = prepared.filter((row) => row.judgerId === estimate.judgerId);
     estimate.adjustedMeanRatio =
@@ -525,18 +644,25 @@ export function correctionFor(
 }
 
 /**
- * 统一偏移 O = λ·Σ n_k m_k bias(k) / N。
- * 补回它之后校正只重新分配分数、不改变整届均分（`preserveTotal = false` 时不做）。
+ * 统一偏移 O = λ·Σ_j (m_j·bias(j)·M_j) / Σ_j M_j，M_j 为该讲师观测的题目满分之和。
+ *
+ * **按题目满分加权**（不是按观测条数）：原始分数是 y = M·r，所以只有按 M 加权才能让
+ * Σ M_i·(r′_i − r_i) = 0 —— 即校正只重新分配**正式原始总分**，不抬高或压低整届总分。
+ * 按条数加权只保证「得分率之和」不变，各题满分不同时总分照样会漂（实测可差出 20+ 分）。
+ * 截断与整数舍入仍会留下 ≤ 半分的逐条误差，界面显示实际偏差。
  */
 export function cohortOffset(fit: GradingModelFit, options: FairnessAdjustmentOptions): number {
   const lambda = clampLambda(options.lambda);
-  if (lambda <= 0 || options.preserveTotal === false || fit.observationCount <= 0) return 0;
+  if (lambda <= 0 || options.preserveTotal === false) return 0;
   let weighted = 0;
+  let totalMaxPoints = 0;
   for (const estimate of fit.judgers) {
     weighted +=
-      estimate.observationCount * judgerManualWeight(options, estimate.judgerId) * estimate.bias;
+      estimate.maxPointsSum * judgerManualWeight(options, estimate.judgerId) * estimate.bias;
+    totalMaxPoints += estimate.maxPointsSum;
   }
-  return (lambda * weighted) / fit.observationCount;
+  if (!(totalMaxPoints > 0)) return 0;
+  return (lambda * weighted) / totalMaxPoints;
 }
 
 /** 校正后的得分率（截断到 [0,1]；满分非正的观测返回 0） */

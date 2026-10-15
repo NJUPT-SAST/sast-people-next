@@ -249,6 +249,100 @@ describe("JudgerForestPlot", () => {
     }
   });
 
+  it("按可比簇分组：簇边界插入分隔标签，不可判定组排在最后", () => {
+    const rows = [
+      makeRow({ judgerId: 1, name: "甲", bias: 0.02, clusterIndex: 0 }),
+      makeRow({ judgerId: 2, name: "乙", bias: -0.02, clusterIndex: 0 }),
+      makeRow({ judgerId: 3, name: "丙", bias: 0.01, clusterIndex: 1 }),
+      makeRow({
+        judgerId: 4,
+        name: "丁",
+        bias: 0,
+        standardError: null,
+        verdict: "unknown",
+        clusterIndex: -1,
+      }),
+    ];
+    const { container } = render(<JudgerForestPlot rows={rows} />);
+
+    const labels = Array.from(container.querySelectorAll('[data-part="cluster-label"]'));
+    expect(labels.map((node) => node.textContent)).toEqual([
+      "阅卷组 1 · 2 名讲师 · 仅组内可比",
+      "阅卷组 2 · 1 名讲师 · 仅组内可比",
+      "不可判定 · 没有其他讲师评过同一名考生",
+    ]);
+    /* 分隔标签夹在组与组之间：先标签、后该组成员 */
+    const labelYs = labels.map((node) => Number(node.getAttribute("y")));
+    const rowY = (judgerId: number) =>
+      Number(
+        queryElement(container, `[data-part="point"][data-judger-id="${judgerId}"]`).getAttribute(
+          "cy",
+        ),
+      );
+    expect(labelYs[0]).toBeLessThan(rowY(1));
+    expect(rowY(2)).toBeLessThan(labelYs[1]);
+    expect(rowY(3)).toBeLessThan(labelYs[2]);
+    expect(rowY(4)).toBeGreaterThan(labelYs[2]);
+    expect(labelYs[0]).toBeLessThan(labelYs[1]);
+    expect(labelYs[1]).toBeLessThan(labelYs[2]);
+
+    /* 每个分隔标签配一条分隔线，横跨绘图区 */
+    const dividers = Array.from(container.querySelectorAll('[data-part="cluster-divider"]'));
+    expect(dividers).toHaveLength(3);
+    for (const divider of dividers) {
+      expect(divider.getAttribute("stroke")).toBe("var(--border)");
+      expect(Number(divider.getAttribute("x1"))).toBeLessThan(Number(divider.getAttribute("x2")));
+    }
+    /* 所有讲师照常画点（不可判定的排最后） */
+    expect(container.querySelectorAll('[data-part="point"]')).toHaveLength(rows.length);
+  });
+
+  it("只有一个可比簇时不插分隔标签", () => {
+    const rows = [
+      makeRow({ judgerId: 1, name: "甲", clusterIndex: 0 }),
+      makeRow({ judgerId: 2, name: "乙", clusterIndex: 0 }),
+    ];
+    const { container } = render(<JudgerForestPlot rows={rows} />);
+
+    expect(container.querySelectorAll('[data-part="cluster-label"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-part="cluster-divider"]')).toHaveLength(0);
+  });
+
+  it("τ² = 0（credibility = 0）却判偏松/偏严时，在判定标签旁注明不校正", () => {
+    const rows = [
+      makeRow({ judgerId: 1, name: "甲", bias: 0.05, verdict: "lenient", credibility: 0 }),
+      makeRow({ judgerId: 2, name: "乙", bias: -0.05, verdict: "strict", credibility: 0 }),
+      makeRow({ judgerId: 3, name: "丙", bias: 0.02, verdict: "fair", credibility: 0 }),
+      makeRow({ judgerId: 4, name: "丁", bias: 0.03, verdict: "lenient", credibility: 0.9 }),
+    ];
+    const { container } = render(<JudgerForestPlot rows={rows} />);
+
+    const notes = Array.from(container.querySelectorAll('[data-part="verdict-note"]'));
+    expect(notes.map((node) => node.textContent)).toEqual([
+      "总体无异质性证据，不校正",
+      "总体无异质性证据，不校正",
+    ]);
+    expect(notes.map((node) => node.getAttribute("data-judger-id"))).toEqual(["1", "2"]);
+
+    /* 注解另起一行：在判定标签下方，且不压到下一行 */
+    const noteY = Number(notes[0].getAttribute("y"));
+    const labelY = Number(
+      queryElement(container, '[data-part="verdict-label"][data-judger-id="1"]').getAttribute("y"),
+    );
+    const nextRowY = Number(
+      queryElement(container, '[data-part="point"][data-judger-id="2"]').getAttribute("cy"),
+    );
+    expect(noteY).toBeGreaterThan(labelY);
+    expect(noteY).toBeLessThan(nextRowY);
+    expect(notes[0].getAttribute("text-anchor")).toBe("start");
+    expect(notes[0].getAttribute("dominant-baseline")).toBe("middle");
+
+    /* 行 <title> 也带上注解，悬停/读屏时一致 */
+    expect(
+      queryElement(container, '[data-part="row"][data-judger-id="1"] > title').textContent,
+    ).toContain("总体无异质性证据，不校正");
+  });
+
   it("空数据渲染占位而不是空轴", () => {
     const { container } = render(<JudgerForestPlot rows={[]} />);
 
