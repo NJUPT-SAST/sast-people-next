@@ -170,9 +170,10 @@ describe("AddFlow", () => {
     expect(
       screen.getByRole("button", { name: "电子部免试" }),
     ).toBeInTheDocument();
+    /* 电子部不跑 WOC：不提供该选项 */
     expect(
-      screen.getByRole("button", { name: "电子部WOC" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "电子部WOC" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "电子部留任考核" }),
     ).toBeInTheDocument();
