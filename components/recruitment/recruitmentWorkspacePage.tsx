@@ -79,7 +79,7 @@ export async function RecruitmentWorkspacePage({
       ),
     )
     .orderBy(desc(flow.createdAt));
-  /* 暂不启用的部门（电子部）不出现在流程选择器与页签里；数据与流程本身保留 */
+  /* 暂不启用的部门不出现在流程选择器与页签里；数据与流程本身保留 */
   const selectableFlows = flowTypes.filter((item) =>
     isDepartmentEnabled(item.department),
   );

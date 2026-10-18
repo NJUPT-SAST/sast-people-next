@@ -50,7 +50,7 @@ export const FLOW_TYPE_LABELS: Record<string, string> = {
 
 /**
  * 「部门 + 阶段」的流程口径名称：软件研发部WOC / 多媒体部WOD / 软件研发部免试 / 办公室面试 …
- * 阶段后缀由部门决定（软研 = C，多媒体 = D），未知部门回落到通用阶段名。
+ * 阶段后缀由部门决定（软研 = C，多媒体 = D），未配置阶段后缀的部门（如电子部）回落到通用阶段名。
  */
 const DEPARTMENT_STAGE_CODES: Record<string, Record<string, string>> = {
   woc: { software: "WOC", media: "WOD" },
@@ -208,10 +208,14 @@ export const emailTemplateLabel = (
 
 /**
  * 语义化流程类型 = 部门 × 阶段：
- * 软件研发部/多媒体部 = 免试 / 笔试 / WOC(WOD) / SOC(SOD)，办公类部门 = 面试。
+ * 软件研发部/多媒体部/电子部 = 免试 / 笔试 / WOC(WOD) / SOC(SOD)，办公类部门 = 面试。
  * 存储仍是 flow.type + flow.department 两列，这里只负责展示与选择的组合口径。
  */
-export const TECH_SEMANTIC_DEPARTMENTS = ["software", "media"] as const;
+export const TECH_SEMANTIC_DEPARTMENTS = [
+  "software",
+  "media",
+  "electronics",
+] as const;
 
 const TECH_STAGE_TYPES = [
   "recruitment_exemption",

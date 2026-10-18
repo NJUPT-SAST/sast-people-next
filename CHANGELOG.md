@@ -69,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **电子部启用**（`const/department.ts`、`const/flow.ts`）：从「暂不启用」清单移除 `electronics`，并把电子部加入语义化技术部门（`TECH_SEMANTIC_DEPARTMENTS`）——流程创建/编辑可选「电子部 免试 / 笔试 / WOC / SOC」，面试与笔试管理工作台的流程选择器/页签、流程管理列表、邮件模板的「模板归属」与阶段过滤都恢复收录电子部的流程与模板；WOC/SOC 沿用通用阶段名（电子部WOC / 电子部SOC）。存量流程、报名记录与模板数据无需迁移。
 - **笔试工作台工具栏补上两个计数**（`components/recruitment/table.tsx`）：输入分数线后旁边直接显示「≥ 60 分 12 人」（按整份名单统计，与状态胶囊同一口径），划线时不用再逐行数；「已选 N 人」不再只在有选中时才出现——0 人也显示，勾选过程中随时看得到选了几个（结果已锁定时不显示，因为那时没有可勾选的）。
 - **笔试「平均分」不再把未批卷的考生算进分母**（`components/recruitment/recruitmentContent.tsx`）：未批卷记录的 `totalScore` 是 `coalesce(sum(points), 0)` 出来的 0，之前照样参与平均——批卷进度一低均分就被拉低，全组都没批时还显示 0.00（看起来像全组零分）。现在只统计**已批卷**的考生，并在数字旁标出「已批卷 n 人」（分母与「总人数」不同，不写出来两个数字并排看着对不上）；一个都没批时显示「—」。
 - **筛选不再跨轮次 / 跨流程残留**（`components/recruitment/evaluationTable.tsx`、`components/recruitment/table.tsx`）：此前一面选中的状态胶囊、志愿 / 时段 / 组别筛选与搜索词会跟着切到二面或另一条流程上，新列表看起来「怎么没人」；现在切轮次、切流程会清空搜索与全部筛选（笔试管理同样清空搜索、列筛选与勾选）。笔试管理的「结果已发布，名单已锁定」只在名单上方提示一次，空态也不再两句同义文案并列。

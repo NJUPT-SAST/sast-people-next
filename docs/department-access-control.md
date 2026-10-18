@@ -10,7 +10,7 @@
 
 ## 1. 模型
 
-部门标识由 SAST Link 维护（`profile.department`）。People 把部门标识按不透明字符串存储（`normalizeDepartmentKey`，最长 64 字符），同时**内嵌一份部门目录与派生常量**：中文名（`const/department.ts:8-16` `DEPARTMENT_LABELS`）、大类（`:39-47` `DEPARTMENT_CATEGORIES`）、办公类可选部门顺序（`:50-56` `OFFICE_DEPARTMENT_KEYS`）、叫号号段前缀（`:62-73` `DEPARTMENT_QUEUE_PREFIX`）、暂不启用清单（`:81` `DISABLED_DEPARTMENT_KEYS`）。因此 Link 侧新增部门后，People 仍要发版才能拿到它的中文名 / 分类 / 号段：未知标识原样展示（`departmentLabel` 回落标识本身）、`departmentCategory` 保守按 `unknown`、号段回落 `D`。
+部门标识由 SAST Link 维护（`profile.department`）。People 把部门标识按不透明字符串存储（`normalizeDepartmentKey`，最长 64 字符），同时**内嵌一份部门目录与派生常量**：中文名（`const/department.ts:8-16` `DEPARTMENT_LABELS`）、大类（`:39-47` `DEPARTMENT_CATEGORIES`）、办公类可选部门顺序（`:50-56` `OFFICE_DEPARTMENT_KEYS`）、叫号号段前缀（`:62-73` `DEPARTMENT_QUEUE_PREFIX`）、暂不启用清单（`:81` `DISABLED_DEPARTMENT_KEYS`，当前为空）。因此 Link 侧新增部门后，People 仍要发版才能拿到它的中文名 / 分类 / 号段：未知标识原样展示（`departmentLabel` 回落标识本身）、`departmentCategory` 保守按 `unknown`、号段回落 `D`。
 
 People 侧的归属字段：
 

@@ -157,6 +157,27 @@ describe("AddFlow", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("labels electronics flows like the other tech departments", async () => {
+    const user = userEvent.setup();
+
+    render(<AddFlow department="electronics" />);
+
+    await user.click(screen.getByRole("button", { name: "添加流程" }));
+
+    expect(
+      screen.getByRole("button", { name: "电子部笔试" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "电子部免试" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "电子部WOC" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "电子部SOC" }),
+    ).toBeInTheDocument();
+  });
+
   it("lets the admin pick a semantic type or fall back to a custom raw type", async () => {
     const user = userEvent.setup();
 
