@@ -1,6 +1,7 @@
 import {
   DEPARTMENT_CATEGORIES,
   DEPARTMENT_KEYS,
+  DISABLED_DEPARTMENT_KEYS,
   ENABLED_DEPARTMENT_KEYS,
   OFFICE_DEPARTMENT_KEYS,
   departmentCategory,
@@ -53,9 +54,10 @@ describe("mergeDepartmentKeys", () => {
     expect([...keys]).toEqual([...keys].sort((a, b) => a.localeCompare(b, "zh-CN")));
   });
 
-  it("keeps disabled departments out of the enabled catalogue only", () => {
+  it("enables the whole catalogue when nothing is disabled", () => {
     expect(DEPARTMENT_KEYS).toContain("electronics");
-    expect(ENABLED_DEPARTMENT_KEYS).not.toContain("electronics");
+    expect(DISABLED_DEPARTMENT_KEYS).not.toContain("electronics");
+    expect(ENABLED_DEPARTMENT_KEYS).toEqual(DEPARTMENT_KEYS);
   });
 });
 

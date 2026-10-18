@@ -23,6 +23,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { departmentCategory, departmentLabel } from "@/const/department";
 import {
+  departmentSupportsStage,
+  emailTemplateFlowType,
   emailTemplateLabel,
   emailTemplateStageCategory,
   emailTemplateStageIndex,
@@ -860,14 +862,18 @@ export function EmailTemplateManagementSection({
         ? "bg-primary/60"
         : "bg-muted-foreground/40";
 
-  /* 部门只跑自己那套阶段：技术部门看笔试/免试/WOC/SOC，办公部门只看一面/二面。
+  /* 部门只跑自己那套阶段：技术部门看笔试/免试/WOC/SOC（电子部不含 WOC），办公部门只看一面/二面。
      未知部门与全局默认不过滤，避免 Link 新增部门时模板在界面上消失。 */
-  const scopeCategory = departmentCategory(
-    normalizeTemplateDepartment(department),
-  );
+  const scopeDepartment = normalizeTemplateDepartment(department);
+  const scopeCategory = departmentCategory(scopeDepartment);
   const belongsToScope = (templateKey: string) =>
     scopeCategory === "unknown" ||
-    (emailTemplateStageCategory(templateKey) ?? scopeCategory) === scopeCategory;
+    ((emailTemplateStageCategory(templateKey) ?? scopeCategory) ===
+      scopeCategory &&
+      departmentSupportsStage(
+        scopeDepartment,
+        emailTemplateFlowType(templateKey),
+      ));
 
   /* 「测试发送」下拉与卡片同一口径：只列本部门实际会用到的模板，
      办公部门不再看到技术阶段的模板、技术部门不再看到一面/二面模板，避免误解 */

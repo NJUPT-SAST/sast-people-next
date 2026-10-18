@@ -118,7 +118,7 @@ function bucketUsesStageOnlyLabel(bucket: InterviewFlowGroupBucket) {
  * 部门清单由 Link 维护，语义组合是产品口径，两个顺序混在一起会出现「免试排在WOC后面」这类噪音。
  *
  * 页签文字在「同部门有多个阶段」时只留阶段名（软件研发部 免试/WOC/SOC），
- * 部门名作为分组标题写一次——否则 12 个组合每个都重复一遍部门名，页签栏必然要横滚。
+ * 部门名作为分组标题写一次——否则每个组合都重复一遍部门名，页签栏必然要横滚。
  */
 function buildInterviewFlowGroups(
   flowTypes: flowSelection[],
@@ -139,8 +139,8 @@ function buildInterviewFlowGroups(
       value,
       label,
       displayLabel: label,
-      /* 阶段短名直接按 (类型, 部门) 算：Link 新增部门（电子部）没有语义选项，
-         但它在页签上照样该显示「电子部 免试/WOC/SOC」而不是把部门名重复三遍 */
+      /* 阶段短名直接按 (类型, 部门) 算：Link 新增部门没有语义选项，
+         但它在页签上照样该显示「部门名 免试/WOC/SOC」而不是把部门名重复三遍 */
       stageLabel: flowStageLabel(flow.type, flow.department),
       department: option?.department ?? departmentKey(flow.department) ?? null,
       flows: [flow],

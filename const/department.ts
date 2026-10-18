@@ -76,9 +76,9 @@ export const departmentQueuePrefix = (
 /**
  * 暂不启用的部门：这些部门的流程不会出现在招新工作台（面试管理 / 笔试管理）的
  * 流程选择器与页签里。数据保留——流程、报名记录、模板都不动，
- * 以后要启用时把这个键从清单里去掉即可。
+ * 以后要临时下线某个部门时把它的标识加进来即可。当前没有下线部门（电子部已启用）。
  */
-export const DISABLED_DEPARTMENT_KEYS = ["electronics"] as const;
+export const DISABLED_DEPARTMENT_KEYS: readonly string[] = [];
 
 /** 该部门是否在当前启用范围内（null / 未知部门一律视为启用） */
 export const isDepartmentEnabled = (
@@ -86,7 +86,7 @@ export const isDepartmentEnabled = (
 ): boolean => {
   const key = normalizeDepartmentKey(value);
   if (!key) return true;
-  return !(DISABLED_DEPARTMENT_KEYS as readonly string[]).includes(key);
+  return !DISABLED_DEPARTMENT_KEYS.includes(key);
 };
 
 export const departmentCategory = (

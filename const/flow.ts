@@ -5,6 +5,7 @@
 
 import {
   OFFICE_DEPARTMENT_KEYS,
+  departmentCategory,
   departmentKey,
   departmentLabel,
   type DepartmentCategory,
@@ -50,11 +51,12 @@ export const FLOW_TYPE_LABELS: Record<string, string> = {
 
 /**
  * 「部门 + 阶段」的流程口径名称：软件研发部WOC / 多媒体部WOD / 软件研发部免试 / 办公室面试 …
- * 阶段后缀由部门决定（软研 = C，多媒体 = D），未知部门回落到通用阶段名。
+ * 阶段后缀由部门决定（软研 = C，多媒体 = D）；电子部不用 SOC/SOD 代号，
+ * SOC 阶段直接显示「留任考核」，其余未配置阶段后缀的部门回落通用阶段名。
  */
 const DEPARTMENT_STAGE_CODES: Record<string, Record<string, string>> = {
   woc: { software: "WOC", media: "WOD" },
-  soc: { software: "SOC", media: "SOD" },
+  soc: { software: "SOC", media: "SOD", electronics: "留任考核" },
 };
 
 const STAGE_LABELS: Record<string, string> = {
@@ -139,6 +141,18 @@ export const emailTemplateStageIndex = (templateKey: string): number => {
   return index < 0 ? Number.MAX_SAFE_INTEGER : index;
 };
 
+/** 模板键对应的流程阶段类型（面试通知类模板不属于任何阶段，返回 null） */
+export const emailTemplateFlowType = (
+  templateKey: string,
+): string | null => {
+  const separator = templateKey.lastIndexOf(".");
+  const stage =
+    separator > 0
+      ? EMAIL_TEMPLATE_STAGES[templateKey.slice(0, separator)]
+      : undefined;
+  return stage?.flowType ?? null;
+};
+
 /** 面试通知模板里只服务技术部门的那几条：办公类是时段制，没有飞书日程可预约/改约/取消 */
 const TECH_ONLY_INTERVIEW_TEMPLATES = [
   "interview.schedule.created",
@@ -208,10 +222,15 @@ export const emailTemplateLabel = (
 
 /**
  * 语义化流程类型 = 部门 × 阶段：
- * 软件研发部/多媒体部 = 免试 / 笔试 / WOC(WOD) / SOC(SOD)，办公类部门 = 面试。
+ * 软件研发部/多媒体部 = 免试 / 笔试 / WOC(WOD) / SOC(SOD)；
+ * 电子部 = 免试 / 笔试 / 留任考核（不跑 WOC，因此不提供该选项）；办公类部门 = 面试。
  * 存储仍是 flow.type + flow.department 两列，这里只负责展示与选择的组合口径。
  */
-export const TECH_SEMANTIC_DEPARTMENTS = ["software", "media"] as const;
+export const TECH_SEMANTIC_DEPARTMENTS = [
+  "software",
+  "media",
+  "electronics",
+] as const;
 
 const TECH_STAGE_TYPES = [
   "recruitment_exemption",
@@ -219,6 +238,29 @@ const TECH_STAGE_TYPES = [
   "woc",
   "soc",
 ] as const;
+
+/* 技术部门各自的阶段清单：未列出的部门使用 TECH_STAGE_TYPES */
+const TECH_STAGE_TYPES_BY_DEPARTMENT: Record<string, readonly string[]> = {
+  electronics: ["recruitment_exemption", "recruitment", "soc"],
+};
+
+/**
+ * 该部门是否跑某个流程阶段：技术部门按各自的阶段清单，办公类部门只跑部门面试。
+ * null / 未知部门不限制（Link 新增部门时不隐藏内容）。
+ */
+export const departmentSupportsStage = (
+  department: string | null | undefined,
+  type: string | null | undefined,
+): boolean => {
+  const key = departmentKey(department);
+  if (!key || !type) return true;
+  if (isOfficeInterviewFlow(type)) {
+    return departmentCategory(key) === "office";
+  }
+  return (TECH_STAGE_TYPES_BY_DEPARTMENT[key] ?? TECH_STAGE_TYPES).includes(
+    type,
+  );
+};
 
 export type FlowTypeOption = {
   /* 供表单受控使用的组合值：`部门:阶段` */
@@ -233,12 +275,14 @@ export const flowTypeOptionValue = (type: string, department: string) =>
 
 export const SEMANTIC_FLOW_TYPE_OPTIONS: FlowTypeOption[] = [
   ...TECH_SEMANTIC_DEPARTMENTS.flatMap((department) =>
-    TECH_STAGE_TYPES.map((type) => ({
-      value: flowTypeOptionValue(type, department),
-      label: flowTypeLabel(type, department),
-      type,
-      department,
-    })),
+    (TECH_STAGE_TYPES_BY_DEPARTMENT[department] ?? TECH_STAGE_TYPES).map(
+      (type) => ({
+        value: flowTypeOptionValue(type, department),
+        label: flowTypeLabel(type, department),
+        type,
+        department,
+      }),
+    ),
   ),
   ...OFFICE_DEPARTMENT_KEYS.map((department) => ({
     value: flowTypeOptionValue(OFFICE_INTERVIEW_FLOW_TYPE, department),
