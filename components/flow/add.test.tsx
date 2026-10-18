@@ -174,8 +174,12 @@ describe("AddFlow", () => {
       screen.getByRole("button", { name: "电子部WOC" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "电子部SOC" }),
+      screen.getByRole("button", { name: "电子部留任考核" }),
     ).toBeInTheDocument();
+    /* 电子部不用 SOC/SOD 代号 */
+    expect(
+      screen.queryByRole("button", { name: "电子部SOC" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lets the admin pick a semantic type or fall back to a custom raw type", async () => {

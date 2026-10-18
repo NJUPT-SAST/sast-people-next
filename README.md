@@ -37,7 +37,7 @@ SAST People 负责招新与评审流程；用户身份、资料、角色与账�
 
 ## 流程模型
 
-流程类型在界面与流程列表里按**归属部门 + 阶段**语义化展示：`recruitment` = 软件研发部笔试 / 多媒体部笔试 / 电子部笔试，`recruitment_exemption` = 软件研发部免试 / 多媒体部免试 / 电子部免试，`woc` = 软件研发部WOC / 多媒体部WOD / 电子部WOC，`soc` = 软件研发部SOC / 多媒体部SOD / 电子部SOC，`office_interview` = 办公室/科宣部/赛事部/外联部面试（`flowTypeLabel(type, department)`）。创建流程时直接选「部门 × 阶段」组合（`SEMANTIC_FLOW_TYPE_OPTIONS`），因此流程列表不再单列「归属部门」；管理员可修改已有流程的类型（`action/flow/type-change.ts`：仅管理员，且流程已有报名记录时拒绝），需要全局流程或列表外的类型时用「其他（自定义）」入口。
+流程类型在界面与流程列表里按**归属部门 + 阶段**语义化展示：`recruitment` = 软件研发部笔试 / 多媒体部笔试 / 电子部笔试，`recruitment_exemption` = 软件研发部免试 / 多媒体部免试 / 电子部免试，`woc` = 软件研发部WOC / 多媒体部WOD / 电子部WOC，`soc` = 软件研发部SOC / 多媒体部SOD / 电子部留任考核，`office_interview` = 办公室/科宣部/赛事部/外联部面试（`flowTypeLabel(type, department)`）。创建流程时直接选「部门 × 阶段」组合（`SEMANTIC_FLOW_TYPE_OPTIONS`），因此流程列表不再单列「归属部门」；管理员可修改已有流程的类型（`action/flow/type-change.ts`：仅管理员，且流程已有报名记录时拒绝），需要全局流程或列表外的类型时用「其他（自定义）」入口。
 
 | 流程类型 | 步骤 | 最终角色效果 |
 | --- | --- | --- |

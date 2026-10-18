@@ -50,11 +50,12 @@ export const FLOW_TYPE_LABELS: Record<string, string> = {
 
 /**
  * 「部门 + 阶段」的流程口径名称：软件研发部WOC / 多媒体部WOD / 软件研发部免试 / 办公室面试 …
- * 阶段后缀由部门决定（软研 = C，多媒体 = D），未配置阶段后缀的部门（如电子部）回落到通用阶段名。
+ * 阶段后缀由部门决定（软研 = C，多媒体 = D）；电子部不用 SOC/SOD 代号，
+ * SOC 阶段直接显示「留任考核」，其余未配置阶段后缀的部门回落通用阶段名。
  */
 const DEPARTMENT_STAGE_CODES: Record<string, Record<string, string>> = {
   woc: { software: "WOC", media: "WOD" },
-  soc: { software: "SOC", media: "SOD" },
+  soc: { software: "SOC", media: "SOD", electronics: "留任考核" },
 };
 
 const STAGE_LABELS: Record<string, string> = {
