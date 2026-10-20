@@ -49,6 +49,10 @@ SAST People 负责招新与评审流程；用户身份、资料、角色与账�
 
 作品链接/作品简介只属于**技术部门面试流程**（免试/WOC/SOC）；笔试与办公类部门面试不收集作品。结果邮件模板按流程类型 + 部门维护：同一模板键可为每个部门存一份覆盖文案（`email_template_setting.department`），免试（`recruitment_exemption.result.*`）与笔试（`recruitment.result.*`）各自一套模板键，办公类各流程按本部门覆盖（含各自的 QQ 群号）。模板权限：管理员可编辑全局默认与任意部门；部长编辑本部门，并可只读浏览其他部门（`lib/email-center/template-access.ts`）。
 
+结果邮件正文按**区块**编辑（`lib/email/blocks.ts`，迁移 `0076`/`0078`），编辑器是**所见即所得画布**（`components/email/EmailCanvas.tsx`）：左边那一整块就是邮件本身（页面底色、内容卡、页眉、正文、页脚，用与发送时同一套内联样式，见 `lib/email/email-styles.ts`），点文字直接改、点按钮/图片弹它自己的字段、卡片里的行就地增删排序、区块之间悬停可插入新内容；悬停区块左侧是拖动把手与区块菜单（上移/下移/复制/隐藏/存为样式/删除/样式浮层）。区块可开关、拖动排序、复制、增删，也能整块贴自定义 HTML/CSS（保存与发送前都按邮件白名单清洗，见 `lib/email/sanitize.ts`）；「插入区块」按**文本 / 布局 / 内容 / 组件**分组，提供文本段落、自定义代码、分隔线、间距、卡片、双栏、图片、按钮、结果面板、状态徽章与几张预填卡片。整封正文都是区块（结果面板、称呼、联系与落款也在其中），模板另配**主题色**（`theme_color`）与**邮件外框**（`body_frame`：页面背景、内容卡、Logo、页眉眉标、页脚）。工具栏的「成品预览」随时切到服务端渲染的真实邮件（与真实发送同一条链路，`previewResultEmailTemplateDraft`）；富文本格式化跟着选区走（浮动工具条：加粗/斜体/下划线/删除线/H2-H4/列表/引用/代码/颜色/高亮/字号/字体/行高/对齐/链接/上下标/撤销重做）。
+
+**面试通知邮件**（预约 / 改约 / 取消 / 暂不改期 / 报名退回）走同一套「外壳 + 区块」渲染（`lib/email/email-shell.tsx`，迁移 `0079` 给 `email_template_content` 加同样的三列）：内置版式由 `defaultInterviewEmailBlocks()` 给出（状态徽章 + 开头说明 + 日程卡 + 流程/地点/讲师元信息卡），编辑器与结果模板同一个。写好的自定义样式可以存成**样式预设**（`email_template_style_preset`）在任意模板里复用；权限口径与模板一致（全局预设仅管理员，部门预设仅本部门）。
+
 结果发布后 People 会自动把成员身份同步回 SAST Link：角色（免试/笔试/WOC 任一通过 → 部员、SoC 通过 → 讲师、办公类两轮都通过 → 部员）与**部门归属**（通过某部门流程即归属该部门；办公类同一候选人通过多个部门时按部长团评议的「最终去向」，缺省「第一志愿优先」；`manager` 及以上账号不改动）——招新不再需要在 Link 手动改部门。
 
 ### `user_flow.progress_status`
@@ -407,8 +411,9 @@ Schema 定义在 `db/schema.ts`。迁移位于 `migrations/`，必须按数字�
 | `interview_checkin` | 办公类现场签到叫号记录 |
 | `user_oauth_account` | People 侧第三方 OAuth token 绑定 |
 | `people_session` | 服务端会话 |
-| `email_template_setting` | 结果邮件模板设置 |
-| `email_template_content` | 共享邮件模板内容 |
+| `email_template_setting` | 结果邮件模板设置（含正文区块 `body_blocks`、外框 `body_frame` 与主题色 `theme_color`） |
+| `email_template_style_preset` | 可复用的自定义样式（HTML/CSS 区块） |
+| `email_template_content` | 面试通知模板内容（同样是区块 + 外框 + 主题色） |
 | `email_batch` | 结果邮件发送批次 |
 | `email_delivery` | 单个用户的投递记录 |
 | `email_delivery_attempt` | 发送尝试与服务商回执 |

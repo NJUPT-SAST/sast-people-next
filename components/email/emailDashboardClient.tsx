@@ -12,6 +12,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { EmailStylePresetRow } from "@/action/email/style-preset";
 import { EmailRecordsSection } from "./EmailRecordsSection";
 import { EmailSendingTasksSection } from "./EmailSendingTasksSection";
 import {
@@ -151,6 +152,7 @@ export function EmailDashboardClient({
   resultEmailPreviews = {} as ResultEmailPreviews,
   interviewScheduleTemplates = emptyInterviewTemplateSettings,
   interviewSchedulePreviews = {} as InterviewSchedulePreviews,
+  stylePresets = [],
   emailCenterConfig,
   templateDefinitions,
   activeTab,
@@ -168,6 +170,7 @@ export function EmailDashboardClient({
   resultEmailPreviews?: ResultEmailPreviews;
   interviewScheduleTemplates?: InterviewTemplateSettingsResult;
   interviewSchedulePreviews?: InterviewSchedulePreviews;
+  stylePresets?: EmailStylePresetRow[];
   emailCenterConfig: EmailCenterConfig;
   templateDefinitions: EmailTemplateDefinition[];
   activeTab?: string;
@@ -346,6 +349,7 @@ export function EmailDashboardClient({
         }
         templateDefinitions={templateDefinitions}
         department={department}
+        stylePresets={stylePresets}
         onDepartmentChange={handleDepartmentChange}
       />
     );

@@ -135,6 +135,9 @@ const templateValues = {
   memberFormLabel: "成员信息表",
   feishuGroupName: "SAST 群",
   groupNumber: "987654321",
+  bodyBlocks: null,
+  bodyFrame: null,
+  themeColor: "",
 };
 
 const recruitmentDefault = defaultResultEmailTemplateSettings.find(
@@ -450,6 +453,9 @@ describe("result email template settings", () => {
           memberFormLabel: "成员信息表",
           feishuGroupName: "SAST 群",
           groupNumber: "123456789",
+          bodyBlocks: null,
+          bodyFrame: null,
+          themeColor: "",
         }),
       ).resolves.toEqual({ ok: true });
 

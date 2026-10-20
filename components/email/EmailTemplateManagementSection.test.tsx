@@ -2,6 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 
 import type { ResultEmailTemplateSettingRow } from "@/action/email/template";
+import { updateEmailTemplateSetting } from "@/action/email/template";
+import { updateInterviewScheduleEmailTemplate } from "@/action/email/interview-template";
 import type { InterviewScheduleTemplateSettingsPayload } from "@/lib/email/interview-template-settings";
 
 import { EmailTemplateManagementSection } from "./EmailTemplateManagementSection";
@@ -14,11 +16,23 @@ import type {
 jest.mock("@/action/email/template", () => ({
   updateEmailTemplateSetting: jest.fn().mockResolvedValue({ ok: true }),
   resetEmailTemplateSetting: jest.fn().mockResolvedValue({ ok: true }),
+  previewResultEmailTemplateDraft: jest
+    .fn()
+    .mockResolvedValue({ ok: true, html: "<html><body>预览</body></html>" }),
+}));
+
+jest.mock("@/action/email/style-preset", () => ({
+  listEmailTemplateStylePresets: jest.fn(),
+  saveEmailTemplateStylePreset: jest.fn().mockResolvedValue({ ok: true }),
+  deleteEmailTemplateStylePreset: jest.fn().mockResolvedValue({ ok: true }),
 }));
 
 jest.mock("@/action/email/interview-template", () => ({
   updateInterviewScheduleEmailTemplate: jest.fn().mockResolvedValue({ ok: true }),
   resetInterviewScheduleEmailTemplate: jest.fn().mockResolvedValue({ ok: true }),
+  previewInterviewScheduleEmailTemplateDraft: jest
+    .fn()
+    .mockResolvedValue({ ok: true, html: "<html><body>面试预览</body></html>" }),
 }));
 
 /* 全局 mock 没提供 refresh，这里补齐，避免保存/恢复成功后抛错 */
@@ -64,6 +78,9 @@ function createResultRow(
     memberFormLabel: "填写表单",
     feishuGroupName: "SAST 群",
     groupNumber: "",
+    bodyBlocks: null,
+    bodyFrame: null,
+    themeColor: "",
   };
 }
 
@@ -72,6 +89,26 @@ const emptyInterviewSettings: InterviewScheduleTemplateSettingsPayload = {
   departments: [],
   scope: { kind: "department", department: "software" },
 };
+
+function createInterviewRow(
+  templateKey: string,
+  department: string | null,
+): InterviewScheduleTemplateSettingsPayload["rows"][number] {
+  return {
+    templateKey,
+    department,
+    editable: true,
+    hasOverride: department !== null,
+    subjectTemplate: "{flowName} 面试预约通知",
+    titleTemplate: "面试预约已确认",
+    bodyTemplate:
+      "{candidateName} 同学，你好。{flowName} 的线下面试安排已确认，请查看下方的面试时间安排并按时到达。",
+    footerText: "南京邮电大学大学生科学技术协会",
+    bodyBlocks: null,
+    bodyFrame: null,
+    themeColor: "",
+  };
+}
 
 const templateDefinitions = [
   {
@@ -105,6 +142,7 @@ type SectionProps = {
   department: string | null;
   selectedFlowTitle?: string;
   selectedFlowType?: string | null;
+  interviewScheduleTemplates?: InterviewScheduleTemplateSettingsPayload;
   onDepartmentChange?: (department: string | null) => void;
 };
 
@@ -113,13 +151,14 @@ function sectionElement({
   department,
   selectedFlowTitle,
   selectedFlowType,
+  interviewScheduleTemplates = emptyInterviewSettings,
   onDepartmentChange = jest.fn(),
 }: SectionProps) {
   return (
     <EmailTemplateManagementSection
       templateSettings={templateSettings}
       resultEmailPreviews={{}}
-      interviewScheduleTemplates={emptyInterviewSettings}
+      interviewScheduleTemplates={interviewScheduleTemplates}
       interviewSchedulePreviews={{} as InterviewSchedulePreviews}
       templateDefinitions={templateDefinitions}
       selectedFlowTitle={selectedFlowTitle}
@@ -330,6 +369,8 @@ describe("EmailTemplateManagementSection", () => {
 
     await openTemplateDialog(user, "部门面试一面通过通知");
 
+    /* QQ 群号这类非视觉字段收在工具栏的「字段」里 */
+    await user.click(screen.getByRole("button", { name: /^字段$/ }));
     const groupNumberInput = await screen.findByLabelText("QQ 群号");
     expect(groupNumberInput).toHaveValue("123456789");
 
@@ -459,6 +500,46 @@ describe("EmailTemplateManagementSection", () => {
     expect(rescopedSelect).toHaveValue("recruitment.result.accepted");
   });
 
+  it("面试模板也在同一个画布上编辑：正文区块、外观与主题色一起保存", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [],
+        departments: [],
+        scope: { kind: "all" },
+      },
+      interviewScheduleTemplates: {
+        rows: [createInterviewRow("interview.schedule.created", null)],
+        departments: [],
+        scope: { kind: "all" },
+      },
+      department: null,
+    });
+
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+
+    /* 画布就是这封面试通知：状态徽章、日程卡、元信息都在上面 */
+    expect(await screen.findByRole("textbox", { name: "邮件主标题" })).toBeInTheDocument();
+    expect(screen.getByText("已预约")).toBeInTheDocument();
+    expect(screen.getByText("{startsAt}")).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-email-block]").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /外观与主题色/ }));
+    await user.click(await screen.findByLabelText("主题色 科技蓝"));
+    await user.click(screen.getByRole("button", { name: /保存到全局默认/ }));
+
+    const call = (updateInterviewScheduleEmailTemplate as jest.Mock).mock.calls.at(-1);
+    expect(call?.[0]).toBe("interview.schedule.created");
+    expect(call?.[2]).toBe(null);
+    expect(call?.[1].themeColor).toBe("#1d4ed8");
+    expect(
+      call?.[1].bodyBlocks.some((block: { type: string }) => block.type === "badge"),
+    ).toBe(true);
+    /* 页脚文案跟着外观字段一起提交 */
+    expect(call?.[1].footerText).toBe("南京邮电大学大学生科学技术协会");
+    expect(call?.[1].bodyFrame.footerText).toBe("南京邮电大学大学生科学技术协会");
+  });
+
   it("不通过模板卡片用红色顶条，和通过模板一眼区分", () => {
     renderSection({
       templateSettings: {
@@ -480,5 +561,164 @@ describe("EmailTemplateManagementSection", () => {
     const acceptedCard = screen.getByText("笔试招新通过结果通知").closest(".group") as HTMLElement;
     expect(acceptedCard.querySelector(".bg-primary\\/60")).not.toBeNull();
     expect(acceptedCard.querySelector(".bg-destructive\\/70")).toBeNull();
+  });
+
+  it("正文在画布上就地编辑：内置版式直接长在邮件里，改完连着主题色一起保存", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [createResultRow("recruitment.result.accepted", "software", true, true)],
+        departments: ["software"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "software",
+    });
+
+    await openTemplateDialog(user, "软件研发部笔试通过结果通知");
+
+    /* 画布就是邮件本身：页眉标题、称呼、结果面板、结构卡片都在上面直接可编辑 */
+    expect(
+      await screen.findByRole("textbox", { name: "邮件主标题" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("亲爱的{name}同学，")).toBeInTheDocument();
+    expect(screen.getByText("结果标签")).toBeInTheDocument();
+    expect(screen.getByText(/【重要步骤】/)).toBeInTheDocument();
+    /* 每个区块都是文档里的一个节点（拖拽与区块菜单由 TipTap 官方把手提供） */
+    expect(document.querySelectorAll("[data-email-block]").length).toBeGreaterThan(0);
+
+    /* 主题色在「外观与主题色」里 */
+    await user.click(screen.getByRole("button", { name: /外观与主题色/ }));
+    await user.click(await screen.findByLabelText("主题色 科技蓝"));
+
+    await user.click(screen.getByRole("button", { name: /保存到「软件研发部」/ }));
+
+    const call = (updateEmailTemplateSetting as jest.Mock).mock.calls.at(-1);
+    expect(call?.[0]).toBe("recruitment.result.accepted");
+    expect(call?.[2]).toBe("software");
+    expect(call?.[1].themeColor).toBe("#1d4ed8");
+    /* 保存的是画布上的区块：结果面板与结构卡片都在 */
+    expect(
+      call?.[1].bodyBlocks.some((block: { type: string }) => block.type === "resultPanel"),
+    ).toBe(true);
+    expect(
+      call?.[1].bodyBlocks.some((block: { type: string }) => block.type === "card"),
+    ).toBe(true);
+  });
+
+  it("关窗时若有未保存改动会先确认：继续编辑保留草稿，放弃修改丢掉草稿", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [createResultRow("recruitment.result.accepted", "software", true, true)],
+        departments: ["software"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "software",
+    });
+
+    await openTemplateDialog(user, "软件研发部笔试通过结果通知");
+    await screen.findByRole("textbox", { name: "邮件主标题" });
+
+    /* 没有改动时关窗直接关，不打扰 */
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText("还有未保存的改动")).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "邮件主标题" })).toBeNull();
+
+    /* 改了正文再关窗，先问一句 */
+    await openTemplateDialog(user, "软件研发部笔试通过结果通知");
+    await screen.findByRole("textbox", { name: "邮件主标题" });
+    await user.click(screen.getByRole("button", { name: /^插入区块$/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /自定义 HTML/ }));
+    await user.keyboard("{Escape}");
+
+    expect(await screen.findByText("还有未保存的改动")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "继续编辑" }));
+    expect(screen.getByPlaceholderText(/<div style/)).toBeInTheDocument();
+
+    /* 放弃修改并关闭：草稿回到保存时的样子，重新打开也看不到刚才那一块 */
+    await user.keyboard("{Escape}");
+    await user.click(await screen.findByRole("button", { name: "放弃修改并关闭" }));
+    expect(screen.queryByPlaceholderText(/<div style/)).toBeNull();
+
+    await openTemplateDialog(user, "软件研发部笔试通过结果通知");
+    await screen.findByRole("textbox", { name: "邮件主标题" });
+    expect(screen.queryByPlaceholderText(/<div style/)).toBeNull();
+  });
+
+  it("⌘/Ctrl+S 直接保存当前草稿，并清掉「未保存」提示", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [createResultRow("recruitment.result.accepted", "software", true, true)],
+        departments: ["software"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "software",
+    });
+
+    await openTemplateDialog(user, "软件研发部笔试通过结果通知");
+    await screen.findByRole("textbox", { name: "邮件主标题" });
+    expect(screen.queryByText("有未保存的改动")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /^插入区块$/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /自定义 HTML/ }));
+    expect(screen.getAllByText(/有未保存的改动/).length).toBeGreaterThan(0);
+
+    (updateEmailTemplateSetting as jest.Mock).mockClear();
+    await user.keyboard("{Control>}s{/Control}");
+
+    const call = (updateEmailTemplateSetting as jest.Mock).mock.calls.at(-1);
+    expect(call?.[0]).toBe("recruitment.result.accepted");
+    expect(
+      call?.[1].bodyBlocks.some((block: { type: string }) => block.type === "code"),
+    ).toBe(true);
+  });
+
+  it("只读浏览其他部门时画布工具不可用", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [createResultRow("recruitment.result.accepted", "media", false, true)],
+        departments: ["software", "media"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "media",
+    });
+
+    await openTemplateDialog(user, "多媒体部笔试通过结果通知");
+    await screen.findByText(/只读浏览其他部门的覆盖，保存与恢复按钮已隐藏/);
+
+    /* 正文照常渲染出来，但「插入区块 / 插入样式 / 存为版式 / 恢复内置版式」全部禁用 */
+    expect(document.querySelectorAll("[data-email-block]").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /^插入区块$/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^插入样式$/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^存为版式$/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /恢复内置版式/ })).toBeDisabled();
+  });
+
+  it("可以从工具栏往画布里加一个自定义 HTML 区块", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      templateSettings: {
+        rows: [createResultRow("recruitment.result.accepted", "software", true, true)],
+        departments: ["software"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "software",
+    });
+
+    await openTemplateDialog(user, "软件研发部笔试通过结果通知");
+    await screen.findByRole("textbox", { name: "邮件主标题" });
+
+    await user.click(screen.getByRole("button", { name: /^插入区块$/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /自定义 HTML/ }));
+
+    expect(screen.getByPlaceholderText(/<div style/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /保存到「软件研发部」/ }));
+    const call = (updateEmailTemplateSetting as jest.Mock).mock.calls.at(-1);
+    expect(
+      call?.[1].bodyBlocks.some((block: { type: string }) => block.type === "code"),
+    ).toBe(true);
   });
 });

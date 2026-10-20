@@ -88,6 +88,37 @@
   --sidebar-ring: #18a058;
 }
 
+/*
+ * 邮件画布永远是「浅色的邮件」：它渲染的是真实邮件（页面底色/内容卡都是浅色）。
+ * 应用处于暗色主题时，画布里的 Tailwind 令牌会跟着翻成浅色文字（muted-foreground 变浅灰），
+ * 落在浅色卡上就「看不见」了。这里把画布子树重新钉回浅色令牌，
+ * 画布内的占位文案、分隔线与提示才会始终可读。弹层（Popover/Dropdown）portal 到 body 之外，
+ * 仍按应用主题渲染——它们是应用自己的界面，不是邮件内容。
+ */
+.email-canvas-theme {
+  color-scheme: light;
+  /* 关键：后代若只是「继承」颜色（没有自己写 text-* 工具类），继承的是 body 在暗色下
+     算出来的浅色前景 —— 只覆盖变量不够，必须在画布根上把 color 也算成浅色主题的前景色 */
+  color: var(--foreground);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: #18a058;
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

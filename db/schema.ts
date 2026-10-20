@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { EmailBlock, EmailFrameStyle } from "@/lib/email/blocks";
 import {
   boolean,
   index,
@@ -462,6 +463,12 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
   feishuGroupName: varchar("feishu_group_name", { length: 100 }).notNull(),
   /* QQ 群号：办公类部门面试通知里使用（{groupNumber} 变量），逐轮/逐部门维护 */
   groupNumber: varchar("group_number", { length: 64 }).notNull().default(""),
+  /* 正文区块：NULL = 未自定义，渲染时回落到内置版式（lib/email/blocks.ts） */
+  bodyBlocks: jsonb("body_blocks").$type<EmailBlock[]>(),
+  /* 邮件外框（背景、内容卡、logo、页眉、页脚）：NULL = 内置外观 */
+  bodyFrame: jsonb("body_frame").$type<EmailFrameStyle>(),
+  /* 主题色（#RRGGBB）：空字符串 = 沿用内置的通过绿 / 不通过橙 */
+  themeColor: varchar("theme_color", { length: 16 }).notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -473,6 +480,32 @@ export const emailTemplateSetting = pgTable("email_template_setting", {
   departmentIdx: index("email_template_setting_department_idx").on(table.department),
 }));
 
+/**
+ * 自定义样式预设：管理员把一段自定义 HTML/CSS（通常是一个 code 区块）存成具名样式，
+ * 之后可以在任意结果模板里「插入样式」复用，省得每次重贴一遍。
+ * department = NULL 表示全局预设，否则只对该部门可见。
+ */
+export const emailTemplateStylePreset = pgTable("email_template_style_preset", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 80 }).notNull(),
+  department: varchar("department", { length: 64 }),
+  blocks: jsonb("blocks").$type<EmailBlock[]>().notNull(),
+  createdById: integer("created_by_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  nameDepartmentUnique: uniqueIndex("email_template_style_preset_name_uidx").on(
+    table.name,
+    sql`coalesce(${table.department}, '')`,
+  ),
+  departmentIdx: index("email_template_style_preset_department_idx").on(
+    table.department,
+  ),
+}));
+
 export const emailTemplateContent = pgTable("email_template_content", {
   id: serial("id").primaryKey(),
   templateKey: varchar("template_key", { length: 80 }).notNull(),
@@ -482,6 +515,12 @@ export const emailTemplateContent = pgTable("email_template_content", {
   titleTemplate: varchar("title_template", { length: 255 }).notNull(),
   bodyTemplate: text("body_template").notNull(),
   footerText: varchar("footer_text", { length: 255 }).notNull(),
+  /* 正文区块：NULL = 未自定义，渲染时回落到内置版式（lib/email/interview-email-blocks.ts） */
+  bodyBlocks: jsonb("body_blocks").$type<EmailBlock[]>(),
+  /* 邮件外框（背景、内容卡、logo、页眉、页脚）：NULL = 内置外观 */
+  bodyFrame: jsonb("body_frame").$type<EmailFrameStyle>(),
+  /* 主题色（#RRGGBB）：空字符串 = 沿用内置配色 */
+  themeColor: varchar("theme_color", { length: 16 }).notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
