@@ -64,7 +64,13 @@ const pickDefaultRole = (accounts: MockLoginAccount[]) => {
 
 type Selection = { role: number; department?: string; studentId?: string };
 
-export const TestLogin = ({ accounts = [] }: { accounts?: MockLoginAccount[] }) => {
+export const TestLogin = ({
+  accounts = [],
+  next,
+}: {
+  accounts?: MockLoginAccount[];
+  next?: string;
+}) => {
   const router = useRouter();
   const safeAccounts = Array.isArray(accounts) ? accounts : [];
   const [selection, setSelection] = useState<Selection>(() => ({
@@ -106,7 +112,7 @@ export const TestLogin = ({ accounts = [] }: { accounts?: MockLoginAccount[] }) 
           const formData = new FormData();
           formData.set("studentId", studentId);
           await loginWithMockLinkUser(formData);
-          router.push("/dashboard");
+          router.push(next || "/dashboard");
         },
         {
           loading: "登录中",

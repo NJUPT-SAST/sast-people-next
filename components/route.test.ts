@@ -6,14 +6,15 @@ const pathsFor = (role: number, hasDepartment = true) =>
 
 describe("getVisibleMenuItems", () => {
   it("新同学与部员只有「我的」分组", () => {
-    expect(pathsFor(0)).toEqual(["", "/user-flow"]);
-    expect(pathsFor(MEMBER_ROLE)).toEqual(["", "/user-flow"]);
+    expect(pathsFor(0)).toEqual(["", "/user-flow", "/collection"]);
+    expect(pathsFor(MEMBER_ROLE)).toEqual(["", "/user-flow", "/collection"]);
   });
 
   it("讲师看到阅卷与成员目录", () => {
     expect(pathsFor(LECTURER_ROLE)).toEqual([
       "",
       "/user-flow",
+      "/collection",
       "/review",
       "/manage",
       "/exams",
@@ -25,6 +26,7 @@ describe("getVisibleMenuItems", () => {
     expect(pathsFor(MANAGER_ROLE)).toEqual([
       "",
       "/user-flow",
+      "/collection",
       "/review/analytics",
       "/review",
       "/manage",
@@ -42,6 +44,7 @@ describe("getVisibleMenuItems", () => {
     expect(pathsFor(ADMIN_ROLE)).toEqual([
       "",
       "/user-flow",
+      "/collection",
       "/review/analytics",
       "/review",
       "/manage",
@@ -59,8 +62,18 @@ describe("getVisibleMenuItems", () => {
   });
 
   it("无部门归属的账号看不到会被重定向的部门级入口（成员目录不受限）", () => {
-    expect(pathsFor(LECTURER_ROLE, false)).toEqual(["", "/user-flow", "/manage"]);
-    expect(pathsFor(MANAGER_ROLE, false)).toEqual(["", "/user-flow", "/manage"]);
+    expect(pathsFor(LECTURER_ROLE, false)).toEqual([
+      "",
+      "/user-flow",
+      "/collection",
+      "/manage",
+    ]);
+    expect(pathsFor(MANAGER_ROLE, false)).toEqual([
+      "",
+      "/user-flow",
+      "/collection",
+      "/manage",
+    ]);
     expect(pathsFor(ADMIN_ROLE, false)).toEqual(
       expect.arrayContaining(["/review", "/flow", "/emails", "/departments"]),
     );

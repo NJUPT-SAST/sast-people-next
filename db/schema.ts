@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { CollectionExtraField } from "@/const/collection";
 import {
   boolean,
   index,
@@ -852,3 +853,87 @@ export const gradingFairnessProfile = pgTable("grading_fairness_profile", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
 });
+
+/**
+ * 成员信息收集表：部长及以上发起一轮收集，部员及以上按固定字段填写。
+ * department = NULL 表示全体成员可填（仅管理员可建）；否则只对发起人所属部门开放。
+ * 字段集合固定（社团名称 / 类别 / 姓名 / 出生年月 / 政治面貌 / 学院 / 班级 / 学号 / 入学年份 / 预计毕业年份）。
+ */
+export const collectionForm = pgTable("collection_form", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 120 }).notNull(),
+  instructions: text("instructions").notNull().default(""),
+  /* 除固定成员字段外，发起人自定义的收集项 */
+  extraFields: jsonb("extra_fields")
+    .$type<CollectionExtraField[]>()
+    .notNull()
+    .default([]),
+  /* 分享链接 token：/collect/<token>，登录后跳转到本表 */
+  shareToken: varchar("share_token", { length: 64 }).notNull(),
+  /* 开始时间；NULL = 立即开始 */
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  /* 截止时间；NULL = 不设截止。过期后不再接收填写，但保留记录 */
+  deadline: timestamp("deadline", { withTimezone: true }),
+  /* 允许填写的身份（People 角色）；空数组 = 不限制 */
+  allowedRoles: jsonb("allowed_roles")
+    .$type<number[]>()
+    .notNull()
+    .default([]),
+  /* open = 可填写/可修改；closed = 只读 */
+  status: varchar("status", { length: 16 }).notNull().default("open"),
+  /* Link 用户 ID — 发起人 */
+  createdBy: integer("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  shareTokenUnique: unique("collection_form_share_token_uidx").on(table.shareToken),
+  statusIdx: index("collection_form_status_idx").on(table.status, table.createdAt),
+}));
+
+/**
+ * 收集表提交：每个用户每张表一条，重复提交按 (fk_form_id, fk_user_id) 更新。
+ * department 保存提交时的部门快照，便于部门范围内的结果查看与导出。
+ */
+export const collectionSubmission = pgTable("collection_submission", {
+  id: serial("id").primaryKey(),
+  fkFormId: integer("fk_form_id")
+    .references(() => collectionForm.id, { onDelete: "cascade" })
+    .notNull(),
+  /* Link 用户 ID — 填写人 */
+  fkUserId: integer("fk_user_id").notNull(),
+  /* 填写人当时的 Link 部门标识 */
+  department: varchar("department", { length: 64 }),
+  clubName: varchar("club_name", { length: 120 }).notNull(),
+  category: varchar("category", { length: 32 }).notNull(),
+  name: varchar("name", { length: 60 }).notNull(),
+  /* YYYY-MM */
+  birthMonth: varchar("birth_month", { length: 7 }).notNull(),
+  politicalStatus: varchar("political_status", { length: 40 }).notNull(),
+  college: varchar("college", { length: 120 }).notNull(),
+  className: varchar("class_name", { length: 120 }).notNull(),
+  studentId: varchar("student_id", { length: 32 }).notNull(),
+  enrollmentYear: smallint("enrollment_year").notNull(),
+  graduationYear: smallint("graduation_year").notNull(),
+  /* 自定义收集项答案：字段 ID → 文本值 */
+  extraAnswers: jsonb("extra_answers")
+    .$type<Record<string, string>>()
+    .notNull()
+    .default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  formUserUnique: unique("collection_submission_form_user_uidx").on(
+    table.fkFormId,
+    table.fkUserId,
+  ),
+  formDepartmentIdx: index("collection_submission_form_department_idx").on(
+    table.fkFormId,
+    table.department,
+  ),
+}));
