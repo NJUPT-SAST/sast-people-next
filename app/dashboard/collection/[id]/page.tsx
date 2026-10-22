@@ -30,6 +30,7 @@ import {
 import { collectionFormPhase } from "@/lib/collection-status";
 import { verifySession } from "@/lib/dal";
 import { formatBeijingDate, formatBeijingDateTime } from "@/lib/timezone";
+import { isNextControlFlowError } from "@/lib/server-error-log";
 import { useUserInfo as getUserInfo } from "@/hooks/useUserInfo";
 
 export const dynamic = "force-dynamic";
@@ -62,9 +63,15 @@ export default async function CollectionDetailPage({
     notFound();
   }
 
-  const userInfo = await getUserInfo();
   const canManage = canManageCollectionForm(session);
   const canFill = canFillCollectionForm(session, form, passedFlowIds);
+  const userInfo =
+    phase === "open" && canFill
+      ? await getUserInfo().catch((error) => {
+          if (isNextControlFlowError(error)) throw error;
+          return null;
+        })
+      : null;
   const submissions = canManage ? await listCollectionSubmissions(formId) : [];
   const flows = await listCollectionFlowOptions();
   const invitationStats = canManage
@@ -77,23 +84,23 @@ export default async function CollectionDetailPage({
 
   const initialValues: CollectionFormValues = {
     category: ownSubmission?.category ?? "",
-    name: ownSubmission?.name ?? userInfo.name ?? "",
+    name: ownSubmission?.name ?? userInfo?.name ?? "",
     birthMonth: ownSubmission?.birthMonth ?? "",
     politicalStatus: ownSubmission?.politicalStatus ?? "",
-    college: ownSubmission?.college ?? userInfo.college ?? "",
+    college: ownSubmission?.college ?? userInfo?.college ?? "",
     className: ownSubmission?.className ?? "",
-    studentId: ownSubmission?.studentId ?? userInfo.studentId ?? "",
+    studentId: ownSubmission?.studentId ?? userInfo?.studentId ?? "",
     enrollmentYear: ownSubmission?.enrollmentYear ?? null,
     graduationYear: ownSubmission?.graduationYear ?? null,
   };
 
   const linkProfile = {
-    name: userInfo.name ?? "",
-    studentId: userInfo.studentId ?? "",
-    college: userInfo.college ?? "",
-    major: userInfo.major ?? "",
-    email: userInfo.email ?? "",
-    qq: userInfo.qq ?? "",
+    name: userInfo?.name ?? "",
+    studentId: userInfo?.studentId ?? "",
+    college: userInfo?.college ?? "",
+    major: userInfo?.major ?? "",
+    email: userInfo?.email ?? "",
+    qq: userInfo?.qq ?? "",
   };
 
   return (

@@ -85,7 +85,11 @@ const normalizeInitialExtraAnswers = (
     } else if (saved !== undefined) {
       values[field.id] = saved;
     } else if (field.prefillFrom) {
-      values[field.id] = linkProfile[field.prefillFrom];
+      const prefill = linkProfile[field.prefillFrom];
+      const needsOption = field.type === "select" || field.type === "radio";
+      if (prefill && (!needsOption || field.options.includes(prefill))) {
+        values[field.id] = prefill;
+      }
     }
   }
 

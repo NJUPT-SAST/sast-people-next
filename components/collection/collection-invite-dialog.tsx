@@ -331,7 +331,7 @@ export function CollectionInviteDialog({
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Users className="size-3.5" />
             共 {candidates.length} 位候选成员
-            {truncated && "；结果较多，仅展示前 300 位，请用筛选条件缩小范围"}
+            {truncated && "；结果较多，仅展示部分候选，请用筛选条件缩小范围"}
           </p>
 
           <div className="grid gap-4 rounded-lg border border-border/70 p-4 sm:grid-cols-2">

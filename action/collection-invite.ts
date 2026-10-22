@@ -28,7 +28,7 @@ import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { formatBeijingDateTime } from "@/lib/timezone";
 
-const MAX_CANDIDATES = 300;
+const MAX_CANDIDATES = 1000;
 const MAX_INVITES = 50;
 
 export type CollectionInviteCandidate = {
@@ -117,6 +117,9 @@ const toCandidateFromProfile = (
   college: item.college ?? null,
 });
 
+const emailOfProfile = (profile: LinkUserProfile) =>
+  profile.login_email ?? profile.profile?.email ?? null;
+
 const fetchProfilesByIds = async (ids: number[]): Promise<LinkUserProfile[]> => {
   if (ids.length === 0) return [];
   const token = await getLinkAdminAccessTokenFromSession();
@@ -182,8 +185,12 @@ export async function searchCollectionInviteCandidates(input: {
   } else {
     let scanned = 0;
     let total = 0;
-    for (let page = 1; page <= 3; page += 1) {
-      const result = await listLinkUsers(token, { page, pageSize: 100 });
+    for (let page = 1; page <= 10; page += 1) {
+      const result = await listLinkUsers(token, {
+        page,
+        pageSize: 100,
+        keyword: parsed.data.keyword || undefined,
+      });
       total = result.total;
       source.push(
         ...result.users
@@ -294,7 +301,7 @@ export async function sendCollectionInvitations(input: {
         fkUserId: profile.id,
         name: profile.name,
         studentId: profile.student_id ?? null,
-        email: profile.login_email ?? null,
+        email: emailOfProfile(profile),
         invitedBy: session.uid,
         status: "pending",
       })
@@ -303,7 +310,7 @@ export async function sendCollectionInvitations(input: {
         set: {
           name: profile.name,
           studentId: profile.student_id ?? null,
-          email: profile.login_email ?? null,
+          email: emailOfProfile(profile),
           invitedBy: session.uid,
           status: "pending",
           error: null,
@@ -324,7 +331,8 @@ export async function sendCollectionInvitations(input: {
     const template = await getCollectionInvitationTemplateSetting();
 
     for (const profile of eligible) {
-      if (!profile.login_email) {
+      const emailAddress = emailOfProfile(profile);
+      if (!emailAddress) {
         failed += 1;
         await db
           .update(collectionInvitation)
@@ -352,7 +360,7 @@ export async function sendCollectionInvitations(input: {
 
       try {
         await sendEmailViaProvider({
-          to: profile.login_email,
+          to: emailAddress,
           subject: email.subject,
           html: email.html,
         });
