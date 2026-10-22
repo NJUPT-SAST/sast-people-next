@@ -1,5 +1,8 @@
 import { sql } from "drizzle-orm";
-import type { CollectionExtraField } from "@/const/collection";
+import type {
+  CollectionExtraAnswers,
+  CollectionExtraField,
+} from "@/const/collection";
 import {
   boolean,
   index,
@@ -879,6 +882,11 @@ export const collectionForm = pgTable("collection_form", {
     .$type<number[]>()
     .notNull()
     .default([]),
+  /* 限定流程：仅这些流程最终通过的人可填；空数组 = 不限制 */
+  allowedFlowIds: jsonb("allowed_flow_ids")
+    .$type<number[]>()
+    .notNull()
+    .default([]),
   /* open = 可填写/可修改；closed = 只读 */
   status: varchar("status", { length: 16 }).notNull().default("open"),
   /* Link 用户 ID — 发起人 */
@@ -917,9 +925,9 @@ export const collectionSubmission = pgTable("collection_submission", {
   studentId: varchar("student_id", { length: 32 }).notNull(),
   enrollmentYear: smallint("enrollment_year").notNull(),
   graduationYear: smallint("graduation_year").notNull(),
-  /* 自定义收集项答案：字段 ID → 文本值 */
+  /* 自定义收集项答案：字段 ID → 文本值或文本数组（多选） */
   extraAnswers: jsonb("extra_answers")
-    .$type<Record<string, string>>()
+    .$type<CollectionExtraAnswers>()
     .notNull()
     .default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -935,5 +943,41 @@ export const collectionSubmission = pgTable("collection_submission", {
   formDepartmentIdx: index("collection_submission_form_department_idx").on(
     table.fkFormId,
     table.department,
+  ),
+}));
+
+/**
+ * 收集表邀请：部长/管理员批量邀请成员填写，可选发送邮件。
+ * 同一张表同一成员只保留一条邀请记录，再次邀请会更新状态与时间。
+ */
+export const collectionInvitation = pgTable("collection_invitation", {
+  id: serial("id").primaryKey(),
+  fkFormId: integer("fk_form_id")
+    .references(() => collectionForm.id, { onDelete: "cascade" })
+    .notNull(),
+  /* Link 用户 ID — 被邀请人 */
+  fkUserId: integer("fk_user_id").notNull(),
+  name: varchar("name", { length: 60 }),
+  studentId: varchar("student_id", { length: 32 }),
+  email: varchar("email", { length: 254 }),
+  /* Link 用户 ID — 邀请人 */
+  invitedBy: integer("invited_by").notNull(),
+  /* pending = 已记录未发邮件；sent = 邮件已发送；failed = 发送失败 */
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+  error: text("error"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  formUserUnique: unique("collection_invitation_form_user_uidx").on(
+    table.fkFormId,
+    table.fkUserId,
+  ),
+  formStatusIdx: index("collection_invitation_form_status_idx").on(
+    table.fkFormId,
+    table.status,
   ),
 }));

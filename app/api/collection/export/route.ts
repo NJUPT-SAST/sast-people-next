@@ -3,6 +3,7 @@ import { apiErrorResponse } from "@/lib/api-error";
 import { getCollectionFormById, listCollectionSubmissions } from "@/lib/collection";
 import { canManageCollectionForm } from "@/lib/collection-access";
 import { departmentLabel } from "@/const/department";
+import { formatCollectionAnswer } from "@/const/collection";
 import { verifySession, type VerifiedSession } from "@/lib/dal";
 import { escapeCsv } from "@/lib/csv";
 import { writeOperationAudit } from "@/lib/operation-audit";
@@ -55,7 +56,9 @@ export async function GET(request: NextRequest) {
         row.studentId,
         row.enrollmentYear,
         row.graduationYear,
-        ...form.extraFields.map((field) => row.extraAnswers[field.id] ?? ""),
+        ...form.extraFields.map((field) =>
+          formatCollectionAnswer(row.extraAnswers[field.id]),
+        ),
         departmentLabel(row.department, ""),
         formatBeijingDateTime(row.createdAt),
         formatBeijingDateTime(row.updatedAt),

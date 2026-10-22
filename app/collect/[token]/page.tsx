@@ -1,5 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import { getCollectionFormByShareToken, getCollectionSubmission } from "@/lib/collection";
+import {
+  getCollectionFormByShareToken,
+  getCollectionSubmission,
+  getPassedFlowIds,
+} from "@/lib/collection";
 import { canViewCollectionForm } from "@/lib/collection-access";
 import { verifySession } from "@/lib/dal";
 import { getSession } from "@/lib/session";
@@ -26,7 +30,17 @@ export default async function CollectSharePage({
 
   const verified = await verifySession();
   const ownSubmission = await getCollectionSubmission(form.id, verified.uid);
-  if (!canViewCollectionForm(verified, form, Boolean(ownSubmission))) notFound();
+  const passedFlowIds = await getPassedFlowIds(verified.uid);
+  if (
+    !canViewCollectionForm(
+      verified,
+      form,
+      Boolean(ownSubmission),
+      passedFlowIds,
+    )
+  ) {
+    notFound();
+  }
 
   redirect(`/dashboard/collection/${form.id}`);
 }

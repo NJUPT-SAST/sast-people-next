@@ -95,12 +95,23 @@ describe("collectionFormInputSchema", () => {
     expect(parsed.instructions).toBe(COLLECTION_DEFAULT_INSTRUCTIONS);
     expect(parsed.extraFields).toEqual([]);
     expect(parsed.allowedRoles).toEqual([]);
+    expect(parsed.allowedFlowIds).toEqual([]);
     expect(parsed.deadline).toBeUndefined();
   });
 
-  it("accepts a direct identity selection", () => {
-    const parsed = collectionFormInputSchema.parse({ allowedRoles: [0, 3] });
+  it("accepts a direct identity and flow selection", () => {
+    const parsed = collectionFormInputSchema.parse({
+      allowedRoles: [0, 3],
+      allowedFlowIds: [11, 12],
+    });
     expect(parsed.allowedRoles).toEqual([0, 3]);
+    expect(parsed.allowedFlowIds).toEqual([11, 12]);
+  });
+
+  it("rejects duplicate flow restrictions", () => {
+    expect(
+      collectionFormInputSchema.safeParse({ allowedFlowIds: [11, 11] }).success,
+    ).toBe(false);
   });
 
   it("rejects duplicate identities", () => {
@@ -173,6 +184,40 @@ describe("collectionExtraFieldSchema", () => {
     ).toBe(false);
   });
 
+  it("supports date, multi-select and other survey field types", () => {
+    for (const type of ["date", "datetime", "time", "email", "url", "phone", "rating"] as const) {
+      expect(
+        collectionExtraFieldSchema.safeParse({
+          id: type,
+          label: type,
+          type,
+          description: "填写提示",
+        }).success,
+      ).toBe(true);
+    }
+    expect(
+      collectionExtraFieldSchema.safeParse({
+        id: "skills",
+        label: "技能",
+        type: "checkbox",
+        options: ["前端", "后端"],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires options for radio and checkbox fields", () => {
+    for (const type of ["radio", "checkbox"] as const) {
+      expect(
+        collectionExtraFieldSchema.safeParse({
+          id: type,
+          label: type,
+          type,
+          options: [],
+        }).success,
+      ).toBe(false);
+    }
+  });
+
   it("rejects unsafe field ids", () => {
     expect(
       collectionExtraFieldSchema.safeParse({
@@ -229,6 +274,113 @@ describe("validateExtraAnswers", () => {
   it("rejects non-numeric number answers", () => {
     expect(
       validateExtraAnswers(fields, { welcome: "是", grade: "三点八" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("validateExtraAnswers for survey field types", () => {
+  const fields = [
+    {
+      id: "birthday",
+      label: "生日",
+      type: "date" as const,
+      required: true,
+      options: [],
+    },
+    {
+      id: "email",
+      label: "邮箱",
+      type: "email" as const,
+      required: false,
+      options: [],
+    },
+    {
+      id: "website",
+      label: "主页",
+      type: "url" as const,
+      required: false,
+      options: [],
+    },
+    {
+      id: "phone",
+      label: "手机号",
+      type: "phone" as const,
+      required: false,
+      options: [],
+    },
+    {
+      id: "rating",
+      label: "评分",
+      type: "rating" as const,
+      required: false,
+      options: [],
+    },
+    {
+      id: "skills",
+      label: "技能",
+      type: "checkbox" as const,
+      required: false,
+      options: ["前端", "后端"],
+    },
+    {
+      id: "level",
+      label: "等级",
+      type: "radio" as const,
+      required: false,
+      options: ["初级", "高级"],
+    },
+  ];
+
+  it("accepts valid date, contact, rating, radio and multi-select answers", () => {
+    const result = validateExtraAnswers(fields, {
+      birthday: "2004-10-05",
+      email: "a@example.com",
+      website: "https://example.com",
+      phone: "13800138000",
+      rating: "5",
+      skills: ["前端", "后端"],
+      level: "高级",
+    });
+    expect(result).toEqual({
+      success: true,
+      answers: {
+        birthday: "2004-10-05",
+        email: "a@example.com",
+        website: "https://example.com",
+        phone: "13800138000",
+        rating: "5",
+        skills: ["前端", "后端"],
+        level: "高级",
+      },
+    });
+  });
+
+  it("rejects invalid dates, emails, links, phones and ratings", () => {
+    const invalid = [
+      { birthday: "2024-02-30" },
+      { birthday: "2004-10-05", email: "not-an-email" },
+      { birthday: "2004-10-05", website: "javascript:alert(1)" },
+      { birthday: "2004-10-05", phone: "abc" },
+      { birthday: "2004-10-05", rating: "6" },
+    ];
+    for (const answers of invalid) {
+      expect(validateExtraAnswers(fields, answers).success).toBe(false);
+    }
+  });
+
+  it("rejects unknown multi-select options and empty required multi-selects", () => {
+    expect(
+      validateExtraAnswers(fields, {
+        birthday: "2004-10-05",
+        skills: ["设计"],
+      }).success,
+    ).toBe(false);
+
+    const requiredSkills = fields.map((field) =>
+      field.id === "skills" ? { ...field, required: true } : field,
+    );
+    expect(
+      validateExtraAnswers(requiredSkills, { birthday: "2004-10-05" }).success,
     ).toBe(false);
   });
 });

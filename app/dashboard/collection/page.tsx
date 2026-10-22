@@ -10,8 +10,8 @@ import {
 } from "@/components/ui/card";
 import { PageHeader, PageTitle } from "@/components/route";
 import { CollectionFormDialog } from "@/components/collection/collection-form-dialog";
-import { collectionFillRoleLabel } from "@/const/collection";
-import { listVisibleCollectionForms } from "@/lib/collection";
+import { collectionFillRoleLabel, collectionFlowScopeLabel } from "@/const/collection";
+import { listCollectionFlowOptions, listVisibleCollectionForms } from "@/lib/collection";
 import { canManageCollectionForm } from "@/lib/collection-access";
 import { collectionFormPhase } from "@/lib/collection-status";
 import { verifySession } from "@/lib/dal";
@@ -21,14 +21,17 @@ export const dynamic = "force-dynamic";
 
 export default async function CollectionPage() {
   const session = await verifySession();
-  const forms = await listVisibleCollectionForms(session);
+  const [forms, flows] = await Promise.all([
+    listVisibleCollectionForms(session),
+    listCollectionFlowOptions(),
+  ]);
   const canManage = canManageCollectionForm(session);
 
   return (
     <>
       <PageHeader>
         <PageTitle />
-        {canManage && <CollectionFormDialog />}
+        {canManage && <CollectionFormDialog flows={flows} />}
       </PageHeader>
 
       {forms.length === 0 ? (
@@ -65,6 +68,9 @@ export default async function CollectionPage() {
                       : " · 不设截止"}
                     {" · "}
                     {collectionFillRoleLabel(form.allowedRoles)}
+                    {form.allowedFlowIds.length > 0 && (
+                      <> · 仅限 {collectionFlowScopeLabel(form.allowedFlowIds, flows)} 通过者</>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">

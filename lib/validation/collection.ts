@@ -5,9 +5,13 @@ import {
   COLLECTION_DEFAULT_TITLE,
   COLLECTION_EXTRA_FIELD_TYPES,
   COLLECTION_LINK_PREFILL_SOURCES,
+  COLLECTION_OPTION_FIELD_TYPES,
   COLLECTION_POLITICAL_STATUSES,
+  COLLECTION_RATING_MAX,
+  type CollectionExtraAnswers,
   type CollectionExtraField,
 } from "@/const/collection";
+import { parseBeijingDateOnly, parseBeijingDateTime } from "@/lib/timezone";
 
 const trimmedText = (label: string, max: number) =>
   z
@@ -88,10 +92,15 @@ export const collectionExtraFieldSchema = z
       )
       .max(30, "选项数量不能超过 30 个")
       .default([]),
+    description: z
+      .string()
+      .trim()
+      .max(200, "填写提示不能超过 200 字")
+      .optional(),
     prefillFrom: z.enum(COLLECTION_LINK_PREFILL_SOURCES).optional(),
   })
   .superRefine((field, ctx) => {
-    if (field.type !== "select") return;
+    if (!COLLECTION_OPTION_FIELD_TYPES[field.type]) return;
     if (field.options.length === 0) {
       ctx.addIssue({
         code: "custom",
@@ -138,6 +147,15 @@ export const collectionFormInputSchema = z.object({
       (roles) => new Set(roles).size === roles.length,
       "填写身份不能重复",
     ),
+  /* 限定流程：仅这些流程最终通过的人可填；空数组 = 不限制 */
+  allowedFlowIds: z
+    .array(z.number().int().positive())
+    .max(100, "限定流程不能超过 100 个")
+    .default([])
+    .refine(
+      (flowIds) => new Set(flowIds).size === flowIds.length,
+      "限定流程不能重复",
+    ),
   /* 开始时间；NULL = 立即开始 */
   startsAt: z.number().int().nullable().optional(),
   /* 截止时间（epoch 毫秒）；null = 不设截止 */
@@ -156,24 +174,112 @@ export const collectionFormInputSchema = z.object({
 export type CollectionFormInput = z.infer<typeof collectionFormInputSchema>;
 
 export type ExtraAnswersValidation =
-  | { success: true; answers: Record<string, string> }
+  | { success: true; answers: CollectionExtraAnswers }
   | { success: false; message: string };
 
+const validateFieldValue = (
+  field: CollectionExtraField,
+  value: string,
+): string | null => {
+  const maxLength = field.type === "textarea" ? 5000 : 500;
+  if (value.length > maxLength) {
+    return `${field.label}不能超过 ${maxLength} 字`;
+  }
+
+  switch (field.type) {
+    case "text":
+    case "textarea":
+      return null;
+    case "number":
+      return /^-?\d+(?:\.\d+)?$/.test(value)
+        ? null
+        : `${field.label}必须是数字`;
+    case "select":
+    case "radio":
+      return field.options.includes(value)
+        ? null
+        : `${field.label}的选项无效`;
+    case "date":
+      return parseBeijingDateOnly(value)
+        ? null
+        : `${field.label}必须是有效日期`;
+    case "datetime":
+      return parseBeijingDateTime(value)
+        ? null
+        : `${field.label}必须是有效日期时间`;
+    case "time":
+      return /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
+        ? null
+        : `${field.label}必须是有效时间（HH:mm）`;
+    case "email":
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+        ? null
+        : `${field.label}必须是有效邮箱`;
+    case "url":
+      try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:"
+          ? null
+          : `${field.label}必须是 http(s) 链接`;
+      } catch {
+        return `${field.label}必须是有效链接`;
+      }
+    case "phone":
+      return /^[0-9+\-() ]{6,20}$/.test(value)
+        ? null
+        : `${field.label}必须是有效手机号`;
+    case "rating": {
+      const rating = Number(value);
+      return Number.isInteger(rating) &&
+        rating >= 1 &&
+        rating <= COLLECTION_RATING_MAX
+        ? null
+        : `${field.label}必须是 1-${COLLECTION_RATING_MAX} 分`;
+    }
+    case "checkbox":
+      return null;
+  }
+};
+
 /**
- * 按表单的定义校验自定义收集项答案：必填、长度、数字格式、下拉选项。
- * 未知字段直接丢弃，避免客户端塞入未定义的键。
+ * 按表单的定义校验自定义收集项答案：必填、长度、格式、选项。
+ * 多选答案返回字符串数组；未知字段直接丢弃。
  */
 export const validateExtraAnswers = (
   fields: CollectionExtraField[],
   answers: Record<string, unknown>,
 ): ExtraAnswersValidation => {
-  const validated: Record<string, string> = {};
+  const validated: CollectionExtraAnswers = {};
 
   for (const field of fields) {
     const raw = answers[field.id];
-    const value =
-      typeof raw === "string" || typeof raw === "number" ? String(raw).trim() : "";
 
+    if (field.type === "checkbox") {
+      const values = Array.isArray(raw)
+        ? raw
+            .filter((value): value is string => typeof value === "string")
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : [];
+      const unique = Array.from(new Set(values));
+
+      if (unique.length === 0) {
+        if (field.required) {
+          return { success: false, message: `请选择${field.label}` };
+        }
+        continue;
+      }
+      if (unique.some((value) => !field.options.includes(value))) {
+        return { success: false, message: `${field.label}的选项无效` };
+      }
+      validated[field.id] = unique;
+      continue;
+    }
+
+    const value =
+      typeof raw === "string" || typeof raw === "number"
+        ? String(raw).trim()
+        : "";
     if (!value) {
       if (field.required) {
         return { success: false, message: `请填写${field.label}` };
@@ -181,19 +287,8 @@ export const validateExtraAnswers = (
       continue;
     }
 
-    const maxLength = field.type === "textarea" ? 5000 : 500;
-    if (value.length > maxLength) {
-      return {
-        success: false,
-        message: `${field.label}不能超过 ${maxLength} 字`,
-      };
-    }
-    if (field.type === "number" && !/^-?\d+(?:\.\d+)?$/.test(value)) {
-      return { success: false, message: `${field.label}必须是数字` };
-    }
-    if (field.type === "select" && !field.options.includes(value)) {
-      return { success: false, message: `${field.label}的选项无效` };
-    }
+    const error = validateFieldValue(field, value);
+    if (error) return { success: false, message: error };
 
     validated[field.id] = value;
   }

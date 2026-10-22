@@ -15,7 +15,7 @@ import {
   collectionSubmission,
   normalizeDepartmentKey,
 } from "@/db/schema";
-import { getCollectionFormById } from "@/lib/collection";
+import { getCollectionFormById, getPassedFlowIds } from "@/lib/collection";
 import {
   canFillCollectionForm,
   canManageCollectionForm,
@@ -83,6 +83,7 @@ export async function createCollectionForm(
       startsAt,
       deadline,
       allowedRoles: parsed.data.allowedRoles,
+      allowedFlowIds: parsed.data.allowedFlowIds,
       status: "open",
       createdBy: session.uid,
     })
@@ -98,6 +99,7 @@ export async function createCollectionForm(
       title,
       extraFieldCount: parsed.data.extraFields.length,
       allowedRoles: parsed.data.allowedRoles,
+      allowedFlowIds: parsed.data.allowedFlowIds,
       startsAt: startsAt?.toISOString() ?? null,
       deadline: deadline?.toISOString() ?? null,
     },
@@ -148,6 +150,7 @@ export async function updateCollectionForm(
       startsAt,
       deadline,
       allowedRoles: parsed.data.allowedRoles,
+      allowedFlowIds: parsed.data.allowedFlowIds,
       updatedAt: new Date(),
     })
     .where(eq(collectionForm.id, form.id));
@@ -162,6 +165,7 @@ export async function updateCollectionForm(
       title,
       extraFieldCount: parsed.data.extraFields.length,
       allowedRoles: parsed.data.allowedRoles,
+      allowedFlowIds: parsed.data.allowedFlowIds,
       startsAt: startsAt?.toISOString() ?? null,
       deadline: deadline?.toISOString() ?? null,
     },
@@ -184,8 +188,9 @@ export async function saveCollectionSubmission(
 
   const form = await getCollectionFormById(parsedFormId.data);
   if (!form) return failure("收集表不存在");
-  if (!canFillCollectionForm(session, form)) {
-    return failure("你的身份不在本表填写范围内");
+  const passedFlowIds = await getPassedFlowIds(session.uid);
+  if (!canFillCollectionForm(session, form, passedFlowIds)) {
+    return failure("你不在本表的填写范围内");
   }
   if (!isCollectionFormOpen(form)) {
     return failure("该收集表已截止，无法继续填写");
@@ -297,6 +302,7 @@ export async function duplicateCollectionForm(
       extraFields: form.extraFields,
       shareToken: crypto.randomBytes(18).toString("base64url"),
       allowedRoles: form.allowedRoles,
+      allowedFlowIds: form.allowedFlowIds,
       status: "open",
       createdBy: session.uid,
     })

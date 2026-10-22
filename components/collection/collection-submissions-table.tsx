@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { deleteCollectionSubmission } from "@/action/collection";
-import type { CollectionExtraField } from "@/const/collection";
+import {
+  formatCollectionAnswer,
+  type CollectionExtraAnswers,
+  type CollectionExtraField,
+} from "@/const/collection";
 import { departmentLabel } from "@/const/department";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +43,7 @@ export type CollectionSubmissionRow = {
   enrollmentYear: number;
   graduationYear: number;
   department: string | null;
-  extraAnswers: Record<string, string>;
+  extraAnswers: CollectionExtraAnswers;
   updatedAtLabel: string;
 };
 
@@ -72,7 +76,7 @@ export function CollectionSubmissionsTable({
           String(row.enrollmentYear),
           String(row.graduationYear),
           departmentLabel(row.department),
-          ...Object.values(row.extraAnswers),
+          ...Object.values(row.extraAnswers).map(formatCollectionAnswer),
         ].some((value) => value.toLowerCase().includes(keyword)),
       )
     : rows;
@@ -157,7 +161,7 @@ export function CollectionSubmissionsTable({
                   <TableCell>{row.graduationYear}</TableCell>
                   {extraFields.map((field) => (
                     <TableCell key={field.id}>
-                      {row.extraAnswers[field.id] ?? ""}
+                      {formatCollectionAnswer(row.extraAnswers[field.id])}
                     </TableCell>
                   ))}
                   <TableCell>{departmentLabel(row.department)}</TableCell>

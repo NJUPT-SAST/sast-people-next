@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS "collection_form" (
   "starts_at" timestamptz,
   "deadline" timestamptz,
   "allowed_roles" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "allowed_flow_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
   "status" varchar(16) DEFAULT 'open' NOT NULL,
   "created_by" integer NOT NULL,
   "created_at" timestamptz DEFAULT now() NOT NULL,
@@ -50,6 +51,30 @@ CREATE TABLE IF NOT EXISTS "collection_submission" (
 CREATE INDEX IF NOT EXISTS "collection_submission_form_department_idx"
   ON "collection_submission" ("fk_form_id", "department");
 
+CREATE TABLE IF NOT EXISTS "collection_invitation" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "fk_form_id" integer NOT NULL,
+  "fk_user_id" integer NOT NULL,
+  "name" varchar(60),
+  "student_id" varchar(32),
+  "email" varchar(254),
+  "invited_by" integer NOT NULL,
+  "status" varchar(16) DEFAULT 'pending' NOT NULL,
+  "error" text,
+  "sent_at" timestamptz,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "collection_invitation_form_user_uidx"
+    UNIQUE("fk_form_id", "fk_user_id"),
+  CONSTRAINT "collection_invitation_form_fk"
+    FOREIGN KEY ("fk_form_id")
+    REFERENCES "public"."collection_form"("id")
+    ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "collection_invitation_form_status_idx"
+  ON "collection_invitation" ("fk_form_id", "status");
+
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'sastpeople') THEN
@@ -61,5 +86,9 @@ BEGIN
       ON TABLE "collection_submission" TO sastpeople;
     GRANT USAGE, SELECT
       ON SEQUENCE "collection_submission_id_seq" TO sastpeople;
+    GRANT SELECT, INSERT, UPDATE, DELETE
+      ON TABLE "collection_invitation" TO sastpeople;
+    GRANT USAGE, SELECT
+      ON SEQUENCE "collection_invitation_id_seq" TO sastpeople;
   END IF;
 END $$;

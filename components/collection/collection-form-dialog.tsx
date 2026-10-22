@@ -13,10 +13,14 @@ import {
   COLLECTION_DEFAULT_INSTRUCTIONS,
   COLLECTION_DEFAULT_TITLE,
   COLLECTION_EXTRA_FIELD_TYPES,
+  COLLECTION_EXTRA_FIELD_TYPE_LABELS,
   COLLECTION_FILL_ROLE_OPTIONS,
   COLLECTION_LINK_PREFILL_SOURCES,
+  COLLECTION_OPTION_FIELD_TYPES,
+  COLLECTION_PREFILLABLE_FIELD_TYPES,
   type CollectionExtraField,
   type CollectionExtraFieldType,
+  type CollectionFlowOption,
   type CollectionLinkPrefillSource,
 } from "@/const/collection";
 import { Button } from "@/components/ui/button";
@@ -42,13 +46,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { parseBeijingDateTime, toBeijingWallClockDate } from "@/lib/timezone";
 
-const EXTRA_FIELD_TYPE_LABELS: Record<CollectionExtraFieldType, string> = {
-  text: "文本",
-  textarea: "多行文本",
-  number: "数字",
-  select: "下拉单选",
-};
-
 const PREFILL_LABELS: Record<CollectionLinkPrefillSource, string> = {
   name: "姓名",
   studentId: "学号",
@@ -64,6 +61,7 @@ export type CollectionFormDialogData = {
   instructions: string;
   extraFields: CollectionExtraField[];
   allowedRoles: number[];
+  allowedFlowIds: number[];
   startsAt: Date | null;
   deadline: Date | null;
 };
@@ -74,6 +72,7 @@ type ExtraFieldDraft = {
   type: CollectionExtraFieldType;
   required: boolean;
   optionsText: string;
+  description: string;
   prefillFrom: CollectionLinkPrefillSource | "none";
 };
 
@@ -83,6 +82,7 @@ const createDraftField = (): ExtraFieldDraft => ({
   type: "text",
   required: false,
   optionsText: "",
+  description: "",
   prefillFrom: "none",
 });
 
@@ -92,15 +92,18 @@ const toDraftField = (field: CollectionExtraField): ExtraFieldDraft => ({
   type: field.type,
   required: field.required,
   optionsText: field.options.join("\n"),
+  description: field.description ?? "",
   prefillFrom: field.prefillFrom ?? "none",
 });
 
 export function CollectionFormDialog({
   mode = "create",
   form,
+  flows = [],
 }: {
   mode?: "create" | "edit";
   form?: CollectionFormDialogData;
+  flows?: CollectionFlowOption[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -110,6 +113,19 @@ export function CollectionFormDialog({
   const [deadlineValue, setDeadlineValue] = useState("");
   const [unrestricted, setUnrestricted] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([1, 2, 3, 4]);
+  const [selectedFlowIds, setSelectedFlowIds] = useState<number[]>([]);
+  const [flowQuery, setFlowQuery] = useState("");
+
+  const toggleFlow = (flowId: number, checked: boolean) => {
+    setSelectedFlowIds((current) =>
+      checked
+        ? Array.from(new Set([...current, flowId]))
+        : current.filter((value) => value !== flowId),
+    );
+  };
+  const visibleFlows = flows.filter((flow) =>
+    flow.label.toLowerCase().includes(flowQuery.trim().toLowerCase()),
+  );
 
   const toggleRole = (role: number, checked: boolean) => {
     setSelectedRoles((current) =>
@@ -149,6 +165,8 @@ export function CollectionFormDialog({
     );
     setUnrestricted((form?.allowedRoles.length ?? 0) === 0 && Boolean(form));
     setSelectedRoles(form ? [...form.allowedRoles] : [1, 2, 3, 4]);
+    setSelectedFlowIds(form ? [...form.allowedFlowIds] : []);
+    setFlowQuery("");
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -189,17 +207,22 @@ export function CollectionFormDialog({
         type: field.type,
         required: field.required,
         options:
-          field.type === "select"
+          COLLECTION_OPTION_FIELD_TYPES[field.type]
             ? field.optionsText
                 .split(/[\n,，]/)
                 .map((option) => option.trim())
                 .filter(Boolean)
             : [],
-        ...(field.prefillFrom !== "none"
+        ...(field.description.trim()
+          ? { description: field.description.trim() }
+          : {}),
+        ...(COLLECTION_PREFILLABLE_FIELD_TYPES[field.type] &&
+        field.prefillFrom !== "none"
           ? { prefillFrom: field.prefillFrom }
           : {}),
       })),
       allowedRoles: unrestricted ? [] : selectedRoles,
+      allowedFlowIds: selectedFlowIds,
       startsAt: startsAt ? startsAt.getTime() : null,
       deadline: deadline ? deadline.getTime() : null,
     };
@@ -238,13 +261,13 @@ export function CollectionFormDialog({
           <Button>新建收集表</Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "编辑收集表" : "新建收集表"}</DialogTitle>
           <DialogDescription>
             {mode === "edit"
               ? "可修改标题、说明、收集项、身份与开始/截止时间；已提交的答案按收集项保留。"
-              : "选择填写身份与开放时间；发起后可随时编辑。"}
+              : "选择填写身份与开放时间。支持文本、数字、单选、多选、日期、邮箱、链接、手机号与评分等字段。"}
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={submit}>
@@ -318,6 +341,59 @@ export function CollectionFormDialog({
             </div>
           </div>
 
+          <div className="space-y-3 rounded-lg border border-border/70 p-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">限定流程（可选）</p>
+              <p className="text-xs text-muted-foreground">
+                仅所选流程最终通过的人可以填写；不选则不限制。身份与流程条件需同时满足。
+              </p>
+            </div>
+            {flows.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground">
+                暂无可选流程。
+              </p>
+            ) : (
+              <>
+                <Input
+                  value={flowQuery}
+                  onChange={(event) => setFlowQuery(event.target.value)}
+                  placeholder="搜索流程名称…"
+                  aria-label="搜索限定流程"
+                />
+                <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border/60 p-2">
+                  {visibleFlows.map((flow) => {
+                    const optionId = `collection-flow-${flow.id}`;
+                    return (
+                      <div key={flow.id} className="flex items-start gap-2 rounded px-1 py-1 hover:bg-accent">
+                        <Checkbox
+                          id={optionId}
+                          checked={selectedFlowIds.includes(flow.id)}
+                          onCheckedChange={(checked) =>
+                            toggleFlow(flow.id, checked === true)
+                          }
+                        />
+                        <Label
+                          htmlFor={optionId}
+                          className="cursor-pointer font-normal leading-5"
+                        >
+                          {flow.label}
+                        </Label>
+                      </div>
+                    );
+                  })}
+                  {visibleFlows.length === 0 && (
+                    <p className="px-1 py-3 text-center text-xs text-muted-foreground">
+                      没有匹配的流程。
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  已选 {selectedFlowIds.length} 个流程
+                </p>
+              </>
+            )}
+          </div>
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="collection-form-instructions">填表说明</Label>
             <Textarea
@@ -332,9 +408,15 @@ export function CollectionFormDialog({
           <div className="space-y-3 rounded-lg border border-border/70 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-medium text-foreground">自定义收集项</p>
+                <p className="text-sm font-medium text-foreground">
+                  自定义收集项
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    已添加 {extraFields.length} 项
+                  </span>
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  在固定成员字段之外追加，例如「是否愿意参与迎新」；可从 SAST Link 自动带入姓名、学号、学院、专业、邮箱、QQ。
+                  支持日期（具体生日）、日期时间、时间、单选、多选、邮箱、链接、手机号与评分；
+                  可从 SAST Link 自动带入姓名、学号、学院、专业、邮箱、QQ。
                 </p>
               </div>
               <Button
@@ -346,6 +428,15 @@ export function CollectionFormDialog({
                 <Plus /> 添加收集项
               </Button>
             </div>
+
+            {extraFields.length === 0 && (
+              <div className="rounded-md border border-dashed border-border/70 px-4 py-8 text-center">
+                <p className="text-sm font-medium text-foreground">还没有自定义收集项</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  固定成员字段已经包含社团名称、类别、姓名、出生年月、政治面貌、学院、班级、学号与入学/毕业年份。
+                </p>
+              </div>
+            )}
 
             {extraFields.map((field, index) => (
               <div key={field.id} className="space-y-3 rounded-md border border-border/60 p-3">
@@ -402,15 +493,36 @@ export function CollectionFormDialog({
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor={`extra-description-${field.id}`}>
+                      填写提示（可选）
+                    </Label>
+                    <Input
+                      id={`extra-description-${field.id}`}
+                      value={field.description}
+                      maxLength={200}
+                      placeholder="例如：请填写完整学院名称"
+                      onChange={(event) =>
+                        updateField(field.id, { description: event.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>类型</Label>
                     <Select
                       value={field.type}
-                      onValueChange={(value) =>
+                      onValueChange={(value) => {
+                        const type = value as CollectionExtraFieldType;
                         updateField(field.id, {
-                          type: value as CollectionExtraFieldType,
-                        })
-                      }
+                          type,
+                          ...(COLLECTION_PREFILLABLE_FIELD_TYPES[type]
+                            ? {}
+                            : { prefillFrom: "none" as const }),
+                        });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -418,39 +530,41 @@ export function CollectionFormDialog({
                       <SelectContent>
                         {COLLECTION_EXTRA_FIELD_TYPES.map((type) => (
                           <SelectItem key={type} value={type}>
-                            {EXTRA_FIELD_TYPE_LABELS[type]}
+                            {COLLECTION_EXTRA_FIELD_TYPE_LABELS[type]}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>自动读取 SAST Link</Label>
-                    <Select
-                      value={field.prefillFrom}
-                      onValueChange={(value) =>
-                        updateField(field.id, {
-                          prefillFrom: value as CollectionLinkPrefillSource | "none",
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">不自动读取</SelectItem>
-                        {COLLECTION_LINK_PREFILL_SOURCES.map((source) => (
-                          <SelectItem key={source} value={source}>
-                            {PREFILL_LABELS[source]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {COLLECTION_PREFILLABLE_FIELD_TYPES[field.type] && (
+                    <div className="space-y-2">
+                      <Label>自动读取 SAST Link</Label>
+                      <Select
+                        value={field.prefillFrom}
+                        onValueChange={(value) =>
+                          updateField(field.id, {
+                            prefillFrom: value as CollectionLinkPrefillSource | "none",
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">不自动读取</SelectItem>
+                          {COLLECTION_LINK_PREFILL_SOURCES.map((source) => (
+                            <SelectItem key={source} value={source}>
+                              {PREFILL_LABELS[source]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
 
-                {field.type === "select" && (
+                {COLLECTION_OPTION_FIELD_TYPES[field.type] && (
                   <div className="space-y-2">
                     <Label htmlFor={`extra-options-${field.id}`}>
                       选项（换行或逗号分隔）
@@ -480,7 +594,7 @@ export function CollectionFormDialog({
             ))}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 border-t border-border/70 bg-background pt-3">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               取消
             </Button>

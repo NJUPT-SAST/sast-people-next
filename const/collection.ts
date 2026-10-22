@@ -71,16 +71,111 @@ export const collectionFillRoleLabel = (allowedRoles: number[]): string =>
         )
         .join("、");
 
-/** 自定义收集项的类型：文本 / 多行文本 / 数字 / 下拉单选 */
+/** 自定义收集项的类型 */
 export const COLLECTION_EXTRA_FIELD_TYPES = [
   "text",
   "textarea",
   "number",
   "select",
+  "radio",
+  "checkbox",
+  "date",
+  "datetime",
+  "time",
+  "email",
+  "url",
+  "phone",
+  "rating",
 ] as const;
 
 export type CollectionExtraFieldType =
   (typeof COLLECTION_EXTRA_FIELD_TYPES)[number];
+
+export const COLLECTION_EXTRA_FIELD_TYPE_LABELS: Record<
+  CollectionExtraFieldType,
+  string
+> = {
+  text: "单行文本",
+  textarea: "多行文本",
+  number: "数字",
+  select: "下拉单选",
+  radio: "单选按钮",
+  checkbox: "多选",
+  date: "日期",
+  datetime: "日期时间",
+  time: "时间",
+  email: "邮箱",
+  url: "链接",
+  phone: "手机号",
+  rating: "评分（1-5 星）",
+};
+
+/** 需要维护选项的字段类型 */
+export const COLLECTION_OPTION_FIELD_TYPES: Record<
+  CollectionExtraFieldType,
+  boolean
+> = {
+  text: false,
+  textarea: false,
+  number: false,
+  select: true,
+  radio: true,
+  checkbox: true,
+  date: false,
+  datetime: false,
+  time: false,
+  email: false,
+  url: false,
+  phone: false,
+  rating: false,
+};
+
+/** 可以从 SAST Link 文本资料自动带入的字段类型 */
+export const COLLECTION_PREFILLABLE_FIELD_TYPES: Record<
+  CollectionExtraFieldType,
+  boolean
+> = {
+  text: true,
+  textarea: true,
+  number: false,
+  select: true,
+  radio: true,
+  checkbox: false,
+  date: false,
+  datetime: false,
+  time: false,
+  email: true,
+  url: false,
+  phone: false,
+  rating: false,
+};
+
+export const COLLECTION_RATING_MAX = 5;
+
+export type CollectionAnswer = string | string[];
+
+export type CollectionExtraAnswers = Record<string, CollectionAnswer>;
+
+export type CollectionFlowOption = {
+  id: number;
+  label: string;
+};
+
+export const collectionFlowScopeLabel = (
+  allowedFlowIds: number[],
+  flows: CollectionFlowOption[],
+): string => {
+  if (allowedFlowIds.length === 0) return "不限流程";
+  return allowedFlowIds
+    .map(
+      (flowId) =>
+        flows.find((flow) => flow.id === flowId)?.label ?? `流程 #${flowId}`,
+    )
+    .join("、");
+};
+
+export const formatCollectionAnswer = (value: CollectionAnswer | undefined) =>
+  Array.isArray(value) ? value.join("、") : (value ?? "");
 
 /**
  * 从 SAST Link 自动带入的字段来源。只允许个人资料里稳定存在的字段，
@@ -106,5 +201,7 @@ export type CollectionExtraField = {
   type: CollectionExtraFieldType;
   required: boolean;
   options: string[];
+  /** 填写提示，显示在字段名下方 */
+  description?: string;
   prefillFrom?: CollectionLinkPrefillSource;
 };

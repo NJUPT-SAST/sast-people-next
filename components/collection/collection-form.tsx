@@ -2,16 +2,22 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { saveCollectionSubmission } from "@/action/collection";
 import {
   COLLECTION_CATEGORIES,
   COLLECTION_CLUB_NAME,
   COLLECTION_POLITICAL_STATUSES,
+  COLLECTION_RATING_MAX,
+  formatCollectionAnswer,
+  type CollectionAnswer,
+  type CollectionExtraAnswers,
   type CollectionExtraField,
   type CollectionLinkProfile,
 } from "@/const/collection";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -43,7 +49,7 @@ interface CollectionFormProps {
   hasSaved: boolean;
   updatedAtLabel: string | null;
   extraFields: CollectionExtraField[];
-  initialExtraAnswers: Record<string, string>;
+  initialExtraAnswers: CollectionExtraAnswers;
   linkProfile: CollectionLinkProfile;
   /** 身份不符合填写限制时的说明；截止时留空，走默认文案 */
   readonlyNotice?: string;
@@ -61,11 +67,29 @@ const CORE_FIELD_LABELS: Array<[keyof CollectionFormValues, string]> = [
   ["graduationYear", "预计毕业年份"],
 ];
 
-const EXTRA_FIELD_MAX_LENGTH: Record<CollectionExtraField["type"], number> = {
-  text: 500,
-  textarea: 5000,
-  number: 64,
-  select: 60,
+const normalizeInitialExtraAnswers = (
+  fields: CollectionExtraField[],
+  initial: CollectionExtraAnswers,
+  linkProfile: CollectionLinkProfile,
+): CollectionExtraAnswers => {
+  const values: CollectionExtraAnswers = {};
+
+  for (const field of fields) {
+    const saved = initial[field.id];
+    if (field.type === "checkbox") {
+      values[field.id] = Array.isArray(saved)
+        ? saved
+        : saved
+          ? [saved]
+          : [];
+    } else if (saved !== undefined) {
+      values[field.id] = saved;
+    } else if (field.prefillFrom) {
+      values[field.id] = linkProfile[field.prefillFrom];
+    }
+  }
+
+  return values;
 };
 
 export function CollectionForm({
@@ -87,6 +111,12 @@ export function CollectionForm({
   const [birthMonthPart, setBirthMonthPart] = useState(
     () => initialValues.birthMonth.split("-")[1] ?? "",
   );
+  const [extraValues, setExtraValues] = useState<CollectionExtraAnswers>(() =>
+    normalizeInitialExtraAnswers(extraFields, initialExtraAnswers, linkProfile),
+  );
+  const setExtraValue = (id: string, value: CollectionAnswer) => {
+    setExtraValues((current) => ({ ...current, [id]: value }));
+  };
   const currentYear = new Date().getFullYear();
   const birthYears = Array.from(
     { length: currentYear - 1950 + 1 },
@@ -101,12 +131,6 @@ export function CollectionForm({
     if (!editable) return;
 
     const form = new FormData(event.currentTarget);
-    const extraAnswers = Object.fromEntries(
-      extraFields.map((field) => [
-        field.id,
-        String(form.get(`extra_${field.id}`) ?? ""),
-      ]),
-    );
     setSubmitting(true);
     try {
       const result = await saveCollectionSubmission(formId, {
@@ -120,7 +144,7 @@ export function CollectionForm({
         studentId: String(form.get("studentId") ?? ""),
         enrollmentYear: Number(form.get("enrollmentYear")),
         graduationYear: Number(form.get("graduationYear")),
-        extraAnswers,
+        extraAnswers: extraValues,
       });
       if (!result.success) throw new Error(result.message);
       toast.success(hasSaved ? "已保存修改" : "已提交");
@@ -134,14 +158,22 @@ export function CollectionForm({
 
   if (!editable) {
     const readonlyRows = [
-      { label: "社团名称", value: COLLECTION_CLUB_NAME },
+      { label: "社团名称", value: COLLECTION_CLUB_NAME, description: undefined },
       ...CORE_FIELD_LABELS.map(([key, label]) => ({
         label,
         value: String(initialValues[key] ?? ""),
+        description: undefined,
       })),
       ...extraFields.map((field) => ({
         label: field.label,
-        value: initialExtraAnswers[field.id] ?? "",
+        description: field.description,
+        value: (() => {
+          const answer = initialExtraAnswers[field.id];
+          if (field.type === "rating" && answer) {
+            return `${formatCollectionAnswer(answer)} 星`;
+          }
+          return formatCollectionAnswer(answer);
+        })(),
       })),
     ];
 
@@ -155,11 +187,14 @@ export function CollectionForm({
         </p>
         {hasSaved && (
           <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-            {readonlyRows.map(({ label, value }) => (
-              <div key={label} className="min-w-0">
-                <dt className="text-xs text-muted-foreground">{label}</dt>
+            {readonlyRows.map((row, index) => (
+              <div key={`${row.label}-${index}`} className="min-w-0">
+                <dt className="text-xs text-muted-foreground">{row.label}</dt>
+                {row.description && (
+                  <p className="mt-0.5 text-xs text-muted-foreground/80">{row.description}</p>
+                )}
                 <dd className="mt-1 break-words text-sm font-medium text-foreground">
-                  {value}
+                  {row.value}
                 </dd>
               </div>
             ))}
@@ -355,16 +390,16 @@ export function CollectionForm({
       </div>
 
       {extraFields.length > 0 && (
-        <div className="space-y-4 border-t border-border/70 pt-5">
-          <p className="text-sm font-medium text-foreground">补充信息</p>
+        <div className="space-y-4 rounded-lg border border-border/70 bg-muted/20 p-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">补充信息</p>
+            <p className="text-xs text-muted-foreground">
+              带 <span className="text-destructive">*</span> 的为必填项。
+            </p>
+          </div>
           <div className="grid gap-5 sm:grid-cols-2">
             {extraFields.map((field) => {
-              const defaultValue =
-                initialExtraAnswers[field.id] ||
-                (field.prefillFrom ? linkProfile[field.prefillFrom] : "");
               const inputId = `collection-extra-${field.id}`;
-              const maxLength = EXTRA_FIELD_MAX_LENGTH[field.type];
-
               return (
                 <div
                   key={field.id}
@@ -374,46 +409,25 @@ export function CollectionForm({
                       : "flex flex-col gap-2"
                   }
                 >
-                  <Label htmlFor={inputId}>{field.label}</Label>
-                  {field.type === "textarea" ? (
-                    <Textarea
-                      id={inputId}
-                      name={`extra_${field.id}`}
-                      rows={3}
-                      required={field.required}
-                      maxLength={maxLength}
-                      defaultValue={defaultValue}
-                    />
-                  ) : field.type === "select" ? (
-                    <Select
-                      name={`extra_${field.id}`}
-                      defaultValue={defaultValue || undefined}
-                      required={field.required}
-                    >
-                      <SelectTrigger id={inputId}>
-                        <SelectValue placeholder={`请选择${field.label}`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {field.options.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id={inputId}
-                      name={`extra_${field.id}`}
-                      type={field.type === "number" ? "number" : "text"}
-                      step={field.type === "number" ? "any" : undefined}
-                      required={field.required}
-                      maxLength={field.type === "number" ? undefined : maxLength}
-                      defaultValue={defaultValue}
-                      placeholder={`请输入${field.label}`}
-                    />
-                  )}
-                  {field.prefillFrom && !initialExtraAnswers[field.id] && (
+                  <div className="space-y-1">
+                    <Label htmlFor={inputId}>
+                      {field.label}
+                      {field.required && (
+                        <span className="text-destructive"> *</span>
+                      )}
+                    </Label>
+                    {field.description && (
+                      <p className="text-xs leading-5 text-muted-foreground">
+                        {field.description}
+                      </p>
+                    )}
+                  </div>
+                  <ExtraFieldInput
+                    field={field}
+                    value={extraValues[field.id]}
+                    onChange={(value) => setExtraValue(field.id, value)}
+                  />
+                  {field.prefillFrom && initialExtraAnswers[field.id] === undefined && (
                     <p className="text-xs text-muted-foreground">
                       已自动带入 SAST Link 资料，可修改。
                     </p>
@@ -432,4 +446,216 @@ export function CollectionForm({
       </div>
     </form>
   );
+}
+
+function ExtraFieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: CollectionExtraField;
+  value: CollectionAnswer | undefined;
+  onChange: (value: CollectionAnswer) => void;
+}) {
+  const inputId = `collection-extra-${field.id}`;
+  const textValue = Array.isArray(value) ? "" : (value ?? "");
+  const arrayValue = Array.isArray(value) ? value : value ? [value] : [];
+
+  switch (field.type) {
+    case "textarea":
+      return (
+        <Textarea
+          id={inputId}
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          rows={3}
+          required={field.required}
+          maxLength={5000}
+          placeholder={`请输入${field.label}`}
+        />
+      );
+    case "number":
+      return (
+        <Input
+          id={inputId}
+          type="number"
+          step="any"
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+          placeholder={`请输入${field.label}`}
+        />
+      );
+    case "select":
+      return (
+        <Select
+          value={textValue || undefined}
+          onValueChange={onChange}
+          required={field.required}
+        >
+          <SelectTrigger id={inputId}>
+            <SelectValue placeholder={`请选择${field.label}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    case "radio":
+      return (
+        <div className="flex flex-wrap gap-x-5 gap-y-2" role="radiogroup" aria-label={field.label}>
+          {field.options.map((option) => (
+            <label key={option} className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="radio"
+                name={inputId}
+                value={option}
+                checked={textValue === option}
+                onChange={() => onChange(option)}
+                required={field.required}
+                className="size-4 accent-primary"
+              />
+              {option}
+            </label>
+          ))}
+        </div>
+      );
+    case "checkbox":
+      return (
+        <div className="flex flex-wrap gap-x-5 gap-y-2" role="group" aria-label={field.label}>
+          {field.options.map((option, index) => {
+            const optionId = `${inputId}-${index}`;
+            return (
+              <div key={option} className="flex items-center gap-2">
+                <Checkbox
+                  id={optionId}
+                  checked={arrayValue.includes(option)}
+                  onCheckedChange={(checked) =>
+                    onChange(
+                      checked === true
+                        ? [...arrayValue, option]
+                        : arrayValue.filter((item) => item !== option),
+                    )
+                  }
+                />
+                <Label htmlFor={optionId} className="cursor-pointer font-normal">
+                  {option}
+                </Label>
+              </div>
+            );
+          })}
+        </div>
+      );
+    case "date":
+      return (
+        <Input
+          id={inputId}
+          type="date"
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+        />
+      );
+    case "datetime":
+      return (
+        <Input
+          id={inputId}
+          type="datetime-local"
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+        />
+      );
+    case "time":
+      return (
+        <Input
+          id={inputId}
+          type="time"
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+        />
+      );
+    case "email":
+      return (
+        <Input
+          id={inputId}
+          type="email"
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+          maxLength={320}
+          placeholder={`请输入${field.label}`}
+        />
+      );
+    case "url":
+      return (
+        <Input
+          id={inputId}
+          type="url"
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+          maxLength={500}
+          placeholder="https://"
+        />
+      );
+    case "phone":
+      return (
+        <Input
+          id={inputId}
+          type="tel"
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+          maxLength={20}
+          placeholder={`请输入${field.label}`}
+        />
+      );
+    case "rating": {
+      const rating = Number(textValue) || 0;
+      return (
+        <div className="flex items-center gap-1">
+          {Array.from({ length: COLLECTION_RATING_MAX }, (_, index) => index + 1).map(
+            (score) => (
+              <button
+                key={score}
+                type="button"
+                onClick={() => onChange(String(score))}
+                aria-label={`${score} 星`}
+                className="rounded-md p-1 transition-colors hover:bg-accent"
+              >
+                <Star
+                  className={
+                    score <= rating
+                      ? "size-5 fill-primary text-primary"
+                      : "size-5 text-muted-foreground"
+                  }
+                />
+              </button>
+            ),
+          )}
+          {rating > 0 && (
+            <span className="ml-2 text-sm text-muted-foreground">{rating} 星</span>
+          )}
+        </div>
+      );
+    }
+    case "text":
+    default:
+      return (
+        <Input
+          id={inputId}
+          value={textValue}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+          maxLength={500}
+          placeholder={`请输入${field.label}`}
+        />
+      );
+  }
 }

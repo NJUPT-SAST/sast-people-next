@@ -10,12 +10,16 @@ import {
   type CollectionFormValues,
 } from "@/components/collection/collection-form";
 import { CollectionFormDialog } from "@/components/collection/collection-form-dialog";
+import { CollectionInviteDialog } from "@/components/collection/collection-invite-dialog";
 import { CollectionManageActions } from "@/components/collection/collection-manage-actions";
 import { CollectionSubmissionsTable } from "@/components/collection/collection-submissions-table";
-import { collectionFillRoleLabel } from "@/const/collection";
+import { collectionFillRoleLabel, collectionFlowScopeLabel } from "@/const/collection";
 import {
   getCollectionFormById,
+  getCollectionInvitationStats,
   getCollectionSubmission,
+  getPassedFlowIds,
+  listCollectionFlowOptions,
   listCollectionSubmissions,
 } from "@/lib/collection";
 import {
@@ -44,13 +48,24 @@ export default async function CollectionDetailPage({
   if (!form) notFound();
 
   const ownSubmission = await getCollectionSubmission(formId, session.uid);
-  if (!canViewCollectionForm(session, form, Boolean(ownSubmission))) notFound();
+  const passedFlowIds = await getPassedFlowIds(session.uid);
+  if (!canViewCollectionForm(session, form, Boolean(ownSubmission), passedFlowIds)) {
+    notFound();
+  }
 
   const userInfo = await getUserInfo();
   const canManage = canManageCollectionForm(session);
-  const canFill = canFillCollectionForm(session, form);
+  const canFill = canFillCollectionForm(session, form, passedFlowIds);
   const phase = collectionFormPhase(form);
   const submissions = canManage ? await listCollectionSubmissions(formId) : [];
+  const flows = await listCollectionFlowOptions();
+  const invitationStats = canManage
+    ? await getCollectionInvitationStats(form.id)
+    : { total: 0, sent: 0, failed: 0, pending: 0 };
+  const inviteFlows =
+    form.allowedFlowIds.length > 0
+      ? flows.filter((flow) => form.allowedFlowIds.includes(flow.id))
+      : flows;
 
   const initialValues: CollectionFormValues = {
     category: ownSubmission?.category ?? "",
@@ -90,12 +105,14 @@ export default async function CollectionDetailPage({
         {canManage && (
           <CollectionFormDialog
             mode="edit"
+            flows={flows}
             form={{
               id: form.id,
               title: form.title,
               instructions: form.instructions,
               extraFields: form.extraFields,
               allowedRoles: form.allowedRoles,
+              allowedFlowIds: form.allowedFlowIds,
               startsAt: form.startsAt,
               deadline: form.deadline,
             }}
@@ -122,6 +139,14 @@ export default async function CollectionDetailPage({
                 {form.deadline
                   ? ` · 截止 ${formatBeijingDateTime(form.deadline)}`
                   : " · 不设截止"}
+                {" · "}
+                {collectionFillRoleLabel(form.allowedRoles)}
+                {form.allowedFlowIds.length > 0 && (
+                  <>
+                    {" · 仅限 "}
+                    {collectionFlowScopeLabel(form.allowedFlowIds, flows)} 通过者
+                  </>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -157,7 +182,11 @@ export default async function CollectionDetailPage({
                   phase === "upcoming"
                     ? `收集将于 ${form.startsAt ? formatBeijingDateTime(form.startsAt) : "稍后"} 开始。`
                     : phase === "open" && !canFill
-                      ? `此收集表仅面向：${collectionFillRoleLabel(form.allowedRoles)}。`
+                      ? `此收集表仅面向：${collectionFillRoleLabel(form.allowedRoles)}${
+                          form.allowedFlowIds.length > 0
+                            ? `，且需通过 ${collectionFlowScopeLabel(form.allowedFlowIds, flows)}`
+                            : ""
+                        }。`
                       : undefined
                 }
               />
@@ -185,11 +214,34 @@ export default async function CollectionDetailPage({
                   <dt className="text-muted-foreground">截止</dt>
                   <dd>{form.deadline ? formatBeijingDateTime(form.deadline) : "不设截止"}</dd>
                   <dt className="text-muted-foreground">填写身份</dt>
-                  <dd className="break-words">{collectionFillRoleLabel(form.allowedRoles)}</dd>
+                  <dd className="break-words">
+                    {collectionFillRoleLabel(form.allowedRoles)}
+                    {form.allowedFlowIds.length > 0 && (
+                      <>
+                        <br />
+                        仅限 {collectionFlowScopeLabel(form.allowedFlowIds, flows)} 通过者
+                      </>
+                    )}
+                  </dd>
                   <dt className="text-muted-foreground">已填写</dt>
                   <dd>{submissions.length} 人</dd>
+                  <dt className="text-muted-foreground">已邀请</dt>
+                  <dd>
+                    {invitationStats.total} 人
+                    {invitationStats.total > 0 && (
+                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                        已发送 {invitationStats.sent} · 失败 {invitationStats.failed} · 未发{" "}
+                        {invitationStats.pending}
+                      </span>
+                    )}
+                  </dd>
                 </dl>
 
+                <CollectionInviteDialog
+                  formId={form.id}
+                  flows={inviteFlows}
+                  disabled={phase === "closed"}
+                />
                 <CollectionManageActions
                   formId={form.id}
                   status={form.status}
