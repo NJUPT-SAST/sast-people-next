@@ -185,11 +185,15 @@ export async function searchCollectionInviteCandidates(input: {
   } else {
     let scanned = 0;
     let total = 0;
+    /* Link 的 keyword 不保证匹配手机号；手机号搜索时在本地过滤前不要先被 Link 丢弃 */
+    const linkKeyword = /^[0-9+\-() ]{7,20}$/.test(parsed.data.keyword.trim())
+      ? undefined
+      : parsed.data.keyword || undefined;
     for (let page = 1; page <= 10; page += 1) {
       const result = await listLinkUsers(token, {
         page,
         pageSize: 100,
-        keyword: parsed.data.keyword || undefined,
+        keyword: linkKeyword,
       });
       total = result.total;
       source.push(
