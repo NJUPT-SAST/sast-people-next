@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **成员信息收集表**（`/dashboard/collection`）：部长及以上可新建、编辑、复制、删除、结束/恢复收集，并查看全部填写情况（管理员同权，不按部门或发起人拆分）。社团名称固定为南京邮电大学大学生科学技术协会；姓名/学号/学院自动从 SAST Link 带入（可修改），出生年月使用年/月选择器，政治面貌使用下拉选择；发起人可追加自定义收集项（单行/多行文本、数字、下拉单选、单选按钮、多选、日期、日期时间、时间、邮箱、链接、手机号、1-5 星评分，可设选项、必填、填写提示与上下排序，可指定从 Link 自动带入姓名、学号、学院、专业、邮箱、QQ）。填写范围可同时按身份（直接勾选新同学/部员/讲师/部长/管理员）与流程（仅所选流程最终通过者）限定；可设置开始与截止时间，到点自动开放/停止接收。每张表生成随机码分享链接 `/collect/<token>`（不使用表单数字 ID），未登录时登录后自动回到该表；邀请功能支持按流程、届别、姓名/学号/手机号批量筛选成员，勾选后可选发送邀请邮件。邀请邮件模板纳入邮件中心「模板管理 → 收集表通知」（`collection.invitation`，全局模板，管理员可编辑，不包含邀请人姓名）。填写情况支持搜索、单条删除与 CSV 导出。
+  - 数据：新表 `collection_form`（`extra_fields`、`allowed_roles`、`allowed_flow_ids`、`starts_at`、`deadline`、唯一 `share_token`）/ `collection_submission`（`extra_answers`）/ `collection_invitation`（邀请与邮件状态），迁移 `0081_collection_forms.sql`；每人每表一条提交，按 `(fk_form_id, fk_user_id)` upsert，提交时保存部门快照（仅作导出信息，不参与权限）。
+  - 权限：`lib/collection-access.ts`（身份与流程条件同时满足；空列表 = 不限制对应条件；部长及以上可管理并查看全部结果；填写过的人即使后续收紧条件仍能查看自己的记录）。
+  - 时间：`lib/collection-status.ts` 统一计算 `未开始 / 收集中 / 已结束`，开始前与结束后都只读；延长截止时间即可恢复填写。
+  - 邀请：`action/collection-invite.ts` 支持按流程、届别、姓名/学号/手机号筛选，批量勾选后可选发送邮件；邀请邮件为纯函数模板 `lib/collection/invitation-email.ts`，逐人记录 `sent` / `failed`/`pending` 状态并写审计。邮件文案在 `/dashboard/emails?tab=templates` 的「收集表通知」中维护（`collection.invitation`，全局模板，仅管理员可编辑）。
+  - 登录回跳：`lib/login-next.ts` 只接受站内路径；mock 登录直接跳转，真实 Link OAuth 通过 `login_next` cookie 回跳，挡住开放重定向。
+  - 入口：导航「信息收集」（我的分组，所有登录用户可见，表单列表按身份与流程过滤）；详情页右侧管理面板提供复制分享链接、编辑、复制表单、结束/恢复、导出数据、批量邀请与删除；填写情况单独成表，支持搜索与单条删除。
 - **阅卷公平性分析**（`/dashboard/review/analytics`，部长及以上，部门 scope 内）：把「讲师宽严」从「考生水平 + 题目难度」里分离出来，供人工参考（**不写回 `user_point`、不影响官方成绩与结果发布**）。模型规范见 [docs/GRADING_FAIRNESS_MODEL.md](docs/GRADING_FAIRNESS_MODEL.md)。
   - 模型：单题得分率上的三因子加法固定效应 `r = μ + α(考生) + β(题目) + γ(讲师) + ε`，`lib/grading-fairness/{matrix,model}.ts` 为纯函数（零依赖、可单测）；按 (考生, 题目, 讲师) 关联图的**连通分量**分别拟合，**可辨识性按讲师级判定**：`γ_j − γ_k` 可估 ⟺ 差向量与设计矩阵零空间正交（`nullSpaceBasis` + 容差 `1e-7`），不再要求分量满秩。该关系可传递，于是划分出**可比簇**（`clusterIndex` / `clusterCount` / `comparableJudgerCount`）——只有同簇讲师才互相比较、互相居中，**孤立讲师（考生没被别的讲师评过）只让自己不可判定，不再牵连同分量的其他人**。秩亏时只给一个有界解画残差图（岭解不进宽严/标准误/收缩/校正），不可判定的讲师一律 `rawBias=0`、`bias=0`、`standardError=null`、`verdict="unknown"`、不校正。
   - 估计与收缩：正规方程 + 部分主元 LU（秩容差 `1e-9·max diag`）；**居中与标准误都改成簇内口径**——`δ_j = γ̂_j − Σ_{k∈簇}(n_k/N_簇)·γ̂_k`、`s_j = σ̂·√(c_jᵀA⁻¹c_j)`，对比向量先投影到可估子空间（抹掉零空间分量）再回代，一次分解多次回代。DerSimonian–Laird 估计讲师间真实差异 τ，**在全部可比讲师上合并估计**（一个簇常只有 2~3 名讲师，逐簇矩估计噪声过大，这是有意的简化）；可信度 `w = τ²/(τ²+s_j²)`、`bias(j) = w·δ_j`（小样本讲师自动回归 0）。τ²=0 是一个有效结论（显示「未检测到系统性差异」，λ 失效），不允许强行放大；**没有任何可比讲师时 `betweenJudgerSd = 0` 是假零**（不是「大家一样严」，而是根本没有估计），界面按「不可判定」呈现。

@@ -4,6 +4,10 @@ import {
   resetInterviewScheduleEmailTemplate,
   updateInterviewScheduleEmailTemplate,
 } from "@/action/email/interview-template";
+import {
+  resetCollectionInvitationTemplate,
+  updateCollectionInvitationTemplate,
+} from "@/action/email/collection-template";
 import { sendEmailTest } from "@/action/email/test-send";
 import {
   resetEmailTemplateSetting,
@@ -43,6 +47,7 @@ import {
 } from "./emailDashboardConstants";
 import { PreviewDialog } from "./emailDashboardDialogs";
 import type {
+  CollectionInvitationTemplatePanel,
   EmailTemplateDefinition,
   InterviewSchedulePreviews,
   InterviewScheduleTemplate,
@@ -596,6 +601,172 @@ function InterviewTemplateDialog({
   );
 }
 
+function createCollectionTemplateValues(form: HTMLFormElement) {
+  const data = new FormData(form);
+  return {
+    subjectTemplate: String(data.get("subjectTemplate") ?? ""),
+    titleTemplate: String(data.get("titleTemplate") ?? ""),
+    bodyTemplate: String(data.get("bodyTemplate") ?? ""),
+    footerText: String(data.get("footerText") ?? ""),
+  };
+}
+
+function CollectionInvitationTemplateDialog({
+  setting,
+  previewHtml,
+}: {
+  setting: CollectionInvitationTemplatePanel["setting"];
+  previewHtml: string;
+}) {
+  const router = useRouter();
+  const editable = setting.editable;
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="min-w-0 flex-1">
+          <Settings2 data-icon="inline-start" />
+          {editable ? "编辑模板" : "查看模板"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        className={cn(
+          "max-h-[85dvh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto",
+          hiddenScrollbar,
+        )}
+      >
+        <DialogHeader>
+          <DialogTitle>收集表邀请通知</DialogTitle>
+          <DialogDescription>
+            全局模板，邀请成员填写收集表时使用；不包含邀请人姓名。
+            {editable
+              ? "保存后所有新发送的邀请都会使用这里的文案。"
+              : "当前为只读浏览，仅管理员可编辑全局模板。"}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const values = createCollectionTemplateValues(event.currentTarget);
+            toast.promise(
+              updateCollectionInvitationTemplate(values).then((result) => {
+                if (!result.ok) throw new Error(result.message);
+                router.refresh();
+              }),
+              {
+                loading: "正在保存模板",
+                success: "收集表邀请模板已保存",
+                error: (error) =>
+                  error instanceof Error ? error.message : "保存失败",
+              },
+            );
+          }}
+        >
+          <fieldset disabled={!editable} className="grid gap-4">
+            <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/40 p-3">
+              <p className="text-xs font-medium text-muted-foreground">邮件内容</p>
+              <TemplateField
+                id="collection-subject-template"
+                name="subjectTemplate"
+                label="邮件标题"
+                defaultValue={setting.subjectTemplate}
+              />
+              <TemplateField
+                id="collection-title-template"
+                name="titleTemplate"
+                label="邮件主标题"
+                defaultValue={setting.titleTemplate}
+              />
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <Label
+                  htmlFor="collection-body-template"
+                  className="text-xs text-muted-foreground"
+                >
+                  正文
+                </Label>
+                <Textarea
+                  id="collection-body-template"
+                  name="bodyTemplate"
+                  defaultValue={setting.bodyTemplate}
+                  className="min-h-[132px] resize-y bg-background"
+                />
+              </div>
+              <TemplateField
+                id="collection-footer-text"
+                name="footerText"
+                label="落款"
+                defaultValue={setting.footerText}
+              />
+            </div>
+          </fieldset>
+
+          <div className="rounded-lg border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
+            <p>
+              可用变量：
+              <span className="font-mono text-foreground">{"{formTitle}"}</span>
+              {" "}、<span className="font-mono text-foreground">{"{deadline}"}</span>
+              {" "}、<span className="font-mono text-foreground">{"{formUrl}"}</span>
+              {" "}、<span className="font-mono text-foreground">{"{message}"}</span>
+              。
+            </p>
+            <p className="mt-1">
+              邀请人姓名不会写入邮件；链接按钮会自动使用收集表的分享地址。
+            </p>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            {editable && setting.hasOverride ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="sm:w-auto"
+                onClick={() => {
+                  toast.promise(
+                    resetCollectionInvitationTemplate().then((result) => {
+                      if (!result.ok) throw new Error(result.message);
+                      router.refresh();
+                    }),
+                    {
+                      loading: "正在恢复",
+                      success: "已恢复内置默认文案",
+                      error: (error) =>
+                        error instanceof Error ? error.message : "恢复失败",
+                    },
+                  );
+                }}
+              >
+                <Undo2 data-icon="inline-start" />
+                恢复内置默认文案
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {editable
+                  ? "保存会写入全局默认模板。"
+                  : "只读浏览，保存与恢复按钮已隐藏。"}
+              </span>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <PreviewDialog
+                title="收集表邀请通知样张"
+                html={previewHtml}
+                triggerLabel="预览"
+                description="样张使用固定的示例表单、截止时间和邀请留言。"
+              />
+              {editable && (
+                <Button type="submit">
+                  <Save data-icon="inline-start" />
+                  保存模板
+                </Button>
+              )}
+            </div>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /**
  * 卡片与弹窗标题：招新类模板按「部门 × 阶段」读（多媒体部WOD / 办公室一面），
  * 面试通知类模板与流程无关，用模板自带的名称。
@@ -816,6 +987,7 @@ export function EmailTemplateManagementSection({
   resultEmailPreviews,
   interviewScheduleTemplates,
   interviewSchedulePreviews,
+  collectionInvitationTemplate,
   selectedFlowTitle,
   selectedFlowType,
   templateDefinitions,
@@ -826,6 +998,7 @@ export function EmailTemplateManagementSection({
   resultEmailPreviews: ResultEmailPreviews;
   interviewScheduleTemplates: InterviewTemplateSettingsResult;
   interviewSchedulePreviews: InterviewSchedulePreviews;
+  collectionInvitationTemplate?: CollectionInvitationTemplatePanel;
   selectedFlowTitle?: string;
   /** 当前选中流程的类型：测试发送据此挑默认模板（办公类 ≠ 技术招新） */
   selectedFlowType?: string | null;
@@ -851,6 +1024,9 @@ export function EmailTemplateManagementSection({
   );
   const interviewDefinitions = templateDefinitions.filter(
     (definition) => definition.category === "interview",
+  );
+  const collectionDefinition = templateDefinitions.find(
+    (definition) => definition.key === "collection.invitation",
   );
   const templateCardClassName =
     "group relative flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border bg-card p-3.5 transition-colors hover:border-foreground/20 hover:bg-muted/40";
@@ -1104,6 +1280,40 @@ export function EmailTemplateManagementSection({
             </p>
           )}
         </TemplateDeck>
+
+        {collectionInvitationTemplate && collectionDefinition && (
+          <TemplateDeck
+            title="收集表通知"
+            count={1}
+            className="border-t pt-6"
+          >
+            <article className={templateCardClassName}>
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 h-1 bg-chart-4/70"
+              />
+              <div className="flex items-start justify-between gap-2">
+                <h4 className="min-w-0 break-words text-sm font-semibold leading-5">
+                  {collectionDefinition.name}
+                </h4>
+                <span className="shrink-0 rounded-full border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground">
+                  {collectionInvitationTemplate.setting.editable
+                    ? "全局模板"
+                    : "仅管理员可编辑"}
+                </span>
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {collectionDefinition.description}
+              </p>
+              <div className="mt-auto flex items-center gap-2 pt-3">
+                <CollectionInvitationTemplateDialog
+                  setting={collectionInvitationTemplate.setting}
+                  previewHtml={collectionInvitationTemplate.preview}
+                />
+              </div>
+            </article>
+          </TemplateDeck>
+        )}
       </div>
     </section>
   );

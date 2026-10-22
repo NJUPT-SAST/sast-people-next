@@ -12,8 +12,8 @@ import {
 import { logServerError } from "@/lib/server-error-log";
 import { redirect } from "next/navigation";
 
-export async function redirectSASTLink(isBinding: boolean) {
-  return redirect(await createLinkOAuthAuthorizationUrl(isBinding));
+export async function redirectSASTLink(isBinding: boolean, next?: string) {
+  return redirect(await createLinkOAuthAuthorizationUrl(isBinding, next));
 }
 
 export const get_user_access_token = async (

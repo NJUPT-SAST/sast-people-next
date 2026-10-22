@@ -18,6 +18,7 @@ export const deliveryStatusText: Record<string, string> = {
 export const emailCategoryText: Record<string, string> = {
   result: "结果通知",
   interview: "面试通知",
+  collection: "收集表通知",
   test: "测试邮件",
 };
 

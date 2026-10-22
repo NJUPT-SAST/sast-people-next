@@ -1,0 +1,55 @@
+import { notFound, redirect } from "next/navigation";
+import {
+  getCollectionFormByShareToken,
+  getCollectionSubmission,
+  getPassedFlowIds,
+} from "@/lib/collection";
+import { canViewCollectionForm, canManageCollectionForm } from "@/lib/collection-access";
+import { collectionFormPhase } from "@/lib/collection-status";
+import { verifySession } from "@/lib/dal";
+import { getSession } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * 收集表分享链接：/collect/<token>。
+ * 未登录先去登录页并带 next，登录后回到这里；登录完成后再跳到工作台内的表单页。
+ */
+export default async function CollectSharePage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
+  const { token } = await params;
+  const form = await getCollectionFormByShareToken(token);
+  if (!form) notFound();
+
+  const session = await getSession();
+  if (!session?.uid) {
+    redirect(`/login?next=${encodeURIComponent(`/collect/${token}`)}`);
+  }
+
+  const verified = await verifySession();
+  const ownSubmission = await getCollectionSubmission(form.id, verified.uid);
+  const passedFlowIds = await getPassedFlowIds(verified.uid);
+  if (
+    !canViewCollectionForm(
+      verified,
+      form,
+      Boolean(ownSubmission),
+      passedFlowIds,
+    )
+  ) {
+    notFound();
+  }
+  /* 讲师及以下：不在收集时间内且没有填写记录时不可见 */
+  if (
+    !canManageCollectionForm(verified) &&
+    !ownSubmission &&
+    collectionFormPhase(form) !== "open"
+  ) {
+    notFound();
+  }
+
+  redirect(`/dashboard/collection/${form.id}`);
+}

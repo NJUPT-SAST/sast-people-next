@@ -3,8 +3,10 @@ import "server-only";
 import {
   IS_BINDING,
   LINK_OAUTH_STATE,
+  LOGIN_NEXT,
 } from "@/const/cookie";
 import { getPublicBaseUrl } from "@/lib/app-url";
+import { normalizeLoginNext } from "@/lib/login-next";
 import {
   createLinkOAuthUrl,
   getLinkAdminOAuthScopes,
@@ -20,6 +22,7 @@ export const getLinkOAuthRedirectUri = () =>
 
 export const createLinkOAuthAuthorizationUrl = async (
   isBinding = false,
+  next?: string,
 ) => {
   const codeVerifier = base64UrlEncode(crypto.randomBytes(32));
   const state = base64UrlEncode(crypto.randomBytes(24));
@@ -50,6 +53,20 @@ export const createLinkOAuthAuthorizationUrl = async (
       sameSite: "lax",
       maxAge: 600,
     });
+  }
+
+  const safeNext = normalizeLoginNext(next);
+  if (safeNext) {
+    cookieStore.set(LOGIN_NEXT, safeNext, {
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 600,
+    });
+  } else {
+    /* 不带 next 的新登录流程不应沿用上一次分享链接的回跳地址 */
+    cookieStore.delete(LOGIN_NEXT);
   }
 
   const url = createLinkOAuthUrl("/oauth/authorize");

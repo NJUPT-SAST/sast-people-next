@@ -37,6 +37,7 @@ import type {
   FlowTarget,
   InterviewSchedulePreviews,
   InterviewTemplateSettingsResult,
+  CollectionInvitationTemplatePanel,
   ResultEmailPreviews,
   ResultEmailDeliveryState,
   TemplateSettingsResult,
@@ -151,6 +152,7 @@ export function EmailDashboardClient({
   resultEmailPreviews = {} as ResultEmailPreviews,
   interviewScheduleTemplates = emptyInterviewTemplateSettings,
   interviewSchedulePreviews = {} as InterviewSchedulePreviews,
+  collectionInvitationTemplate,
   emailCenterConfig,
   templateDefinitions,
   activeTab,
@@ -168,6 +170,7 @@ export function EmailDashboardClient({
   resultEmailPreviews?: ResultEmailPreviews;
   interviewScheduleTemplates?: InterviewTemplateSettingsResult;
   interviewSchedulePreviews?: InterviewSchedulePreviews;
+  collectionInvitationTemplate?: CollectionInvitationTemplatePanel;
   emailCenterConfig: EmailCenterConfig;
   templateDefinitions: EmailTemplateDefinition[];
   activeTab?: string;
@@ -338,6 +341,7 @@ export function EmailDashboardClient({
         resultEmailPreviews={resultEmailPreviews}
         interviewScheduleTemplates={safeInterviewTemplateSettings}
         interviewSchedulePreviews={interviewSchedulePreviews}
+        collectionInvitationTemplate={collectionInvitationTemplate}
         selectedFlowTitle={
           selectedFlow?.title ?? safeFlowOptions[0]?.title
         }

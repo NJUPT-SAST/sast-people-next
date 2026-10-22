@@ -3,6 +3,7 @@ import { usePathname } from 'next/navigation';
 import {
   UserPen,
   Workflow,
+  ClipboardList,
   ClipboardPenLine,
   NotepadTextDashed,
   Users,
@@ -63,6 +64,12 @@ export const menuItems: MenuItem[] = [
     title: '我的流程',
     icon: Workflow,
     path: '/user-flow',
+    group: 'me',
+  },
+  {
+    title: '信息收集',
+    icon: ClipboardList,
+    path: '/collection',
     group: 'me',
   },
   {
