@@ -281,6 +281,7 @@ jobs:
           fi
 
       - name: Build and push image to TCR
+        timeout-minutes: 20
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: .
@@ -289,22 +290,15 @@ jobs:
           tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ steps.vars.outputs.sha_short }}
           build-args: |
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-          cache-from: |
-            type=gha,scope=app
-            type=gha
-          cache-to: type=gha,mode=max,scope=app
 
       - name: Build and push migration image to TCR
+        timeout-minutes: 10
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: .
           target: migrator
           push: true
           tags: ${{ env.TCR_HOST }}/${{ env.TCR_NAMESPACE }}/${{ env.SERVICE_NAME }}:${{ env.MIGRATOR_TAG }}
-          cache-from: |
-            type=gha,scope=migrator
-            type=gha
-          cache-to: type=gha,mode=max,scope=migrator
 
       - name: Log out from TCR
         if: always()
