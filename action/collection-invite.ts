@@ -17,6 +17,7 @@ import {
 } from "@/lib/collection-access";
 import { collectionFormPhase } from "@/lib/collection-status";
 import { buildCollectionInvitationEmail } from "@/lib/collection/invitation-email";
+import { getCollectionInvitationTemplateSetting } from "@/lib/email/collection-template-settings";
 import { verifySession } from "@/lib/dal";
 import { sendEmailViaProvider } from "@/lib/email-center/provider";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
@@ -261,8 +262,8 @@ export async function sendCollectionInvitations(input: {
 
   const form = await getCollectionFormById(parsed.data.formId);
   if (!form) return failure("收集表不存在");
-  if (collectionFormPhase(form) === "closed") {
-    return failure("收集已结束，延长截止时间后再邀请");
+  if (collectionFormPhase(form) !== "open") {
+    return failure("仅在收集期间可以邀请成员");
   }
 
   const userIds = Array.from(new Set(parsed.data.userIds));
@@ -320,6 +321,7 @@ export async function sendCollectionInvitations(input: {
     const deadlineLabel = form.deadline
       ? formatBeijingDateTime(form.deadline)
       : null;
+    const template = await getCollectionInvitationTemplateSetting();
 
     for (const profile of eligible) {
       if (!profile.login_email) {
@@ -341,11 +343,11 @@ export async function sendCollectionInvitations(input: {
       }
 
       const email = buildCollectionInvitationEmail({
-        inviterName: session.name,
         formTitle: form.title,
         deadlineLabel,
         url,
         message: parsed.data.message,
+        template,
       });
 
       try {

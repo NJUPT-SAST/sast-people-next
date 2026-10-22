@@ -8,6 +8,7 @@ import {
   getInterviewScheduleEmailPreviews,
   listInterviewScheduleEmailTemplates,
 } from "@/action/email/interview-template";
+import { getCollectionInvitationTemplatePanel } from "@/action/email/collection-template";
 import {
   getResultEmailPreviews,
   listEmailTemplateSettings,
@@ -166,12 +167,14 @@ async function loadEmailDashboardData(
       resultEmailPreviews,
       interviewScheduleTemplates,
       interviewSchedulePreviews,
+      collectionInvitationTemplate,
     ] = await Promise.all([
       listEmailFlowOptions(),
       listEmailTemplateSettings(department),
       getResultEmailPreviews(department),
       listInterviewScheduleEmailTemplates(department),
       getInterviewScheduleEmailPreviews(department),
+      getCollectionInvitationTemplatePanel(),
     ]);
     return {
       flowOptions,
@@ -179,6 +182,7 @@ async function loadEmailDashboardData(
       resultEmailPreviews,
       interviewScheduleTemplates,
       interviewSchedulePreviews,
+      collectionInvitationTemplate,
     };
   }
 

@@ -4,7 +4,8 @@ import {
   getCollectionSubmission,
   getPassedFlowIds,
 } from "@/lib/collection";
-import { canViewCollectionForm } from "@/lib/collection-access";
+import { canViewCollectionForm, canManageCollectionForm } from "@/lib/collection-access";
+import { collectionFormPhase } from "@/lib/collection-status";
 import { verifySession } from "@/lib/dal";
 import { getSession } from "@/lib/session";
 
@@ -38,6 +39,14 @@ export default async function CollectSharePage({
       Boolean(ownSubmission),
       passedFlowIds,
     )
+  ) {
+    notFound();
+  }
+  /* 讲师及以下：不在收集时间内且没有填写记录时不可见 */
+  if (
+    !canManageCollectionForm(verified) &&
+    !ownSubmission &&
+    collectionFormPhase(form) !== "open"
   ) {
     notFound();
   }

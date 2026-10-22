@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **成员信息收集表**（`/dashboard/collection`）：部长及以上可新建、编辑、复制、删除、结束/恢复收集，并查看全部填写情况（管理员同权，不按部门或发起人拆分）。社团名称固定为南京邮电大学大学生科学技术协会；姓名/学号/学院自动从 SAST Link 带入（可修改），出生年月使用年/月选择器，政治面貌使用下拉选择；发起人可追加自定义收集项（单行/多行文本、数字、下拉单选、单选按钮、多选、日期、日期时间、时间、邮箱、链接、手机号、1-5 星评分，可设选项、必填、填写提示与上下排序，可指定从 Link 自动带入姓名、学号、学院、专业、邮箱、QQ）。填写范围可同时按身份（直接勾选新同学/部员/讲师/部长/管理员）与流程（仅所选流程最终通过者）限定；可设置开始与截止时间，到点自动开放/停止接收。每张表生成随机码分享链接 `/collect/<token>`（不使用表单数字 ID），未登录时登录后自动回到该表；邀请功能支持按流程、届别、姓名/学号/手机号批量筛选成员，勾选后可选发送邀请邮件。填写情况支持搜索、单条删除与 CSV 导出。
+- **成员信息收集表**（`/dashboard/collection`）：部长及以上可新建、编辑、复制、删除、结束/恢复收集，并查看全部填写情况（管理员同权，不按部门或发起人拆分）。社团名称固定为南京邮电大学大学生科学技术协会；姓名/学号/学院自动从 SAST Link 带入（可修改），出生年月使用年/月选择器，政治面貌使用下拉选择；发起人可追加自定义收集项（单行/多行文本、数字、下拉单选、单选按钮、多选、日期、日期时间、时间、邮箱、链接、手机号、1-5 星评分，可设选项、必填、填写提示与上下排序，可指定从 Link 自动带入姓名、学号、学院、专业、邮箱、QQ）。填写范围可同时按身份（直接勾选新同学/部员/讲师/部长/管理员）与流程（仅所选流程最终通过者）限定；可设置开始与截止时间，到点自动开放/停止接收。每张表生成随机码分享链接 `/collect/<token>`（不使用表单数字 ID），未登录时登录后自动回到该表；邀请功能支持按流程、届别、姓名/学号/手机号批量筛选成员，勾选后可选发送邀请邮件。邀请邮件模板纳入邮件中心「模板管理 → 收集表通知」（`collection.invitation`，全局模板，管理员可编辑，不包含邀请人姓名）。填写情况支持搜索、单条删除与 CSV 导出。
   - 数据：新表 `collection_form`（`extra_fields`、`allowed_roles`、`allowed_flow_ids`、`starts_at`、`deadline`、唯一 `share_token`）/ `collection_submission`（`extra_answers`）/ `collection_invitation`（邀请与邮件状态），迁移 `0081_collection_forms.sql`；每人每表一条提交，按 `(fk_form_id, fk_user_id)` upsert，提交时保存部门快照（仅作导出信息，不参与权限）。
   - 权限：`lib/collection-access.ts`（身份与流程条件同时满足；空列表 = 不限制对应条件；部长及以上可管理并查看全部结果；填写过的人即使后续收紧条件仍能查看自己的记录）。
   - 时间：`lib/collection-status.ts` 统一计算 `未开始 / 收集中 / 已结束`，开始前与结束后都只读；延长截止时间即可恢复填写。
-  - 邀请：`action/collection-invite.ts` 支持按流程、届别、姓名/学号/手机号筛选，批量勾选后可选发送邮件；邀请邮件为纯函数模板 `lib/collection/invitation-email.ts`，逐人记录 `sent` / `failed`/`pending` 状态并写审计。
+  - 邀请：`action/collection-invite.ts` 支持按流程、届别、姓名/学号/手机号筛选，批量勾选后可选发送邮件；邀请邮件为纯函数模板 `lib/collection/invitation-email.ts`，逐人记录 `sent` / `failed`/`pending` 状态并写审计。邮件文案在 `/dashboard/emails?tab=templates` 的「收集表通知」中维护（`collection.invitation`，全局模板，仅管理员可编辑）。
   - 登录回跳：`lib/login-next.ts` 只接受站内路径；mock 登录直接跳转，真实 Link OAuth 通过 `login_next` cookie 回跳，挡住开放重定向。
   - 入口：导航「信息收集」（我的分组，所有登录用户可见，表单列表按身份与流程过滤）；详情页右侧管理面板提供复制分享链接、编辑、复制表单、结束/恢复、导出数据、批量邀请与删除；填写情况单独成表，支持搜索与单条删除。
 - **阅卷公平性分析**（`/dashboard/review/analytics`，部长及以上，部门 scope 内）：把「讲师宽严」从「考生水平 + 题目难度」里分离出来，供人工参考（**不写回 `user_point`、不影响官方成绩与结果发布**）。模型规范见 [docs/GRADING_FAIRNESS_MODEL.md](docs/GRADING_FAIRNESS_MODEL.md)。

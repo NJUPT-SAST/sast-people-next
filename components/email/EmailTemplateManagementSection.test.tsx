@@ -21,6 +21,11 @@ jest.mock("@/action/email/interview-template", () => ({
   resetInterviewScheduleEmailTemplate: jest.fn().mockResolvedValue({ ok: true }),
 }));
 
+jest.mock("@/action/email/collection-template", () => ({
+  updateCollectionInvitationTemplate: jest.fn().mockResolvedValue({ ok: true }),
+  resetCollectionInvitationTemplate: jest.fn().mockResolvedValue({ ok: true }),
+}));
+
 /* 全局 mock 没提供 refresh，这里补齐，避免保存/恢复成功后抛错 */
 jest.mock("next/navigation", () => ({
   useRouter: () => ({

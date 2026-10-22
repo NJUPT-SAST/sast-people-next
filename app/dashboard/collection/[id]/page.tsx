@@ -49,14 +49,22 @@ export default async function CollectionDetailPage({
 
   const ownSubmission = await getCollectionSubmission(formId, session.uid);
   const passedFlowIds = await getPassedFlowIds(session.uid);
+  const phase = collectionFormPhase(form);
   if (!canViewCollectionForm(session, form, Boolean(ownSubmission), passedFlowIds)) {
+    notFound();
+  }
+  /* 讲师及以下：不在收集时间内且没有填写记录时不可见；填写过的人仍可查看自己的记录 */
+  if (
+    !canManageCollectionForm(session) &&
+    !ownSubmission &&
+    phase !== "open"
+  ) {
     notFound();
   }
 
   const userInfo = await getUserInfo();
   const canManage = canManageCollectionForm(session);
   const canFill = canFillCollectionForm(session, form, passedFlowIds);
-  const phase = collectionFormPhase(form);
   const submissions = canManage ? await listCollectionSubmissions(formId) : [];
   const flows = await listCollectionFlowOptions();
   const invitationStats = canManage
@@ -240,7 +248,7 @@ export default async function CollectionDetailPage({
                 <CollectionInviteDialog
                   formId={form.id}
                   flows={inviteFlows}
-                  disabled={phase === "closed"}
+                  disabled={phase !== "open"}
                 />
                 <CollectionManageActions
                   formId={form.id}

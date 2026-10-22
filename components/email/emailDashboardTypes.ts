@@ -56,6 +56,20 @@ export type ResultEmailPreviews = Awaited<
   ReturnType<typeof import("@/action/email/template").getResultEmailPreviews>
 >;
 
+export type CollectionInvitationTemplatePanel = {
+  setting: {
+    templateKey: string;
+    subjectTemplate: string;
+    titleTemplate: string;
+    bodyTemplate: string;
+    footerText: string;
+    department: null;
+    hasOverride: boolean;
+    editable: boolean;
+  };
+  preview: string;
+};
+
 export type EmailTemplateDefinition =
   import("@/lib/email-center/types").EmailTemplateDefinition;
 

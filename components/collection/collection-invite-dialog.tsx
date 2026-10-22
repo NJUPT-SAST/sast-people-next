@@ -173,7 +173,7 @@ export function CollectionInviteDialog({
         <Button
           variant="outline"
           disabled={disabled}
-          title={disabled ? "收集已结束，延长截止时间后再邀请" : undefined}
+          title={disabled ? "仅在收集期间可以邀请成员" : undefined}
         >
           <Mail /> 邀请填写
         </Button>

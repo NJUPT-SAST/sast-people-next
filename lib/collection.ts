@@ -12,6 +12,7 @@ import {
 import { flowTypeLabel } from "@/const/flow";
 import type { CollectionFlowOption } from "@/const/collection";
 import { canFillCollectionForm } from "@/lib/collection-access";
+import { collectionFormPhase } from "@/lib/collection-status";
 import { MANAGER_ROLE } from "@/lib/link/role";
 import type { VerifiedSession } from "@/lib/dal";
 
@@ -168,11 +169,14 @@ export const listVisibleCollectionForms = async (session: VerifiedSession) => {
 
   if (session.role >= MANAGER_ROLE) return rows;
   const passedFlowIds = await getPassedFlowIds(session.uid);
-  return rows.filter(
-    (row) =>
-      canFillCollectionForm(session, row, passedFlowIds) ||
-      row.submissionId !== null,
-  );
+  return rows.filter((row) => {
+    if (row.submissionId !== null) return true;
+    /* 讲师及以下：未到开始时间或已结束的表不再出现在列表里 */
+    return (
+      collectionFormPhase(row) === "open" &&
+      canFillCollectionForm(session, row, passedFlowIds)
+    );
+  });
 };
 
 export const getCollectionFormById = async (formId: number) => {
