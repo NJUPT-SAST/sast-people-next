@@ -113,8 +113,10 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "accepted":
+      case "passed":
         return "bg-primary";
       case "rejected":
+      case "failed":
         return "bg-destructive";
       case "ongoing":
         return "bg-blue-500";
@@ -133,9 +135,9 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
           <span
             className={cn(
               "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-              visibleStatus === "accepted"
+              visibleStatus === "accepted" || visibleStatus === "passed"
                 ? "border-primary/30 text-primary"
-                : visibleStatus === "rejected"
+                : visibleStatus === "rejected" || visibleStatus === "failed"
                   ? "border-destructive/30 text-destructive"
                   : visibleStatus === "withdrawn"
                     ? "border-amber-500/35 text-amber-700 dark:text-amber-400"
