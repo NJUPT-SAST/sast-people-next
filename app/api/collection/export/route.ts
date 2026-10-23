@@ -5,6 +5,7 @@ import { canManageCollectionForm } from "@/lib/collection-access";
 import { departmentLabel } from "@/const/department";
 import { formatCollectionAnswer } from "@/const/collection";
 import { verifySession, type VerifiedSession } from "@/lib/dal";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { escapeCsv } from "@/lib/csv";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
@@ -28,38 +29,47 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = await listCollectionSubmissions(formId);
+    const nameField = form.extraFields.find((field) => field.id === "name");
+    const submitterNames =
+      rows.length > 0 && !nameField
+        ? await listPeopleUsersByLinkIds(rows.map((row) => row.fkUserId))
+            .then(
+              (users) =>
+                new Map(
+                  Array.from(users, ([id, user]) => [id, user.name] as const),
+                ),
+            )
+            .catch(() => new Map<number, string>())
+        : new Map<number, string>();
+    const cellValue = (
+ row: (typeof rows)[number],
+ field: (typeof form.extraFields)[number],
+) =>
+      field.fixedValue ?? formatCollectionAnswer(row.extraAnswers[field.id]);
+    const displayName = (row: (typeof rows)[number]) => {
+      const name = nameField
+        ? formatCollectionAnswer(row.extraAnswers[nameField.id])
+        : "";
+      return (
+        name ||
+        submitterNames.get(row.fkUserId) ||
+        `用户 #${row.fkUserId}`
+      );
+    };
     const table = [
       [
-        "社团名称",
-        "类别",
-        "姓名",
-        "出生年月",
-        "政治面貌",
-        "所在学院",
-        "所在班级",
-        "学号",
-        "入学年份",
-        "预计毕业年份",
+        ...(nameField ? [] : ["填写人"]),
         ...form.extraFields.map((field) => field.label),
         "填写人部门",
+        "退回说明",
         "提交时间",
         "最后更新",
       ],
       ...rows.map((row) => [
-        row.clubName,
-        row.category,
-        row.name,
-        row.birthMonth,
-        row.politicalStatus,
-        row.college,
-        row.className,
-        row.studentId,
-        row.enrollmentYear,
-        row.graduationYear,
-        ...form.extraFields.map((field) =>
-          formatCollectionAnswer(row.extraAnswers[field.id]),
-        ),
+        ...(nameField ? [] : [displayName(row)]),
+        ...form.extraFields.map((field) => cellValue(row, field)),
         departmentLabel(row.department, ""),
+        row.returnNote ?? "",
         formatBeijingDateTime(row.createdAt),
         formatBeijingDateTime(row.updatedAt),
       ]),

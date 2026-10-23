@@ -19,7 +19,10 @@ import { collectionFormPhase } from "@/lib/collection-status";
 import { buildCollectionInvitationEmail } from "@/lib/collection/invitation-email";
 import { getCollectionInvitationTemplateSetting } from "@/lib/email/collection-template-settings";
 import { verifySession } from "@/lib/dal";
-import { sendEmailViaProvider } from "@/lib/email-center/provider";
+import {
+  createEmailDelivery,
+  sendEmailDelivery,
+} from "@/lib/email-center/delivery";
 import { getLinkAdminAccessTokenFromSession } from "@/lib/link/session";
 import { getLinkUsersByIds, listLinkUsers } from "@/lib/link/admin";
 import { linkRoleToPeopleRole } from "@/lib/link/role";
@@ -29,7 +32,8 @@ import { logServerError } from "@/lib/server-error-log";
 import { formatBeijingDateTime } from "@/lib/timezone";
 
 const MAX_CANDIDATES = 1000;
-const MAX_INVITES = 50;
+/* 邮件发送并发；不限制单次邀请人数 */
+const EMAIL_SEND_CONCURRENCY = 5;
 
 export type CollectionInviteCandidate = {
   id: number;
@@ -40,7 +44,11 @@ export type CollectionInviteCandidate = {
   role: number;
   department: string | null;
   college: string | null;
+  /** 是否已经提交过；仍可邀请，邮件会提示可忽略 */
+  submitted: boolean;
 };
+
+type CollectionInviteCandidateBase = Omit<CollectionInviteCandidate, "submitted">;
 
 type ActionResult<T = undefined> =
   | { success: true; data?: T }
@@ -62,8 +70,7 @@ const sendInputSchema = z.object({
   formId: z.number().int().positive(),
   userIds: z
     .array(z.number().int().positive())
-    .min(1, "请至少选择一位成员")
-    .max(MAX_INVITES, `单次最多邀请 ${MAX_INVITES} 人`),
+    .min(1, "请至少选择一位成员"),
   sendEmail: z.boolean().default(true),
   message: z.string().trim().max(500).optional(),
 });
@@ -83,7 +90,7 @@ const matchesCohort = (studentId: string | null, cohort: string) => {
   );
 };
 
-const matchesKeyword = (candidate: CollectionInviteCandidate, keyword: string) => {
+const matchesKeyword = (candidate: CollectionInviteCandidateBase, keyword: string) => {
   const trimmed = keyword.trim().toLowerCase();
   if (!trimmed) return true;
   return [candidate.name, candidate.studentId, candidate.phone, candidate.email]
@@ -93,7 +100,7 @@ const matchesKeyword = (candidate: CollectionInviteCandidate, keyword: string) =
 
 const toCandidateFromAdminItem = (
   item: LinkAdminUserItem,
-): CollectionInviteCandidate => ({
+): CollectionInviteCandidateBase => ({
   id: item.id,
   name: item.name,
   studentId: item.student_id ?? null,
@@ -106,7 +113,7 @@ const toCandidateFromAdminItem = (
 
 const toCandidateFromProfile = (
   item: LinkUserProfile,
-): CollectionInviteCandidate => ({
+): CollectionInviteCandidateBase => ({
   id: item.id,
   name: item.name,
   studentId: item.student_id ?? null,
@@ -161,7 +168,7 @@ export async function searchCollectionInviteCandidates(input: {
   if (!form) return failure("收集表不存在");
 
   const token = await getLinkAdminAccessTokenFromSession();
-  let source: CollectionInviteCandidate[] = [];
+  let source: CollectionInviteCandidateBase[] = [];
   let truncated = false;
   const effectiveFlowIds =
     parsed.data.flowIds.length > 0 ? parsed.data.flowIds : form.allowedFlowIds;
@@ -217,15 +224,18 @@ export async function searchCollectionInviteCandidates(input: {
     getPassedFlowIdsByUserIds(ids),
     getFormSubmittedUserIds(form.id, ids),
   ]);
-  const candidates = filtered.filter(
-    (candidate) =>
-      !submitted.has(candidate.id) &&
+  const candidates = filtered
+    .filter((candidate) =>
       canFillCollectionForm(
         { role: candidate.role },
         form,
         passedMap.get(candidate.id) ?? [],
       ),
-  );
+    )
+    .map((candidate) => ({
+      ...candidate,
+      submitted: submitted.has(candidate.id),
+    }));
 
   candidates.sort((left, right) =>
     `${left.studentId ?? ""}${left.name}`.localeCompare(
@@ -285,7 +295,7 @@ export async function sendCollectionInvitations(input: {
   ]);
 
   const eligible = profiles.filter((profile) => {
-    if (profile.state === "is_deleted" || submitted.has(profile.id)) return false;
+    if (profile.state === "is_deleted") return false;
     return canFillCollectionForm(
       { role: linkRoleToPeopleRole(profile.role) },
       form,
@@ -294,7 +304,7 @@ export async function sendCollectionInvitations(input: {
   });
 
   if (eligible.length === 0) {
-    return failure("筛选出的成员当前都不在填写范围内（或已经提交）");
+    return failure("筛选出的成员当前都不在填写范围内");
   }
 
   for (const profile of eligible) {
@@ -334,7 +344,7 @@ export async function sendCollectionInvitations(input: {
       : null;
     const template = await getCollectionInvitationTemplateSetting();
 
-    for (const profile of eligible) {
+    const sendOne = async (profile: LinkUserProfile) => {
       const emailAddress = emailOfProfile(profile);
       if (!emailAddress) {
         failed += 1;
@@ -351,7 +361,7 @@ export async function sendCollectionInvitations(input: {
               eq(collectionInvitation.fkUserId, profile.id),
             ),
           );
-        continue;
+        return;
       }
 
       const email = buildCollectionInvitationEmail({
@@ -360,13 +370,24 @@ export async function sendCollectionInvitations(input: {
         url,
         message: parsed.data.message,
         template,
+        alreadySubmitted: submitted.has(profile.id),
       });
 
       try {
-        await sendEmailViaProvider({
-          to: emailAddress,
+        /* 先落投递记录再发送：邮件中心保留完整留档，失败也能在记录里重试 */
+        const { deliveryId } = await createEmailDelivery({
+          category: "collection",
+          templateKey: "collection.invitation",
+          toAddress: emailAddress,
           subject: email.subject,
-          html: email.html,
+          htmlSnapshot: email.html,
+          recipientUserId: profile.id,
+          createdBy: session.uid,
+          metadata: { formId: form.id, alreadySubmitted: submitted.has(profile.id) },
+        });
+        await sendEmailDelivery(deliveryId, {
+          trigger: "immediate",
+          triggeredBy: session.uid,
         });
         emailed += 1;
         await db
@@ -402,7 +423,22 @@ export async function sendCollectionInvitations(input: {
             ),
           );
       }
-    }
+    };
+
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < eligible.length) {
+        const profile = eligible[nextIndex];
+        nextIndex += 1;
+        await sendOne(profile);
+      }
+    };
+    await Promise.all(
+      Array.from(
+        { length: Math.min(EMAIL_SEND_CONCURRENCY, eligible.length) },
+        worker,
+      ),
+    );
   }
 
   await writeOperationAudit({

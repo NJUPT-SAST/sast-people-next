@@ -1,15 +1,15 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Star } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { toast } from "sonner";
 import { saveCollectionSubmission } from "@/action/collection";
 import {
-  COLLECTION_CATEGORIES,
-  COLLECTION_CLUB_NAME,
-  COLLECTION_POLITICAL_STATUSES,
   COLLECTION_RATING_MAX,
+  deriveEnrollmentYearFromStudentId,
+  deriveGraduationYear,
+  deriveGraduationYearFromClassName,
   formatCollectionAnswer,
   type CollectionAnswer,
   type CollectionExtraAnswers,
@@ -21,6 +21,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -28,46 +33,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { CollectionSubmissionInput } from "@/lib/validation/collection";
-
-export type CollectionFormValues = {
-  category: string;
-  name: string;
-  birthMonth: string;
-  politicalStatus: string;
-  college: string;
-  className: string;
-  studentId: string;
-  enrollmentYear: number | null;
-  graduationYear: number | null;
-};
 
 interface CollectionFormProps {
   formId: number;
+  fields: CollectionExtraField[];
   editable: boolean;
-  initialValues: CollectionFormValues;
   hasSaved: boolean;
   updatedAtLabel: string | null;
-  extraFields: CollectionExtraField[];
-  initialExtraAnswers: CollectionExtraAnswers;
+  /** 被部长退回的时间与说明；重新提交后清空 */
+  returnedAtLabel?: string | null;
+  returnNote?: string | null;
+  initialAnswers: CollectionExtraAnswers;
   linkProfile: CollectionLinkProfile;
   /** 身份不符合填写限制时的说明；截止时留空，走默认文案 */
   readonlyNotice?: string;
 }
 
-const CORE_FIELD_LABELS: Array<[keyof CollectionFormValues, string]> = [
-  ["category", "类别"],
-  ["name", "姓名"],
-  ["birthMonth", "出生年月"],
-  ["politicalStatus", "政治面貌"],
-  ["college", "所在学院"],
-  ["className", "所在班级"],
-  ["studentId", "学号"],
-  ["enrollmentYear", "入学年份"],
-  ["graduationYear", "预计毕业年份"],
-];
-
-const normalizeInitialExtraAnswers = (
+const normalizeInitialAnswers = (
   fields: CollectionExtraField[],
   initial: CollectionExtraAnswers,
   linkProfile: CollectionLinkProfile,
@@ -82,8 +64,10 @@ const normalizeInitialExtraAnswers = (
         : saved
           ? [saved]
           : [];
-    } else if (saved !== undefined) {
+    } else if (saved !== undefined && saved !== "") {
       values[field.id] = saved;
+    } else if (field.fixedValue) {
+      values[field.id] = field.fixedValue;
     } else if (field.prefillFrom) {
       const prefill = linkProfile[field.prefillFrom];
       const needsOption = field.type === "select" || field.type === "radio";
@@ -96,59 +80,84 @@ const normalizeInitialExtraAnswers = (
   return values;
 };
 
+/** 学号推算入学年份；班级推算毕业年份（无班级时回退到入学 + 4 年）。 */
+const applyDerivedYears = (
+  values: CollectionExtraAnswers,
+  fields: CollectionExtraField[],
+  manual: Set<string>,
+): CollectionExtraAnswers => {
+  const hasField = (id: string) => fields.some((field) => field.id === id);
+  const next = { ...values };
+
+  const studentId = typeof next.studentId === "string" ? next.studentId : "";
+  const className = typeof next.className === "string" ? next.className : "";
+
+  if (hasField("enrollmentYear") && !manual.has("enrollmentYear")) {
+    const year = deriveEnrollmentYearFromStudentId(studentId);
+    if (year !== null) next.enrollmentYear = String(year);
+  }
+
+  if (hasField("graduationYear") && !manual.has("graduationYear")) {
+    const fromClass = deriveGraduationYearFromClassName(className);
+    if (fromClass !== null) {
+      next.graduationYear = String(fromClass);
+    } else {
+      const base = Number(next.enrollmentYear);
+      if (Number.isInteger(base) && base >= 1900) {
+        next.graduationYear = String(deriveGraduationYear(base));
+      }
+    }
+  }
+
+  return next;
+};
+
 export function CollectionForm({
   formId,
+  fields,
   editable,
-  initialValues,
   hasSaved,
   updatedAtLabel,
-  extraFields,
-  initialExtraAnswers,
+  returnedAtLabel,
+  returnNote,
+  initialAnswers,
   linkProfile,
   readonlyNotice,
 }: CollectionFormProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
-  const [birthYear, setBirthYear] = useState(
-    () => initialValues.birthMonth.split("-")[0] ?? "",
+  const initialManualYears = new Set(
+    ["enrollmentYear", "graduationYear"].filter(
+      (id) => initialAnswers[id] !== undefined && initialAnswers[id] !== "",
+    ),
   );
-  const [birthMonthPart, setBirthMonthPart] = useState(
-    () => initialValues.birthMonth.split("-")[1] ?? "",
+  const manualYears = useRef(initialManualYears);
+  const [values, setValues] = useState<CollectionExtraAnswers>(() =>
+    applyDerivedYears(
+      normalizeInitialAnswers(fields, initialAnswers, linkProfile),
+      fields,
+      initialManualYears,
+    ),
   );
-  const [extraValues, setExtraValues] = useState<CollectionExtraAnswers>(() =>
-    normalizeInitialExtraAnswers(extraFields, initialExtraAnswers, linkProfile),
-  );
-  const setExtraValue = (id: string, value: CollectionAnswer) => {
-    setExtraValues((current) => ({ ...current, [id]: value }));
+
+  const setValue = (id: string, value: CollectionAnswer) => {
+    if (id === "enrollmentYear" || id === "graduationYear") {
+      manualYears.current.add(id);
+    }
+    setValues((current) => {
+      const next = { ...current, [id]: value };
+      return applyDerivedYears(next, fields, manualYears.current);
+    });
   };
-  const currentYear = new Date().getFullYear();
-  const birthYears = Array.from(
-    { length: currentYear - 1950 + 1 },
-    (_, index) => String(currentYear - index),
-  );
-  const birthMonths = Array.from({ length: 12 }, (_, index) =>
-    String(index + 1).padStart(2, "0"),
-  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editable) return;
 
-    const form = new FormData(event.currentTarget);
     setSubmitting(true);
     try {
       const result = await saveCollectionSubmission(formId, {
-        category: String(form.get("category") ?? "") as CollectionSubmissionInput["category"],
-        name: String(form.get("name") ?? ""),
-        birthMonth:
-          birthYear && birthMonthPart ? `${birthYear}-${birthMonthPart}` : "",
-        politicalStatus: String(form.get("politicalStatus") ?? "") as CollectionSubmissionInput["politicalStatus"],
-        college: String(form.get("college") ?? ""),
-        className: String(form.get("className") ?? ""),
-        studentId: String(form.get("studentId") ?? ""),
-        enrollmentYear: Number(form.get("enrollmentYear")),
-        graduationYear: Number(form.get("graduationYear")),
-        extraAnswers: extraValues,
+        extraAnswers: values,
       });
       if (!result.success) throw new Error(result.message);
       toast.success(hasSaved ? "已保存修改" : "已提交");
@@ -161,28 +170,14 @@ export function CollectionForm({
   }
 
   if (!editable) {
-    const readonlyRows = [
-      { label: "社团名称", value: COLLECTION_CLUB_NAME, description: undefined },
-      ...CORE_FIELD_LABELS.map(([key, label]) => ({
-        label,
-        value: String(initialValues[key] ?? ""),
-        description: undefined,
-      })),
-      ...extraFields.map((field) => ({
-        label: field.label,
-        description: field.description,
-        value: (() => {
-          const answer = initialExtraAnswers[field.id];
-          if (field.type === "rating" && answer) {
-            return `${formatCollectionAnswer(answer)} 星`;
-          }
-          return formatCollectionAnswer(answer);
-        })(),
-      })),
-    ];
-
     return (
       <div className="space-y-5">
+        {returnedAtLabel && (
+          <p className="rounded-md border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+            你的填写于 {returnedAtLabel} 被退回
+            {returnNote ? `：${returnNote}` : "，请修改后重新提交"}。
+          </p>
+        )}
         <p className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           {readonlyNotice ??
             (hasSaved
@@ -191,17 +186,27 @@ export function CollectionForm({
         </p>
         {hasSaved && (
           <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-            {readonlyRows.map((row, index) => (
-              <div key={`${row.label}-${index}`} className="min-w-0">
-                <dt className="text-xs text-muted-foreground">{row.label}</dt>
-                {row.description && (
-                  <p className="mt-0.5 text-xs text-muted-foreground/80">{row.description}</p>
-                )}
-                <dd className="mt-1 break-words text-sm font-medium text-foreground">
-                  {row.value}
-                </dd>
-              </div>
-            ))}
+            {fields.map((field) => {
+              const answer = initialAnswers[field.id];
+              const value =
+                field.fixedValue ??
+                (field.type === "rating" && answer
+                  ? `${formatCollectionAnswer(answer)} 星`
+                  : formatCollectionAnswer(answer));
+              return (
+                <div key={field.id} className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{field.label}</dt>
+                  {field.description && (
+                    <p className="mt-0.5 text-xs text-muted-foreground/80">
+                      {field.description}
+                    </p>
+                  )}
+                  <dd className="mt-1 break-words text-sm font-medium text-foreground">
+                    {value}
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
         )}
         {updatedAtLabel && (
@@ -218,228 +223,51 @@ export function CollectionForm({
           你已经提交过；再次提交会更新原记录。
         </p>
       )}
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="flex flex-col gap-2 sm:col-span-2">
-          <Label htmlFor="collection-club-name">社团名称</Label>
-          <Input
-            id="collection-club-name"
-            value={COLLECTION_CLUB_NAME}
-            readOnly
-            disabled
-          />
-          <p className="text-xs text-muted-foreground">社团名称固定，无需填写。</p>
-        </div>
+      {returnedAtLabel && (
+        <p className="rounded-md border border-destructive/25 bg-destructive/8 px-3 py-2 text-sm text-destructive">
+          你的填写于 {returnedAtLabel} 被退回
+          {returnNote ? `：${returnNote}` : ""}。请修改后重新提交。
+        </p>
+      )}
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="collection-category">类别</Label>
-          <Select
-            name="category"
-            defaultValue={initialValues.category || undefined}
-            required
-          >
-            <SelectTrigger id="collection-category">
-              <SelectValue placeholder="请选择类别" />
-            </SelectTrigger>
-            <SelectContent>
-              {COLLECTION_CATEGORIES.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="collection-name">姓名</Label>
-          <Input
-            id="collection-name"
-            name="name"
-            required
-            maxLength={60}
-            defaultValue={initialValues.name || linkProfile.name}
-            placeholder="请输入姓名"
-          />
-          {!initialValues.name && linkProfile.name && (
-            <p className="text-xs text-muted-foreground">已自动带入 SAST Link 资料，可修改。</p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label>出生年月</Label>
-          <div className="grid grid-cols-2 gap-3">
-            <Select value={birthYear || undefined} onValueChange={setBirthYear} required>
-              <SelectTrigger aria-label="出生年份">
-                <SelectValue placeholder="年份" />
-              </SelectTrigger>
-              <SelectContent>
-                {birthYears.map((year) => (
-                  <SelectItem key={year} value={year}>
-                    {year} 年
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={birthMonthPart || undefined}
-              onValueChange={setBirthMonthPart}
-              required
-            >
-              <SelectTrigger aria-label="出生月份">
-                <SelectValue placeholder="月份" />
-              </SelectTrigger>
-              <SelectContent>
-                {birthMonths.map((month) => (
-                  <SelectItem key={month} value={month}>
-                    {month} 月
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="collection-political-status">政治面貌</Label>
-          <Select
-            name="politicalStatus"
-            defaultValue={initialValues.politicalStatus || undefined}
-            required
-          >
-            <SelectTrigger id="collection-political-status">
-              <SelectValue placeholder="请选择政治面貌" />
-            </SelectTrigger>
-            <SelectContent>
-              {COLLECTION_POLITICAL_STATUSES.map((statusOption) => (
-                <SelectItem key={statusOption} value={statusOption}>
-                  {statusOption}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="collection-college">所在学院</Label>
-          <Input
-            id="collection-college"
-            name="college"
-            required
-            maxLength={120}
-            defaultValue={initialValues.college || linkProfile.college}
-            placeholder="请输入学院全称"
-          />
-          {!initialValues.college && linkProfile.college && (
-            <p className="text-xs text-muted-foreground">已自动带入 SAST Link 资料，可修改。</p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="collection-class-name">所在班级</Label>
-          <Input
-            id="collection-class-name"
-            name="className"
-            required
-            maxLength={120}
-            defaultValue={initialValues.className}
-            placeholder="请输入所在班级"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="collection-student-id">学号</Label>
-          <Input
-            id="collection-student-id"
-            name="studentId"
-            required
-            minLength={4}
-            maxLength={32}
-            defaultValue={initialValues.studentId || linkProfile.studentId}
-            placeholder="请输入学号"
-          />
-          {!initialValues.studentId && linkProfile.studentId && (
-            <p className="text-xs text-muted-foreground">已自动带入 SAST Link 资料，可修改。</p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="collection-enrollment-year">入学年份</Label>
-          <Input
-            id="collection-enrollment-year"
-            name="enrollmentYear"
-            type="number"
-            required
-            min={1900}
-            max={2100}
-            step={1}
-            defaultValue={initialValues.enrollmentYear ?? undefined}
-            placeholder="例如 2023"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="collection-graduation-year">预计毕业年份</Label>
-          <Input
-            id="collection-graduation-year"
-            name="graduationYear"
-            type="number"
-            required
-            min={1900}
-            max={2100}
-            step={1}
-            defaultValue={initialValues.graduationYear ?? undefined}
-            placeholder="例如 2027"
-          />
-        </div>
-      </div>
-
-      {extraFields.length > 0 && (
-        <div className="space-y-4 rounded-lg border border-border/70 bg-muted/20 p-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">补充信息</p>
-            <p className="text-xs text-muted-foreground">
-              带 <span className="text-destructive">*</span> 的为必填项。
-            </p>
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            {extraFields.map((field) => {
-              const inputId = `collection-extra-${field.id}`;
-              return (
-                <div
-                  key={field.id}
-                  className={
-                    field.type === "textarea"
-                      ? "flex flex-col gap-2 sm:col-span-2"
-                      : "flex flex-col gap-2"
-                  }
-                >
-                  <div className="space-y-1">
-                    <Label htmlFor={inputId}>
-                      {field.label}
-                      {field.required && (
-                        <span className="text-destructive"> *</span>
-                      )}
-                    </Label>
-                    {field.description && (
-                      <p className="text-xs leading-5 text-muted-foreground">
-                        {field.description}
-                      </p>
+      {fields.length === 0 ? (
+        <p className="rounded-md border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
+          本表没有收集项，直接提交即可。
+        </p>
+      ) : (
+        <div className="grid gap-5 sm:grid-cols-2">
+          {fields.map((field) => {
+            const inputId = `collection-extra-${field.id}`;
+            return (
+              <div
+                key={field.id}
+                className={
+                  field.type === "textarea"
+                    ? "flex flex-col gap-2 sm:col-span-2"
+                    : "flex flex-col gap-2"
+                }
+              >
+                <div className="space-y-1">
+                  <Label htmlFor={inputId}>
+                    {field.label}
+                    {field.required && !field.fixedValue && (
+                      <span className="text-destructive"> *</span>
                     )}
-                  </div>
-                  <ExtraFieldInput
-                    field={field}
-                    value={extraValues[field.id]}
-                    onChange={(value) => setExtraValue(field.id, value)}
-                  />
-                  {field.prefillFrom && initialExtraAnswers[field.id] === undefined && (
-                    <p className="text-xs text-muted-foreground">
-                      已自动带入 SAST Link 资料，可修改。
+                  </Label>
+                  {field.description && (
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      {field.description}
                     </p>
                   )}
                 </div>
-              );
-            })}
-          </div>
+                <ExtraFieldInput
+                  field={field}
+                  value={values[field.id]}
+                  onChange={(value) => setValue(field.id, value)}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -449,6 +277,120 @@ export function CollectionForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function MonthInput({
+  id,
+  value,
+  required,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  required: boolean;
+  onChange: (value: string) => void;
+}) {
+  const currentYear = new Date().getFullYear();
+  const [open, setOpen] = useState(false);
+  const [yearPart, setYearPart] = useState(
+    () => value.split("-")[0] || String(currentYear - 20),
+  );
+  const [monthPart, setMonthPart] = useState(() => value.split("-")[1] ?? "");
+
+  useEffect(() => {
+    if (!value) return;
+    const [year, month] = value.split("-");
+    if (year) setYearPart(year);
+    if (month) setMonthPart(month);
+  }, [value]);
+
+  const year = Number(yearPart);
+  const selectMonth = (month: string) => {
+    setMonthPart(month);
+    onChange(`${yearPart}-${month}`);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          className="w-full justify-start font-normal"
+          aria-required={required}
+        >
+          <CalendarDays className="size-4 text-muted-foreground" />
+          {yearPart && monthPart
+            ? `${yearPart} 年 ${Number(monthPart)} 月`
+            : "选择年月"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3" align="start">
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="上一年"
+            disabled={year <= 1900}
+            onClick={() => setYearPart(String(Math.max(1900, year - 1)))}
+          >
+            <ChevronLeft />
+          </Button>
+          <span className="text-sm font-medium tabular-nums">{yearPart} 年</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="下一年"
+            disabled={year >= currentYear}
+            onClick={() => setYearPart(String(Math.min(currentYear, year + 1)))}
+          >
+            <ChevronRight />
+          </Button>
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-1">
+          {Array.from({ length: 12 }, (_, index) =>
+            String(index + 1).padStart(2, "0"),
+          ).map((month) => (
+            <Button
+              key={month}
+              type="button"
+              size="sm"
+              variant={month === monthPart ? "default" : "ghost"}
+              onClick={() => selectMonth(month)}
+            >
+              {Number(month)} 月
+            </Button>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setMonthPart("");
+              onChange("");
+              setOpen(false);
+            }}
+          >
+            清除
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setOpen(false)}
+          >
+            关闭
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -464,6 +406,13 @@ function ExtraFieldInput({
   const inputId = `collection-extra-${field.id}`;
   const textValue = Array.isArray(value) ? "" : (value ?? "");
   const arrayValue = Array.isArray(value) ? value : value ? [value] : [];
+  const placeholder =
+    field.placeholder ??
+    (field.id === "className" ? "例如 B240101" : `请输入${field.label}`);
+
+  if (field.fixedValue) {
+    return <Input id={inputId} value={field.fixedValue} readOnly disabled />;
+  }
 
   switch (field.type) {
     case "textarea":
@@ -475,7 +424,7 @@ function ExtraFieldInput({
           rows={3}
           required={field.required}
           maxLength={5000}
-          placeholder={`请输入${field.label}`}
+          placeholder={placeholder}
         />
       );
     case "number":
@@ -487,7 +436,7 @@ function ExtraFieldInput({
           value={textValue}
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
-          placeholder={`请输入${field.label}`}
+          placeholder={placeholder}
         />
       );
     case "select":
@@ -584,6 +533,15 @@ function ExtraFieldInput({
           required={field.required}
         />
       );
+    case "month":
+      return (
+        <MonthInput
+          id={inputId}
+          value={textValue}
+          required={field.required}
+          onChange={onChange}
+        />
+      );
     case "email":
       return (
         <Input
@@ -593,7 +551,7 @@ function ExtraFieldInput({
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
           maxLength={320}
-          placeholder={`请输入${field.label}`}
+          placeholder={placeholder}
         />
       );
     case "url":
@@ -617,7 +575,7 @@ function ExtraFieldInput({
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
           maxLength={20}
-          placeholder={`请输入${field.label}`}
+          placeholder={placeholder}
         />
       );
     case "rating": {
@@ -658,7 +616,7 @@ function ExtraFieldInput({
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
           maxLength={500}
-          placeholder={`请输入${field.label}`}
+          placeholder={placeholder}
         />
       );
   }

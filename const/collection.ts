@@ -34,6 +34,57 @@ export const COLLECTION_POLITICAL_STATUSES = [
 
 export const COLLECTION_DEFAULT_TITLE = "社团成员信息收集表";
 
+/** 收集表模板：member = 成员模板；custom = 全部动态字段（兼容字段） */
+export const COLLECTION_FORM_KINDS = ["member", "custom"] as const;
+
+export const COLLECTION_CUSTOM_DEFAULT_TITLE = "信息收集表";
+
+export const COLLECTION_CUSTOM_DEFAULT_INSTRUCTIONS = "";
+
+/** 班级格式：大写字母 + 6 位数字，例如 B240101 */
+export const COLLECTION_CLASS_NAME_PATTERN = /^[A-Z]\d{6}$/;
+
+export const COLLECTION_CLASS_NAME_HINT = "例如 B240101（大写字母 + 6 位数字）";
+
+/** 默认学制（年）；仅用于按学号推算预计毕业年份，填写时可改 */
+export const COLLECTION_DEFAULT_STUDY_YEARS = 4;
+
+/**
+ * 从学号推算入学年份：字母前缀后的前两位数字按 20xx 解释。
+ * B24010101 → 2024；纯数字学号则接受开头的四位年份。
+ */
+export const deriveEnrollmentYearFromStudentId = (
+  studentId: string,
+): number | null => {
+  const value = studentId.trim();
+  if (!value) return null;
+
+  const withLetterPrefix = /^[A-Za-z]+(\d{2})\d{4,}$/.exec(value);
+  if (withLetterPrefix) return 2000 + Number(withLetterPrefix[1]);
+
+  const withFourDigitYear = /^((?:19|20)\d{2})\d+$/.exec(value);
+  if (withFourDigitYear) return Number(withFourDigitYear[1]);
+
+  return null;
+};
+
+export const deriveGraduationYear = (
+  enrollmentYear: number,
+  studyYears = COLLECTION_DEFAULT_STUDY_YEARS,
+): number => enrollmentYear + studyYears;
+
+/**
+ * 班级号（字母 + 6 位数字）前缀年份 + 默认学制推算毕业年份。
+ * B250607 → 2025 + 4 = 2029。
+ */
+export const deriveGraduationYearFromClassName = (
+  className: string,
+  studyYears = COLLECTION_DEFAULT_STUDY_YEARS,
+): number | null => {
+  const year = deriveEnrollmentYearFromStudentId(className);
+  return year === null ? null : deriveGraduationYear(year, studyYears);
+};
+
 /** 社团名称固定，不再由填写人输入（除非后续做成可配置的组织名） */
 export const COLLECTION_CLUB_NAME = "南京邮电大学大学生科学技术协会";
 
@@ -82,6 +133,7 @@ export const COLLECTION_EXTRA_FIELD_TYPES = [
   "date",
   "datetime",
   "time",
+  "month",
   "email",
   "url",
   "phone",
@@ -104,6 +156,7 @@ export const COLLECTION_EXTRA_FIELD_TYPE_LABELS: Record<
   date: "日期",
   datetime: "日期时间",
   time: "时间",
+  month: "年月",
   email: "邮箱",
   url: "链接",
   phone: "手机号",
@@ -124,6 +177,7 @@ export const COLLECTION_OPTION_FIELD_TYPES: Record<
   date: false,
   datetime: false,
   time: false,
+  month: false,
   email: false,
   url: false,
   phone: false,
@@ -144,6 +198,7 @@ export const COLLECTION_PREFILLABLE_FIELD_TYPES: Record<
   date: false,
   datetime: false,
   time: false,
+  month: false,
   email: true,
   url: false,
   phone: false,
@@ -203,5 +258,108 @@ export type CollectionExtraField = {
   options: string[];
   /** 填写提示，显示在字段名下方 */
   description?: string;
+  /** 输入框占位符；缺省用「请输入 + 字段名」 */
+  placeholder?: string;
   prefillFrom?: CollectionLinkPrefillSource;
+  /** 固定值：只读展示，不要求填写人修改 */
+  fixedValue?: string;
 };
+
+export type CollectionTemplateOption = {
+  /** 数据库模板 ID；内置模板与空白模板为 null */
+  id: number | null;
+  key: string;
+  name: string;
+  description: string;
+  fields: CollectionExtraField[];
+};
+
+const memberField = (
+  field: Omit<CollectionExtraField, "required" | "options"> & {
+    required?: boolean;
+    options?: string[];
+  },
+): CollectionExtraField => ({
+  required: true,
+  options: [],
+  ...field,
+});
+
+/** 成员信息模板：所有字段都是可编辑的收集项，可在表单里增删改 */
+export const COLLECTION_MEMBER_TEMPLATE_FIELDS: CollectionExtraField[] = [
+  memberField({
+    id: "clubName",
+    label: "社团名称",
+    type: "text",
+    required: false,
+    fixedValue: COLLECTION_CLUB_NAME,
+  }),
+  memberField({
+    id: "category",
+    label: "类别",
+    type: "select",
+    options: [...COLLECTION_CATEGORIES],
+  }),
+  memberField({
+    id: "name",
+    label: "姓名",
+    type: "text",
+    prefillFrom: "name",
+  }),
+  memberField({
+    id: "birthMonth",
+    label: "出生年月",
+    type: "month",
+  }),
+  memberField({
+    id: "politicalStatus",
+    label: "政治面貌",
+    type: "select",
+    options: [...COLLECTION_POLITICAL_STATUSES],
+  }),
+  memberField({
+    id: "college",
+    label: "所在学院",
+    type: "text",
+    prefillFrom: "college",
+  }),
+  memberField({
+    id: "className",
+    label: "所在班级",
+    type: "text",
+    placeholder: "例如 B240101",
+  }),
+  memberField({
+    id: "studentId",
+    label: "学号",
+    type: "text",
+    prefillFrom: "studentId",
+  }),
+  memberField({
+    id: "enrollmentYear",
+    label: "入学年份",
+    type: "number",
+  }),
+  memberField({
+    id: "graduationYear",
+    label: "预计毕业年份",
+    type: "number",
+  }),
+];
+
+export const COLLECTION_BUILTIN_TEMPLATES: CollectionTemplateOption[] = [
+  {
+    id: null,
+    key: "member",
+    name: COLLECTION_DEFAULT_TITLE,
+    description: "固定成员字段（可编辑）：类别、姓名、出生年月、政治面貌、学院、班级、学号与入学/毕业年份。",
+    fields: COLLECTION_MEMBER_TEMPLATE_FIELDS,
+  },
+  {
+    id: null,
+    key: "blank",
+    name: "空白收集表",
+    description: "不包含任何字段，从零开始添加收集项。",
+    fields: [],
+  },
+];

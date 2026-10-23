@@ -26,8 +26,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-const MAX_INVITES = 50;
-
 export function CollectionInviteDialog({
   formId,
   flows,
@@ -128,10 +126,6 @@ export function CollectionInviteDialog({
       toast.error("请先选择要邀请的成员");
       return;
     }
-    if (selectedIds.size > MAX_INVITES) {
-      toast.error(`单次最多邀请 ${MAX_INVITES} 人`);
-      return;
-    }
 
     setSending(true);
     try {
@@ -156,7 +150,7 @@ export function CollectionInviteDialog({
         toast.success(`已记录 ${invited} 人的邀请（未发送邮件）`);
       }
       if (skipped > 0) {
-        toast.info(`有 ${skipped} 人已提交或不在填写范围内，已自动跳过`);
+        toast.info(`有 ${skipped} 人不在填写范围内，已自动跳过`);
       }
       setOpen(false);
       router.refresh();
@@ -172,6 +166,7 @@ export function CollectionInviteDialog({
       <DialogTrigger asChild>
         <Button
           variant="outline"
+          className="w-full"
           disabled={disabled}
           title={disabled ? "仅在收集期间可以邀请成员" : undefined}
         >
@@ -183,7 +178,7 @@ export function CollectionInviteDialog({
           <DialogTitle>邀请成员填写</DialogTitle>
           <DialogDescription>
             按流程、届别与关键词筛选成员，批量勾选后发送邀请；邀请邮件可选。
-            已提交或不在填写范围内的人会自动排除。
+            不在填写范围内的人会自动排除，已填写的人会标记出来但仍可邀请。
           </DialogDescription>
         </DialogHeader>
 
@@ -265,7 +260,7 @@ export function CollectionInviteDialog({
               </Label>
             </div>
             <p className="text-xs text-muted-foreground">
-              已选 {selectedIds.size} 人（单次最多 {MAX_INVITES} 人）
+              已选 {selectedIds.size} 人
             </p>
           </div>
 
@@ -280,7 +275,7 @@ export function CollectionInviteDialog({
               </p>
             ) : candidates.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                没有符合条件的成员（已自动排除已提交或不在填写范围内的人）。
+                没有符合条件的成员（已自动排除不在填写范围内的人）。
               </p>
             ) : (
               <div className="divide-y divide-border/60">
@@ -307,6 +302,11 @@ export function CollectionInviteDialog({
                           <span className="ml-2 text-xs font-normal text-muted-foreground">
                             {candidate.studentId ?? "无学号"}
                           </span>
+                          {candidate.submitted && (
+                            <span className="ml-2 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-normal text-amber-700 dark:text-amber-300">
+                              已填写
+                            </span>
+                          )}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {candidate.email ?? "无邮箱"}
@@ -369,7 +369,7 @@ export function CollectionInviteDialog({
           <Button
             type="button"
             loading={sending}
-            disabled={selectedIds.size === 0 || selectedIds.size > MAX_INVITES}
+            disabled={selectedIds.size === 0}
             onClick={send}
           >
             邀请 {selectedIds.size > 0 ? `${selectedIds.size} 人` : ""}

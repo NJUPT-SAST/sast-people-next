@@ -7,84 +7,86 @@ import {
   validateExtraAnswers,
 } from "./collection";
 import {
+  COLLECTION_CUSTOM_DEFAULT_TITLE,
   COLLECTION_DEFAULT_INSTRUCTIONS,
   COLLECTION_DEFAULT_TITLE,
+  COLLECTION_MEMBER_TEMPLATE_FIELDS,
 } from "@/const/collection";
 
 const validSubmission = {
-  category: "注册社员" as const,
+  category: "注册社员",
   name: "张三",
   birthMonth: "2004-10",
   politicalStatus: "共青团员",
   college: "计算机学院",
   className: "B230601",
   studentId: "B23060101",
-  enrollmentYear: 2023,
-  graduationYear: 2027,
+  enrollmentYear: "2023",
+  graduationYear: "2027",
 };
 
-describe("collectionSubmissionSchema", () => {
+const validateMember = (overrides: Record<string, unknown> = {}) =>
+  validateExtraAnswers(COLLECTION_MEMBER_TEMPLATE_FIELDS, {
+    ...validSubmission,
+    ...overrides,
+  });
+
+describe("member template answers", () => {
   it("accepts the specified member form fields", () => {
-    expect(collectionSubmissionSchema.safeParse(validSubmission).success).toBe(true);
+    expect(validateMember().success).toBe(true);
   });
 
   it("rejects categories outside the seven allowed types", () => {
-    const result = collectionSubmissionSchema.safeParse({
-      ...validSubmission,
-      category: "指导老师",
-    });
-    expect(result.success).toBe(false);
+    expect(validateMember({ category: "指导老师" }).success).toBe(false);
   });
 
   it("requires birth month in YYYY-MM form", () => {
     for (const birthMonth of ["2020-1", "2020-13", "2020/10", "20-10"]) {
-      expect(
-        collectionSubmissionSchema.safeParse({ ...validSubmission, birthMonth }).success,
-      ).toBe(false);
+      expect(validateMember({ birthMonth }).success).toBe(false);
     }
   });
 
   it("requires graduation year to be later than enrollment year", () => {
     expect(
-      collectionSubmissionSchema.safeParse({
-        ...validSubmission,
-        enrollmentYear: 2027,
-        graduationYear: 2027,
-      }).success,
+      validateMember({ enrollmentYear: "2027", graduationYear: "2027" }).success,
     ).toBe(false);
     expect(
-      collectionSubmissionSchema.safeParse({
-        ...validSubmission,
-        enrollmentYear: 2027,
-        graduationYear: 2026,
-      }).success,
+      validateMember({ enrollmentYear: "2027", graduationYear: "2026" }).success,
     ).toBe(false);
   });
 
   it("rejects political statuses outside the provided options", () => {
-    expect(
-      collectionSubmissionSchema.safeParse({
-        ...validSubmission,
-        politicalStatus: "未知身份",
-      }).success,
-    ).toBe(false);
+    expect(validateMember({ politicalStatus: "未知身份" }).success).toBe(false);
   });
 
   it("trims text fields before storing them", () => {
-    const parsed = collectionSubmissionSchema.parse({
-      ...validSubmission,
-      name: " 张三 ",
-    });
-    expect(parsed.name).toBe("张三");
+    const result = validateMember({ name: " 张三 " });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.answers.name).toBe("张三");
   });
 
   it("rejects blank college/class/student id", () => {
     for (const field of ["college", "className", "studentId"] as const) {
-      expect(
-        collectionSubmissionSchema.safeParse({ ...validSubmission, [field]: "   " })
-          .success,
-      ).toBe(false);
+      expect(validateMember({ [field]: "   " }).success).toBe(false);
     }
+  });
+
+  it("requires class names like B240101", () => {
+    for (const className of ["B24010", "240101", "B2401011", "BAB101", "B24010A"]) {
+      expect(validateMember({ className }).success).toBe(false);
+    }
+    const result = validateMember({ className: "b240101" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.answers.className).toBe("B240101");
+  });
+});
+
+describe("collectionSubmissionSchema", () => {
+  it("accepts custom answers without member fields", () => {
+    const parsed = collectionSubmissionSchema.parse({
+      extraAnswers: { interest: "前端" },
+    });
+    expect(parsed.extraAnswers).toEqual({ interest: "前端" });
   });
 });
 
@@ -97,6 +99,19 @@ describe("collectionFormInputSchema", () => {
     expect(parsed.allowedRoles).toEqual([]);
     expect(parsed.allowedFlowIds).toEqual([]);
     expect(parsed.deadline).toBeUndefined();
+  });
+
+  it("defaults to the member template", () => {
+    const parsed = collectionFormInputSchema.parse({});
+    expect(parsed.kind).toBe("member");
+    expect(parsed.title).toBe(COLLECTION_DEFAULT_TITLE);
+  });
+
+  it("uses the custom template defaults without member copy", () => {
+    const parsed = collectionFormInputSchema.parse({ kind: "custom" });
+    expect(parsed.kind).toBe("custom");
+    expect(parsed.title).toBe(COLLECTION_CUSTOM_DEFAULT_TITLE);
+    expect(parsed.instructions).toBe("");
   });
 
   it("accepts a direct identity and flow selection", () => {

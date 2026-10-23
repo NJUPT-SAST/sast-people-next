@@ -5,8 +5,6 @@ import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import {
-  COLLECTION_CLUB_NAME,
-  COLLECTION_DEFAULT_TITLE,
   COLLECTION_FORM_STATUSES,
 } from "@/const/collection";
 import { db } from "@/db/drizzle";
@@ -70,13 +68,15 @@ export async function createCollectionForm(
     return failure("开始时间必须早于截止时间");
   }
 
-  const title = parsed.data.title.trim() || COLLECTION_DEFAULT_TITLE;
-  const instructions = parsed.data.instructions.trim();
+  const title = parsed.data.title;
+  const instructions = parsed.data.instructions;
 
   const [created] = await db
     .insert(collectionForm)
     .values({
       title,
+      kind: parsed.data.kind,
+      templateName: parsed.data.templateName,
       instructions,
       extraFields: parsed.data.extraFields,
       shareToken: crypto.randomBytes(18).toString("base64url"),
@@ -97,6 +97,8 @@ export async function createCollectionForm(
     resourceId: created.id,
     metadata: {
       title,
+      kind: parsed.data.kind,
+      templateName: parsed.data.templateName,
       extraFieldCount: parsed.data.extraFields.length,
       allowedRoles: parsed.data.allowedRoles,
       allowedFlowIds: parsed.data.allowedFlowIds,
@@ -138,13 +140,14 @@ export async function updateCollectionForm(
     return failure("开始时间必须早于截止时间");
   }
 
-  const title = parsed.data.title.trim() || COLLECTION_DEFAULT_TITLE;
-  const instructions = parsed.data.instructions.trim();
+  const title = parsed.data.title;
+  const instructions = parsed.data.instructions;
 
   await db
     .update(collectionForm)
     .set({
       title,
+      templateName: parsed.data.templateName,
       instructions,
       extraFields: parsed.data.extraFields,
       startsAt,
@@ -163,6 +166,8 @@ export async function updateCollectionForm(
     resourceId: form.id,
     metadata: {
       title,
+      kind: form.kind,
+      templateName: parsed.data.templateName,
       extraFieldCount: parsed.data.extraFields.length,
       allowedRoles: parsed.data.allowedRoles,
       allowedFlowIds: parsed.data.allowedFlowIds,
@@ -204,33 +209,22 @@ export async function saveCollectionSubmission(
   const extra = validateExtraAnswers(form.extraFields, parsed.data.extraAnswers);
   if (!extra.success) return failure(extra.message);
 
-  const values = {
-    fkFormId: form.id,
-    fkUserId: session.uid,
-    department: normalizeDepartmentKey(session.department),
-    clubName: COLLECTION_CLUB_NAME,
-    ...parsed.data,
-    extraAnswers: extra.answers,
-  };
-
+  const department = normalizeDepartmentKey(session.department);
   const [saved] = await db
     .insert(collectionSubmission)
-    .values(values)
+    .values({
+      fkFormId: form.id,
+      fkUserId: session.uid,
+      department,
+      extraAnswers: extra.answers,
+    })
     .onConflictDoUpdate({
       target: [collectionSubmission.fkFormId, collectionSubmission.fkUserId],
       set: {
-        department: values.department,
-        clubName: values.clubName,
-        category: values.category,
-        name: values.name,
-        birthMonth: values.birthMonth,
-        politicalStatus: values.politicalStatus,
-        college: values.college,
-        className: values.className,
-        studentId: values.studentId,
-        enrollmentYear: values.enrollmentYear,
-        graduationYear: values.graduationYear,
-        extraAnswers: values.extraAnswers,
+        department,
+        extraAnswers: extra.answers,
+        returnedAt: null,
+        returnNote: null,
         updatedAt: new Date(),
       },
     })
@@ -298,6 +292,8 @@ export async function duplicateCollectionForm(
     .insert(collectionForm)
     .values({
       title: `${form.title}（副本）`.slice(0, 120),
+      kind: form.kind,
+      templateName: form.templateName,
       instructions: form.instructions,
       extraFields: form.extraFields,
       shareToken: crypto.randomBytes(18).toString("base64url"),

@@ -554,6 +554,20 @@
       "when": 1789250000026,
       "tag": "0081_collection_forms",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1789250000027,
+      "tag": "0082_collection_form_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1789250000028,
+      "tag": "0083_collection_templates",
+      "breakpoints": true
     }
   ]
 }

@@ -29,6 +29,7 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
     const [delivery] = await db
       .select({
         id: emailDelivery.id,
+        category: emailDelivery.category,
         status: emailDelivery.status,
         department: sql<string | null>`coalesce(${flow.department}, ${batchFlow.department})`,
       })
@@ -46,9 +47,12 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
       return { messageId: null, skipped: true };
     }
 
-    /* 与列表可见性保持一致：投递自身未记录流程时回退到批次的流程 */
+    /* 与列表可见性保持一致：投递自身未记录流程时回退到批次的流程；
+       收集表投递不属于任何流程，所有部长都可重试 */
     department = delivery.department;
-    assertFlowEditable(session.scope, department, "无权操作其他部门的邮件");
+    if (delivery.category !== "collection") {
+      assertFlowEditable(session.scope, department, "无权操作其他部门的邮件");
+    }
 
     const result = await sendEmailDelivery(delivery.id, {
       trigger: "manual_retry",

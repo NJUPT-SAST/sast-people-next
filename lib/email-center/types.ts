@@ -32,10 +32,13 @@ export type InterviewEmailTemplateKey =
 
 export type CollectionInvitationEmailTemplateKey = "collection.invitation";
 
+export type CollectionReturnEmailTemplateKey = "collection.return";
+
 export type EmailTemplateKey =
   | ResultEmailTemplateKey
   | InterviewEmailTemplateKey
-  | CollectionInvitationEmailTemplateKey;
+  | CollectionInvitationEmailTemplateKey
+  | CollectionReturnEmailTemplateKey;
 
 export type EmailVariableDefinition = {
   key: string;
