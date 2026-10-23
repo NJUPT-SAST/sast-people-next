@@ -383,9 +383,8 @@ export function CollectionFormDialog({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const rawStartsAt = String(formData.get("startsAt") ?? "").trim();
-    const rawDeadline = String(formData.get("deadline") ?? "").trim();
+    const rawStartsAt = startsAtValue.trim();
+    const rawDeadline = deadlineValue.trim();
     const startsAt = rawStartsAt ? parseBeijingDateTime(rawStartsAt) : null;
     const deadline = rawDeadline ? parseBeijingDateTime(rawDeadline) : null;
     if (rawStartsAt && !startsAt) {
@@ -408,6 +407,7 @@ export function CollectionFormDialog({
     const payload = {
       kind: templateKey === "member" ? ("member" as const) : ("custom" as const),
       templateName:
+        (templateKey === "__current__" ? form?.templateName : undefined) ??
         templateOptions.find((option) => option.key === templateKey)?.name ??
         COLLECTION_CUSTOM_DEFAULT_TITLE,
       title,

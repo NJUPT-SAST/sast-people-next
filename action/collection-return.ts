@@ -38,6 +38,12 @@ const failure = (message: string): { success: false; message: string } => ({
   message,
 });
 
+export type CollectionReturnEmailStatus =
+  | "sent"
+  | "no_email"
+  | "lookup_failed"
+  | "send_failed";
+
 /**
  * 部长及以上退回一条填写：记录退回说明并通知填写人修改。
  * 填写人重新提交后，退回标记会自动清除。
@@ -46,7 +52,9 @@ export async function returnCollectionSubmission(input: {
   formId: number;
   submissionId: number;
   note?: string;
-}): Promise<ActionResult<{ emailed: boolean }>> {
+}): Promise<
+  ActionResult<{ emailStatus: CollectionReturnEmailStatus }>
+> {
   const session = await verifySession();
   if (!canManageCollectionForm(session)) {
     return failure("仅部长及以上可退回填写");
@@ -79,11 +87,19 @@ export async function returnCollectionSubmission(input: {
       eq(collectionSubmission.id, submission.id),
     );
 
-  let emailed = false;
+  let emailStatus: CollectionReturnEmailStatus = "no_email";
   const recipient = (
-    await listPeopleUsersByLinkIds([submission.fkUserId]).catch(
-      () => new Map(),
-    )
+    await listPeopleUsersByLinkIds([submission.fkUserId]).catch((error) => {
+      emailStatus = "lookup_failed";
+      logServerError("collection:submission:return-lookup", error, {
+        path: `/dashboard/collection/${form.id}`,
+        userId: session.uid,
+        role: session.role,
+        action: "return-collection-submission",
+        metadata: { formId: form.id, submissionId: submission.id },
+      });
+      return new Map();
+    })
   ).get(submission.fkUserId);
   const emailAddress = recipient?.email ?? null;
 
@@ -113,8 +129,9 @@ export async function returnCollectionSubmission(input: {
         trigger: "immediate",
         triggeredBy: session.uid,
       });
-      emailed = true;
+      emailStatus = "sent";
     } catch (error) {
+      emailStatus = "send_failed";
       logServerError("collection:submission:return-email", error, {
         path: `/dashboard/collection/${form.id}`,
         userId: session.uid,
@@ -134,11 +151,12 @@ export async function returnCollectionSubmission(input: {
     metadata: {
       formId: form.id,
       note,
-      emailed,
+      emailed: emailStatus === "sent",
+      emailStatus,
     },
   });
 
   revalidatePath("/dashboard/collection");
   revalidatePath(`/dashboard/collection/${form.id}`);
-  return { success: true, data: { emailed } };
+  return { success: true, data: { emailStatus } };
 }
