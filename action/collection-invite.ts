@@ -70,7 +70,8 @@ const sendInputSchema = z.object({
   formId: z.number().int().positive(),
   userIds: z
     .array(z.number().int().positive())
-    .min(1, "请至少选择一位成员"),
+    .min(1, "请至少选择一位成员")
+    .max(MAX_CANDIDATES, `单次最多邀请 ${MAX_CANDIDATES} 人`),
   sendEmail: z.boolean().default(true),
   message: z.string().trim().max(500).optional(),
 });

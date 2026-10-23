@@ -124,10 +124,15 @@ export function CollectionSubmissionsTable({
         note: returnNote,
       });
       if (!result.success) throw new Error(result.message);
+      const emailStatus = result.data?.emailStatus;
       toast.success(
-        result.data?.emailed
+        emailStatus === "sent"
           ? "已退回，并已通知填写人修改"
-          : "已退回；该成员没有可用邮箱，未发送通知",
+          : emailStatus === "send_failed"
+            ? "已退回；通知邮件发送失败，可在邮件中心重试"
+            : emailStatus === "lookup_failed"
+              ? "已退回；无法查询成员邮箱，未发送通知"
+              : "已退回；该成员没有可用邮箱，未发送通知",
       );
       setReturning(null);
       setReturnNote("");
