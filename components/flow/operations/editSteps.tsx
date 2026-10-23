@@ -251,7 +251,7 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
 
   if (linkOnly) {
     return (
-      <Button asChild size="sm" variant="ghost" className="h-10 shrink-0 rounded-lg px-3 text-sm shadow-none text-primary hover:bg-primary/10 hover:text-primary xl:h-8 xl:px-2">
+      <Button asChild size="sm" variant="ghost" className="h-10 shrink-0 rounded-lg px-3 text-sm shadow-none text-primary hover:bg-muted hover:text-primary xl:h-8 xl:px-2">
         <Link href={`/dashboard/flow/edit?id=${data.id}`}>编辑流程</Link>
       </Button>
     );
@@ -260,7 +260,7 @@ export const EditSteps = ({ data, autoOpen = false, linkOnly = false, canChooseD
   return (
     <Sheet open={openEdit} onOpenChange={setOpenEdit}>
       <SheetTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-10 shrink-0 rounded-lg px-3 text-sm shadow-none text-primary hover:bg-primary/10 hover:text-primary xl:h-8 xl:px-2">
+        <Button size="sm" variant="ghost" className="h-10 shrink-0 rounded-lg px-3 text-sm shadow-none text-primary hover:bg-muted hover:text-primary xl:h-8 xl:px-2">
           编辑流程
         </Button>
       </SheetTrigger>

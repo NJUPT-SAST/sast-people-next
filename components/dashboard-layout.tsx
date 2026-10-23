@@ -41,9 +41,9 @@ export function DashboardLayout({
         userCard={userCard}
       />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-3 px-4 pt-safe">
+        <header className="sticky top-0 z-30 flex min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-3 pt-safe backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 sm:px-4">
           <SidebarTrigger
-            className="-ml-1 size-10 touch-manipulation text-muted-foreground hover:text-foreground"
+            className="-ml-0.5 size-10 touch-manipulation rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
             title="展开或收起侧边导航"
             aria-label="展开或收起侧边导航"
           />
@@ -52,7 +52,7 @@ export function DashboardLayout({
           <ThemeToggle />
         </header>
         {viewAs && <ViewAsBanner viewAs={viewAs} />}
-        <div className="mx-auto flex min-w-0 w-full max-w-7xl flex-1 flex-col gap-4 border-t border-border/50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:gap-5 lg:p-6 lg:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto flex min-w-0 w-full max-w-[86rem] flex-1 flex-col gap-5 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 lg:gap-7 lg:px-8 lg:py-8 lg:pb-[max(2rem,env(safe-area-inset-bottom))]">
           {children}
         </div>
       </SidebarInset>

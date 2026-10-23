@@ -583,7 +583,7 @@ export const RecruitmentContent = ({
         ) / gradedScores.length;
 
   const errorPanel = (
-    <div className="rounded-lg border bg-card p-10 text-center">
+    <div className="rounded-xl border border-border/70 bg-card shadow-card p-10 text-center">
       <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive">
         <AlertCircle className="size-5" aria-hidden="true" />
       </div>
@@ -617,7 +617,7 @@ export const RecruitmentContent = ({
 
   return (
     <div className="min-w-0 space-y-4">
-      <section className="overflow-hidden rounded-lg border bg-card">
+      <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
         {isEvaluationWorkspace && interviewFlowGroups.length > 0 && (
           <div className="relative border-b">
             {/* 语义化页签可能有很多（12 个部门×阶段），行内收缩并横滑；原生滚动条在页签栏里
@@ -808,7 +808,7 @@ export const RecruitmentContent = ({
       </section>
 
       {!flowId ? (
-        <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border/70 bg-card shadow-card p-8 text-center text-sm text-muted-foreground">
           暂无流程
         </div>
       ) : isEvaluationWorkspace ? (

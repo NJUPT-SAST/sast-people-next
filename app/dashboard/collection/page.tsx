@@ -145,7 +145,7 @@ export default async function CollectionPage() {
                   仅自己可见 · 收集结束后仍可查看
                 </span>
               </div>
-              <div className="divide-y divide-border/60 overflow-hidden rounded-lg border bg-card">
+              <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
                 {historyForms.map((form) => {
                   const ended = collectionFormPhase(form) === "closed";
                   return (

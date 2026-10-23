@@ -34,14 +34,16 @@ export default async function Home({
     process.env.NEXT_PUBLIC_LINK_PROFILE_URL || "https://link.sast.fun";
   return (
     <>
-      <PageHeader className="items-start border-b pb-4 sm:items-start">
-        <div className="min-w-0 space-y-1">
+      <PageHeader className="items-start gap-4 pb-1 sm:items-center">
+        <div className="min-w-0 space-y-2">
           <PageTitle />
           {userInfo.updatedAt && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-xs">
               <Clock className="h-3 w-3" />
-              上次更新：
-              {originalDayjs(userInfo.updatedAt).format("YYYY-MM-DD HH:mm")}
+              上次更新
+              <span className="text-foreground/70">
+                {originalDayjs(userInfo.updatedAt).format("YYYY-MM-DD HH:mm")}
+              </span>
             </div>
           )}
         </div>
@@ -57,16 +59,18 @@ export default async function Home({
       />
       {userInfo.studentId === null && !awaitedSearchParams.start ? (
         userInfo.role === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-xl bg-muted/30 p-8 animate-in fade-in duration-500">
-            <div className="flex flex-col items-center gap-3 text-center max-w-sm">
-              <Rocket className="h-12 w-12 text-muted-foreground/50" />
-              <h3 className="text-2xl font-bold tracking-tight">
+          <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 p-10 animate-in fade-in duration-500">
+            <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+              <span className="grid size-14 place-items-center rounded-2xl bg-muted text-primary ring-1 ring-border/60">
+                <Rocket className="size-6" />
+              </span>
+              <h3 className="text-2xl font-semibold tracking-tight">
                 Welcome to SAST People
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm leading-6 text-muted-foreground">
                 看起来是新同学呢，在报名之前介绍一下你自己吧！
               </p>
-              <Button className="mt-2" asChild>
+              <Button className="mt-1" size="lg" asChild>
                 <a href={linkProfileUrl} target="_blank" rel="noreferrer">
                   前往 Link 完善资料
                 </a>
@@ -74,13 +78,15 @@ export default async function Home({
             </div>
           </div>
         ) : (
-          <div className="flex flex-1 items-center justify-center rounded-xl bg-muted/30 p-8 animate-in fade-in duration-500">
-            <div className="flex flex-col items-center gap-3 text-center max-w-sm">
-              <Rocket className="h-12 w-12 text-muted-foreground/50" />
-              <h3 className="text-2xl font-bold tracking-tight">
+          <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 p-10 animate-in fade-in duration-500">
+            <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+              <span className="grid size-14 place-items-center rounded-2xl bg-muted text-primary ring-1 ring-border/60">
+                <Rocket className="size-6" />
+              </span>
+              <h3 className="text-2xl font-semibold tracking-tight">
                 Welcome to SAST People
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm leading-6 text-muted-foreground">
                 如果需要编辑资料，请在此处绑定 SAST Link 账号。
               </p>
               <LinkLogin isBinding={true} />

@@ -72,7 +72,7 @@ function TemplateOverrideBadge({
   readOnly: boolean;
 }) {
   const tone: Record<TemplateRowStatus, string> = {
-    "department-override": "border-primary/40 bg-primary/5 text-primary",
+    "department-override": "border-primary/40 bg-muted/60 text-primary",
     "global-fallback": "text-muted-foreground",
     "global-default": "text-muted-foreground",
     "other-department": "border-chart-3/50 bg-chart-3/5 text-muted-foreground",
@@ -1029,13 +1029,13 @@ export function EmailTemplateManagementSection({
     (definition) => definition.key === "collection.invitation",
   );
   const templateCardClassName =
-    "group relative flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border bg-card p-3.5 transition-colors hover:border-foreground/20 hover:bg-muted/40";
+    "group relative flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl border border-border/70 bg-card shadow-card p-3.5 transition-colors hover:border-foreground/20 hover:bg-muted/40";
   /* 顶部色条区分语义：通过 = 主色（绿），不通过 = 失败色（红），避免整页绿条时看错 */
   const templateAccentClass = (templateKey: string) =>
     templateKey.endsWith(".rejected")
       ? "bg-destructive/70"
       : templateKey.endsWith(".accepted")
-        ? "bg-primary/60"
+        ? "bg-primary"
         : "bg-muted-foreground/40";
 
   /* 部门只跑自己那套阶段：技术部门看笔试/免试/WOC/SOC（电子部不含 WOC），办公部门只看一面/二面。
@@ -1114,7 +1114,7 @@ export function EmailTemplateManagementSection({
   })();
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card">
+    <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
       <header className="flex flex-col gap-4 border-b p-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6 lg:p-5">
         <div className="flex min-w-0 flex-col gap-2">
           <h2 className="text-sm font-semibold">模板管理</h2>

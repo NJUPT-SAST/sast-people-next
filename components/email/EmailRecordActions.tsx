@@ -161,7 +161,7 @@ function EmailDeliveryDetailDialog({
           </section>
         )}
 
-        <section className="min-w-0 rounded-lg border bg-card p-4">
+        <section className="min-w-0 rounded-xl border border-border/70 bg-card shadow-card p-4">
           <h3 className="text-sm font-semibold">投递信息</h3>
           <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <DetailItem
@@ -199,7 +199,7 @@ function EmailDeliveryDetailDialog({
           </div>
         </section>
 
-        <section className="min-w-0 rounded-lg border bg-card p-4">
+        <section className="min-w-0 rounded-xl border border-border/70 bg-card shadow-card p-4">
           <h3 className="text-sm font-semibold">发送尝试</h3>
           {delivery.attempts.length === 0 ? (
             <p className="mt-3 rounded-md border border-dashed bg-muted px-3 py-2 text-sm text-muted-foreground">
@@ -259,7 +259,7 @@ function EmailDeliveryDetailDialog({
           )}
         </section>
 
-        <section className="min-w-0 rounded-lg border bg-card p-4">
+        <section className="min-w-0 rounded-xl border border-border/70 bg-card shadow-card p-4">
           <h3 className="text-sm font-semibold">关联对象</h3>
           <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <DetailItem
@@ -294,7 +294,7 @@ function EmailDeliveryDetailDialog({
           </div>
         </section>
 
-        <section className="min-w-0 rounded-lg border bg-card p-4">
+        <section className="min-w-0 rounded-xl border border-border/70 bg-card shadow-card p-4">
           <h3 className="text-sm font-semibold">正文快照</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             这里展示发送前保存的正文快照，后续模板修改不会影响此内容。
