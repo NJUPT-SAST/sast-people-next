@@ -6,7 +6,7 @@ import { departmentLabel } from "@/const/department";
 import { formatCollectionAnswer } from "@/const/collection";
 import { verifySession, type VerifiedSession } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { escapeCsv } from "@/lib/csv";
+import { escapeCsv, escapeCsvMonth } from "@/lib/csv";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
 import { formatBeijingDateTime } from "@/lib/timezone";
@@ -64,17 +64,23 @@ export async function GET(request: NextRequest) {
         "退回说明",
         "提交时间",
         "最后更新",
-      ],
+      ].map(escapeCsv),
       ...rows.map((row) => [
-        ...(nameField ? [] : [displayName(row)]),
-        ...form.extraFields.map((field) => cellValue(row, field)),
-        departmentLabel(row.department, ""),
-        row.returnNote ?? "",
-        formatBeijingDateTime(row.createdAt),
-        formatBeijingDateTime(row.updatedAt),
+        ...(nameField ? [] : [escapeCsv(displayName(row))]),
+        ...form.extraFields.map((field) => {
+          const value = cellValue(row, field);
+          /* 年月列强制按文本导出：否则 Excel 会补成当月 1 号并显示成 May-07 */
+          return field.type === "month"
+            ? escapeCsvMonth(value)
+            : escapeCsv(value);
+        }),
+        escapeCsv(departmentLabel(row.department, "")),
+        escapeCsv(row.returnNote ?? ""),
+        escapeCsv(formatBeijingDateTime(row.createdAt)),
+        escapeCsv(formatBeijingDateTime(row.updatedAt)),
       ]),
     ];
-    const lines = table.map((line) => line.map(escapeCsv).join(","));
+    const lines = table.map((line) => line.join(","));
     const body = `\uFEFF${lines.join("\n")}\n`;
     const filename = encodeURIComponent(`${form.title}-收集结果.csv`);
 
