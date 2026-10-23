@@ -2,6 +2,7 @@
 import type { userType } from "@/types/user";
 import { departmentLabel } from "@/const/department";
 import { z } from "zod/v4";
+import { UserRound } from "lucide-react";
 import { Button } from "../ui/button";
 import {
   Card,
@@ -61,20 +62,27 @@ export const BasicInfo = ({
     ],
   ] as const;
   const header = (
-    <div className="space-y-1">
-      <h2 className="text-lg font-semibold tracking-tight">基本信息</h2>
-      <p className="text-sm text-muted-foreground">
-        个人基本信息来自 SAST Link
-        {initialInfo.nickname ? ` · ${initialInfo.nickname}` : ""}
-      </p>
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-primary ring-1 ring-border/60">
+        <UserRound className="size-[18px]" />
+      </span>
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold tracking-tight sm:text-lg">基本信息</h2>
+        <p className="text-sm text-muted-foreground">
+          个人基本信息来自 SAST Link
+          {initialInfo.nickname ? ` · ${initialInfo.nickname}` : ""}
+        </p>
+      </div>
     </div>
   );
   const content = (
-    <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+    <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
       {fields.map(([label, value]) => (
-        <div key={label} className="min-w-0 space-y-1">
-          <dt className="text-sm text-muted-foreground">{label}</dt>
-          <dd className="break-words text-sm font-medium text-foreground">
+        <div key={label} className="min-w-0">
+          <dt className="text-xs font-medium tracking-wide text-muted-foreground">
+            {label}
+          </dt>
+          <dd className="mt-1 break-words text-[15px] font-medium text-foreground">
             {value || "未填写"}
           </dd>
         </div>

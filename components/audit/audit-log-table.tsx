@@ -454,7 +454,7 @@ export function AuditLogTable({
 
   return (
     <div className="space-y-4">
-      <form action="/dashboard/audit" className="rounded-md border bg-card p-4">
+      <form action="/dashboard/audit" className="rounded-xl border border-border/70 bg-card shadow-card p-4">
         <div className="flex flex-col gap-2 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-medium">审计记录</p>
@@ -504,7 +504,7 @@ export function AuditLogTable({
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-md border bg-card">
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
         <div className="hidden md:block">
           <Table className="w-full table-fixed">
             <TableHeader>

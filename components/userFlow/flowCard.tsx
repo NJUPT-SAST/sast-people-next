@@ -126,11 +126,30 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
   return (
     <Card className="w-full">
       <CardHeader className="space-y-3 pb-2">
-        <div className="flex min-w-0 flex-col gap-2.5">
-          <CardTitle className="min-w-0 text-base font-medium leading-snug sm:text-sm">
+        <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+          <CardTitle className="min-w-0 text-base font-semibold leading-snug">
             {safeFlow.title ?? "未命名流程"}
           </CardTitle>
-          <span className="text-sm text-muted-foreground">{statusLabel}</span>
+          <span
+            className={cn(
+              "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+              visibleStatus === "accepted"
+                ? "border-primary/30 text-primary"
+                : visibleStatus === "rejected"
+                  ? "border-destructive/30 text-destructive"
+                  : visibleStatus === "withdrawn"
+                    ? "border-amber-500/35 text-amber-700 dark:text-amber-400"
+                    : "border-border/70 text-muted-foreground",
+            )}
+          >
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                getStatusColor(visibleStatus),
+              )}
+            />
+            {statusLabel}
+          </span>
         </div>
       </CardHeader>
       <CardContent>
@@ -216,12 +235,12 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                           type="button"
                           aria-label={`${step.title}，${statusName[status as keyof typeof statusName] ?? status}。点击查看详情`}
                           className={cn(
-                            "flex size-11 shrink-0 items-center justify-center rounded-full text-sm transition-colors touch-manipulation md:size-12",
+                            "flex size-11 shrink-0 items-center justify-center rounded-full text-sm shadow-xs transition-transform touch-manipulation hover:scale-105 md:size-12",
                             status === "accepted" ||
                             status === "rejected" ||
                             status === "ongoing"
-                              ? `${getStatusColor(status)} text-white`
-                              : "bg-muted text-muted-foreground",
+                              ? `${getStatusColor(status)} text-white ring-4 ring-background`
+                              : "bg-muted text-muted-foreground ring-1 ring-border/70",
                           )}
                         >
                           <Icon className="size-5 md:size-6" />

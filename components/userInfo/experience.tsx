@@ -1,5 +1,6 @@
 'use client';
 import { Button } from '@/components/ui/button';
+import { Sparkles } from 'lucide-react';
 import { z } from 'zod';
 import {
   Card,
@@ -38,9 +39,14 @@ export const ExperienceInfo = ({
   ] as const;
 
   const header = (
-    <div className="space-y-1">
-      <h2 className="text-lg font-semibold tracking-tight">我的能力</h2>
-      <p className="text-sm text-muted-foreground">能力信息来自 SAST Link</p>
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-primary ring-1 ring-border/60">
+        <Sparkles className="size-[18px]" />
+      </span>
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold tracking-tight sm:text-lg">我的能力</h2>
+        <p className="text-sm text-muted-foreground">能力信息来自 SAST Link</p>
+      </div>
     </div>
   );
   const content = (
@@ -48,10 +54,10 @@ export const ExperienceInfo = ({
       {fields.map(([label, value], index) => (
         <div
           key={label}
-          className={index === fields.length - 1 ? "space-y-1 sm:col-span-2" : "space-y-1"}
+          className={index === fields.length - 1 ? "min-w-0 sm:col-span-2" : "min-w-0"}
         >
-          <dt className="text-sm text-muted-foreground">{label}</dt>
-          <dd className="whitespace-pre-wrap break-words text-sm font-medium text-foreground">
+          <dt className="text-xs font-medium tracking-wide text-muted-foreground">{label}</dt>
+          <dd className="mt-1 whitespace-pre-wrap break-words text-[15px] font-medium text-foreground">
             {value || "未填写"}
           </dd>
         </div>

@@ -480,10 +480,10 @@ describe("EmailTemplateManagementSection", () => {
     /* 通过 = 主色条，不通过 = 失败色条（同页还有其它模板卡片，逐卡断言） */
     const rejectedCard = screen.getByText("笔试招新不通过结果通知").closest(".group") as HTMLElement;
     expect(rejectedCard.querySelector(".bg-destructive\\/70")).not.toBeNull();
-    expect(rejectedCard.querySelector(".bg-primary\\/60")).toBeNull();
+    expect(rejectedCard.querySelector(".bg-primary")).toBeNull();
 
     const acceptedCard = screen.getByText("笔试招新通过结果通知").closest(".group") as HTMLElement;
-    expect(acceptedCard.querySelector(".bg-primary\\/60")).not.toBeNull();
+    expect(acceptedCard.querySelector(".bg-primary")).not.toBeNull();
     expect(acceptedCard.querySelector(".bg-destructive\\/70")).toBeNull();
   });
 });

@@ -28,10 +28,10 @@ export const UserCard: React.FC = async () => {
     : '管理员';
 
   return (
-    <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-sidebar-accent/70">
-      <Avatar className="h-9 w-9">
+    <div className="flex items-center gap-2.5 rounded-xl border border-sidebar-border/70 bg-card p-2 shadow-xs transition-colors hover:border-border">
+      <Avatar className="h-9 w-9 ring-2 ring-background">
         <AvatarImage src={avatar ?? undefined} alt={name} />
-        <AvatarFallback className="text-sm font-medium">
+        <AvatarFallback className="bg-muted text-sm font-semibold text-primary">
           {name.charAt(0)}
         </AvatarFallback>
       </Avatar>
@@ -42,7 +42,7 @@ export const UserCard: React.FC = async () => {
         </p>
       </div>
       <form action="/api/auth/logout">
-        <Button variant="ghost" size="icon-sm" type="submit">
+        <Button variant="ghost" size="icon-sm" type="submit" className="rounded-lg text-muted-foreground hover:text-foreground">
           <LogOut className="h-4 w-4" />
         </Button>
       </form>

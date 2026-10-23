@@ -98,7 +98,7 @@ function SidebarNav({
     const href = item.externalHref ?? `/dashboard${item.path}`;
     return (
       <SidebarMenuItem key={item.path || 'profile'}>
-        <SidebarMenuButton asChild isActive={active} tooltip={title}>
+        <SidebarMenuButton asChild isActive={active} tooltip={title} className="h-9 px-2.5">
           {item.externalHref ? (
             <a href={href} target="_blank" rel="noreferrer" title={title}>
               <item.icon />
@@ -123,7 +123,7 @@ function SidebarNav({
   return (
     <>
       {groups.map((group) => (
-        <SidebarGroup key={group.id}>
+        <SidebarGroup key={group.id} className="px-2 py-1.5">
           <SidebarGroupLabel>{singleGroup ? '导航' : group.label}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>{group.items.map(renderItem)}</SidebarMenu>
@@ -137,29 +137,29 @@ function SidebarNav({
 export function AppSidebar({ role, department, userCard }: AppSidebarProps) {
   return (
     <Sidebar>
-      <SidebarHeader>
+      <SidebarHeader className="px-3 pb-1 pt-3">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
               asChild
               tooltip="回到工作台"
-              className="h-16 gap-2.5 px-2.5 data-[size=lg]:h-16"
+              className="h-14 gap-3 px-1.5 data-[size=lg]:h-14 hover:bg-transparent"
             >
               <Link href="/dashboard" aria-label="回到工作台 · 我的资料">
                 <Image
                   src="/images/crocodile-transparent.png"
                   alt=""
-                  width={48}
-                  height={48}
+                  width={44}
+                  height={44}
                   priority
-                  className="size-12 shrink-0 object-contain"
+                  className="size-11 shrink-0 object-contain"
                 />
                 <span className="flex min-w-0 flex-col leading-tight">
                   <span className="truncate text-[15px] font-semibold tracking-tight">
                     SAST People
                   </span>
-                  <span className="truncate text-[11px] text-muted-foreground">
+                  <span className="mt-0.5 truncate text-[11px] text-sidebar-foreground/55">
                     成员与组织平台
                   </span>
                 </span>
@@ -171,16 +171,16 @@ export function AppSidebar({ role, department, userCard }: AppSidebarProps) {
       <SidebarContent>
         <SidebarNav role={role} hasDepartment={department !== null} />
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border/60 p-2">
-        <SidebarMenu className="mb-2">
+      <SidebarFooter className="gap-2 border-t border-sidebar-border/70 p-2.5">
+        <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isItemActive(usePathname(), aboutMenuItem.path)} tooltip={aboutMenuItem.title}>
+            <SidebarMenuButton asChild isActive={isItemActive(usePathname(), aboutMenuItem.path)} tooltip={aboutMenuItem.title} className="h-9 px-2.5">
               <Link href="/dashboard/about"><aboutMenuItem.icon /><span>{aboutMenuItem.title}</span></Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
         <p
-          className="mb-1 truncate px-2 text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden"
+          className="truncate px-2 text-[11px] text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden"
           title={`当前部门：${departmentLabel(department, '未设置部门')}${department ? `（${department}）` : ''}`}
         >
           当前部门：{departmentLabel(department, '未设置部门')}

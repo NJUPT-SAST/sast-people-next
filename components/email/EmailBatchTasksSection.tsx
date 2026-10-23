@@ -80,7 +80,7 @@ function RetryBatchButton({
 
 export function EmailBatchTasksSection({ batches }: { batches: EmailBatch[] }) {
   return (
-    <section className="overflow-hidden rounded-lg border bg-card">
+    <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
       <div className="border-b px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold">最近发送</h2>
       </div>
