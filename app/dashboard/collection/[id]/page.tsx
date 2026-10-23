@@ -7,13 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader, PageTitle } from "@/components/route";
 import {
   CollectionForm,
-  type CollectionFormValues,
 } from "@/components/collection/collection-form";
 import { CollectionFormDialog } from "@/components/collection/collection-form-dialog";
 import { CollectionInviteDialog } from "@/components/collection/collection-invite-dialog";
 import { CollectionManageActions } from "@/components/collection/collection-manage-actions";
 import { CollectionSubmissionsTable } from "@/components/collection/collection-submissions-table";
-import { collectionFillRoleLabel, collectionFlowScopeLabel } from "@/const/collection";
+import {
+  collectionFillRoleLabel,
+  collectionFlowScopeLabel,
+  COLLECTION_CUSTOM_DEFAULT_TITLE,
+} from "@/const/collection";
 import {
   getCollectionFormById,
   getCollectionInvitationStats,
@@ -22,6 +25,7 @@ import {
   listCollectionFlowOptions,
   listCollectionSubmissions,
 } from "@/lib/collection";
+import { listCollectionTemplateOptions } from "@/lib/collection-templates";
 import {
   canFillCollectionForm,
   canManageCollectionForm,
@@ -29,6 +33,7 @@ import {
 } from "@/lib/collection-access";
 import { collectionFormPhase } from "@/lib/collection-status";
 import { verifySession } from "@/lib/dal";
+import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { formatBeijingDate, formatBeijingDateTime } from "@/lib/timezone";
 import { isNextControlFlowError } from "@/lib/server-error-log";
 import { useUserInfo as getUserInfo } from "@/hooks/useUserInfo";
@@ -74,6 +79,7 @@ export default async function CollectionDetailPage({
       : null;
   const submissions = canManage ? await listCollectionSubmissions(formId) : [];
   const flows = await listCollectionFlowOptions();
+  const templates = canManage ? await listCollectionTemplateOptions() : [];
   const invitationStats = canManage
     ? await getCollectionInvitationStats(form.id)
     : { total: 0, sent: 0, failed: 0, pending: 0 };
@@ -81,18 +87,19 @@ export default async function CollectionDetailPage({
     form.allowedFlowIds.length > 0
       ? flows.filter((flow) => form.allowedFlowIds.includes(flow.id))
       : flows;
-
-  const initialValues: CollectionFormValues = {
-    category: ownSubmission?.category ?? "",
-    name: ownSubmission?.name ?? userInfo?.name ?? "",
-    birthMonth: ownSubmission?.birthMonth ?? "",
-    politicalStatus: ownSubmission?.politicalStatus ?? "",
-    college: ownSubmission?.college ?? userInfo?.college ?? "",
-    className: ownSubmission?.className ?? "",
-    studentId: ownSubmission?.studentId ?? userInfo?.studentId ?? "",
-    enrollmentYear: ownSubmission?.enrollmentYear ?? null,
-    graduationYear: ownSubmission?.graduationYear ?? null,
-  };
+  /* 没有姓名字段时用 Link 姓名标注填写人；失败时表格回退为用户 ID */
+  const hasNameField = form.extraFields.some((field) => field.id === "name");
+  const submitterNames =
+    canManage && !hasNameField && submissions.length > 0
+      ? await listPeopleUsersByLinkIds(submissions.map((row) => row.fkUserId))
+          .then(
+            (users) =>
+              new Map(
+                Array.from(users, ([id, user]) => [id, user.name] as const),
+              ),
+          )
+          .catch(() => new Map<number, string>())
+      : new Map<number, string>();
 
   const linkProfile = {
     name: userInfo?.name ?? "",
@@ -121,9 +128,11 @@ export default async function CollectionDetailPage({
           <CollectionFormDialog
             mode="edit"
             flows={flows}
+            templates={templates}
             form={{
               id: form.id,
               title: form.title,
+              templateName: form.templateName ?? COLLECTION_CUSTOM_DEFAULT_TITLE,
               instructions: form.instructions,
               extraFields: form.extraFields,
               allowedRoles: form.allowedRoles,
@@ -148,6 +157,8 @@ export default async function CollectionDetailPage({
               <CardTitle className="break-words">{form.title}</CardTitle>
               <CardDescription>
                 创建于 {formatBeijingDate(form.createdAt)}
+                {" · "}
+                {form.templateName ?? COLLECTION_CUSTOM_DEFAULT_TITLE}
                 {form.startsAt
                   ? ` · 开始 ${formatBeijingDateTime(form.startsAt)}`
                   : " · 立即开始"}
@@ -184,14 +195,19 @@ export default async function CollectionDetailPage({
               <CollectionForm
                 key={ownSubmission?.id ?? "new"}
                 formId={form.id}
+                fields={form.extraFields}
                 editable={phase === "open" && canFill}
-                initialValues={initialValues}
+                initialAnswers={ownSubmission?.extraAnswers ?? {}}
                 hasSaved={Boolean(ownSubmission)}
                 updatedAtLabel={
                   ownSubmission ? formatBeijingDateTime(ownSubmission.updatedAt) : null
                 }
-                extraFields={form.extraFields}
-                initialExtraAnswers={ownSubmission?.extraAnswers ?? {}}
+                returnedAtLabel={
+                  ownSubmission?.returnedAt
+                    ? formatBeijingDateTime(ownSubmission.returnedAt)
+                    : null
+                }
+                returnNote={ownSubmission?.returnNote ?? null}
                 linkProfile={linkProfile}
                 readonlyNotice={
                   phase === "upcoming"
@@ -281,21 +297,16 @@ export default async function CollectionDetailPage({
             formId={form.id}
             rows={submissions.map((row) => ({
               id: row.id,
-              name: row.name,
-              studentId: row.studentId,
-              category: row.category,
-              clubName: row.clubName,
-              birthMonth: row.birthMonth,
-              politicalStatus: row.politicalStatus,
-              college: row.college,
-              className: row.className,
-              enrollmentYear: row.enrollmentYear,
-              graduationYear: row.graduationYear,
+              fkUserId: row.fkUserId,
               department: row.department,
               extraAnswers: row.extraAnswers,
+              returnedAt: row.returnedAt,
+              returnNote: row.returnNote,
               updatedAtLabel: formatBeijingDateTime(row.updatedAt),
+              submitterName: submitterNames.get(row.fkUserId) ?? null,
             }))}
-            extraFields={form.extraFields}
+            fields={form.extraFields}
+            canReturn={phase === "open"}
           />
         </section>
       )}

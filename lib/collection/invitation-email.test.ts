@@ -1,6 +1,9 @@
 /** @jest-environment node */
 
-import { buildCollectionInvitationEmail } from "./invitation-email";
+import {
+  buildCollectionInvitationEmail,
+  buildCollectionReturnEmail,
+} from "./invitation-email";
 
 describe("buildCollectionInvitationEmail", () => {
   it("includes the form title, deadline, link and message without an inviter", () => {
@@ -49,5 +52,37 @@ describe("buildCollectionInvitationEmail", () => {
     expect(email.html).not.toContain("<b>标题</b>");
     expect(email.html).not.toContain("<img src=x onerror=alert(1)>");
     expect(email.html).toContain("&lt;b&gt;标题&lt;/b&gt;");
+  });
+
+  it("tells already-submitted invitees they can ignore the email", () => {
+    const base = {
+      formTitle: "表单",
+      deadlineLabel: null,
+      url: "https://people.example/collect/token",
+    };
+    expect(
+      buildCollectionInvitationEmail({ ...base, alreadySubmitted: true }).html,
+    ).toContain("可忽略本邮件");
+    expect(
+      buildCollectionInvitationEmail({ ...base, alreadySubmitted: false }).html,
+    ).not.toContain("可忽略本邮件");
+  });
+});
+
+describe("buildCollectionReturnEmail", () => {
+  it("asks the submitter to revise without offering an ignore option", () => {
+    const email = buildCollectionReturnEmail({
+      name: "张三",
+      formTitle: "社团成员信息收集表",
+      deadlineLabel: "2026-10-30 18:00:00",
+      url: "https://people.sast.fun/collect/token",
+      note: "班级格式不对，请改为 B240101",
+    });
+
+    expect(email.subject).toContain("填写需要修改");
+    expect(email.html).toContain("请修改后重新提交");
+    expect(email.html).toContain("请在截止时间前完成修改并重新提交");
+    expect(email.html).toContain("班级格式不对");
+    expect(email.html).not.toContain("忽略");
   });
 });

@@ -327,7 +327,7 @@ function SegmentedDateTimeInput({
       {!options.hideCalendarIcon && (
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button type="button" variant="ghost" size="icon">
               <CalendarIcon className="size-4 text-muted-foreground" />
             </Button>
           </PopoverTrigger>
@@ -369,18 +369,18 @@ function SegmentedDateTimeInput({
       <div className="me-3">
         {inputValue ? (
           <CircleCheck className="size-4 text-green-500" />
-        ) : (
+        ) : !areAllSegmentsEmpty ? (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger className="flex items-center justify-center">
-                <CircleAlert className={cn('size-4', !areAllSegmentsEmpty && 'text-red-500')} />
+              <TooltipTrigger type="button" className="flex items-center justify-center">
+                <CircleAlert className="size-4 text-red-500" />
               </TooltipTrigger>
               <TooltipContent>
                 <p>请输入有效的时间，不能为空，年份须在 1900 至 2100 之间。</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        )}
+        ) : null}
       </div>
     </div>
   );

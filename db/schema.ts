@@ -858,13 +858,40 @@ export const gradingFairnessProfile = pgTable("grading_fairness_profile", {
 });
 
 /**
- * 成员信息收集表：部长及以上发起一轮收集，部员及以上按固定字段填写。
+ * 可复用的收集表模板：保存一组收集项，创建收集表时可一键套用。
+ * 内置模板（成员信息/空白）不落库，这里只存部长自建的模板。
+ */
+export const collectionTemplate = pgTable("collection_template", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 60 }).notNull(),
+  description: text("description").notNull().default(""),
+  fields: jsonb("fields")
+    .$type<CollectionExtraField[]>()
+    .notNull()
+    .default([]),
+  /* Link 用户 ID — 创建/最后修改人 */
+  createdBy: integer("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  nameUnique: unique("collection_template_name_uidx").on(table.name),
+}));
+
+/**
+ * 收集表：部长及以上发起一轮收集，部员及以上按范围填写。
+ * kind = member 使用固定成员字段；kind = custom 只使用 extraFields。
  * department = NULL 表示全体成员可填（仅管理员可建）；否则只对发起人所属部门开放。
- * 字段集合固定（社团名称 / 类别 / 姓名 / 出生年月 / 政治面貌 / 学院 / 班级 / 学号 / 入学年份 / 预计毕业年份）。
  */
 export const collectionForm = pgTable("collection_form", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 120 }).notNull(),
+  /* member = 成员信息模板；custom = 完全自定义字段（历史字段，保留兼容） */
+  kind: varchar("kind", { length: 16 }).notNull().default("member"),
+  /* 创建时使用的模板名称快照；字段本身存在 extra_fields */
+  templateName: varchar("template_name", { length: 60 }),
   instructions: text("instructions").notNull().default(""),
   /* 除固定成员字段外，发起人自定义的收集项 */
   extraFields: jsonb("extra_fields")
@@ -904,6 +931,7 @@ export const collectionForm = pgTable("collection_form", {
 /**
  * 收集表提交：每个用户每张表一条，重复提交按 (fk_form_id, fk_user_id) 更新。
  * department 保存提交时的部门快照，便于部门范围内的结果查看与导出。
+ * member 表写入固定成员字段；custom 表这些列保持 NULL，答案全部在 extra_answers。
  */
 export const collectionSubmission = pgTable("collection_submission", {
   id: serial("id").primaryKey(),
@@ -914,22 +942,25 @@ export const collectionSubmission = pgTable("collection_submission", {
   fkUserId: integer("fk_user_id").notNull(),
   /* 填写人当时的 Link 部门标识 */
   department: varchar("department", { length: 64 }),
-  clubName: varchar("club_name", { length: 120 }).notNull(),
-  category: varchar("category", { length: 32 }).notNull(),
-  name: varchar("name", { length: 60 }).notNull(),
+  clubName: varchar("club_name", { length: 120 }),
+  category: varchar("category", { length: 32 }),
+  name: varchar("name", { length: 60 }),
   /* YYYY-MM */
-  birthMonth: varchar("birth_month", { length: 7 }).notNull(),
-  politicalStatus: varchar("political_status", { length: 40 }).notNull(),
-  college: varchar("college", { length: 120 }).notNull(),
-  className: varchar("class_name", { length: 120 }).notNull(),
-  studentId: varchar("student_id", { length: 32 }).notNull(),
-  enrollmentYear: smallint("enrollment_year").notNull(),
-  graduationYear: smallint("graduation_year").notNull(),
+  birthMonth: varchar("birth_month", { length: 7 }),
+  politicalStatus: varchar("political_status", { length: 40 }),
+  college: varchar("college", { length: 120 }),
+  className: varchar("class_name", { length: 120 }),
+  studentId: varchar("student_id", { length: 32 }),
+  enrollmentYear: smallint("enrollment_year"),
+  graduationYear: smallint("graduation_year"),
   /* 自定义收集项答案：字段 ID → 文本值或文本数组（多选） */
   extraAnswers: jsonb("extra_answers")
     .$type<CollectionExtraAnswers>()
     .notNull()
     .default({}),
+  /* 部长退回：退回时间与说明；重新提交后清空 */
+  returnedAt: timestamp("returned_at", { withTimezone: true }),
+  returnNote: text("return_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

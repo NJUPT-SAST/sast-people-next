@@ -140,6 +140,8 @@ export const listVisibleCollectionForms = async (session: VerifiedSession) => {
     .select({
       id: collectionForm.id,
       title: collectionForm.title,
+      kind: collectionForm.kind,
+      templateName: collectionForm.templateName,
       instructions: collectionForm.instructions,
       status: collectionForm.status,
       startsAt: collectionForm.startsAt,
@@ -205,6 +207,23 @@ export const getCollectionSubmission = async (formId: number, userId: number) =>
       and(
         eq(collectionSubmission.fkFormId, formId),
         eq(collectionSubmission.fkUserId, userId),
+      ),
+    )
+    .limit(1);
+  return submission ?? null;
+};
+
+export const getCollectionSubmissionById = async (
+  formId: number,
+  submissionId: number,
+) => {
+  const [submission] = await db
+    .select()
+    .from(collectionSubmission)
+    .where(
+      and(
+        eq(collectionSubmission.fkFormId, formId),
+        eq(collectionSubmission.id, submissionId),
       ),
     )
     .limit(1);

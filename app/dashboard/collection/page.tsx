@@ -12,6 +12,7 @@ import { PageHeader, PageTitle } from "@/components/route";
 import { CollectionFormDialog } from "@/components/collection/collection-form-dialog";
 import { collectionFillRoleLabel, collectionFlowScopeLabel } from "@/const/collection";
 import { listCollectionFlowOptions, listVisibleCollectionForms } from "@/lib/collection";
+import { listCollectionTemplateOptions } from "@/lib/collection-templates";
 import { canManageCollectionForm } from "@/lib/collection-access";
 import { collectionFormPhase } from "@/lib/collection-status";
 import { verifySession } from "@/lib/dal";
@@ -21,11 +22,12 @@ export const dynamic = "force-dynamic";
 
 export default async function CollectionPage() {
   const session = await verifySession();
-  const [forms, flows] = await Promise.all([
+  const canManage = canManageCollectionForm(session);
+  const [forms, flows, templates] = await Promise.all([
     listVisibleCollectionForms(session),
     listCollectionFlowOptions(),
+    canManage ? listCollectionTemplateOptions() : Promise.resolve([]),
   ]);
-  const canManage = canManageCollectionForm(session);
   const activeForms = canManage
     ? forms
     : forms.filter((form) => collectionFormPhase(form) === "open");
@@ -41,7 +43,7 @@ export default async function CollectionPage() {
     <>
       <PageHeader>
         <PageTitle />
-        {canManage && <CollectionFormDialog flows={flows} />}
+        {canManage && <CollectionFormDialog flows={flows} templates={templates} />}
       </PageHeader>
 
       {!hasAnyForms ? (
@@ -68,35 +70,44 @@ export default async function CollectionPage() {
                 const phaseLabel =
                   phase === "open" ? "收集中" : phase === "upcoming" ? "未开始" : "已截止";
                 return (
-                  <Card key={form.id} className="gap-4">
-                    <CardHeader>
+                  <Card key={form.id} className="flex h-full flex-col gap-0">
+                    <CardHeader className="gap-2">
                       <CardTitle className="flex flex-wrap items-center gap-2">
                         <span className="min-w-0 break-words">{form.title}</span>
                         <Badge variant={phase === "open" ? "default" : "secondary"}>
                           {phaseLabel}
                         </Badge>
                       </CardTitle>
-                      <CardDescription>
-                        创建于 {formatBeijingDate(form.createdAt)}
-                        {form.startsAt
-                          ? ` · 开始 ${formatBeijingDateTime(form.startsAt)}`
-                          : " · 立即开始"}
-                        {form.deadline
-                          ? ` · 截止 ${formatBeijingDateTime(form.deadline)}`
-                          : " · 不设截止"}
-                        {" · "}
-                        {collectionFillRoleLabel(form.allowedRoles)}
-                        {form.allowedFlowIds.length > 0 && (
-                          <>
-                            {" · 仅限 "}
-                            {collectionFlowScopeLabel(form.allowedFlowIds, flows)} 通过者
-                          </>
-                        )}
+                      <CardDescription className="space-y-1">
+                        <span className="block">
+                          {form.templateName && form.templateName !== form.title
+                            ? `${form.templateName} · `
+                            : ""}
+                          创建于 {formatBeijingDate(form.createdAt)}
+                        </span>
+                        <span className="block">
+                          {form.startsAt
+                            ? `开始 ${formatBeijingDateTime(form.startsAt)}`
+                            : "立即开始"}
+                          {" · "}
+                          {form.deadline
+                            ? `截止 ${formatBeijingDateTime(form.deadline)}`
+                            : "不设截止"}
+                        </span>
+                        <span className="block">
+                          {collectionFillRoleLabel(form.allowedRoles)}
+                          {form.allowedFlowIds.length > 0 && (
+                            <>
+                              {" · 仅限 "}
+                              {collectionFlowScopeLabel(form.allowedFlowIds, flows)} 通过者
+                            </>
+                          )}
+                        </span>
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="flex flex-col gap-4">
-                      <p className="line-clamp-2 whitespace-pre-line text-sm text-muted-foreground">
-                        {form.instructions}
+                    <CardContent className="mt-auto flex flex-col gap-3">
+                      <p className="line-clamp-2 min-h-10 whitespace-pre-line text-sm text-muted-foreground">
+                        {form.instructions || "暂无填表说明。"}
                       </p>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">

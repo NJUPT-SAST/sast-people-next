@@ -104,35 +104,37 @@ export function CollectionManageActions({
             value={shareUrl}
             readOnly
             onFocus={(event) => event.currentTarget.select()}
-            className="font-mono text-xs"
+            className="min-w-0 font-mono text-xs"
           />
-          <Button type="button" variant="outline" onClick={copyShareLink}>
-            <Copy /> 复制
-          </Button>
-          <Button variant="outline" asChild>
-            <a href={shareUrl} target="_blank" rel="noreferrer">
-              <ExternalLink /> 打开
-            </a>
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button type="button" variant="outline" onClick={copyShareLink}>
+              <Copy /> 复制
+            </Button>
+            <Button variant="outline" asChild>
+              <a href={shareUrl} target="_blank" rel="noreferrer">
+                <ExternalLink /> 打开
+              </a>
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
           收到链接的成员登录后即可填写；未登录会先登录再回到本表。
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={duplicate} loading={pending}>
+      <div className="grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
+        <Button variant="outline" className="w-full" onClick={duplicate} loading={pending}>
           <CopyPlus /> 复制表单
         </Button>
-        <Button variant="outline" onClick={toggleStatus} loading={pending}>
+        <Button variant="outline" className="w-full" onClick={toggleStatus} loading={pending}>
           {isOpen ? "结束收集" : "恢复收集"}
         </Button>
-        <Button variant="outline" asChild>
+        <Button variant="outline" className="w-full" asChild>
           <a href={exportHref}>导出数据</a>
         </Button>
         <Button
           variant="ghost"
-          className="text-destructive hover:text-destructive"
+          className="w-full text-destructive hover:text-destructive"
           onClick={() => setDeleteOpen(true)}
         >
           <Trash2 /> 删除
