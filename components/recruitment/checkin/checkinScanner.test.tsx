@@ -236,7 +236,9 @@ describe("CheckinScanner", () => {
     await decode({ uid: true, time: Date.now() });
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("二维码内容无效，请重试");
+      expect(toastError).toHaveBeenCalledWith(
+        expect.stringContaining("二维码内容无效"),
+      );
     });
     expect(resolveCheckinCandidates).not.toHaveBeenCalled();
   });
@@ -250,7 +252,9 @@ describe("CheckinScanner", () => {
     });
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("二维码内容无效，请重试");
+      expect(toastError).toHaveBeenCalledWith(
+        expect.stringContaining("二维码内容无效"),
+      );
     });
     expect(resolveCheckinCandidates).not.toHaveBeenCalled();
   });

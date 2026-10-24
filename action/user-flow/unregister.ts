@@ -92,7 +92,7 @@ export const unregister = async (userFlowId: number) => {
         targetUserId: uid,
       },
     });
-    revalidatePath("/user-flow");
+    revalidatePath("/dashboard/user-flow");
     return { success: true };
   } catch (error) {
     logServerError("user-flow:unregister", error, {

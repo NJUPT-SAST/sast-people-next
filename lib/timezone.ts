@@ -1,6 +1,6 @@
 export const BUSINESS_TIME_ZONE = "Asia/Shanghai";
 
-const dateTimePartNames = [
+const _dateTimePartNames = [
   "year",
   "month",
   "day",
@@ -9,7 +9,7 @@ const dateTimePartNames = [
   "second",
 ] as const;
 
-type BeijingDateParts = Record<(typeof dateTimePartNames)[number], number>;
+type BeijingDateParts = Record<(typeof _dateTimePartNames)[number], number>;
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: BUSINESS_TIME_ZONE,

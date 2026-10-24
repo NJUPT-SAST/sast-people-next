@@ -52,6 +52,7 @@ yarn-error.log*
 .pnpm-debug.log*
 /tmp/
 /.swc/
+/.playwright-cli/
 
 # env files (can opt-in for committing if needed)
 .env*

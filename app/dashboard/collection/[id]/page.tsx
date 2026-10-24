@@ -31,7 +31,10 @@ import {
   canManageCollectionForm,
   canViewCollectionForm,
 } from "@/lib/collection-access";
-import { collectionFormPhase } from "@/lib/collection-status";
+import {
+  collectionFormPhase,
+  isCollectionDeadlinePassed,
+} from "@/lib/collection-status";
 import { verifySession } from "@/lib/dal";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
 import { formatBeijingDate, formatBeijingDateTime } from "@/lib/timezone";
@@ -276,6 +279,8 @@ export default async function CollectionDetailPage({
                 <CollectionManageActions
                   formId={form.id}
                   status={form.status}
+                  phase={phase}
+                  deadlinePassed={isCollectionDeadlinePassed(form.deadline)}
                   exportHref={`/api/collection/export?formId=${form.id}`}
                   shareToken={form.shareToken}
                 />

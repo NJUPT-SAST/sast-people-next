@@ -43,6 +43,13 @@ describe("sanitizeEmailHtml", () => {
     expect(code).toContain("<table");
   });
 
+  it("keeps superscript and subscript markup offered by the editor toolbar", () => {
+    const html = sanitizeEmailHtml("<p>H<sub>2</sub>O 与 E=mc<sup>2</sup></p>");
+
+    expect(html).toContain("<sub>2</sub>");
+    expect(html).toContain("<sup>2</sup>");
+  });
+
   it("never keeps a style tag even in code blocks", () => {
     const html = sanitizeEmailHtml("<style>p{color:red}</style><p>正文</p>", "codeBlock");
 

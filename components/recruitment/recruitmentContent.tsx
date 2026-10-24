@@ -480,6 +480,7 @@ export const RecruitmentContent = ({
     role >= 3 &&
     officeRoundView === 1 &&
     Boolean(flowId) &&
+    !loading &&
     !loadError;
   const currentFlowTitle =
     safeFlowTypes.find((flow) => flow.id === Number(flowId))?.title ?? '';
@@ -802,6 +803,9 @@ export const RecruitmentContent = ({
       {!flowId ? (
         <div className="rounded-xl border border-border/70 bg-card shadow-card p-8 text-center text-sm text-muted-foreground">
           暂无流程
+          <span className="mt-1 block text-xs">
+            当前账号在此工作台没有可查看的流程；办公类部门面试由部长操作。
+          </span>
         </div>
       ) : isEvaluationWorkspace ? (
         <div className="space-y-4">

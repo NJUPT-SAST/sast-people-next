@@ -58,6 +58,14 @@ function EmailCenterTabNav({
   activeTab: EmailCenterTab;
   canManageTemplates: boolean;
 }) {
+  const searchParams = useSearchParams();
+  /* 页签是同一页的视图切换：保留 department 等查询状态，否则从模板管理切到发送记录
+     再切回来，会悄悄回到自己的部门 */
+  const hrefForTab = (tab: EmailCenterTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    return `/dashboard/emails?${params.toString()}`;
+  };
   return (
     /* 下划线式页签：邮件中心各页是并列的整页视图，按钮盒子看起来像「工具」
        而不是「导航」，切换后也没有位置感。 */
@@ -75,7 +83,7 @@ function EmailCenterTabNav({
             return (
               <Link
                 key={tab.value}
-                href={`/dashboard/emails?tab=${tab.value}`}
+                href={hrefForTab(tab.value)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative inline-flex items-center gap-1.5 pb-2.5 pt-1 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",

@@ -1260,10 +1260,14 @@ export const getEvaluationCandidates = async (flowId: number) => {
         const averageScore =
           scoredEvaluations.length === 0
             ? null
-            : scoredEvaluations.reduce(
-                (sum, evaluation) => sum + (evaluation.score ?? 0),
-                0,
-              ) / scoredEvaluations.length;
+            : Math.round(
+                (scoredEvaluations.reduce(
+                  (sum, evaluation) => sum + (evaluation.score ?? 0),
+                  0,
+                ) /
+                  scoredEvaluations.length) *
+                  10,
+              ) / 10;
         const evaluationCount = roundEvaluations.filter(
           (evaluation) =>
             evaluation.status === "submitted" || evaluation.status === "approved",
