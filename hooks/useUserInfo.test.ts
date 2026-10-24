@@ -8,9 +8,8 @@ jest.mock("react", () => ({
 jest.mock("@/lib/dal", () => ({ verifySession: jest.fn() }));
 jest.mock("next/navigation", () => ({ redirect: jest.fn() }));
 jest.mock("@/lib/link/client", () => ({ isLinkAuthorizationError: jest.fn() }));
-jest.mock("@/lib/link/user", () => ({ getCurrentUserProfile: jest.fn() }));
+jest.mock("@/lib/link/user", () => ({ getCurrentUserProfileWithRefresh: jest.fn() }));
 jest.mock("@/lib/link/session", () => ({
-  getLinkAccessTokenFromSession: jest.fn(),
   MissingLinkAccessTokenError: class MissingLinkAccessTokenError extends Error {},
 }));
 jest.mock("@/lib/link/people-user", () => ({
@@ -31,12 +30,9 @@ const { verifySession: mockVerifySession } = jest.requireMock("@/lib/dal") as {
 const { redirect: mockRedirect } = jest.requireMock("next/navigation") as {
   redirect: jest.Mock;
 };
-const { getLinkAccessTokenFromSession: mockGetToken } = jest.requireMock(
-  "@/lib/link/session",
-) as { getLinkAccessTokenFromSession: jest.Mock };
-const { getCurrentUserProfile: mockGetProfile } = jest.requireMock(
+const { getCurrentUserProfileWithRefresh: mockGetProfile } = jest.requireMock(
   "@/lib/link/user",
-) as { getCurrentUserProfile: jest.Mock };
+) as { getCurrentUserProfileWithRefresh: jest.Mock };
 const { isLinkAuthorizationError: mockIsAuthError } = jest.requireMock(
   "@/lib/link/client",
 ) as { isLinkAuthorizationError: jest.Mock };
@@ -57,7 +53,6 @@ const session = {
 describe("useUserInfo", () => {
   beforeEach(() => {
     mockVerifySession.mockResolvedValue(session);
-    mockGetToken.mockResolvedValue("link-access-token");
     mockGetProfile.mockResolvedValue({ id: 7, name: "Alice" });
     mockIsAuthError.mockReturnValue(false);
     mockRedirect.mockImplementation(() => {

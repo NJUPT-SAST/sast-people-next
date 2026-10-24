@@ -11,13 +11,13 @@ jest.mock("@/lib/link/session", () => ({
   MissingLinkAccessTokenError: class MissingLinkAccessTokenError extends Error {},
 }));
 jest.mock("@/lib/link/user", () => ({
-  getCurrentUserProfile: jest.fn(),
+  getCurrentUserProfileWithRefresh: jest.fn(),
 }));
 jest.mock("@/lib/link/people-user", () => ({
   toPeopleUserFromLinkProfile: jest.fn(),
 }));
 
-import { LinkApiError } from "@/lib/link/client";
+import { MissingLinkAccessTokenError } from "@/lib/link/session";
 import { refreshSessionIdentityIfStale } from "@/lib/identity-refresh";
 
 const { getSession: mockGetSession, isIdentitySyncStale: mockIsStale, syncCurrentSessionIdentity: mockSyncIdentity } =
@@ -29,9 +29,9 @@ const { getSession: mockGetSession, isIdentitySyncStale: mockIsStale, syncCurren
 const { getLinkAccessTokenFromSession: mockGetToken } = jest.requireMock(
   "@/lib/link/session",
 ) as { getLinkAccessTokenFromSession: jest.Mock };
-const { getCurrentUserProfile: mockGetProfile } = jest.requireMock(
+const { getCurrentUserProfileWithRefresh: mockGetProfile } = jest.requireMock(
   "@/lib/link/user",
-) as { getCurrentUserProfile: jest.Mock };
+) as { getCurrentUserProfileWithRefresh: jest.Mock };
 const { toPeopleUserFromLinkProfile: mockToPeopleUser } = jest.requireMock(
   "@/lib/link/people-user",
 ) as { toPeopleUserFromLinkProfile: jest.Mock };
@@ -55,46 +55,29 @@ describe("refreshSessionIdentityIfStale", () => {
     mockToPeopleUser.mockReturnValue({ role: 2, departments: ["software"] });
   });
 
-  it("refreshes and retries once when Link revokes a still-valid access token", async () => {
-    mockGetToken.mockReset();
-    mockGetToken.mockResolvedValueOnce("revoked-token").mockResolvedValueOnce(
-      "fresh-token",
-    );
-    mockGetProfile
-      .mockRejectedValueOnce(new LinkApiError("Access Token 无效或已被撤销", 401))
-      .mockResolvedValueOnce({ id: 7 });
-
+  it("uses the refresh-aware profile loader and syncs identity", async () => {
     await expect(refreshSessionIdentityIfStale()).resolves.toBe(true);
 
-    expect(mockGetToken).toHaveBeenNthCalledWith(2, { forceRefresh: true });
-    expect(mockGetProfile).toHaveBeenNthCalledWith(2, "fresh-token");
+    expect(mockGetProfile).toHaveBeenCalledWith("access-token");
     expect(mockSyncIdentity).toHaveBeenCalledWith({
       role: 2,
       department: "software",
     });
   });
 
-  it("also retries when Link encapsulates the revocation in a 200 envelope", async () => {
-    mockGetToken.mockReset();
-    mockGetToken.mockResolvedValueOnce("revoked-token").mockResolvedValueOnce(
-      "fresh-token",
-    );
-    mockGetProfile
-      .mockRejectedValueOnce(
-        new LinkApiError("Access Token 无效或已被撤销", 200, 4014905830),
-      )
-      .mockResolvedValueOnce({ id: 7 });
+  it("skips sync when the session has no Link access token", async () => {
+    mockGetToken.mockRejectedValue(new MissingLinkAccessTokenError());
 
-    await expect(refreshSessionIdentityIfStale()).resolves.toBe(true);
-    expect(mockGetToken).toHaveBeenNthCalledWith(2, { forceRefresh: true });
+    await expect(refreshSessionIdentityIfStale()).resolves.toBe(false);
+    expect(mockGetProfile).not.toHaveBeenCalled();
+    expect(mockSyncIdentity).not.toHaveBeenCalled();
   });
 
-  it("does not retry non-401 failures", async () => {
-    const failure = new LinkApiError("Link unavailable", 503);
+  it("propagates non-auth failures without syncing", async () => {
+    const failure = new Error("Link unavailable");
     mockGetProfile.mockRejectedValue(failure);
 
     await expect(refreshSessionIdentityIfStale()).rejects.toBe(failure);
-    expect(mockGetToken).toHaveBeenCalledTimes(1);
     expect(mockSyncIdentity).not.toHaveBeenCalled();
   });
 });

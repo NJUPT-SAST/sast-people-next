@@ -1,12 +1,11 @@
 import "server-only";
 
-import { LinkApiError } from "@/lib/link/client";
 import {
   getLinkAccessTokenFromSession,
   MissingLinkAccessTokenError,
 } from "@/lib/link/session";
 import { toPeopleUserFromLinkProfile } from "@/lib/link/people-user";
-import { getCurrentUserProfile } from "@/lib/link/user";
+import { getCurrentUserProfileWithRefresh } from "@/lib/link/user";
 import {
   getSession,
   isIdentitySyncStale,
@@ -34,26 +33,7 @@ export async function refreshSessionIdentityIfStale(): Promise<boolean> {
     if (error instanceof MissingLinkAccessTokenError) return false;
     throw error;
   }
-  let linkProfile;
-  try {
-    linkProfile = await getCurrentUserProfile(accessToken);
-  } catch (error) {
-    /* access token 可能被 Link 提前撤销（角色/密码变更），但 refresh token 仍有效。
-       此时按到期时间判断不会刷新；强制刷新并重试一次，避免把可自愈的会话踢回登录。 */
-    /* Link 既可能回 HTTP 401，也可能回 200 + 业务码 4014905830 */
-    if (
-      !(
-        error instanceof LinkApiError &&
-        (error.status === 401 || error.code === 4014905830)
-      )
-    ) {
-      throw error;
-    }
-    const refreshedAccessToken = await getLinkAccessTokenFromSession({
-      forceRefresh: true,
-    });
-    linkProfile = await getCurrentUserProfile(refreshedAccessToken);
-  }
+  const linkProfile = await getCurrentUserProfileWithRefresh(accessToken);
   if (!linkProfile) return false;
 
   /* 与 hooks/useUserInfo 同一套换算：Link 原始 profile → People 角色 + 部门列表 */

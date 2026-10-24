@@ -100,6 +100,26 @@ describe("Link session token refresh", () => {
     );
   });
 
+  it("clears credentials when a forced refresh is rejected and no newer token was persisted", async () => {
+    const freshSession = {
+      ...expiredSession,
+      linkAccessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+    };
+    mockGetSession.mockResolvedValue(freshSession);
+    mockRefreshLinkOAuthToken.mockRejectedValue(
+      new LinkOAuthTokenError("refresh token revoked", 400, "invalid_grant"),
+    );
+
+    await expect(
+      getLinkAccessTokenFromSession({ forceRefresh: true }),
+    ).rejects.toBeInstanceOf(MissingLinkAccessTokenError);
+    expect(mockClearLinkSessionTokens).toHaveBeenCalledWith(
+      "session-1",
+      "session",
+      "old-refresh",
+    );
+  });
+
   it("uses a token persisted by another refresh when the stale request fails", async () => {
     const latestSession = {
       ...expiredSession,

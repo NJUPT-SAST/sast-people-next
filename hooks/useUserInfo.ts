@@ -4,11 +4,8 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { isNextControlFlowError, logServerError } from "@/lib/server-error-log";
 import { isLinkAuthorizationError } from "@/lib/link/client";
-import { getCurrentUserProfile } from "@/lib/link/user";
-import {
-  getLinkAccessTokenFromSession,
-  MissingLinkAccessTokenError,
-} from "@/lib/link/session";
+import { getCurrentUserProfileWithRefresh } from "@/lib/link/user";
+import { MissingLinkAccessTokenError } from "@/lib/link/session";
 import { toPeopleUserFromLinkProfile } from "@/lib/link/people-user";
 
 /**
@@ -39,8 +36,7 @@ export const useUserInfo = cache(async (): Promise<userType> => {
   try {
     const session = await verifySession();
     try {
-      const accessToken = await getLinkAccessTokenFromSession();
-      const userInfo = await getCurrentUserProfile(accessToken);
+      const userInfo = await getCurrentUserProfileWithRefresh();
       if (!userInfo) {
         redirect('/login');
       }
