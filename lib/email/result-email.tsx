@@ -91,6 +91,9 @@ export async function renderResultEmail({
       flowKind={flowKind}
       department={department}
       groupNumber={groupNumber}
+      blocks={resolvedSetting.bodyBlocks ?? undefined}
+      frame={resolvedSetting.bodyFrame ?? undefined}
+      themeColor={resolvedSetting.themeColor}
       bodyTemplate={resolvedSetting.bodyTemplate}
       titleTemplate={resolvedSetting.titleTemplate}
       subtitleTemplate={resolvedSetting.subtitleTemplate}

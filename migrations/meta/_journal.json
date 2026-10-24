@@ -535,10 +535,31 @@
       "breakpoints": true
     },
     {
+      "idx": 76,
+      "version": "7",
+      "when": 1789250000021,
+      "tag": "0076_email_template_blocks",
+      "breakpoints": true
+    },
+    {
       "idx": 77,
       "version": "7",
       "when": 1789250000022,
       "tag": "0077_terminal_user_flow_final_step",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789250000023,
+      "tag": "0078_email_template_frame",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789250000024,
+      "tag": "0079_interview_template_blocks",
       "breakpoints": true
     },
     {

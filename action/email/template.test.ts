@@ -135,6 +135,9 @@ const templateValues = {
   memberFormLabel: "成员信息表",
   feishuGroupName: "SAST 群",
   groupNumber: "987654321",
+  bodyBlocks: null,
+  bodyFrame: null,
+  themeColor: "",
 };
 
 const recruitmentDefault = defaultResultEmailTemplateSettings.find(
@@ -241,9 +244,9 @@ describe("result email template settings", () => {
 
   describe("getResultEmailPreviews", () => {
     it("renders the saved QQ group number instead of a sample value", async () => {
-      /* 每个模板键各查一次：只有办公类模板有落库行，群号必须是落库值 */
+      /* 所有模板一次取回：只有办公类模板有落库行，群号必须是落库值 */
       mockSelectResults.push(
-        ...defaultResultEmailTemplateSettings.map((item) =>
+        defaultResultEmailTemplateSettings.flatMap((item) =>
           item.templateKey === "office_round1.result.accepted"
             ? [
                 {
@@ -258,6 +261,7 @@ describe("result email template settings", () => {
 
       const previews = await getResultEmailPreviews(null);
 
+      expect(mockDb.select).toHaveBeenCalledTimes(1);
       expect(previews["office_round1.result.accepted"]).toBe("<p>正文</p>");
       /* 样张与「测试发送」同一口径：候选人姓名读当前账号的姓名（会话里的真实姓名），
          不用「同学」或「[同学姓名]」这类占位称呼，也不额外查 Link */
@@ -275,7 +279,7 @@ describe("result email template settings", () => {
     it("falls back to the sample name instead of passing 同学 as a name", async () => {
       /* 账号没有姓名时用示例姓名兜底：把「同学」当姓名会渲染成「亲爱的同学同学」 */
       mockVerifyRole.mockResolvedValue({ uid: 7, role: 3, name: "  " });
-      mockSelectResults.push(...defaultResultEmailTemplateSettings.map(() => []));
+      mockSelectResults.push([]);
 
       await getResultEmailPreviews(null);
 
@@ -450,6 +454,9 @@ describe("result email template settings", () => {
           memberFormLabel: "成员信息表",
           feishuGroupName: "SAST 群",
           groupNumber: "123456789",
+          bodyBlocks: null,
+          bodyFrame: null,
+          themeColor: "",
         }),
       ).resolves.toEqual({ ok: true });
 

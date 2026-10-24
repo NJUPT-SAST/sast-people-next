@@ -9,6 +9,11 @@ import {
   renderResultEmailSubject,
 } from "@/lib/email/result-email";
 import OfferEmail from "@/emails/offer";
+import {
+  DEFAULT_EMAIL_FRAME,
+  EMPTY_EMAIL_BLOCK_STYLE,
+  type EmailBlock,
+} from "@/lib/email/blocks";
 import { resultEmailLinks } from "@/lib/email/result-email-config";
 import { defaultResultEmailTemplateSettings } from "@/lib/email/template-settings";
 
@@ -139,6 +144,35 @@ describe("OfferEmail", () => {
     expect(rejected).toContain(resultEmailLinks.calendar);
   });
 
+  /* 自定义正文只替换散文段落：曾经一旦填了正文，重要步骤卡与日历卡整块消失 */
+  it("keeps the structural cards when a custom body is provided", () => {
+    const accepted = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 春季招新",
+        accept: true,
+        flowKind: "recruitment",
+        bodyTemplate: "自定义正文第一段\n自定义正文第二段",
+      }),
+    );
+    const rejected = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 春季招新",
+        accept: false,
+        flowKind: "recruitment",
+        bodyTemplate: "自定义正文",
+      }),
+    );
+
+    expect(accepted).toContain("自定义正文第一段");
+    expect(accepted).toContain(resultEmailLinks.memberInfoForm);
+    expect(accepted).toContain(resultEmailLinks.feishuGroup);
+    expect(accepted).toContain(resultEmailLinks.calendar);
+    /* 未通过者同样保留授课日历入口 */
+    expect(rejected).toContain(resultEmailLinks.calendar);
+  });
+
   it("renders the saved member-form button label", () => {
     /* 「表单按钮文案」是可编辑字段：曾经被写死的「点击填写信息表」顶替，改了不生效 */
     const html = renderToStaticMarkup(
@@ -171,6 +205,222 @@ describe("OfferEmail", () => {
 
     expect(html).toContain("亲爱的张昊然同学，");
     expect(html).not.toContain("[同学姓名]");
+  });
+
+  /* 区块是正文的唯一来源：卡片、按钮、自定义代码都由它渲染，主题色驱动整封邮件的强调色 */
+  it("renders the custom block layout and the template theme colour", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 春季招新",
+        accept: true,
+        flowKind: "recruitment",
+        themeColor: "#1d4ed8",
+        blocks: [
+          { id: "b1", type: "text", enabled: true, html: "自定义第一段" },
+          {
+            id: "b2",
+            type: "card",
+            enabled: true,
+            tone: "warning",
+            title: "【自定义卡片】",
+            rows: [
+              { id: "b2r1", kind: "text", html: "卡片说明" },
+              {
+                id: "b2r2",
+                kind: "button",
+                label: "点我加入",
+                url: "https://example.com/join",
+                variant: "dark",
+              },
+              { id: "b2r3", kind: "divider" },
+            ],
+          },
+        ] satisfies EmailBlock[],
+      }),
+    );
+
+    expect(html).toContain("自定义第一段");
+    expect(html).toContain("【自定义卡片】");
+    expect(html).toContain("卡片说明");
+    expect(html).toContain("https://example.com/join");
+    /* 主题色进了顶部色条与结果面板 */
+    expect(html).toContain("#1d4ed8");
+  });
+
+  it("skips disabled blocks", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 春季招新",
+        accept: true,
+        flowKind: "recruitment",
+        blocks: [
+          { id: "b1", type: "text", enabled: true, html: "留下的段落" },
+          { id: "b2", type: "text", enabled: false, html: "关掉的段落" },
+        ] satisfies EmailBlock[],
+      }),
+    );
+
+    expect(html).toContain("留下的段落");
+    expect(html).not.toContain("关掉的段落");
+  });
+
+  /* 每个区块都能覆盖样式：留空走默认，填了就进内联 style */
+  it("applies per-block style overrides", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 春季招新",
+        accept: true,
+        flowKind: "recruitment",
+        blocks: [
+          {
+            id: "b1",
+            type: "text",
+            enabled: true,
+            html: "被改过样式的段落",
+            style: {
+              ...EMPTY_EMAIL_BLOCK_STYLE,
+              backgroundColor: "#fff1d6",
+              padding: "12px 16px",
+              borderRadius: "10px",
+              textAlign: "center",
+              fontSize: "18px",
+            },
+          },
+        ] satisfies EmailBlock[],
+      }),
+    );
+
+    expect(html).toContain("被改过样式的段落");
+    expect(html).toContain("background-color:#fff1d6");
+    expect(html).toContain("padding:12px 16px");
+    expect(html).toContain("border-radius:10px");
+    expect(html).toContain("text-align:center");
+    expect(html).toContain("font-size:18px");
+  });
+
+  /* 邮件外框（页眉/内容卡/页脚）也是模板自己的字段 */
+  it("applies the template frame to the shell", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 春季招新",
+        accept: true,
+        flowKind: "recruitment",
+        frame: {
+          ...DEFAULT_EMAIL_FRAME,
+          pageBackground: "#f5f3ff",
+          cardBackground: "#ffffff",
+          cardWidth: "640px",
+          cardRadius: "4px",
+          eyebrowText: "自定义眉标",
+          footerText: "自定义页脚",
+        },
+        blocks: [
+          { id: "b1", type: "text", enabled: true, html: "正文" },
+        ] satisfies EmailBlock[],
+      }),
+    );
+
+    expect(html).toContain("#f5f3ff");
+    expect(html).toContain("max-width:640px");
+    expect(html).toContain("border-radius:4px");
+    expect(html).toContain("自定义眉标");
+    expect(html).toContain("自定义页脚");
+  });
+
+  it("renders the added block types and drops an unsafe image source", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 春季招新",
+        accept: true,
+        flowKind: "recruitment",
+        blocks: [
+          {
+            id: "b1",
+            type: "badge",
+            enabled: true,
+            text: "面试日程",
+          },
+          {
+            id: "b2",
+            type: "image",
+            enabled: true,
+            src: "https://example.com/hero.png",
+            alt: "配图",
+            width: "320",
+            href: "",
+          },
+          {
+            id: "b3",
+            type: "image",
+            enabled: true,
+            src: "data:image/png;base64,AAAA",
+            alt: "不该出现",
+            width: "",
+            href: "",
+          },
+          {
+            id: "b4",
+            type: "button",
+            enabled: true,
+            label: "点我",
+            url: "https://example.com/join",
+            variant: "dark",
+            align: "center",
+          },
+          { id: "b5", type: "spacer", enabled: true, height: "32px" },
+          {
+            id: "b6",
+            type: "columns",
+            enabled: true,
+            left: { html: "左栏文字", buttonLabel: "", buttonUrl: "" },
+            right: { html: "右栏文字", buttonLabel: "右侧按钮", buttonUrl: "https://example.com/r" },
+          },
+        ] satisfies EmailBlock[],
+      }),
+    );
+
+    expect(html).toContain("面试日程");
+    expect(html).toContain("https://example.com/hero.png");
+    expect(html).toContain('width="320"');
+    /* data: 图片与非法链接一律不渲染 */
+    expect(html).not.toContain("data:image/png");
+    expect(html).not.toContain("不该出现");
+    expect(html).toContain("https://example.com/join");
+    expect(html).toContain("height:32px");
+    expect(html).toContain("左栏文字");
+    expect(html).toContain("右栏文字");
+    expect(html).toContain("右侧按钮");
+  });
+
+  /* 落库内容可能来自手改或历史数据：渲染前还要再清洗一次，脚本与事件属性进不了邮件 */
+  it("sanitizes custom html at render time", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OfferEmail, {
+        name: "张三",
+        flowName: "2026 春季招新",
+        accept: true,
+        flowKind: "recruitment",
+        blocks: [
+          {
+            id: "b1",
+            type: "code",
+            enabled: true,
+            html: '<script>alert(1)</script><a href="javascript:alert(2)" onmouseover="x()">点我</a><div style="color:#157347">自定义代码块</div>',
+          },
+        ] satisfies EmailBlock[],
+      }),
+    );
+
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("onmouseover");
+    expect(html).toContain("自定义代码块");
+    expect(html).toContain("color:#157347");
   });
 
   it("falls back to a neutral greeting instead of a placeholder when the name is missing", () => {

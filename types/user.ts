@@ -21,6 +21,8 @@ export type userType = {
   createdAt: Date;
   updatedAt: Date;
   isDeleted: boolean | null;
+  /** true = 本次渲染时 Link 不可用，字段来自会话降级而非 Link 资料 */
+  profileUnavailable?: boolean;
   nickname?: string | null;
   avatar?: string | null;
   emailType?: LinkEmailType | null;

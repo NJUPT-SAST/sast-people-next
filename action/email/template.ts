@@ -20,10 +20,20 @@ import {
 import {
   mergeResultEmailTemplateSetting,
   readResultEmailTemplateSetting,
+  readResultEmailTemplateSettings,
   type ResultEmailTemplateResolvedSetting,
 } from "@/lib/email-center/template-resolution";
 import { writeOperationAudit } from "@/lib/operation-audit";
 import { logServerError } from "@/lib/server-error-log";
+import {
+  parseEmailBlocks,
+  parseEmailFrame,
+  validateEmailBlocks,
+  type EmailBlock,
+  type EmailFrameStyle,
+} from "@/lib/email/blocks";
+import { sanitizeEmailBlocks } from "@/lib/email/sanitize";
+import { isEmailThemeColor } from "@/lib/email/theme";
 import {
   defaultResultEmailTemplateSettings,
   type ResultEmailTemplateSetting,
@@ -69,9 +79,27 @@ const requiredFieldLabels: Record<keyof ResultEmailTemplateValues, string> = {
   memberFormLabel: "表单按钮文案",
   feishuGroupName: "飞书群名",
   groupNumber: "QQ 群号",
+  bodyBlocks: "正文版式",
+  bodyFrame: "邮件外框",
+  themeColor: "主题色",
 };
 
-const urlFields: Array<keyof ResultEmailTemplateValues> = [
+/** 允许为空的字段（必填校验直接跳过）：正文、群号，以及走各自校验的区块/外框/主题色 */
+const optionalTemplateFields: Array<keyof ResultEmailTemplateValues> = [
+  "bodyTemplate",
+  "groupNumber",
+  "bodyBlocks",
+  "bodyFrame",
+  "themeColor",
+];
+
+type ResultEmailTemplateUrlField =
+  | "memberInfoFormUrl"
+  | "feishuGroupUrl"
+  | "calendarUrl"
+  | "feishuRegisterHelpUrl";
+
+const urlFields: ResultEmailTemplateUrlField[] = [
   "memberInfoFormUrl",
   "feishuGroupUrl",
   "calendarUrl",
@@ -81,6 +109,8 @@ const urlFields: Array<keyof ResultEmailTemplateValues> = [
 function normalizeResultEmailTemplateValues(
   values: ResultEmailTemplateValues,
 ): ResultEmailTemplateValues {
+  /* 区块先归一化再做邮件白名单清洗：落库的就是最终会渲染出来的内容 */
+  const parsedBlocks = parseEmailBlocks(values.bodyBlocks);
   return {
     subjectTemplate: values.subjectTemplate.trim(),
     titleTemplate: values.titleTemplate.trim(),
@@ -97,6 +127,9 @@ function normalizeResultEmailTemplateValues(
     memberFormLabel: values.memberFormLabel.trim(),
     feishuGroupName: values.feishuGroupName.trim(),
     groupNumber: values.groupNumber.trim(),
+    bodyBlocks: parsedBlocks ? sanitizeEmailBlocks(parsedBlocks) : null,
+    bodyFrame: parseEmailFrame(values.bodyFrame),
+    themeColor: values.themeColor.trim(),
   };
 }
 
@@ -120,7 +153,7 @@ function validateResultEmailTemplateValues(
   /* QQ 群号只服务办公类模板，且允许留空，因此不参与必填校验 */
   const requiredKeys = isRecruitment
     ? Object.keys(requiredFieldLabels).filter(
-        (key) => key !== "bodyTemplate" && key !== "groupNumber",
+        (key) => !optionalTemplateFields.includes(key as keyof ResultEmailTemplateValues),
       )
     : [
         "subjectTemplate", "titleTemplate", "subtitleTemplate",
@@ -138,6 +171,15 @@ function validateResultEmailTemplateValues(
 
   if (!values.subjectTemplate.trim()) {
     return { ok: false, message: "邮件标题不能为空。" };
+  }
+
+  if (values.bodyBlocks) {
+    const blocksError = validateEmailBlocks(values.bodyBlocks);
+    if (blocksError) return { ok: false, message: `${blocksError}。` };
+  }
+
+  if (values.themeColor && !isEmailThemeColor(values.themeColor)) {
+    return { ok: false, message: "主题色需要是 #RRGGBB 形式的十六进制颜色。" };
   }
 
   const validatedUrlFields = isRecruitment
@@ -231,13 +273,15 @@ export async function getResultEmailPreviews(department?: string | null) {
      不该因为一次资料查询失败整页报错，也省掉一次页面加载时的外部请求 */
   const previewName = session.name?.trim() || "张三";
 
+  /* 所有模板一次性取回再内存解析：逐键查询会让一个模板页打十几次同一条 SQL（N+1） */
+  const settings = await readResultEmailTemplateSettings(
+    defaultResultEmailTemplateSettings.map((fallback) => fallback.templateKey),
+    target,
+  );
+
   const entries = await Promise.all(
     defaultResultEmailTemplateSettings.map(async (fallback) => {
-      /* 预览是内部链路，直接走无域读取，避免绕过 action 包装再触发一次角色校验 */
-      const setting = await readResultEmailTemplateSetting(
-        fallback.templateKey,
-        target,
-      );
+      const setting = settings.get(fallback.templateKey)!;
       const rendered = await renderEmailTemplate({
         templateKey: fallback.templateKey as ResultEmailTemplateKey,
         variables: {
@@ -255,6 +299,62 @@ export async function getResultEmailPreviews(department?: string | null) {
     }),
   );
   return Object.fromEntries(entries) as Record<string, string>;
+}
+
+/**
+ * 编辑器的实时预览：用**尚未保存**的区块与主题色渲染一份样张，
+ * 其余字段（标题、按钮文案、群号…）仍取当前解析后的模板设置，
+ * 因此样张能反映「改完保存后会发出去什么」。
+ */
+export async function previewResultEmailTemplateDraft(params: {
+  templateKey: string;
+  blocks: EmailBlock[] | null;
+  frame?: EmailFrameStyle | null;
+  themeColor: string;
+  department?: string | null;
+}): Promise<{ ok: true; html: string } | { ok: false; message: string }> {
+  const session = await verifyRole(3);
+  const scope = await getDepartmentScope();
+  const requested = normalizeDepartmentKey(params.department);
+  const target =
+    scope.kind === "none"
+      ? null
+      : scope.kind === "department"
+        ? (requested ?? scope.department)
+        : requested;
+
+  const setting = await readResultEmailTemplateSetting(params.templateKey, target);
+  const parsedBlocks = parseEmailBlocks(params.blocks);
+
+  try {
+    const rendered = await renderEmailTemplate({
+      templateKey: params.templateKey as ResultEmailTemplateKey,
+      variables: {
+        name: session.name?.trim() || "张三",
+        flowName: "示例流程",
+        department: departmentLabel(target, "办公室"),
+        groupNumber: setting.groupNumber,
+        setting: {
+          ...setting,
+          bodyBlocks: parsedBlocks ? sanitizeEmailBlocks(parsedBlocks) : null,
+          bodyFrame: parseEmailFrame(params.frame ?? setting.bodyFrame),
+          themeColor: isEmailThemeColor(params.themeColor)
+            ? params.themeColor.trim()
+            : "",
+        },
+      },
+      department: target,
+    });
+    return { ok: true, html: rendered.html };
+  } catch (error) {
+    logServerError("email:previewTemplateDraft", error, {
+      path: "/dashboard/emails",
+      userId: session.uid,
+      action: "preview-email-template-draft",
+      metadata: { templateKey: params.templateKey, department: target },
+    });
+    return { ok: false, message: "预览生成失败，请查看错误日志。" };
+  }
 }
 
 /**

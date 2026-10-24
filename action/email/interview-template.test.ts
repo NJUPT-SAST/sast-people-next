@@ -64,6 +64,7 @@ import {
   updateInterviewScheduleEmailTemplate,
 } from "@/action/email/interview-template";
 import { DepartmentAccessError } from "@/lib/authz";
+import { DEFAULT_EMAIL_FRAME } from "@/lib/email/blocks";
 import {
   defaultInterviewScheduleTemplateSettings,
   type InterviewNotificationTemplateKey,
@@ -236,6 +237,10 @@ describe("updateInterviewScheduleEmailTemplate", () => {
       templateKey,
       department: "software",
       ...validValues,
+      /* 未自定义区块时落库为 null；外框补成完整值（页脚文案沿用落款字段）；主题色为空 */
+      bodyBlocks: null,
+      bodyFrame: { ...DEFAULT_EMAIL_FRAME, footerText: validValues.footerText },
+      themeColor: "",
     });
     expect(mockWriteOperationAudit).toHaveBeenCalledWith(
       expect.objectContaining({ department: "software" }),

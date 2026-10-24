@@ -13,6 +13,7 @@ import {
   getResultEmailPreviews,
   listEmailTemplateSettings,
 } from "@/action/email/template";
+import { listEmailTemplateStylePresets } from "@/action/email/style-preset";
 import {
   listEmailFlowOptions,
   listEmailFlowTargets,
@@ -167,6 +168,7 @@ async function loadEmailDashboardData(
       resultEmailPreviews,
       interviewScheduleTemplates,
       interviewSchedulePreviews,
+      stylePresets,
       collectionInvitationTemplate,
     ] = await Promise.all([
       listEmailFlowOptions(),
@@ -174,6 +176,7 @@ async function loadEmailDashboardData(
       getResultEmailPreviews(department),
       listInterviewScheduleEmailTemplates(department),
       getInterviewScheduleEmailPreviews(department),
+      listEmailTemplateStylePresets(),
       getCollectionInvitationTemplatePanel(),
     ]);
     return {
@@ -182,6 +185,7 @@ async function loadEmailDashboardData(
       resultEmailPreviews,
       interviewScheduleTemplates,
       interviewSchedulePreviews,
+      stylePresets,
       collectionInvitationTemplate,
     };
   }
