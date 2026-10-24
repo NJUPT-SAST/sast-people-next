@@ -119,7 +119,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
       case "failed":
         return "bg-destructive";
       case "ongoing":
-        return "bg-blue-500";
+        return "bg-chart-2";
       default:
         return "bg-muted";
     }
@@ -140,7 +140,7 @@ export const FlowCard: React.FC<FlowCardProps> = ({ flow }) => {
                 : visibleStatus === "rejected" || visibleStatus === "failed"
                   ? "border-destructive/30 text-destructive"
                   : visibleStatus === "withdrawn"
-                    ? "border-amber-500/35 text-amber-700 dark:text-amber-400"
+                    ? "border-warning/35 text-warning-foreground"
                     : "border-border/70 text-muted-foreground",
             )}
           >

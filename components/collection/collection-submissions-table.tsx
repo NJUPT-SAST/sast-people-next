@@ -202,7 +202,7 @@ export function CollectionSubmissionsTable({
                   <TableCell>
                     {row.returnedAt ? (
                       <span
-                        className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-300"
+                        className="rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-xs text-warning-foreground"
                         title={row.returnNote ?? undefined}
                       >
                         已退回

@@ -137,7 +137,7 @@ export const OfficeRecordQuickDialog = ({
             ) : null}
 
             {myRecord ? (
-              <div className="flex flex-col gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs">
+              <div className="flex flex-col gap-1 rounded-lg border border-success/30 bg-success/10 p-2.5 text-xs">
                 <p className="flex items-center gap-2 font-medium">
                   我已记录
                   <Badge variant="outline">{myRecord.score ?? "—"} 分</Badge>

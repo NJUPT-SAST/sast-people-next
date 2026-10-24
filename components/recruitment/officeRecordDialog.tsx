@@ -29,7 +29,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusClassNames: Record<string, string> = {
-  ongoing: "border-chart-3/30 bg-chart-3/10 text-chart-3",
+  ongoing: "border-chart-3/30 bg-chart-3/10 text-warning-foreground",
   passed: "border-primary/30 bg-muted text-primary",
   accepted: "border-primary/30 bg-muted text-primary",
   failed: "border-destructive/30 bg-destructive/10 text-destructive",

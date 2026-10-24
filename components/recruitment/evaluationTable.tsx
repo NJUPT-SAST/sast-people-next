@@ -783,7 +783,7 @@ const ACTION_TONE = {
   logistics:
     "border-foreground/20 bg-transparent text-foreground hover:bg-foreground/5",
   destructive:
-    "border-rose-500/30 bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-300",
+    "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20",
 } as const;
 
 function actionTone(action: InterviewAction) {
@@ -1784,7 +1784,7 @@ export const EvaluationTable = ({
     <div className="min-w-0 rounded-xl border border-border/70 bg-card shadow-card" aria-busy={loading}>
       {/* Not sticky below lg: the stacked toolbar is ~150px tall on a phone and
           would eat a fifth of the viewport for the whole scroll. */}
-      <div className="z-20 rounded-t-lg border-b bg-card/95 lg:sticky lg:top-0 lg:backdrop-blur-sm">
+      <div className="z-20 rounded-t-lg border-b bg-card/95 lg:sticky lg:top-16 lg:backdrop-blur-sm">
         {/* One row, control group left and filters right: two small controls on
             their own row left ~700px of empty toolbar at desktop widths. */}
         <div className="flex flex-col gap-2.5 p-3 sm:p-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
@@ -2729,7 +2729,7 @@ export const EvaluationTable = ({
               }}
             />
             {feishuBound === false && (
-              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-900 dark:text-amber-100">
+              <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning-foreground">
                 发起飞书会议和日程前需要先绑定飞书授权。点击上方「绑定飞书」完成授权后，再填写时间并发起日程。
               </p>
             )}

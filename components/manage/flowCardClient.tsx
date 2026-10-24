@@ -84,7 +84,7 @@ export const FlowCard = ({ flow: initialFlow, role }: FlowCardProps) => {
       case 'rejected':
         return 'bg-destructive';
       case 'ongoing':
-        return 'bg-blue-500';
+        return 'bg-chart-2';
       default:
         return 'bg-muted';
     }

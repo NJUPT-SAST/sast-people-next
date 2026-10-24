@@ -42,7 +42,7 @@ export const UserCard: React.FC = async () => {
         </p>
       </div>
       <form action="/api/auth/logout">
-        <Button variant="ghost" size="icon-sm" type="submit" className="rounded-lg text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="icon-sm" type="submit" title="退出登录" aria-label="退出登录" className="rounded-lg text-muted-foreground hover:text-foreground">
           <LogOut className="h-4 w-4" />
         </Button>
       </form>

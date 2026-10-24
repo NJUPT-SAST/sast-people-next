@@ -78,7 +78,7 @@ const InlineLink = ({ label, value }: { label: string; value: string }) => (
     rel="noopener noreferrer"
     aria-label={`${label}：${value}`}
     title={value}
-    className="block max-w-full break-all text-sm leading-5 text-blue-600 line-clamp-2 hover:underline dark:text-blue-400"
+    className="block max-w-full break-all text-sm leading-5 text-primary line-clamp-2 hover:underline"
   >
     {value}
   </a>
@@ -448,8 +448,8 @@ export const ApprovalsContent = ({
                         variant="outline"
                         className={`shrink-0 whitespace-nowrap text-xs ${
                           row.evaluation.recommendation === "passed"
-                            ? "border-emerald-600/60 text-emerald-700 dark:border-emerald-400/60 dark:text-emerald-300"
-                            : "border-rose-600/60 text-rose-700 dark:border-rose-400/60 dark:text-rose-300"
+                            ? "border-success/60 text-success"
+                            : "border-destructive/60 text-destructive"
                         }`}
                       >
                         {recommendationLabel(row.evaluation.recommendation)}
@@ -504,7 +504,7 @@ export const ApprovalsContent = ({
                   {row.evaluation.content}
                 </p>
                 {row.evaluation.status === "returned" && row.evaluation.returnReason && (
-                  <div className="border-l-2 border-orange-500/60 pl-3 text-sm leading-6 text-orange-700 dark:text-orange-300">
+                  <div className="border-l-2 border-warning/60 pl-3 text-sm leading-6 text-warning-foreground">
                     退回理由：{row.evaluation.returnReason}
                   </div>
                 )}
@@ -556,8 +556,8 @@ export const ApprovalsContent = ({
                         size="sm"
                         variant={row.evaluation.status === "submitted" ? "default" : "ghost"}
                         className={row.evaluation.status === "submitted"
-                          ? "h-10 w-full min-w-0 px-1.5 text-xs border-[#1aa15a] bg-[#1aa15a] text-white hover:border-[#148748] hover:bg-[#148748] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#159957] dark:bg-[#159957] dark:hover:border-[#1bb86a] dark:hover:bg-[#1bb86a]"
-                          : "h-9 px-2 text-sm font-normal text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"}
+                          ? "h-10 w-full min-w-0 px-1.5 text-xs md:h-8 md:w-auto md:px-3 md:text-sm"
+                          : "h-9 px-2 text-sm font-normal text-success hover:bg-success/10 hover:text-success"}
                         onClick={() => handleApprove(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -567,8 +567,8 @@ export const ApprovalsContent = ({
                         size="sm"
                         variant={row.evaluation.status === "submitted" ? "default" : "ghost"}
                         className={row.evaluation.status === "submitted"
-                          ? "h-10 w-full min-w-0 px-1.5 text-xs border-[#b9545a] bg-[#b9545a] text-white hover:border-[#97464b] hover:bg-[#97464b] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#b34f55] dark:bg-[#b34f55] dark:hover:border-[#ca6066] dark:hover:bg-[#ca6066]"
-                          : "h-9 px-2 text-sm font-normal text-rose-600 hover:bg-rose-500/10 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"}
+                          ? "h-10 w-full min-w-0 px-1.5 text-xs border-destructive bg-destructive text-white hover:bg-destructive/90 md:h-8 md:w-auto md:px-3 md:text-sm dark:bg-destructive/90"
+                          : "h-9 px-2 text-sm font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"}
                         onClick={() => handleReject(row.evaluation.id)}
                         loading={actionLoading === row.evaluation.id}
                       >
@@ -576,7 +576,8 @@ export const ApprovalsContent = ({
                       </Button>}
                       {row.evaluation.status === "submitted" && <Button
                         size="sm"
-                        className="h-10 w-full min-w-0 px-1.5 text-xs border-[#3974b3] bg-[#3974b3] text-white hover:border-[#2f5f95] hover:bg-[#2f5f95] md:h-8 md:w-auto md:px-3 md:text-sm dark:border-[#2f5f95] dark:bg-[#2f5f95] dark:hover:border-[#3974b3] dark:hover:bg-[#3974b3]"
+                        variant="outline"
+                        className="h-10 w-full min-w-0 px-1.5 text-xs border-warning/50 bg-card text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground md:h-8 md:w-auto md:px-3 md:text-sm"
                         onClick={() => {
                           setReturnTarget(row.evaluation.id);
                           setReturnReason("");

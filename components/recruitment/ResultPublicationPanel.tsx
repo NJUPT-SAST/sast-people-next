@@ -219,11 +219,11 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
   const publicationBadge = published
     ? { label: "已发布", className: "border-primary/30 bg-muted text-primary" }
     : publicationInProgress
-      ? { label: "发布中", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
+      ? { label: "发布中", className: "border-warning/30 bg-warning/10 text-warning-foreground" }
       : summary.isOfficeFlow
-        ? { label: `待确认名单（${officeRosterRows.length} 人）`, className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
+        ? { label: `待确认名单（${officeRosterRows.length} 人）`, className: "border-warning/30 bg-warning/10 text-warning-foreground" }
         : counts.unfinished > 0
-          ? { label: "有未完成结果", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
+          ? { label: "有未完成结果", className: "border-warning/30 bg-warning/10 text-warning-foreground" }
           : { label: "可以发布", className: "border-primary/30 bg-muted text-primary" };
 
   /* 徽章已经是状态本身（已发布/发布中/待确认名单），句子只说徽章说不出的那部分 */
@@ -314,12 +314,12 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
                       ? row.department
                       : null;
                   const status = row.status === "passed"
-                    ? { label: "通过", className: "text-emerald-600" }
+                    ? { label: "通过", className: "text-success" }
                     : row.status === "failed"
                       ? { label: "不通过", className: "text-destructive" }
                       : row.status === "withdrawn"
                       ? { label: "未参与", className: "text-muted-foreground" }
-                        : { label: "未完成", className: "text-amber-600" };
+                        : { label: "未完成", className: "text-warning-foreground" };
                   const officeChoices = row.officeChoices ?? [];
                   const otherChoice = officeChoices.find(
                     (choice) => choice.choice !== row.choice,

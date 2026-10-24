@@ -84,7 +84,7 @@ function SendLane({
         <StatusIcon
           className={cn(
             "mt-0.5 size-4 shrink-0",
-            accept ? "text-emerald-500" : "text-rose-500",
+            accept ? "text-success" : "text-destructive",
           )}
         />
         <div className="min-w-0">

@@ -243,7 +243,9 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="min-w-0 rounded-xl border border-border/70 bg-card shadow-card">
-      <div className="sticky top-0 z-20 rounded-t-lg border-b bg-card/95 backdrop-blur-sm">
+      {/* 与面试表格同策略：手机上堆叠的工具栏约 150px，整程吸顶会吃掉五分之一视口，
+          且 top-0 会钻到全局顶栏（z-30）底下；桌面端吸在顶栏下方（top-16 = 64px）。 */}
+      <div className="z-20 rounded-t-lg border-b bg-card/95 lg:sticky lg:top-16 lg:backdrop-blur-sm">
         <div className="flex flex-col gap-3 p-3 sm:p-4">
           <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
             <div className="flex min-w-0 items-center gap-2">
@@ -318,7 +320,7 @@ export function DataTable<TData, TValue>({
           {(statusSummary.length > 0 || resultsLocked) && (
             <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
               {resultsLocked && (
-                <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                <p className="flex items-center gap-1.5 text-xs text-warning-foreground">
                   <LockKeyhole className="size-3.5" aria-hidden="true" />
                   结果已发布，名单已锁定
                 </p>

@@ -79,10 +79,10 @@ const POLL_INTERVAL_MS = 5000;
 /* 等待态故意用弱色：绝大多数行都是等待，染色只会让整页花 */
 const STATUS_TEXT_CLASS: Record<InterviewCheckinStatusKey, string> = {
   waiting: "text-muted-foreground",
-  called: "text-sky-600 dark:text-sky-400",
-  interviewing: "text-violet-600 dark:text-violet-400",
-  done: "text-emerald-600 dark:text-emerald-400",
-  skipped: "text-orange-600 dark:text-orange-400",
+  called: "text-chart-2",
+  interviewing: "text-chart-4",
+  done: "text-success",
+  skipped: "text-chart-5",
   cancelled: "text-muted-foreground/60",
 };
 
@@ -321,7 +321,7 @@ const CheckinConsole = ({
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-lg font-bold md:text-xl">签到叫号</h1>
           <div className="flex items-center gap-1.5">
-            <div className="flex rounded-lg border bg-muted/40 p-0.5">
+            <div className="flex rounded-lg border bg-muted p-0.5">
               {[1, 2].map((value) => (
                 <button
                   key={value}
@@ -385,12 +385,12 @@ const CheckinConsole = ({
             {
               label: "面试中",
               value: totals.interviewing,
-              tone: "text-violet-600 dark:text-violet-400",
+              tone: "text-chart-4",
             },
             {
               label: "完成",
               value: totals.done,
-              tone: "text-emerald-600 dark:text-emerald-400",
+              tone: "text-success",
             },
             { label: "未签到", value: totals.awaiting, tone: "text-foreground" },
           ].map((item) => (
@@ -767,7 +767,7 @@ const StationRow = ({
       className={cn(
         "flex flex-col gap-1.5 rounded-lg border-l-4 bg-muted/20 px-2.5 py-2",
         occupant?.status === "interviewing"
-          ? "border-l-violet-500"
+          ? "border-l-chart-4"
           : occupant?.status === "called"
             ? "border-l-primary"
             : "border-l-transparent",

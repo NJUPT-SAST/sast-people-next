@@ -209,7 +209,7 @@ const QRCodeScanner = ({ activeFlowIds }: { activeFlowIds?: number[] }) => {
         {!paused && (
           <div className="absolute top-4 inset-x-4 flex items-start justify-between gap-3 pointer-events-none">
             <div className="rounded-full bg-background/70 backdrop-blur-md px-3.5 py-1.5 text-xs font-medium shadow-sm flex items-center gap-2 border">
-              <div className="size-2 rounded-full bg-green-500 animate-pulse" />
+              <div className="size-2 rounded-full bg-success animate-pulse" />
               请将二维码对准中心区域
             </div>
           </div>

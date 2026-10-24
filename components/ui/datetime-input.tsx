@@ -368,12 +368,12 @@ function SegmentedDateTimeInput({
       />
       <div className="me-3">
         {inputValue ? (
-          <CircleCheck className="size-4 text-green-500" />
+          <CircleCheck className="size-4 text-success" />
         ) : !areAllSegmentsEmpty ? (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger type="button" className="flex items-center justify-center">
-                <CircleAlert className="size-4 text-red-500" />
+                <CircleAlert className="size-4 text-destructive" />
               </TooltipTrigger>
               <TooltipContent>
                 <p>请输入有效的时间，不能为空，年份须在 1900 至 2100 之间。</p>

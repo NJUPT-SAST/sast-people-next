@@ -1,5 +1,7 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
+
 import {
   SidebarProvider,
   SidebarInset,
@@ -33,6 +35,7 @@ export function DashboardLayout({
   realRole,
   viewAs = null,
 }: DashboardLayoutProps) {
+  const pathname = usePathname();
   return (
     <SidebarProvider>
       <AppSidebar
@@ -52,7 +55,7 @@ export function DashboardLayout({
           <ThemeToggle />
         </header>
         {viewAs && <ViewAsBanner viewAs={viewAs} />}
-        <div className="mx-auto flex min-w-0 w-full max-w-[86rem] flex-1 flex-col gap-5 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 lg:gap-7 lg:px-8 lg:py-8 lg:pb-[max(2rem,env(safe-area-inset-bottom))]">
+        <div key={pathname} className="mx-auto flex min-w-0 w-full max-w-[86rem] flex-1 flex-col gap-5 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 duration-300 sm:px-6 lg:gap-7 lg:px-8 lg:py-8 lg:pb-[max(2rem,env(safe-area-inset-bottom))]">
           {children}
         </div>
       </SidebarInset>

@@ -173,7 +173,7 @@ export function CollectionForm({
     return (
       <div className="space-y-5">
         {returnedAtLabel && (
-          <p className="rounded-md border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+          <p className="rounded-md border border-warning/25 bg-warning/8 px-3 py-2 text-sm text-warning-foreground">
             你的填写于 {returnedAtLabel} 被退回
             {returnNote ? `：${returnNote}` : "，请修改后重新提交"}。
           </p>
@@ -219,7 +219,7 @@ export function CollectionForm({
   return (
     <form className="space-y-5" onSubmit={submit}>
       {hasSaved && (
-        <p className="rounded-md border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+        <p className="rounded-md border border-warning/25 bg-warning/8 px-3 py-2 text-sm text-warning-foreground">
           你已经提交过；再次提交会更新原记录。
         </p>
       )}

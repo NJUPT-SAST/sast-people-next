@@ -208,19 +208,19 @@ export function ViewAsBanner({ viewAs }: { viewAs: SessionViewAs }) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2">
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-900 dark:text-amber-200">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-warning/30 bg-warning/10 px-4 py-2">
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-warning-foreground">
         <ShieldCheck className="size-4" />
         正在以「{roleLabel}
         {viewAs.department ? ` · ${departmentLabel(viewAs.department)}` : ""}」查看
       </span>
-      <span className="text-xs text-amber-900/70 dark:text-amber-200/70">
+      <span className="text-xs text-warning-foreground/70">
         看到的权限与数据范围都和该身份一致
       </span>
       <Button
         variant="outline"
         size="sm"
-        className="ml-auto h-8 border-amber-500/40 bg-background/60 text-amber-900 hover:bg-background dark:text-amber-200"
+        className="ml-auto h-8 border-warning/40 bg-background/60 text-warning-foreground hover:bg-background"
         onClick={exit}
         loading={pending}
       >

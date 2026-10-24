@@ -463,7 +463,7 @@ export function CollectionFormDialog({
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={submit}>
-          <div className="flex flex-wrap gap-1 rounded-lg border border-border/70 bg-muted/30 p-1">
+          <div className="flex flex-wrap gap-1 rounded-lg border border-border/70 bg-muted p-1">
             {(
               [
                 { key: "basic", label: "模板与标题" },

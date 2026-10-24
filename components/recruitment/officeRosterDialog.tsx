@@ -179,7 +179,7 @@ export function OfficeRosterDialog({
       : row.round1Count ?? row.scores.length;
     if (roundOneAverage === null && roundTwoAverage === null) {
       return (
-        <span className="inline-flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400">
+        <span className="inline-flex items-center gap-1 text-sm text-warning-foreground">
           <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
           无面试记录
         </span>
@@ -238,7 +238,7 @@ export function OfficeRosterDialog({
             不通过 {rejectCount}
           </Badge>
           {missingRecords > 0 && (
-            <span className="text-xs text-amber-600 dark:text-amber-400">
+            <span className="text-xs text-warning-foreground">
               其中 {missingRecords} 人没有面试记录
             </span>
           )}

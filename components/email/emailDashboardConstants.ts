@@ -66,7 +66,7 @@ export function getBatchStatusBadgeClass(status: string) {
     return "border-destructive/25 bg-destructive/10 text-destructive";
   }
   if (status === "queued") {
-    return "border-chart-3/30 bg-chart-3/15 text-chart-3";
+    return "border-chart-3/30 bg-chart-3/15 text-warning-foreground";
   }
   return "border-border bg-muted/40 text-muted-foreground";
 }
@@ -79,7 +79,7 @@ export function getDeliveryStatusBadgeClass(status: string) {
     return "border-destructive/25 bg-destructive/10 text-destructive";
   }
   if (status === "sending") {
-    return "border-chart-3/30 bg-chart-3/15 text-chart-3";
+    return "border-chart-3/30 bg-chart-3/15 text-warning-foreground";
   }
   return "border-border bg-muted/40 text-muted-foreground";
 }
