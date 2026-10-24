@@ -19,7 +19,7 @@ import type {
 } from "./emailDashboardTypes";
 
 function getReadinessClass(status: "pass" | "warn" | "fail") {
-  if (status === "pass") return "border-primary/25 bg-primary/5 text-primary";
+  if (status === "pass") return "border-primary/25 bg-muted/60 text-primary";
   if (status === "fail") {
     return "border-destructive/25 bg-destructive/5 text-destructive";
   }
@@ -63,7 +63,7 @@ export function EmailOverviewSection({
   ];
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card">
+    <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
       <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-2.5">
           <HealthIcon
@@ -165,7 +165,7 @@ export function EmailConfigSection({
   );
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card">
+    <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
       <div className="border-b px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold">环境</h2>
       </div>

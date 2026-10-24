@@ -94,7 +94,7 @@ export function PendingSlotChangePanel({
   };
 
   return (
-    <section className="space-y-3 rounded-lg border bg-card p-4">
+    <section className="space-y-3 rounded-xl border border-border/70 bg-card shadow-card p-4">
       <div className="flex flex-wrap items-center gap-2">
         <CalendarClock
           className="size-4 shrink-0 text-muted-foreground"

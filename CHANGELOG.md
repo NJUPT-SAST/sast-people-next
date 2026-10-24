@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **收集表增强**：新增「成员信息收集表 / 空白收集表」模板与自建模板（迁移 `0083_collection_templates.sql`）：创建/编辑时可选模板、切换模板、直接修改全部字段、把当前字段另存为模板（同名覆盖）或删除自建模板；历史成员表的固定字段会并入动态收集项，旧提交同步回填到答案。班级校验为「大写字母 + 6 位数字」（如 `B240101`），学号前缀后的两位数字自动推算入学年份，班级前缀年份按默认学制 4 年推算毕业年份（如学号 `B24150524` → 2024 入学，班级 `B250607` → 2029 毕业；没有班级时回退到入学年份 + 4，均可手动修改）；邀请不再限制单次 50 人，已填写过的人也可以收到邀请（邮件会提示可忽略），邀请邮件统一走邮件中心投递记录（`collection.invitation`）；填写情况新增「退回」，可附说明并通知填写人修改后重新提交（`collection.return`，重新提交后自动清除退回标记）。
+- **成员信息收集表**（`/dashboard/collection`）：部长及以上可新建、编辑、复制、删除、结束/恢复收集，并查看全部填写情况（管理员同权，不按部门或发起人拆分）。社团名称固定为南京邮电大学大学生科学技术协会；姓名/学号/学院自动从 SAST Link 带入（可修改），出生年月使用年/月选择器，政治面貌使用下拉选择；发起人可追加自定义收集项（单行/多行文本、数字、下拉单选、单选按钮、多选、日期、日期时间、时间、邮箱、链接、手机号、1-5 星评分，可设选项、必填、填写提示与上下排序，可指定从 Link 自动带入姓名、学号、学院、专业、邮箱、QQ）。填写范围可同时按身份（直接勾选新同学/部员/讲师/部长/管理员）与流程（仅所选流程最终通过者）限定；可设置开始与截止时间，到点自动开放/停止接收。每张表生成随机码分享链接 `/collect/<token>`（不使用表单数字 ID），未登录时登录后自动回到该表；邀请功能支持按流程、届别、姓名/学号/手机号批量筛选成员，勾选后可选发送邀请邮件。邀请邮件模板纳入邮件中心「模板管理 → 收集表通知」（`collection.invitation`，全局模板，管理员可编辑，不包含邀请人姓名）。填写情况支持搜索、单条删除与 CSV 导出。
+  - 数据：新表 `collection_form`（`extra_fields`、`allowed_roles`、`allowed_flow_ids`、`starts_at`、`deadline`、唯一 `share_token`）/ `collection_submission`（`extra_answers`）/ `collection_invitation`（邀请与邮件状态），迁移 `0081_collection_forms.sql`；每人每表一条提交，按 `(fk_form_id, fk_user_id)` upsert，提交时保存部门快照（仅作导出信息，不参与权限）。
+  - 权限：`lib/collection-access.ts`（身份与流程条件同时满足；空列表 = 不限制对应条件；部长及以上可管理并查看全部结果；填写过的人即使后续收紧条件仍能查看自己的记录）。
+  - 时间：`lib/collection-status.ts` 统一计算 `未开始 / 收集中 / 已结束`，开始前与结束后都只读；延长截止时间即可恢复填写。
+  - 邀请：`action/collection-invite.ts` 支持按流程、届别、姓名/学号/手机号筛选，批量勾选后可选发送邮件；邀请邮件为纯函数模板 `lib/collection/invitation-email.ts`，逐人记录 `sent` / `failed`/`pending` 状态并写审计。邮件文案在 `/dashboard/emails?tab=templates` 的「收集表通知」中维护（`collection.invitation`，全局模板，仅管理员可编辑）。
+  - 登录回跳：`lib/login-next.ts` 只接受站内路径；mock 登录直接跳转，真实 Link OAuth 通过 `login_next` cookie 回跳，挡住开放重定向。
+  - 入口：导航「信息收集」（我的分组，所有登录用户可见，表单列表按身份与流程过滤）；详情页右侧管理面板提供复制分享链接、编辑、复制表单、结束/恢复、导出数据、批量邀请与删除；填写情况单独成表，支持搜索与单条删除。
 - **阅卷公平性分析**（`/dashboard/review/analytics`，部长及以上，部门 scope 内）：把「讲师宽严」从「考生水平 + 题目难度」里分离出来，供人工参考（**不写回 `user_point`、不影响官方成绩与结果发布**）。模型规范见 [docs/GRADING_FAIRNESS_MODEL.md](docs/GRADING_FAIRNESS_MODEL.md)。
   - 模型：单题得分率上的三因子加法固定效应 `r = μ + α(考生) + β(题目) + γ(讲师) + ε`，`lib/grading-fairness/{matrix,model}.ts` 为纯函数（零依赖、可单测）；按 (考生, 题目, 讲师) 关联图的**连通分量**分别拟合，**可辨识性按讲师级判定**：`γ_j − γ_k` 可估 ⟺ 差向量与设计矩阵零空间正交（`nullSpaceBasis` + 容差 `1e-7`），不再要求分量满秩。该关系可传递，于是划分出**可比簇**（`clusterIndex` / `clusterCount` / `comparableJudgerCount`）——只有同簇讲师才互相比较、互相居中，**孤立讲师（考生没被别的讲师评过）只让自己不可判定，不再牵连同分量的其他人**。秩亏时只给一个有界解画残差图（岭解不进宽严/标准误/收缩/校正），不可判定的讲师一律 `rawBias=0`、`bias=0`、`standardError=null`、`verdict="unknown"`、不校正。
   - 估计与收缩：正规方程 + 部分主元 LU（秩容差 `1e-9·max diag`）；**居中与标准误都改成簇内口径**——`δ_j = γ̂_j − Σ_{k∈簇}(n_k/N_簇)·γ̂_k`、`s_j = σ̂·√(c_jᵀA⁻¹c_j)`，对比向量先投影到可估子空间（抹掉零空间分量）再回代，一次分解多次回代。DerSimonian–Laird 估计讲师间真实差异 τ，**在全部可比讲师上合并估计**（一个簇常只有 2~3 名讲师，逐簇矩估计噪声过大，这是有意的简化）；可信度 `w = τ²/(τ²+s_j²)`、`bias(j) = w·δ_j`（小样本讲师自动回归 0）。τ²=0 是一个有效结论（显示「未检测到系统性差异」，λ 失效），不允许强行放大；**没有任何可比讲师时 `betweenJudgerSd = 0` 是假零**（不是「大家一样严」，而是根本没有估计），界面按「不可判定」呈现。
@@ -111,6 +119,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **工作台视觉系统整体升级**（`app/globals.css`、`components/ui/*`、`components/dashboard-layout.tsx`、`components/app-sidebar.tsx`、`components/route.tsx`）：把原来「白底 + 灰边」的默认 shadcn 观感改成中性分层表面 + 品牌绿点缀——背景、侧栏、卡片改用不带绿调的中性灰阶，主色只用于文字、图标、实心按钮与焦点环，不再用大块绿色蒙层或渐变；圆角统一到 12/16px，卡片加 1px 接触阴影与柔和投影，弹层用统一浮层阴影；顶栏改为吸顶 + 半透明模糊并去掉内容区多余分隔线，侧栏导航改为 36px 行高、分组标签降噪、当前项用中性色块 + 绿色文字与图标；表格表头改成浅灰条与次要色标签、行悬浮改中性色；输入框/下拉/标签页/徽章/骨架屏/分页同步到同一套层级。「我的资料」页把更新时间收成胶囊、信息区块加图标标题并拉开字段节奏，流程卡片增加状态胶囊与更清晰的步骤圆点，空态与加载态一并收敛。登录页保持原样。
+
 - **电子部启用**（`const/department.ts`、`const/flow.ts`）：从「暂不启用」清单移除 `electronics`，并把电子部加入语义化技术部门（`TECH_SEMANTIC_DEPARTMENTS`）——流程创建/编辑可选「电子部 免试 / 笔试 / 留任考核」（不提供 WOC 选项）；面试与笔试管理工作台的流程选择器/页签、流程管理列表、邮件模板的「模板归属」与阶段过滤都恢复收录电子部的流程与模板（WOC 模板同样不对电子部展示）；电子部不用 SOC/SOD 代号，SOC 阶段显示为「电子部留任考核」。存量流程、报名记录与模板数据无需迁移。
 - **笔试工作台工具栏补上两个计数**（`components/recruitment/table.tsx`）：输入分数线后旁边直接显示「≥ 60 分 12 人」（按整份名单统计，与状态胶囊同一口径），划线时不用再逐行数；「已选 N 人」不再只在有选中时才出现——0 人也显示，勾选过程中随时看得到选了几个（结果已锁定时不显示，因为那时没有可勾选的）。
 - **笔试「平均分」不再把未批卷的考生算进分母**（`components/recruitment/recruitmentContent.tsx`）：未批卷记录的 `totalScore` 是 `coalesce(sum(points), 0)` 出来的 0，之前照样参与平均——批卷进度一低均分就被拉低，全组都没批时还显示 0.00（看起来像全组零分）。现在只统计**已批卷**的考生，并在数字旁标出「已批卷 n 人」（分母与「总人数」不同，不写出来两个数字并排看着对不上）；一个都没批时显示「—」。
@@ -152,6 +162,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 笔试「得分组成」弹窗的**清分入口收成一个小橡皮图标**（`components/recruitment/columns.tsx`）：管理员在每道已批的题上原本挂着一个红色「清分」文字按钮，四道题就是四块红；现在只留一个小橡皮图标（平时灰、指向它才变红，`aria-label` 仍写明「清除「题目」的得分」），卡片、分数胶囊、阅卷人与评语的分块一律照旧；顶部「清空全部得分」不变。
 
 ### Fixed
+
+- **邮件模板页逐模板查库（Sentry N+1，441 次）与流程邮件预览逐流程查库**（`lib/email-center/template-resolution.ts`、`action/email/template.ts`、`action/email/workspace.ts`）：`getResultEmailPreviews` 对 13 个模板各执行一次 `select ... from email_template_setting where template_key = $1`，任务页的流程预览也按「流程 × 通过/不通过」重复查询。现在统一走 `loadResultEmailTemplateSettingRows` / `readResultEmailTemplateSettings` 一次取回候选行、在内存里按部门解析；模板页的查询次数从 13 次降到 1 次，流程预览从 2×N 次降到 1 次。新增/更新 `action/email/template.test.ts` 断言只查一次。
+- **Link 提前撤销 access token 时被误踢回登录页**（`lib/link/session.ts`、`lib/link/user.ts`、`lib/identity-refresh.ts`，Sentry `SAST-PEOPLE-8N`）：身份回源与资料页都只在 access token 临近过期时才 refresh，Link 因角色/密码变更提前撤销 token 时会直接 401，用户随后被送去重新授权。现在所有资料请求统一走 `getCurrentUserProfileWithRefresh`：HTTP 401 / 业务码 `4014905830` 时强制 refresh 一次并重试；refresh token 也已失效时仍走原有的清凭据 + 重新登录，不会掩盖终态。强制刷新失败时若持久化层读回的是同一个旧 token，不再把它当成「另一实例轮换的新凭据」复用，而是清掉失效凭据。
+- **流程负责人姓名查询失败会打挂整个流程页面**（`hooks/useFlowList.ts`）：`getFlowOwnerMap` 只吞掉「未授权」错误，Link 超时/DNS 失败仍会抛到 RSC 渲染。负责人姓名只是展示元数据，现在任何 Link 故障都降级为「未知用户」，页面继续渲染；Link 可用性由 `verifySession` / `useUserInfo` 单独上报。
+- **Sentry 噪声与本地 DB 未启动告警**（`lib/sentry-filters.ts`、三个 Sentry config）：忽略客户端主动断开（`The destination stream closed early` / `aborted`）、发版后的旧 Server Action（`UnrecognizedActionError`）与 QQ 浏览器内核桥错误；开发环境额外丢弃 `ECONNREFUSED 127.0.0.1/::1`，避免本地 Postgres 没启动时污染共享项目。
+- **SAST Link 瞬时不可用时整个工作台渲染失败**（`hooks/useUserInfo.ts`、`app/dashboard/page.tsx`）：`useUserInfo` 一直把 Link 资料请求原样抛出，Link 连接超时（Sentry `SAST-PEOPLE-BG`：`connect ETIMEDOUT 111.229.80.100:443`）会让 `verifySession` 之外的这次资料读取直接打挂 RSC 渲染，用户看到 `SAST-PEOPLE-4`（React #441）错误页；每次发布/落地页请求都会重复。现在只有「未登录 / Link 授权被撤销」继续跳转登录或重新授权，超时、DNS、连接拒绝等瞬时故障记录到 Sentry 后降级为「会话里的 uid / 姓名 / 角色 / 部门」，资料区显示「SAST Link 暂时不可用」而不是误判成新同学引导页；`profileUnavailable` 只影响展示，不写会话、不影响权限判定。新增 `hooks/useUserInfo.test.ts` 与 `app/dashboard/page.test.tsx` 覆盖降级与重新授权两条分支。
+
+- **信息收集表导出的「出生年月」变成 `Sep-26`、且全部显示成 1 号**（`app/api/collection/export/route.ts`、`lib/csv.ts`）：导出值一直是 `YYYY-MM`（如 `2007-05`），Excel / WPS 打开 CSV 时把它识别成日期并自动补当天为 1 号，再按 `MMM-YY` 显示——数据本身没有「日」，页面里的 1 号是表格软件补的。现在年月列改用文本公式导出（`="2007-05"`），表格软件按原样显示数字年月；只对严格合法的 `YYYY-MM` 生效，其余值仍走原有的公式注入转义。新增 `lib/csv.test.ts` 覆盖文本包裹与非法值回退。
 
 - **笔试流程判定了结果，卡片却还挂着「当前步骤：批卷」**（`action/user-flow/edit.ts`、迁移 `0077_terminal_user_flow_final_step.sql`）：终态（`passed` / `failed`）过去写回候选人**当时所在的步骤**——判定结果是在「批卷」页录入的，于是当前步骤停在「批卷」，而候选人卡片的步骤圆点按终态画：已通过时**后面的「录取确认」已经是绿色**（卡片同时说「已通过考核」和「当前步骤：批卷」），未通过时反过来——流程已经结束，后面还挂着一个「未开始」的圆点。现在三条终态写入路径（成绩管理页的设为通过/不通过、管理员手动通过/不通过）一律把当前步骤写在流程**最后一步**，与办公类面试的「结果确认」（`office-rounds.ts` 的 `resultStepId`）、免试/面评的「管理员审核」（`evaluation.ts` 的 `findEvaluationStepIdInTx`）同一约定；「未参与」（`withdrawn`）不动当前步骤，候选人停在离开的那一步。存量终态行由迁移对齐到各自流程的最后一步（当前步骤为空、或不是最后一步的都对齐，不动未参与行），已发布的流程同样受益——发布锁定的是结果，不是这个步骤指针。
 - **改了笔试模板正文，下面的两个说明框就没了**（`emails/offer.tsx`、`lib/email/blocks.ts`）：结果邮件的版式过去是「有自定义正文就整段替换默认分支」——报名入口（成员信息表 + 飞书群）与「查看授课日历」两张卡片正好写在被替换的那段 JSX 里，于是管理员一填正文，两个入口就一起消失（未通过通知的日历入口同样）。现在结构卡片由流程类型决定、与正文文案解耦，自定义正文只替换散文段落；`defaultResultEmailBlocks()` 的内置版式与逐段比对的 12 套邮件一起守住了这条。

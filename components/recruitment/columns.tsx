@@ -52,10 +52,10 @@ const statusClassName: Record<string, string> = {
   not_started: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   ungraded: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   ongoing: 'border-chart-3/30 bg-chart-3/10 text-chart-3',
-  passed: 'border-primary/30 bg-primary/10 text-primary',
+  passed: 'border-primary/30 bg-muted text-primary',
   failed: 'border-destructive/30 bg-destructive/10 text-destructive',
   withdrawn: 'border-muted-foreground/30 bg-muted text-muted-foreground',
-  accepted: 'border-primary/30 bg-primary/10 text-primary',
+  accepted: 'border-primary/30 bg-muted text-primary',
   rejected: 'border-destructive/30 bg-destructive/10 text-destructive',
 };
 
@@ -436,7 +436,7 @@ export const makeColumns = (
     },
     cell: ({ getValue }) => (
       <div className="flex justify-end">
-        <span className="rounded-md bg-primary/10 px-2 py-1 text-sm font-semibold tabular-nums text-primary">
+        <span className="rounded-md bg-muted px-2 py-1 text-sm font-semibold tabular-nums text-primary">
           {getValue() as string}
         </span>
       </div>

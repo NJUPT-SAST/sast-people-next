@@ -198,7 +198,7 @@ const mineFilterChipClass = (active: boolean) =>
   cn(
     CHIP_BASE,
     active
-      ? "border-primary/40 bg-primary/10 font-medium text-primary"
+      ? "border-primary/40 bg-muted font-medium text-primary"
       : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 
@@ -777,7 +777,7 @@ const ACTION_MENU_BUTTON =
 
 /** Brand tint marks the row's actual work; a hairline outline marks logistics. */
 const ACTION_TONE = {
-  work: "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20",
+  work: "border-primary/30 bg-muted text-primary hover:bg-muted/70",
   /* A 5% grey fill is imperceptible next to the tinted pills and read as an
      unfinished control, so logistics get a visible hairline and no fill. */
   logistics:
@@ -1781,7 +1781,7 @@ export const EvaluationTable = ({
   );
 
   return (
-    <div className="min-w-0 rounded-lg border bg-card" aria-busy={loading}>
+    <div className="min-w-0 rounded-xl border border-border/70 bg-card shadow-card" aria-busy={loading}>
       {/* Not sticky below lg: the stacked toolbar is ~150px tall on a phone and
           would eat a fifth of the viewport for the whole scroll. */}
       <div className="z-20 rounded-t-lg border-b bg-card/95 lg:sticky lg:top-0 lg:backdrop-blur-sm">
@@ -2311,9 +2311,9 @@ export const EvaluationTable = ({
                     href={externalHref(portfolioCandidate.portfolioLink)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex min-h-11 items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-primary/5"
+                    className="flex min-h-11 items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-muted/60"
                   >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-primary">
                       <Link2 className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1 break-all text-sm leading-5 text-foreground/85">

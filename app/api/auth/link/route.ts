@@ -1,7 +1,9 @@
 import {
   IS_BINDING,
   LINK_OAUTH_STATE,
+  LOGIN_NEXT,
 } from "@/const/cookie";
+import { normalizeLoginNext } from "@/lib/login-next";
 import { linkRoleToPeopleRole } from "@/lib/link/role";
 import { getCurrentUserProfile } from "@/lib/link/user";
 import { getPublicBaseUrl } from "@/lib/app-url";
@@ -70,6 +72,9 @@ export async function GET(request: NextRequest) {
     cookieStore.delete("link_code_verifier");
     cookieStore.delete(LINK_OAUTH_STATE);
 
+    const next = normalizeLoginNext(cookieStore.get(LOGIN_NEXT)?.value);
+    cookieStore.delete(LOGIN_NEXT);
+
     if (cookieStore.get(IS_BINDING)?.value === "1") {
       cookieStore.delete(IS_BINDING);
     }
@@ -97,7 +102,7 @@ export async function GET(request: NextRequest) {
       profile.profile?.department ?? null,
     );
 
-    return redirect("/dashboard");
+    return redirect(next ?? "/dashboard");
   } catch (err) {
     if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

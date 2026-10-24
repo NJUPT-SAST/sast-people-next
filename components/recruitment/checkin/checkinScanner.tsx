@@ -194,7 +194,7 @@ const CheckinScanner = ({
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="flex w-full max-w-sm flex-col gap-3">
               <div className="flex flex-col items-center gap-2 text-center">
-                <div className="rounded-full bg-primary/10 p-2.5 text-primary">
+                <div className="rounded-full bg-muted p-2.5 text-primary">
                   <QrCode className="size-5" />
                 </div>
                 <div className="flex flex-col gap-0.5">

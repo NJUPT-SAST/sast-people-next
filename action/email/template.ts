@@ -20,6 +20,7 @@ import {
 import {
   mergeResultEmailTemplateSetting,
   readResultEmailTemplateSetting,
+  readResultEmailTemplateSettings,
   type ResultEmailTemplateResolvedSetting,
 } from "@/lib/email-center/template-resolution";
 import { writeOperationAudit } from "@/lib/operation-audit";
@@ -272,13 +273,15 @@ export async function getResultEmailPreviews(department?: string | null) {
      不该因为一次资料查询失败整页报错，也省掉一次页面加载时的外部请求 */
   const previewName = session.name?.trim() || "张三";
 
+  /* 所有模板一次性取回再内存解析：逐键查询会让一个模板页打十几次同一条 SQL（N+1） */
+  const settings = await readResultEmailTemplateSettings(
+    defaultResultEmailTemplateSettings.map((fallback) => fallback.templateKey),
+    target,
+  );
+
   const entries = await Promise.all(
     defaultResultEmailTemplateSettings.map(async (fallback) => {
-      /* 预览是内部链路，直接走无域读取，避免绕过 action 包装再触发一次角色校验 */
-      const setting = await readResultEmailTemplateSetting(
-        fallback.templateKey,
-        target,
-      );
+      const setting = settings.get(fallback.templateKey)!;
       const rendered = await renderEmailTemplate({
         templateKey: fallback.templateKey as ResultEmailTemplateKey,
         variables: {

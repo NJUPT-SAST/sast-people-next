@@ -109,7 +109,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
   });
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
       {/* PC 端表格视图 */}
       <div className="hidden xl:block">
         <Table className="table-fixed" containerClassName="overflow-x-visible">
@@ -151,7 +151,7 @@ export function FlowTable<TData extends displayFlow, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className="border-border/60 transition-colors hover:bg-primary/[0.04]"
+                  className="border-border/60 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell

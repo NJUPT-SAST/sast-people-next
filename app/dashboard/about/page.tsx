@@ -18,8 +18,8 @@ export default async function AboutPage() {
             SAST People 是南京邮电大学大学生科学技术协会面向成员与项目组的协作平台，覆盖招新、笔试、面试审批、结果通知与成员留任，帮助团队统一管理流程、沉淀记录。
           </p>
           <div className="mx-auto mt-7 w-full border-y border-border/70">
-            {chatLink && <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-primary/[0.04]" href={chatLink} target="_blank" rel="noreferrer">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/25 bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+            {chatLink && <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-muted/70" href={chatLink} target="_blank" rel="noreferrer">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full border border-border/60 bg-muted text-primary transition-colors group-hover:bg-accent">
                 <MessageCircle className="size-4" />
               </span>
               <span className="min-w-0 flex-1">
@@ -29,8 +29,8 @@ export default async function AboutPage() {
               <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/70 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
             </a>}
             {chatLink && <span className="h-px w-full bg-border/70" />}
-            <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-primary/[0.04]" href={githubLink} target="_blank" rel="noreferrer">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/25 bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+            <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-muted/70" href={githubLink} target="_blank" rel="noreferrer">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full border border-border/60 bg-muted text-primary transition-colors group-hover:bg-accent">
                 <Github className="size-4" />
               </span>
               <span className="min-w-0 flex-1">
@@ -40,8 +40,8 @@ export default async function AboutPage() {
               <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/70 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
             </a>
             <span className="h-px w-full bg-border/70" />
-            <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-primary/[0.04]" href="mailto:emmm@sast.fun">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/25 bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+            <a className="group flex items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-muted/70" href="mailto:emmm@sast.fun">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full border border-border/60 bg-muted text-primary transition-colors group-hover:bg-accent">
                 <Mail className="size-4" />
               </span>
               <span className="min-w-0 flex-1">

@@ -18,6 +18,7 @@ SAST People 负责招新与评审流程；用户身份、资料、角色与账�
 | 管理操作 | SAST People | 用户查询、角色修改、封禁、操作审计、错误日志 |
 | 部门数据权限 | SAST People + SAST Link | 部门来自 Link 资料；流程、报名、评卷、评审、邮件与审计按归属部门隔离，全站范围仅对 Link `admin` 账号开放 |
 | 可观测性 | SAST People | Sentry、健康检查、服务端错误日志 |
+| 成员信息收集 | SAST People | 部长发起/编辑收集表、按身份选择填写范围、Link 资料自动带入、分享链接、截止时间与 CSV 导出 |
 
 ## 核心功能
 
@@ -32,6 +33,7 @@ SAST People 负责招新与评审流程；用户身份、资料、角色与账�
 - 结果邮件中心：模板、批次、重试、限流、服务商回调与投递历史。
 - 流程结果通过后回写 SAST Link 角色。
 - 面向流程管理的 Link 用户查询、只读资料查看、角色编辑与账号封禁。
+- 成员信息收集表（`/dashboard/collection`）：部长及以上可新建、编辑、复制、删除、结束/恢复收集，并查看全部填写情况（管理员同权，不按部门拆分）。社团名称固定为南京邮电大学大学生科学技术协会；姓名/学号/学院自动读取 SAST Link；出生年月用年/月选择器，政治面貌用下拉选择；可在固定字段外追加自定义收集项（单行/多行文本、数字、下拉单选、单选按钮、多选、日期、日期时间、时间、邮箱、链接、手机号、1-5 星评分，可设选项、必填、填写提示与上下排序；可从 Link 自动带入姓名、学号、学院、专业、邮箱、QQ）。填写范围可同时按身份（直接勾选新同学/部员/讲师/部长/管理员）与流程（仅所选流程最终通过者）限定；可设置开始与截止时间，到点自动开放/停止接收。每张表生成随机码分享链接 `/collect/<token>`，未登录时先登录再回到表单；还支持按流程、届别、姓名/学号/手机号批量筛选成员并发送可选邀请邮件。邀请邮件模板在邮件中心「模板管理 → 收集表通知」维护（全局模板，管理员可编辑，不包含邀请人姓名）。填写记录支持搜索、单条删除与 CSV 导出。类别限定 7 个类型，学院/班级/学号必填。
 - 本地 PostgreSQL 开发库与演示种子数据，便于重复演示。
 - Jest 单元/集成测试与 Playwright 端到端覆盖关键管理员与学生路径。
 
@@ -284,7 +286,7 @@ cp .env.example .env.local
 | `FEISHU_APPROVAL_CHAT_ID` | 可选：管理员审批通知群 |
 | `FEISHU_FEEDBACK_CHAT_ID` | 可选：关于页开发者反馈通知群 |
 | `FEEDBACK_FEISHU_GROUP_URL` | 关于页展示的飞书群邀请链接（邀请 token 不要入库） |
-| `INNGEST_DEV` | 本地置 `1`；生产必须改用 `INNGEST_SIGNING_KEY` |
+| `INNGEST_DEV` / `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` | 本地置 `INNGEST_DEV=1`。生产缺 `INNGEST_EVENT_KEY` 时 `mqClient.send` 无法发送事件（面试提醒、邮件队列不会触发）；缺 `INNGEST_SIGNING_KEY` 时 Inngest 回调验签失败，事件可能已发出但函数不会执行 |
 | `EMAIL_*` | SMTP、重试策略（`EMAIL_RETRY_*`）、限流（`EMAIL_SEND_RATE_LIMIT_PER_MINUTE`）、投递记录保留（`EMAIL_ATTEMPT_RETENTION_DAYS`）、回调密钥（`EMAIL_WEBHOOK_SECRET`）与非生产收件人保护（`EMAIL_TEST_RECIPIENT`） |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | 运行时错误上报 |
 | `SENTRY_BUILD_PLUGIN` | 仅在确需 Sentry 构建期处理时置 `true` |

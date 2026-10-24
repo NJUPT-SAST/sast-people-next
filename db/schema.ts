@@ -1,5 +1,9 @@
 import { sql } from "drizzle-orm";
 import type { EmailBlock, EmailFrameStyle } from "@/lib/email/blocks";
+import type {
+  CollectionExtraAnswers,
+  CollectionExtraField,
+} from "@/const/collection";
 import {
   boolean,
   index,
@@ -891,3 +895,159 @@ export const gradingFairnessProfile = pgTable("grading_fairness_profile", {
     .defaultNow()
     .$onUpdate(() => sql`now()`),
 });
+
+/**
+ * 可复用的收集表模板：保存一组收集项，创建收集表时可一键套用。
+ * 内置模板（成员信息/空白）不落库，这里只存部长自建的模板。
+ */
+export const collectionTemplate = pgTable("collection_template", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 60 }).notNull(),
+  description: text("description").notNull().default(""),
+  fields: jsonb("fields")
+    .$type<CollectionExtraField[]>()
+    .notNull()
+    .default([]),
+  /* Link 用户 ID — 创建/最后修改人 */
+  createdBy: integer("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  nameUnique: unique("collection_template_name_uidx").on(table.name),
+}));
+
+/**
+ * 收集表：部长及以上发起一轮收集，部员及以上按范围填写。
+ * kind = member 使用固定成员字段；kind = custom 只使用 extraFields。
+ * department = NULL 表示全体成员可填（仅管理员可建）；否则只对发起人所属部门开放。
+ */
+export const collectionForm = pgTable("collection_form", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 120 }).notNull(),
+  /* member = 成员信息模板；custom = 完全自定义字段（历史字段，保留兼容） */
+  kind: varchar("kind", { length: 16 }).notNull().default("member"),
+  /* 创建时使用的模板名称快照；字段本身存在 extra_fields */
+  templateName: varchar("template_name", { length: 60 }),
+  instructions: text("instructions").notNull().default(""),
+  /* 除固定成员字段外，发起人自定义的收集项 */
+  extraFields: jsonb("extra_fields")
+    .$type<CollectionExtraField[]>()
+    .notNull()
+    .default([]),
+  /* 分享链接 token：/collect/<token>，登录后跳转到本表 */
+  shareToken: varchar("share_token", { length: 64 }).notNull(),
+  /* 开始时间；NULL = 立即开始 */
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  /* 截止时间；NULL = 不设截止。过期后不再接收填写，但保留记录 */
+  deadline: timestamp("deadline", { withTimezone: true }),
+  /* 允许填写的身份（People 角色）；空数组 = 不限制 */
+  allowedRoles: jsonb("allowed_roles")
+    .$type<number[]>()
+    .notNull()
+    .default([]),
+  /* 限定流程：仅这些流程最终通过的人可填；空数组 = 不限制 */
+  allowedFlowIds: jsonb("allowed_flow_ids")
+    .$type<number[]>()
+    .notNull()
+    .default([]),
+  /* open = 可填写/可修改；closed = 只读 */
+  status: varchar("status", { length: 16 }).notNull().default("open"),
+  /* Link 用户 ID — 发起人 */
+  createdBy: integer("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  shareTokenUnique: unique("collection_form_share_token_uidx").on(table.shareToken),
+  statusIdx: index("collection_form_status_idx").on(table.status, table.createdAt),
+}));
+
+/**
+ * 收集表提交：每个用户每张表一条，重复提交按 (fk_form_id, fk_user_id) 更新。
+ * department 保存提交时的部门快照，便于部门范围内的结果查看与导出。
+ * member 表写入固定成员字段；custom 表这些列保持 NULL，答案全部在 extra_answers。
+ */
+export const collectionSubmission = pgTable("collection_submission", {
+  id: serial("id").primaryKey(),
+  fkFormId: integer("fk_form_id")
+    .references(() => collectionForm.id, { onDelete: "cascade" })
+    .notNull(),
+  /* Link 用户 ID — 填写人 */
+  fkUserId: integer("fk_user_id").notNull(),
+  /* 填写人当时的 Link 部门标识 */
+  department: varchar("department", { length: 64 }),
+  clubName: varchar("club_name", { length: 120 }),
+  category: varchar("category", { length: 32 }),
+  name: varchar("name", { length: 60 }),
+  /* YYYY-MM */
+  birthMonth: varchar("birth_month", { length: 7 }),
+  politicalStatus: varchar("political_status", { length: 40 }),
+  college: varchar("college", { length: 120 }),
+  className: varchar("class_name", { length: 120 }),
+  studentId: varchar("student_id", { length: 32 }),
+  enrollmentYear: smallint("enrollment_year"),
+  graduationYear: smallint("graduation_year"),
+  /* 自定义收集项答案：字段 ID → 文本值或文本数组（多选） */
+  extraAnswers: jsonb("extra_answers")
+    .$type<CollectionExtraAnswers>()
+    .notNull()
+    .default({}),
+  /* 部长退回：退回时间与说明；重新提交后清空 */
+  returnedAt: timestamp("returned_at", { withTimezone: true }),
+  returnNote: text("return_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  formUserUnique: unique("collection_submission_form_user_uidx").on(
+    table.fkFormId,
+    table.fkUserId,
+  ),
+  formDepartmentIdx: index("collection_submission_form_department_idx").on(
+    table.fkFormId,
+    table.department,
+  ),
+}));
+
+/**
+ * 收集表邀请：部长/管理员批量邀请成员填写，可选发送邮件。
+ * 同一张表同一成员只保留一条邀请记录，再次邀请会更新状态与时间。
+ */
+export const collectionInvitation = pgTable("collection_invitation", {
+  id: serial("id").primaryKey(),
+  fkFormId: integer("fk_form_id")
+    .references(() => collectionForm.id, { onDelete: "cascade" })
+    .notNull(),
+  /* Link 用户 ID — 被邀请人 */
+  fkUserId: integer("fk_user_id").notNull(),
+  name: varchar("name", { length: 60 }),
+  studentId: varchar("student_id", { length: 32 }),
+  email: varchar("email", { length: 254 }),
+  /* Link 用户 ID — 邀请人 */
+  invitedBy: integer("invited_by").notNull(),
+  /* pending = 已记录未发邮件；sent = 邮件已发送；failed = 发送失败 */
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+  error: text("error"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  formUserUnique: unique("collection_invitation_form_user_uidx").on(
+    table.fkFormId,
+    table.fkUserId,
+  ),
+  formStatusIdx: index("collection_invitation_form_status_idx").on(
+    table.fkFormId,
+    table.status,
+  ),
+}));

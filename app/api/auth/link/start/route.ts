@@ -1,6 +1,11 @@
 import { createLinkOAuthAuthorizationUrl } from "@/lib/link/oauth-flow";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  return NextResponse.redirect(await createLinkOAuthAuthorizationUrl());
+export async function GET(request: NextRequest) {
+  return NextResponse.redirect(
+    await createLinkOAuthAuthorizationUrl(
+      false,
+      request.nextUrl.searchParams.get("next") ?? undefined,
+    ),
+  );
 }

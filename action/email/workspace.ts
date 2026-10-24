@@ -2,7 +2,10 @@
 
 import { batchSendEmail } from "@/action/user/sendEmail";
 import { sendEmailBatch } from "@/action/email/send";
-import { readResultEmailTemplateSetting } from "@/lib/email-center/template-resolution";
+import {
+  loadResultEmailTemplateSettingRows,
+  resolveResultEmailTemplateSetting,
+} from "@/lib/email-center/template-resolution";
 import { db } from "@/db/drizzle";
 import { flow, flowResultPublication, userFlow } from "@/db/schema";
 import { getDepartmentScope, type DepartmentScope, verifyManager } from "@/lib/authz";
@@ -90,13 +93,40 @@ export async function listEmailFlowTargets() {
     studentId: userMap.get(target.userId)?.studentId ?? null,
   }));
 
-  return Promise.all(flows.map(async (item) => {
+  const flowPlans = flows.map((item) => {
     /* 办公类流程发布的是二轮（最终）结果，模板与变量按二轮解析 */
     const resultRound = isOfficeInterviewFlow(item.type) ? 2 : null;
-    const acceptedTemplateKey = getResultEmailTemplateKey(item.type, true, resultRound);
-    const rejectedTemplateKey = getResultEmailTemplateKey(item.type, false, resultRound);
-    const acceptedSetting = await readResultEmailTemplateSetting(acceptedTemplateKey, item.department);
-    const rejectedSetting = await readResultEmailTemplateSetting(rejectedTemplateKey, item.department);
+    return {
+      item,
+      resultRound,
+      acceptedTemplateKey: getResultEmailTemplateKey(item.type, true, resultRound),
+      rejectedTemplateKey: getResultEmailTemplateKey(item.type, false, resultRound),
+    };
+  });
+  /* 逐流程 × 通过/不通过查询会把同一张模板表打成 N+1；一次取回后在内存里解析 */
+  const templateRows = await loadResultEmailTemplateSettingRows(
+    flowPlans.flatMap((plan) => [
+      plan.acceptedTemplateKey,
+      plan.rejectedTemplateKey,
+    ]),
+  );
+
+  return Promise.all(flowPlans.map(async ({
+    item,
+    resultRound,
+    acceptedTemplateKey,
+    rejectedTemplateKey,
+  }) => {
+    const acceptedSetting = resolveResultEmailTemplateSetting(
+      acceptedTemplateKey,
+      item.department,
+      templateRows,
+    );
+    const rejectedSetting = resolveResultEmailTemplateSetting(
+      rejectedTemplateKey,
+      item.department,
+      templateRows,
+    );
     /* 办公类模板需要 {department} 展示名，其他流程的模板变量用不到 */
     const departmentDisplay = departmentLabel(item.department);
     const flowTargets = hydratedTargets.filter((target) => target.flowId === item.id);

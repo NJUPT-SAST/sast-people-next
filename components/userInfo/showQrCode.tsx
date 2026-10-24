@@ -37,7 +37,7 @@ export const ShowQrCode = ({ uid }: { uid: number }) => {
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader className="items-center text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/20">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
             <ShieldCheck className="h-6 w-6 text-primary" />
           </div>
           <DialogTitle className="text-xl">我的身份码</DialogTitle>

@@ -1,4 +1,5 @@
 import { LinkLogin } from "@/components/linkLogin";
+import { normalizeLoginNext } from "@/lib/login-next";
 import BlurIn from "@/components/magicui/blur-in";
 import FlickeringGrid from "@/components/magicui/flickering-grid";
 import { TestLogin, type MockLoginAccount } from "@/components/testLogin";
@@ -26,12 +27,13 @@ const mockLoginAccounts: MockLoginAccount[] = useMockLink
 const Login = async ({
   searchParams,
 }: {
-  searchParams: Promise<{ reason?: string }>;
+  searchParams: Promise<{ reason?: string; next?: string }>;
 }) => {
   const awaitedSearchParams = await searchParams;
   const linkAuthorizationExpired =
     awaitedSearchParams.reason === "link-authorization";
   const linkDenied = awaitedSearchParams.reason === "link-denied";
+  const next = normalizeLoginNext(awaitedSearchParams.next) ?? undefined;
   return (
     <main className="min-h-dvh bg-[#f5f7f3] px-safe text-[#18231d]">
       <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
@@ -132,8 +134,8 @@ const Login = async ({
                   </p>
                 </div>
 
-                <LinkLogin isBinding={false} />
-                {useMockLink && <TestLogin accounts={mockLoginAccounts} />}
+                <LinkLogin isBinding={false} next={next} />
+                {useMockLink && <TestLogin accounts={mockLoginAccounts} next={next} />}
               </CardContent>
             </Card>
 

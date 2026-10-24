@@ -2,7 +2,7 @@ import type { InterviewScheduleEmailVariables } from "@/lib/email/interview-sche
 import type { InterviewWithdrawalEmailVariables } from "@/lib/email-center/interview-withdrawal";
 import type { ResultEmailTemplateSetting } from "@/lib/email/template-settings";
 
-export type EmailCategory = "result" | "interview" | "test";
+export type EmailCategory = "result" | "interview" | "collection" | "test";
 
 export type ResultEmailTemplateKey =
   | "recruitment.result.accepted"
@@ -30,7 +30,15 @@ export type InterviewEmailTemplateKey =
   | InterviewScheduleEmailTemplateKey
   | InterviewWithdrawalEmailTemplateKey;
 
-export type EmailTemplateKey = ResultEmailTemplateKey | InterviewEmailTemplateKey;
+export type CollectionInvitationEmailTemplateKey = "collection.invitation";
+
+export type CollectionReturnEmailTemplateKey = "collection.return";
+
+export type EmailTemplateKey =
+  | ResultEmailTemplateKey
+  | InterviewEmailTemplateKey
+  | CollectionInvitationEmailTemplateKey
+  | CollectionReturnEmailTemplateKey;
 
 export type EmailVariableDefinition = {
   key: string;

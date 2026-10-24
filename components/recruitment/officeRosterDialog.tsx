@@ -231,7 +231,7 @@ export function OfficeRosterDialog({
         </DialogHeader>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+          <Badge variant="outline" className="border-primary/30 bg-muted text-primary">
             通过 {passCount}
           </Badge>
           <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">

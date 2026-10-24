@@ -28,7 +28,7 @@ function StatTile({
   tone?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-card px-3.5 py-3">
+    <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card shadow-card px-3.5 py-3">
       <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <Icon className="size-4" />
       </span>

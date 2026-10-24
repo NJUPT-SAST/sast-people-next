@@ -4,12 +4,12 @@
 | --- | --- |
 | 文档状态 | Draft |
 | 适用分支 | `v3` |
-| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql` 至 `migrations/0075_interview_checkin_skip_count.sql` |
-| 最后更新 | 2026-10-10 |
+| 来源 | `db/schema.ts`、`migrations/0011_link_user_ids.sql` 至 `migrations/0081_collection_forms.sql` |
+| 最后更新 | 2026-10-22 |
 
 ## 1. 边界
 
-People v3 数据库只维护招新、流程、评分、面评、邮件和审计等业务数据。
+People v3 数据库只维护招新、流程、评分、面评、邮件、审计与成员信息收集等业务数据。
 
 用户基础资料、账号状态、角色和第三方身份绑定由 SAST Link 维护。People 业务表中的用户字段保存 Link 用户 ID，不再对旧 People `public.user.id` 建外键。
 
@@ -57,6 +57,9 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `interview_station` | 办公类面试的面试位（部门并行面试工位） | `fk_interviewer_id` 保存坐该位的部长 Link 用户 ID（可空） |
 | `operation_audit` | 管理操作审计 | `actor_id` 保存 Link 用户 ID |
 | `feedback_report` | 用户问题反馈上报与处理 | `fk_user_id` 保存提交人 Link 用户 ID（可空，允许未登录提交）；`resolved_by` 保存处理人 Link 用户 ID |
+| `collection_form` | 成员信息收集表（迁移 0081） | `created_by` 保存发起人 Link 用户 ID；`allowed_roles` / `allowed_flow_ids` 为空表示不限制相应条件 |
+| `collection_submission` | 成员信息收集表提交 | `fk_user_id` 保存填写人 Link 用户 ID |
+| `collection_invitation` | 收集表邀请与邮件状态 | `fk_user_id` 保存被邀请人 Link 用户 ID；`invited_by` 保存邀请人 Link 用户 ID |
 
 ## 4. 流程表
 
@@ -523,7 +526,7 @@ People v3 数据库只维护招新、流程、评分、面评、邮件和审计�
 | `count` | `integer` | 当前窗口已领取发送数 |
 | `updated_at` | `timestamp` | 更新时间 |
 
-## 9. 会话、OAuth 与审计表
+## 9. 会话、OAuth、审计与收集表
 
 ### `people_session`
 
@@ -632,6 +635,93 @@ People 私有 OAuth token 绑定表。当前用于保存讲师飞书 `user_acces
 - `feedback_report_user_id_idx` on `fk_user_id`
 - `feedback_report_created_at_idx` on `created_at`
 - `feedback_report_department_idx` on `department`
+
+### `collection_form`
+
+成员信息收集表（迁移 `0081_collection_forms.sql`）。部长及以上发起并管理，填写身份由 `allowed_roles` 指定（空数组 = 不限制）；不按部门拆分。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 收集表 ID |
+| `title` | `varchar(120)` | 标题 |
+| `instructions` | `text` | 填表说明，默认内置成员信息收集说明 |
+| `extra_fields` | `jsonb` | 自定义收集项定义（`{id,label,type,required,options,description?,prefillFrom?}` 数组；type 支持文本、数字、单选、多选、日期/时间、邮箱、链接、手机号与评分） |
+| `share_token` | `varchar(64)` | 分享链接 token（唯一，`/collect/<token>`） |
+| `starts_at` | `timestamp` | 开始时间；`NULL` = 立即开始 |
+| `deadline` | `timestamp` | 截止时间；`NULL` = 不设截止，过期后停止接收 |
+| `allowed_roles` | `jsonb` | 允许填写的身份数组（0 新同学 / 1 部员 / 2 讲师 / 3 部长 / 4 管理员）；空数组 = 不限制 |
+| `allowed_flow_ids` | `jsonb` | 限定流程 ID 数组；仅这些流程最终通过的人可填；空数组 = 不限制 |
+| `status` | `varchar(16)` | `open`（收集中）/ `closed`（已截止） |
+| `created_by` | `integer` | 发起人 Link 用户 ID |
+| `created_at` | `timestamp` | 创建时间 |
+| `updated_at` | `timestamp` | 更新时间 |
+
+唯一约束：
+
+- `collection_form_share_token_uidx` on `share_token`
+
+索引：
+
+- `collection_form_status_idx` on `status, created_at`
+
+### `collection_submission`
+
+收集表提交。每个用户每张表一条，重复提交按 `(fk_form_id, fk_user_id)` 更新；字段集合固定为社团名称、类别、姓名、出生年月、政治面貌、所在学院、所在班级、学号、入学年份、预计毕业年份。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 提交 ID |
+| `fk_form_id` | `integer` | 关联 `collection_form.id`（CASCADE） |
+| `fk_user_id` | `integer` | 填写人 Link 用户 ID |
+| `department` | `varchar(64)` | 填写人当时的部门快照（仅作导出信息，不参与权限） |
+| `club_name` | `varchar(120)` | 社团名称 |
+| `category` | `varchar(32)` | 类别（7 个固定取值之一） |
+| `name` | `varchar(60)` | 姓名 |
+| `birth_month` | `varchar(7)` | 出生年月（`YYYY-MM`） |
+| `political_status` | `varchar(40)` | 政治面貌 |
+| `college` | `varchar(120)` | 所在学院 |
+| `class_name` | `varchar(120)` | 所在班级 |
+| `student_id` | `varchar(32)` | 学号 |
+| `enrollment_year` | `smallint` | 入学年份 |
+| `graduation_year` | `smallint` | 预计毕业年份 |
+| `extra_answers` | `jsonb` | 自定义收集项答案（字段 ID → 文本值或文本数组） |
+| `created_at` | `timestamp` | 首次提交时间 |
+| `updated_at` | `timestamp` | 最后修改时间 |
+
+唯一约束：
+
+- `collection_submission_form_user_uidx` on `fk_form_id, fk_user_id`
+
+索引：
+
+- `collection_submission_form_department_idx` on `fk_form_id, department`
+
+### `collection_invitation`
+
+收集表邀请记录（迁移 `0081_collection_forms.sql`）。部长及以上可批量邀请成员，同一张表同一成员只保留一条记录；邀请邮件可选。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `serial` | 邀请 ID |
+| `fk_form_id` | `integer` | 关联 `collection_form.id`（CASCADE） |
+| `fk_user_id` | `integer` | 被邀请人 Link 用户 ID |
+| `name` | `varchar(60)` | 姓名快照（可空） |
+| `student_id` | `varchar(32)` | 学号快照（可空） |
+| `email` | `varchar(254)` | 邮箱快照（可空） |
+| `invited_by` | `integer` | 邀请人 Link 用户 ID |
+| `status` | `varchar(16)` | `pending`（已记录未发邮件）/ `sent` / `failed` |
+| `error` | `text` | 邮件发送失败原因（可空） |
+| `sent_at` | `timestamp` | 邮件发送时间（可空） |
+| `created_at` | `timestamp` | 创建时间 |
+| `updated_at` | `timestamp` | 更新时间 |
+
+唯一约束：
+
+- `collection_invitation_form_user_uidx` on `fk_form_id, fk_user_id`
+
+索引：
+
+- `collection_invitation_form_status_idx` on `fk_form_id, status`
 
 ## 10. 外键删除策略
 
