@@ -125,7 +125,9 @@ export function EmailInterviewTemplateDialog({
   /* 服务端给的样子：恢复内置版式 / 放弃修改时回落的目标 */
   const baseline = useMemo(() => readInterviewDraft(setting), [setting]);
   /* 画布草稿：区块 / 外观 / 主题色 / 主标题进同一份历史，⌘Z 能回退删除与移动 */
-  const draft = useUndoableDraft<InterviewDraft>(() => readInterviewDraft(setting));
+  const draft = useUndoableDraft<InterviewDraft>(() => readInterviewDraft(setting), {
+    enabled: open,
+  });
   /* 「上次保存的样子」用本地快照，而不是拿服务端读回的数据逐字比：落库还会清洗一遍
      （补默认内联样式、重排区块 id），跟内存里的草稿永远不逐字相等。 */
   const [savedSignature, setSavedSignature] = useState(() => ({
@@ -136,6 +138,16 @@ export function EmailInterviewTemplateDialog({
   const dirty =
     emailDraftSignature(draft.value) !== savedSignature.draft ||
     subjectTemplate !== savedSignature.subject;
+
+  /* setting 会随 router.refresh 更新（如恢复默认删掉覆盖后）：不脏时把画布与
+     主题模板同步到最新服务端样子，避免把刚删除的覆盖再保存回去；脏时保留用户编辑 */
+  useEffect(() => {
+    if (dirty) return;
+    draft.reset(baseline);
+    setSubjectTemplate(setting.subjectTemplate);
+    setSavedSignature({ draft: emailDraftSignature(baseline), subject: setting.subjectTemplate });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setting]);
 
   const setBlocks = (next: EmailBlock[] | ((current: EmailBlock[]) => EmailBlock[])) =>
     draft.set((current) => ({

@@ -195,7 +195,9 @@ export function EmailResultTemplateDialog({
   );
 
   /* 画布草稿：区块 / 外观 / 主题色 / 主副标题进同一份历史，⌘Z 能回退删除与移动 */
-  const draft = useUndoableDraft<ResultDraft>(() => readResultDraft(setting));
+  const draft = useUndoableDraft<ResultDraft>(() => readResultDraft(setting), {
+    enabled: open,
+  });
   /* 「上次保存的样子」用本地快照，而不是拿服务端读回的数据逐字比：落库还会清洗一遍
      （补默认内联样式、重排区块 id），跟内存里的草稿永远不逐字相等。 */
   const [savedSignature, setSavedSignature] = useState(() => ({
@@ -206,6 +208,19 @@ export function EmailResultTemplateDialog({
   const dirty =
     emailDraftSignature(draft.value) !== savedSignature.draft ||
     JSON.stringify(values) !== savedSignature.values;
+
+  /* setting 会随 router.refresh 更新（如恢复默认删掉覆盖后）：不脏时把画布
+     同步到最新服务端样子，避免把刚删除的覆盖内容再保存回去；脏时保留用户编辑 */
+  useEffect(() => {
+    if (dirty) return;
+    draft.reset(baseline.draft);
+    setValues(baseline.values);
+    setSavedSignature({
+      draft: emailDraftSignature(baseline.draft),
+      values: JSON.stringify(baseline.values),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setting]);
 
   const canvasVariables = useMemo<EmailTemplateVariable[]>(
     () => [

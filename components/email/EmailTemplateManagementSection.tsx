@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { departmentCategory, departmentLabel } from "@/const/department";
 import {
   departmentSupportsStage,
@@ -26,7 +27,8 @@ import {
   emailTemplateStageIndex,
 } from "@/const/flow";
 import { cn } from "@/lib/utils";
-import { Send } from "lucide-react";
+import { Save, Send, Settings2, Undo2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -34,7 +36,8 @@ import { EmailInterviewTemplateDialog } from "./EmailInterviewTemplateDialog";
 import { EmailResultTemplateDialog } from "./EmailResultTemplateDialog";
 import { EmailTemplateScopeSelector } from "./EmailTemplateScopeSelector";
 import type { EmailTemplateVariable } from "./email-variables";
-import { emailCategoryText } from "./emailDashboardConstants";
+import { emailCategoryText, hiddenScrollbar } from "./emailDashboardConstants";
+import { PreviewDialog } from "./emailDashboardDialogs";
 import type {
   CollectionInvitationTemplatePanel,
   EmailTemplateDefinition,
@@ -108,6 +111,29 @@ function createCollectionTemplateValues(form: HTMLFormElement) {
     bodyTemplate: String(data.get("bodyTemplate") ?? ""),
     footerText: String(data.get("footerText") ?? ""),
   };
+}
+/** collection 邀请模板表单里的单行字段(非受控,随表单一次性取值) */
+function TemplateField({
+  id,
+  name,
+  label,
+  defaultValue,
+  className,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  defaultValue: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        {label}
+      </Label>
+      <Input id={id} name={name} defaultValue={defaultValue} className="min-w-0" />
+    </div>
+  );
 }
 
 function CollectionInvitationTemplateDialog({

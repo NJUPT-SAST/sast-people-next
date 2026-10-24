@@ -902,7 +902,14 @@ function Toolbar({ editor }: { editor: Editor }) {
  *
  * TipTap v3 默认不因事务重渲染，选中态得自己订阅，否则「加粗/斜体」这些按钮的高亮不会跟着选区走。
  */
-function BubbleToolbar({ editor }: { editor: Editor }) {
+function BubbleToolbar({
+  editor,
+  blockCommands = true,
+}: {
+  editor: Editor;
+  /** 画布外层文档关掉块级命令：标题 / 列表 / 引用进不了序列化边界 */
+  blockCommands?: boolean;
+}) {
   useEditorState({
     editor,
     selector: ({ transactionNumber }) => transactionNumber,
@@ -932,18 +939,20 @@ function BubbleToolbar({ editor }: { editor: Editor }) {
       >
         <SubscriptIcon />
       </ToolbarButton>
-      <HeadingControls editor={editor} />
+      {blockCommands && <HeadingControls editor={editor} />}
       <FontSizeControl editor={editor} />
       <FontFamilyControl editor={editor} />
       <LineHeightControl editor={editor} />
-      <ListControls editor={editor} />
-      <ToolbarButton
-        label="引用"
-        active={editor.isActive("blockquote")}
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-      >
-        <Quote />
-      </ToolbarButton>
+      {blockCommands && <ListControls editor={editor} />}
+      {blockCommands && (
+        <ToolbarButton
+          label="引用"
+          active={editor.isActive("blockquote")}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        >
+          <Quote />
+        </ToolbarButton>
+      )}
       <ToolbarButton
         label="行内代码"
         active={editor.isActive("code")}
@@ -1216,13 +1225,20 @@ export function createSlashExtension() {
 }
 
 /** 选中文字时浮出的格式工具条：富文本区块与画布外层文档共用 */
-export function EmailBubbleMenu({ editor }: { editor: Editor }) {
+export function EmailBubbleMenu({
+  editor,
+  blockCommands = true,
+}: {
+  editor: Editor;
+  /** 画布外层文档只有 emailText / emailBlock，块级命令要收起来 */
+  blockCommands?: boolean;
+}) {
   return (
     <BubbleMenu
       editor={editor}
       options={{ placement: "top", offset: 8, shift: { padding: 8 } }}
     >
-      <BubbleToolbar editor={editor} />
+      <BubbleToolbar editor={editor} blockCommands={blockCommands} />
     </BubbleMenu>
   );
 }

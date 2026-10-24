@@ -31,7 +31,7 @@ import {
   type ReactNode,
 } from "react";
 import { Node, mergeAttributes, type JSONContent } from "@tiptap/core";
-import { DOMSerializer, DOMParser as PMDOMParser } from "@tiptap/pm/model";
+import { DOMSerializer, DOMParser as PMDOMParser, type Node as PMNode } from "@tiptap/pm/model";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import {
   EditorContent,
@@ -861,7 +861,7 @@ function BlockMenu({
               {presets.map((preset) => (
                 <DropdownMenuItem
                   key={preset.id}
-                  onSelect={() => onSavePreset(preset.name, preset.blocks)}
+                  onSelect={() => void onSavePreset(preset.name, [block])}
                   className="flex items-center justify-between gap-2"
                 >
                   <span className="min-w-0 truncate">覆盖为「{preset.name}」</span>
@@ -1384,6 +1384,14 @@ function textBlockCss(style: EmailBlockStyle | null | undefined) {
     .join(";");
 }
 
+/** 外层文档只收文本区块与 atom 区块(空文档占位段落除外):
+    标题 / 列表 / 引用等块级节点进不了文档,docToBlocks 不会漏抄文字 */
+const EmailDocument = Node.create({
+  name: "doc",
+  topNode: true,
+  content: "(paragraph | emailText | emailBlock)+",
+});
+
 /** 正文节点：文字就是文档内容（不是 atom），所以能有跨块选中与整篇文字撤销 */
 const EmailTextNode = Node.create({
   name: "emailText",
@@ -1420,10 +1428,19 @@ function inlineParagraphs(html: string, editor: Editor): JSONContent[][] {
   wrapper.innerHTML = html;
   const parsed = PMDOMParser.fromSchema(editor.schema).parse(wrapper);
   const result: JSONContent[][] = [];
-  parsed.forEach((child) => {
-    const json = child.toJSON() as { content?: JSONContent[] };
-    result.push(json.content ?? []);
-  });
+  /* emailText 只吃 inline*：标题等文本块各自成段，
+     列表 / 引用等容器块递归拆到里面的段落，块级节点不混进行内内容 */
+  const walk = (nodes: { forEach: (callback: (node: PMNode) => void) => void }) => {
+    nodes.forEach((child) => {
+      if (child.isTextblock) {
+        const json = child.toJSON() as { content?: JSONContent[] };
+        result.push(json.content ?? []);
+      } else if (child.content.size > 0) {
+        walk(child.content);
+      }
+    });
+  };
+  walk(parsed.content);
   return result;
 }
 
@@ -1597,6 +1614,7 @@ export function EmailCanvas({
       ...createEmailInlineExtensions({ undoRedo: false }),
       EmailBlockNode,
       EmailTextNode,
+      EmailDocument,
       slashExtension,
     ],
     content: { type: "doc", content: [{ type: "paragraph" }] },
@@ -1825,7 +1843,7 @@ export function EmailCanvas({
           <div style={content}>
             <div className="relative">
               <EditorContent editor={editor} />
-              {editor && <EmailBubbleMenu editor={editor} />}
+              {editor && <EmailBubbleMenu editor={editor} blockCommands={false} />}
               {editor && editable && (
                 <DragHandle
                   editor={editor}

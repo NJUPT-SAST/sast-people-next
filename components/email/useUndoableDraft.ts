@@ -21,7 +21,7 @@ type State<T> = {
 };
 
 type Action<T> =
-  | { type: "set"; value: T; now: number }
+  | { type: "set"; value: T | ((current: T) => T); now: number }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "reset"; value: T };
@@ -29,9 +29,15 @@ type Action<T> =
 function reducer<T>(state: State<T>, action: Action<T>): State<T> {
   switch (action.type) {
     case "set": {
+      /* 函数式更新在 reducer 里基于最新 state 求值:
+         同一事件里连续两次 set 不会拿旧值互相覆盖 */
+      const value =
+        typeof action.value === "function"
+          ? (action.value as (current: T) => T)(state.value)
+          : action.value;
       const coalesce = action.now - state.lastAt < COALESCE_MS;
       return {
-        value: action.value,
+        value,
         past: coalesce
           ? state.past
           : [...state.past, state.value].slice(-MAX_HISTORY),
@@ -63,10 +69,13 @@ function reducer<T>(state: State<T>, action: Action<T>): State<T> {
       return { value: action.value, past: [], future: [], lastAt: 0 };
     default:
       return state;
-  }
 }
 
-export function useUndoableDraft<T>(initial: T | (() => T)) {
+}
+export function useUndoableDraft<T>(
+  initial: T | (() => T),
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   const [state, dispatch] = useReducer(reducer<T>, initial, (arg) => ({
     value: typeof arg === "function" ? (arg as () => T)() : arg,
     past: [],
@@ -75,12 +84,9 @@ export function useUndoableDraft<T>(initial: T | (() => T)) {
   }));
 
   const set = useCallback(
-    (next: T | ((current: T) => T)) => {
-      const value =
-        typeof next === "function" ? (next as (current: T) => T)(state.value) : next;
-      dispatch({ type: "set", value, now: Date.now() });
-    },
-    [state.value],
+    (next: T | ((current: T) => T)) =>
+      dispatch({ type: "set", value: next, now: Date.now() }),
+    [],
   );
 
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
@@ -90,6 +96,8 @@ export function useUndoableDraft<T>(initial: T | (() => T)) {
   /* 键盘：⌘/Ctrl+Z 撤销、⌘/Ctrl+Shift+Z 重做。
      焦点在富文本编辑区里时让 ProseMirror 自己处理文字撤销，不抢它的按键。 */
   useEffect(() => {
+    /* 对话框关闭时不注册:否则每张模板卡片的草稿都会响应同一次 ⌘Z */
+    if (!enabled) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.key.toLowerCase() !== "z") return;
@@ -102,7 +110,7 @@ export function useUndoableDraft<T>(initial: T | (() => T)) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [undo, redo]);
+  }, [enabled, undo, redo]);
 
   return useMemo(
     () => ({

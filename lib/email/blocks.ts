@@ -348,7 +348,7 @@ const tolerantBlocks = z.preprocess(
     Array.isArray(value)
       ? value.filter((block) => blockSchema.safeParse(block).success)
       : null,
-  z.array(blockSchema).max(EMAIL_BLOCK_LIMITS.blocks),
+  z.array(blockSchema),
 );
 
 const frameSchema = z
@@ -406,16 +406,19 @@ export function parseEmailFrame(value: unknown): EmailFrameStyle {
   const parsed = frameSchema.safeParse(value);
   if (!parsed.success) return DEFAULT_EMAIL_FRAME;
   const result = parsed.data;
+  const isHttpUrl = (candidate: string) => /^https?:\/\//i.test(candidate);
   return Object.fromEntries(
-    Object.entries(DEFAULT_EMAIL_FRAME).map(([key, fallback]) => [
-      key,
-      (result as Record<string, string>)[key]?.trim() || fallback,
-    ]),
+    Object.entries(DEFAULT_EMAIL_FRAME).map(([key, fallback]) => {
+      const current = (result as Record<string, string>)[key]?.trim() || fallback;
+      const isImageUrl = key === "logoUrl" || key === "footerImageUrl";
+      return [key, isImageUrl && !isHttpUrl(current) ? fallback : current];
+    }),
   ) as EmailFrameStyle;
 }
-
-/** 写入前的硬性校验：返回首条错误文案，通过则返回 null */
 export function validateEmailBlocks(blocks: EmailBlock[]): string | null {
+  if (blocks.length > EMAIL_BLOCK_LIMITS.blocks) {
+    return `单个模板最多 ${EMAIL_BLOCK_LIMITS.blocks} 个区块`;
+  }
   for (const block of blocks) {
     const styleError = EMAIL_BLOCK_STYLE_KEYS.find(
       (key) => (block.style?.[key] ?? "").length > EMAIL_BLOCK_LIMITS.styleValue,

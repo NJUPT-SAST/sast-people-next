@@ -91,12 +91,25 @@ const Preview = ({ children }: { children: React.ReactNode }) => (
  * 变量值是管理员填的 URL / 文案，替换发生在 HTML 上下文里，
  * 只有替换之后再解析 HTML 才能挡住引号逃逸出来的属性（例如往 href 里塞 onmouseover）。
  */
+const escapeHtmlText = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 export function resolveBlockHtml(
   html: string,
   variables: Record<string, string>,
   mode: EmailHtmlSanitizeMode,
 ) {
-  return sanitizeEmailHtml(renderTemplateText(html, variables), mode);
+  /* 变量值在 HTML 上下文里按普通文本替换:转义后标签与属性不再生效
+     (resolveHref / resolveImageSrc 仍用原始 URL 做协议校验) */
+  const escaped = Object.fromEntries(
+    Object.entries(variables).map(([key, value]) => [key, escapeHtmlText(value)]),
+  );
+  return sanitizeEmailHtml(renderTemplateText(html, escaped), mode);
 }
 
 /** 邮件里的链接只允许 http(s) / mailto / tel，其余（javascript:、data:）一律不输出 href */

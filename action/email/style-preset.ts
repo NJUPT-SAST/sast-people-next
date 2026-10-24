@@ -115,7 +115,7 @@ export async function saveEmailTemplateStylePreset(input: {
     if (presetId) {
       await db
         .update(emailTemplateStylePreset)
-        .set(values)
+        .set({ blocks: values.blocks })
         .where(eq(emailTemplateStylePreset.id, presetId));
     } else {
       const [created] = await db
