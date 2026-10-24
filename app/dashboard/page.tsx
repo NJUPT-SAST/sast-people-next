@@ -37,7 +37,7 @@ export default async function Home({
       <PageHeader className="items-start gap-4 pb-1 sm:items-center">
         <div className="min-w-0 space-y-2">
           <PageTitle />
-          {userInfo.updatedAt && (
+          {!userInfo.profileUnavailable && userInfo.updatedAt && (
             <div className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-xs">
               <Clock className="h-3 w-3" />
               上次更新
@@ -57,7 +57,24 @@ export default async function Home({
         failure={awaitedSearchParams.feishuOAuth}
         message={feishuOAuthFailureMessage[awaitedSearchParams.feishuOAuth ?? ""]}
       />
-      {userInfo.studentId === null && !awaitedSearchParams.start ? (
+      {userInfo.profileUnavailable ? (
+        <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 p-10">
+          <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+            <span className="grid size-14 place-items-center rounded-2xl bg-muted text-primary ring-1 ring-border/60">
+              <Clock className="size-6" />
+            </span>
+            <h3 className="text-2xl font-semibold tracking-tight">
+              SAST Link 暂时不可用
+            </h3>
+            <p className="text-sm leading-6 text-muted-foreground">
+              个人资料暂时无法加载，请稍后刷新页面重试。
+            </p>
+            <Button className="mt-1" size="lg" asChild>
+              <a href="/dashboard">刷新</a>
+            </Button>
+          </div>
+        </div>
+      ) : userInfo.studentId === null && !awaitedSearchParams.start ? (
         userInfo.role === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 p-10 animate-in fade-in duration-500">
             <div className="flex max-w-sm flex-col items-center gap-4 text-center">

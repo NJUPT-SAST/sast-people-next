@@ -24,14 +24,16 @@ export class MissingLinkAdminAccessTokenError extends Error {
   }
 }
 
-export const getLinkAccessTokenFromSession = async (): Promise<string> =>
-  getLinkTokenFromSession("session");
+export const getLinkAccessTokenFromSession = async (
+  { forceRefresh = false }: { forceRefresh?: boolean } = {},
+): Promise<string> => getLinkTokenFromSession("session", { forceRefresh });
 
 export const getLinkAdminAccessTokenFromSession = async (): Promise<string> =>
   getLinkTokenFromSession("admin");
 
 const getLinkTokenFromSession = async (
   purpose: "session" | "admin",
+  { forceRefresh = false }: { forceRefresh?: boolean } = {},
 ): Promise<string> => {
   if (shouldUseMockLink()) {
     /* 本地 mock 用 token 标记登录用户，保证多账号演示时资料与部门不串号 */
@@ -59,7 +61,7 @@ const getLinkTokenFromSession = async (
 
   if (!token) return throwMissingTokenError(purpose);
 
-  if (!shouldRefreshLinkToken(expiresAt)) return token;
+  if (!forceRefresh && !shouldRefreshLinkToken(expiresAt)) return token;
   if (!refreshToken) return throwMissingTokenError(purpose);
 
   const storagePurpose = usesSessionTokenForAdmin ? "session" : purpose;

@@ -77,6 +77,29 @@ describe("Link session token refresh", () => {
     expect(mockUpdateLinkSessionTokens).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes a still-valid access token when Link reports it revoked", async () => {
+    const freshSession = {
+      ...expiredSession,
+      linkAccessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+    };
+    mockGetSession.mockResolvedValue(freshSession);
+    mockRefreshLinkOAuthToken.mockResolvedValue({
+      access_token: "new-access",
+      refresh_token: "new-refresh",
+      expires_in: 3_600,
+    });
+
+    await expect(
+      getLinkAccessTokenFromSession({ forceRefresh: true }),
+    ).resolves.toBe("new-access");
+    expect(mockRefreshLinkOAuthToken).toHaveBeenCalledWith("old-refresh");
+    expect(mockUpdateLinkSessionTokens).toHaveBeenCalledWith(
+      "session-1",
+      "session",
+      expect.objectContaining({ accessToken: "new-access" }),
+    );
+  });
+
   it("uses a token persisted by another refresh when the stale request fails", async () => {
     const latestSession = {
       ...expiredSession,

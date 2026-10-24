@@ -5,8 +5,6 @@ import { getDepartmentScope } from "@/lib/authz";
 import { isDepartmentEnabled } from "@/const/department";
 import { visibleFlowPredicate } from "@/lib/flow-access";
 import { listPeopleUsersByLinkIds } from "@/lib/link/user-lookup";
-import { isLinkAuthorizationError } from "@/lib/link/client";
-import { MissingLinkAdminAccessTokenError } from "@/lib/link/session";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 
 /**
@@ -98,14 +96,9 @@ const loadFlowList = async (
 const getFlowOwnerMap = async (ownerIds: number[]) => {
   try {
     return await listPeopleUsersByLinkIds(ownerIds);
-  } catch (error) {
-    // Owner names are display metadata; missing admin scope must not block flow browsing.
-    if (
-      error instanceof MissingLinkAdminAccessTokenError ||
-      isLinkAuthorizationError(error)
-    ) {
-      return new Map();
-    }
-    throw error;
+  } catch {
+    /* 负责人姓名只是展示元数据：Link 未授权、超时、DNS 失败都不该让整页流程列表 500。
+       Link 可用性由 verifySession / useUserInfo 单独上报，这里静默降级为「未知用户」。 */
+    return new Map();
   }
 };

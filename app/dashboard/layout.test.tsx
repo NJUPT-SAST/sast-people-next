@@ -72,6 +72,14 @@ describe("DashboardLayout", () => {
   it("把回源同步后的角色与部门传给导航外壳", async () => {
     mockShouldUseMockLink.mockReturnValue(true);
     mockGetUserInfo.mockResolvedValue({ id: 1, role: 4, departments: ["software"] });
+    mockVerifySession.mockResolvedValue({
+      uid: 1,
+      role: 4,
+      realRole: 4,
+      name: "Admin",
+      department: "software",
+      viewAs: null,
+    });
     mockGetSession.mockResolvedValue({
       role: 4,
       department: "software",
