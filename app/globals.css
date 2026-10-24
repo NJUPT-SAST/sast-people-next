@@ -29,6 +29,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-error: var(--error);
   --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-success: var(--success);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -73,7 +74,7 @@
   --secondary: oklch(0.962 0 0);
   --secondary-foreground: oklch(0.26 0 0);
   --muted: oklch(0.962 0 0);
-  --muted-foreground: oklch(0.505 0 0);
+  --muted-foreground: oklch(0.47 0 0);
   --accent: oklch(0.955 0 0);
   --accent-foreground: oklch(0.25 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -81,9 +82,10 @@
   /* 语义色：与 destructive 同族的「偏差/异常」色，供数据可视化使用 */
   --error: oklch(0.577 0.245 27.325);
   --warning: oklch(0.72 0.14 78);
+  --warning-foreground: oklch(0.55 0.115 70);
   --success: oklch(0.58 0.13 157);
-  --border: oklch(0.912 0 0);
-  --input: oklch(0.895 0 0);
+  --border: oklch(0.905 0 0);
+  --input: oklch(0.888 0 0);
   --ring: oklch(0.55 0.14 157);
   --chart-1: oklch(0.58 0.14 157);
   --chart-2: oklch(0.63 0.11 205);
@@ -149,7 +151,7 @@
   --secondary: oklch(0.26 0 0);
   --secondary-foreground: oklch(0.96 0 0);
   --muted: oklch(0.255 0 0);
-  --muted-foreground: oklch(0.71 0 0);
+  --muted-foreground: oklch(0.72 0 0);
   --accent: oklch(0.285 0 0);
   --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.68 0.19 22.216);
@@ -157,9 +159,10 @@
   /* 语义色：与 destructive 同族的「偏差/异常」色，供数据可视化使用 */
   --error: oklch(0.68 0.19 22.216);
   --warning: oklch(0.82 0.13 80);
+  --warning-foreground: oklch(0.8 0.125 85);
   --success: oklch(0.68 0.115 157);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 14%);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 13%);
   --ring: oklch(0.66 0.115 157);
   --chart-1: oklch(0.68 0.115 157);
   --chart-2: oklch(0.72 0.1 205);
@@ -252,6 +255,10 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv11", "ss01";
+  }
+  /* 标题按浏览器 balance 换行，避免孤字收尾 */
+  :is(h1, h2, h3, h4) {
+    text-wrap: balance;
   }
   ::selection {
     background-color: color-mix(in oklab, var(--foreground) 14%, transparent);

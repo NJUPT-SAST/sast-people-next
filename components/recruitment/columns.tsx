@@ -51,7 +51,7 @@ const statusClassName: Record<string, string> = {
   pending: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   not_started: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   ungraded: 'border-muted-foreground/30 bg-muted text-muted-foreground',
-  ongoing: 'border-chart-3/30 bg-chart-3/10 text-chart-3',
+  ongoing: 'border-chart-3/30 bg-chart-3/10 text-warning-foreground',
   passed: 'border-primary/30 bg-muted text-primary',
   failed: 'border-destructive/30 bg-destructive/10 text-destructive',
   withdrawn: 'border-muted-foreground/30 bg-muted text-muted-foreground',

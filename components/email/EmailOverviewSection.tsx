@@ -23,7 +23,7 @@ function getReadinessClass(status: "pass" | "warn" | "fail") {
   if (status === "fail") {
     return "border-destructive/25 bg-destructive/5 text-destructive";
   }
-  return "border-chart-3/25 bg-chart-3/5 text-chart-3";
+  return "border-chart-3/25 bg-chart-3/5 text-warning-foreground";
 }
 
 export function EmailOverviewSection({
@@ -58,7 +58,7 @@ export function EmailOverviewSection({
       label: "进行中",
       value: pendingOrSendingCount,
       tone:
-        pendingOrSendingCount > 0 ? "text-chart-3" : "text-muted-foreground",
+        pendingOrSendingCount > 0 ? "text-warning-foreground" : "text-muted-foreground",
     },
   ];
 

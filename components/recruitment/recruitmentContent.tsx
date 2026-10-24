@@ -621,7 +621,7 @@ export const RecruitmentContent = ({
         {isEvaluationWorkspace && interviewFlowGroups.length > 0 && (
           <div className="relative border-b">
             {/* 语义化页签可能有很多（12 个部门×阶段），行内收缩并横滑；原生滚动条在页签栏里
-                很丑，用两端渐隐提示还能继续滑（min-w-0 才能让 flex 子项真的缩下去） */}
+                很丑，用 mask 在两端做渐隐提示还能继续滑（min-w-0 才能让 flex 子项真的缩下去） */}
             <Tabs
               className="min-w-0 max-w-full px-3 sm:px-4"
               value={activeGroupValue ?? undefined}
@@ -630,6 +630,10 @@ export const RecruitmentContent = ({
               <TabsList
                 ref={flowTabListRef}
                 variant="line"
+                style={{
+                  maskImage: `linear-gradient(to right, ${flowTabEdges.start ? "transparent, " : ""}black 1.5rem, black calc(100% - 1.5rem)${flowTabEdges.end ? ", transparent" : ""})`,
+                  WebkitMaskImage: `linear-gradient(to right, ${flowTabEdges.start ? "transparent, " : ""}black 1.5rem, black calc(100% - 1.5rem)${flowTabEdges.end ? ", transparent" : ""})`,
+                }}
                 className="h-10 w-full max-w-full flex-nowrap justify-start gap-0.5 overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:px-2.5 [&_[data-slot=tabs-trigger]]:after:h-[2px] [&_[data-slot=tabs-trigger]]:after:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:font-semibold [&_[data-slot=tabs-trigger][data-state=active]]:text-foreground"
               >
                 {flowGroupBuckets.map((bucket, index) => (
@@ -654,18 +658,6 @@ export const RecruitmentContent = ({
                 ))}
               </TabsList>
             </Tabs>
-            {flowTabEdges.start && (
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-card to-transparent"
-              />
-            )}
-            {flowTabEdges.end && (
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-card to-transparent"
-              />
-            )}
           </div>
         )}
 
@@ -682,7 +674,7 @@ export const RecruitmentContent = ({
               <div
                 role="group"
                 aria-label="切换面试轮次"
-                className="inline-flex h-10 shrink-0 items-center self-start rounded-lg border bg-muted/40 p-0.5 sm:h-9"
+                className="inline-flex h-10 shrink-0 items-center self-start rounded-lg border bg-muted p-0.5 sm:h-9"
               >
                 {([1, 2] as const).map((round) => (
                   <button

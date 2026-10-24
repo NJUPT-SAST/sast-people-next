@@ -14,7 +14,7 @@ import { AlertTriangle, FileStack, UserRoundCheck, Workflow } from 'lucide-react
 
 /** 未归属数据是唯一的异常项，只有它带色；其余数字保持中性，一眼就能看出哪里要处理 */
 const unassignedTone = (count: number) =>
-  count > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground';
+  count > 0 ? 'text-warning-foreground' : 'text-muted-foreground';
 
 function StatTile({
   icon: Icon,

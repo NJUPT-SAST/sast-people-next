@@ -55,15 +55,15 @@ export function FeedbackReports({ initialReports }: { initialReports: Report[] }
   }
 
   function statusButtonClass(status: keyof typeof statusLabel, active: boolean) {
-    if (status === "pending") return active ? "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300" : "text-amber-700 hover:bg-amber-500/10 dark:text-amber-300";
-    if (status === "in_progress") return active ? "border-sky-500/40 bg-sky-500/15 text-sky-700 dark:text-sky-300" : "text-sky-700 hover:bg-sky-500/10 dark:text-sky-300";
-    return active ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300";
+    if (status === "pending") return active ? "border-warning/40 bg-warning/15 text-warning-foreground" : "text-warning-foreground hover:bg-warning/10";
+    if (status === "in_progress") return active ? "border-chart-2/40 bg-chart-2/15 text-chart-2" : "text-chart-2 hover:bg-chart-2/10";
+    return active ? "border-success/40 bg-success/15 text-success" : "text-success hover:bg-success/10";
   }
 
   function statusBadgeClass(status: string) {
-    if (status === "pending") return "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300";
-    if (status === "in_progress") return "border-sky-500/30 bg-sky-500/15 text-sky-700 dark:text-sky-300";
-    return "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
+    if (status === "pending") return "border-warning/30 bg-warning/15 text-warning-foreground";
+    if (status === "in_progress") return "border-chart-2/30 bg-chart-2/15 text-chart-2";
+    return "border-success/30 bg-success/15 text-success";
   }
 
   async function update(id: number, status: "pending" | "in_progress" | "resolved") {
@@ -118,7 +118,7 @@ export function FeedbackReports({ initialReports }: { initialReports: Report[] }
                 {browserDetails(report.browserInfo).map(([key, value]) => <span className="break-all" key={key}>{key}：{value}</span>)}
               </div>
             </details>
-            {(report.resolvedAt || report.resolvedBy || report.resolutionNote) && <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-muted-foreground"><p>处理信息：{report.resolvedBy ? `管理员 UID ${report.resolvedBy}` : "未记录处理人"} · {formatDate(report.resolvedAt)}</p>{report.resolutionNote && <p className="mt-1 whitespace-pre-wrap">备注：{report.resolutionNote}</p>}</div>}
+            {(report.resolvedAt || report.resolvedBy || report.resolutionNote) && <div className="rounded-md border border-success/20 bg-success/5 px-3 py-2 text-xs text-muted-foreground"><p>处理信息：{report.resolvedBy ? `管理员 UID ${report.resolvedBy}` : "未记录处理人"} · {formatDate(report.resolvedAt)}</p>{report.resolutionNote && <p className="mt-1 whitespace-pre-wrap">备注：{report.resolutionNote}</p>}</div>}
             <div className="relative">
               <Textarea value={notes[report.id] ?? report.resolutionNote ?? ""} onChange={(event) => { const value = event.target.value; setNotes((current) => ({ ...current, [report.id]: value })); scheduleNoteSave(report.id, value); }} onBlur={() => void saveNote(report.id, notes[report.id] ?? report.resolutionNote ?? "")} placeholder="处理备注（自动保存）" rows={2} />
               <span className="absolute bottom-2 right-2 text-[11px] text-muted-foreground">{noteState[report.id] === "saving" ? "保存中…" : noteState[report.id] === "error" ? "保存失败" : noteState[report.id] === "saved" ? "已保存" : "自动保存"}</span>

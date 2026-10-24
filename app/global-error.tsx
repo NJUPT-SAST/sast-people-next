@@ -17,8 +17,10 @@ export default function GlobalError({
   return (
     <html lang="zh-cn">
       <body>
-        <div className="flex min-h-dvh w-full flex-col items-center justify-center gap-3 p-4">
-          <ShieldQuestion className="h-20 w-20" strokeWidth="1px" />
+        <div className="flex min-h-dvh w-full flex-col items-center justify-center gap-4 p-4">
+          <span className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground ring-1 ring-border/60">
+            <ShieldQuestion className="size-6" strokeWidth={1.75} />
+          </span>
           <h2 className="text-center text-lg font-semibold">
             看起来遇到了一些问题，联系管理员获取更多帮助
           </h2>

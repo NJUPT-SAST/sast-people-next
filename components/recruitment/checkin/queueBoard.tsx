@@ -291,7 +291,7 @@ const DepartmentPanel = ({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 border-t p-3">
-        <p className="shrink-0 text-sm font-semibold text-amber-600 dark:text-amber-400">
+        <p className="shrink-0 text-sm font-semibold text-warning-foreground">
           等候队列
         </p>
         {waiting.length === 0 ? (
@@ -322,7 +322,7 @@ const StationCard = ({ station }: { station: CheckinStation }) => {
       className={cn(
         "flex items-center justify-between gap-3 rounded-xl border-2 px-3.5 py-2.5",
         occupant?.status === "interviewing"
-          ? "border-violet-500/40 bg-violet-500/5"
+          ? "border-chart-4/40 bg-chart-4/5"
           : occupant?.status === "called"
             ? "border-primary/40 bg-muted/60"
             : "border-border bg-muted/20",
@@ -389,8 +389,8 @@ const WaitingRow = ({ entry }: { entry: CheckinEntry }) => {
           className={cn(
             "shrink-0 text-xs",
             skip
-              ? "text-orange-600 dark:text-orange-400"
-              : "text-sky-600 dark:text-sky-400",
+              ? "text-chart-5"
+              : "text-chart-2",
           )}
         >
           {marker}

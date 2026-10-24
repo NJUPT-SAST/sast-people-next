@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+
+- **界面质感统一**（不含登录页）：语义色全面收敛到主题 token——散落的 Tailwind 原生调色板色（amber/sky/emerald/violet/orange/green/blue/red）迁移到 `warning` / `chart-2` / `chart-4` / `chart-5` / `success` / `primary` / `destructive`，并新增 `--warning-foreground`（文本级警告色，浅色 oklch 0.55/深色 0.8，替代对比度不足的亮金色文本）；「切换身份」提示条、收集表退回/邀请、面评审批、结果发布、签到叫号与等候大屏、阅卷与扫码等全部改用 token。
+- **表格**：表头去色块改为细线分隔（表头线深于行线形成层级），表头标签加宽字距、数字列 `tabular-nums` 等宽对齐；Tabs 分段控件底色改纯色 `bg-muted`（含轮次切换、收集表步骤、签到叫号等自绘分段控件同步统一）。
+- **侧边导航**：激活项增加 3px 主色圆角指示条；**加载态**由居中转圈改为镜像页头结构的骨架屏；标题统一 `tracking-tight` 与 `text-wrap: balance`；浅色模式次要文字加深（`--muted-foreground` 0.505→0.47）提升可读性。
+- **修复笔试/面试管理表格工具栏吸顶冲突**：原 `sticky top-0` 会钻到全局顶栏（`z-30`、64px）底下，在移动端表现为筛选区/批量操作区上半截被顶栏盖住、两层叠在一起；现与面试表格策略统一——移动端不吸顶（约 150px 的堆叠工具栏整程吸顶会吃掉五分之一视口），桌面端 `lg:top-16` 吸在顶栏正下方。
 
 ### Added
 

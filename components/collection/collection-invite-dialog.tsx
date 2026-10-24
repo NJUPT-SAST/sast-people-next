@@ -303,7 +303,7 @@ export function CollectionInviteDialog({
                             {candidate.studentId ?? "无学号"}
                           </span>
                           {candidate.submitted && (
-                            <span className="ml-2 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-normal text-amber-700 dark:text-amber-300">
+                            <span className="ml-2 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[11px] font-normal text-warning-foreground">
                               已填写
                             </span>
                           )}

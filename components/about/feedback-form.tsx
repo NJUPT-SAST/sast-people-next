@@ -61,7 +61,7 @@ export function FeedbackForm({ initialStudentId }: { initialStudentId: string })
 
   return (
     <div>
-      {submitted && <p className="mb-6 border-l-2 border-emerald-500 bg-emerald-500/8 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">反馈已提交，可以继续提交新的反馈。</p>}
+      {submitted && <p className="mb-6 border-l-2 border-success bg-success/8 px-4 py-3 text-sm text-success">反馈已提交，可以继续提交新的反馈。</p>}
       <form className="flex flex-col gap-5" onSubmit={submit}>
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2"><Label htmlFor="feedback-category">类型</Label><Select name="category" defaultValue="bug"><SelectTrigger id="feedback-category"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bug">问题反馈</SelectItem><SelectItem value="suggestion">功能建议</SelectItem><SelectItem value="content">内容纠错</SelectItem><SelectItem value="other">其他</SelectItem></SelectContent></Select></div>
