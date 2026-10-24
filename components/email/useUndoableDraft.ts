@@ -102,8 +102,15 @@ export function useUndoableDraft<T>(
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.key.toLowerCase() !== "z") return;
       const target = event.target as HTMLElement | null;
-      if (target?.isContentEditable) return;
-      if (target?.closest(".ProseMirror, input, textarea, select")) return;
+      if (target?.closest("input, textarea, select")) return;
+      /* 只有画布外层文档（data-draft-history）交给草稿历史；
+         区块里的富文本编辑器没有这个标记，继续用 ProseMirror 自己的 history */
+      const proseMirror = target?.closest(".ProseMirror");
+      if (proseMirror) {
+        if (!proseMirror.hasAttribute("data-draft-history")) return;
+      } else if (target?.isContentEditable) {
+        return;
+      }
       event.preventDefault();
       if (event.shiftKey) redo();
       else undo();

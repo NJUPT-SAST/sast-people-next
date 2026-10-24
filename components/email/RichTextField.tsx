@@ -683,7 +683,7 @@ function LinkControl({ editor }: { editor: Editor }) {
           placeholder="https://..."
           className="mt-1.5"
           onKeyDown={(event) => {
-            if (event.key === "Enter") {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
               event.preventDefault();
               applyLink();
             }
@@ -768,7 +768,7 @@ function ImageControl({ editor }: { editor: Editor }) {
           placeholder="https://..."
           className="mt-1.5"
           onKeyDown={(event) => {
-            if (event.key === "Enter") {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
               event.preventDefault();
               applyImage();
             }
@@ -784,7 +784,7 @@ function ImageControl({ editor }: { editor: Editor }) {
           placeholder="320"
           className="mt-1.5"
           onKeyDown={(event) => {
-            if (event.key === "Enter") {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
               event.preventDefault();
               applyImage();
             }
@@ -1201,7 +1201,7 @@ export function createSlashExtension() {
                   paint();
                   return true;
                 }
-                if (event.key === "Enter") {
+                if (event.key === "Enter" && !event.isComposing) {
                   const item = filtered[selected];
                   if (!item) return false;
                   const props = { item } as unknown as { command: (item: SlashItem) => void };

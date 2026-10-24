@@ -1385,11 +1385,13 @@ function textBlockCss(style: EmailBlockStyle | null | undefined) {
 }
 
 /** 外层文档只收文本区块与 atom 区块(空文档占位段落除外):
-    标题 / 列表 / 引用等块级节点进不了文档,docToBlocks 不会漏抄文字 */
+    标题 / 列表 / 引用等块级节点进不了文档,docToBlocks 不会漏抄文字。
+    emailText 放在首位:Enter 拆分时 defaultBlockAt 选第一个可用的文本块,
+    拆出来的新段才是 emailText 而不是 paragraph。 */
 const EmailDocument = Node.create({
   name: "doc",
   topNode: true,
-  content: "(paragraph | emailText | emailBlock)+",
+  content: "(emailText | emailBlock | paragraph)+",
 });
 
 /** 正文节点：文字就是文档内容（不是 atom），所以能有跨块选中与整篇文字撤销 */
@@ -1400,7 +1402,8 @@ const EmailTextNode = Node.create({
   defining: true,
   addAttributes() {
     return {
-      blockId: { default: null },
+      /* 拆分出的新段落不能复用原 blockId：id 是 React key 与更新定位的依据 */
+      blockId: { default: null, keepOnSplit: false },
       style: { default: null },
       enabled: { default: true },
     };
@@ -1472,7 +1475,8 @@ function blocksToDoc(blocks: EmailBlock[], editor: Editor) {
   } as JSONContent;
 }
 
-/** 文档 → 画布：只认 emailBlock 节点（空文档的占位段落忽略） */
+/** 文档 → 画布：emailText / paragraph 转文本区块，emailBlock 原样取回；
+    空 paragraph 是空文档的占位段落，忽略 */
 function docToBlocks(
   doc: { content?: Array<{ type: string; attrs?: Record<string, unknown>; content?: unknown[] }> },
   editor: Editor,
@@ -1484,7 +1488,8 @@ function docToBlocks(
       blocks.push(node.attrs.block as EmailBlock);
       continue;
     }
-    if (node.type !== "emailText") continue;
+    if (node.type !== "emailText" && node.type !== "paragraph") continue;
+    if (node.type === "paragraph" && !node.content?.length) continue;
     const pmNode = editor.schema.nodeFromJSON(node as never);
     const holder = document.createElement("div");
     holder.appendChild(serializer.serializeFragment(pmNode.content));
@@ -1597,6 +1602,29 @@ export function EmailCanvas({
   variables = [],
 }: EmailCanvasProps & { variables?: readonly EmailTemplateVariable[] }) {
   const theme = resolveEmailTheme(themeColor, accept);
+  /* 只读浏览（别人部门的覆盖）：外观 / 标题 / 正文的所有写入路径都要挡住，
+     否则点几下就能改出「无法保存」的脏草稿 */
+  const applyFrameChange = useCallback(
+    (next: EmailFrameStyle) => {
+      if (!editable) return;
+      onFrameChange(next);
+    },
+    [editable, onFrameChange],
+  );
+  const applyTitleChange = useCallback(
+    (next: string) => {
+      if (!editable) return;
+      onTitleChange(next);
+    },
+    [editable, onTitleChange],
+  );
+  const applySubtitleChange = useCallback(
+    (next: string) => {
+      if (!editable) return;
+      onSubtitleChange?.(next);
+    },
+    [editable, onSubtitleChange],
+  );
   const [hovered, setHovered] = useState<{ pos: number; block: EmailBlock } | null>(null);
   const [slashExtension] = useState(() => createSlashExtension());
   const blocksRef = useRef(blocks);
@@ -1621,6 +1649,7 @@ export function EmailCanvas({
     editorProps: {
       attributes: {
         class: "outline-none [&_.ProseMirror]:outline-none",
+        "data-draft-history": "",
       },
     },
     onUpdate: ({ editor: current }) => {
@@ -1708,7 +1737,7 @@ export function EmailCanvas({
     () => ({
       theme,
       updateAt: (pos, next) => {
-        if (!editor || pos < 0) return;
+        if (!editor || !editable || pos < 0) return;
         const node = editor.state.doc.nodeAt(pos);
         if (!node) return;
         editor.view.dispatch(
@@ -1725,7 +1754,7 @@ export function EmailCanvas({
         insertBlockAt(index < 0 ? blocksRef.current.length : index + 1, kind);
       },
     }),
-    [editor, theme, indexAt, insertBlockAt],
+    [editor, editable, theme, indexAt, insertBlockAt],
   );
 
   const insertBlock = (kind: EmailBlockInsertKind) => insertBlockAt(blocksRef.current.length, kind);
@@ -1790,13 +1819,13 @@ export function EmailCanvas({
                   <LabeledInput
                     label="Logo 图片地址"
                     value={frame.logoUrl}
-                    onChange={(next) => onFrameChange({ ...frame, logoUrl: next })}
+                    onChange={(next) => applyFrameChange({ ...frame, logoUrl: next })}
                   />
                   <LabeledInput
                     label="Logo 宽度（px）"
                     value={frame.logoWidth}
                     placeholder="64"
-                    onChange={(next) => onFrameChange({ ...frame, logoWidth: next })}
+                    onChange={(next) => applyFrameChange({ ...frame, logoWidth: next })}
                   />
                 </div>
               </ElementPopover>
@@ -1807,7 +1836,7 @@ export function EmailCanvas({
                 size="sm"
                 className="mb-3"
                 onClick={() =>
-                  onFrameChange({ ...frame, logoUrl: "https://storage.sast.fun/sast-logo.png" })
+                  applyFrameChange({ ...frame, logoUrl: "https://storage.sast.fun/sast-logo.png" })
                 }
               >
                 <Plus data-icon="inline-start" />
@@ -1819,14 +1848,14 @@ export function EmailCanvas({
               ariaLabel="页眉眉标"
               placeholder="页眉眉标"
               value={frame.eyebrowText}
-              onChange={(next) => onFrameChange({ ...frame, eyebrowText: next })}
+              onChange={(next) => applyFrameChange({ ...frame, eyebrowText: next })}
               style={eyebrow}
             />
             <InlineEditableText
               ariaLabel="邮件主标题"
               placeholder="邮件主标题"
               value={title}
-              onChange={onTitleChange}
+              onChange={applyTitleChange}
               style={titleStyle}
             />
             {onSubtitleChange && (
@@ -1834,7 +1863,7 @@ export function EmailCanvas({
                 ariaLabel="邮件副标题"
                 placeholder="邮件副标题（可留空）"
                 value={subtitle ?? ""}
-                onChange={onSubtitleChange}
+                onChange={applySubtitleChange}
                 style={subtitleStyle}
               />
             )}
@@ -1962,7 +1991,7 @@ export function EmailCanvas({
                 <LabeledInput
                   label="页脚图片地址"
                   value={frame.footerImageUrl}
-                  onChange={(next) => onFrameChange({ ...frame, footerImageUrl: next })}
+                  onChange={(next) => applyFrameChange({ ...frame, footerImageUrl: next })}
                 />
               </ElementPopover>
             ) : (
@@ -1972,7 +2001,7 @@ export function EmailCanvas({
                 size="sm"
                 className="mb-2"
                 onClick={() =>
-                  onFrameChange({
+                  applyFrameChange({
                     ...frame,
                     footerImageUrl: "https://storage.sast.fun/sast-email-header.png",
                   })
@@ -1986,7 +2015,7 @@ export function EmailCanvas({
               ariaLabel="页脚文案"
               placeholder="页脚文案"
               value={frame.footerText}
-              onChange={(next) => onFrameChange({ ...frame, footerText: next })}
+              onChange={(next) => applyFrameChange({ ...frame, footerText: next })}
               style={footerText}
               className="text-center"
             />
