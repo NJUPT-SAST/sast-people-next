@@ -8,6 +8,7 @@ import {
   getInterviewScheduleEmailPreviews,
   listInterviewScheduleEmailTemplates,
 } from "@/action/email/interview-template";
+import { getCollectionInvitationTemplatePanel } from "@/action/email/collection-template";
 import {
   getResultEmailPreviews,
   listEmailTemplateSettings,
@@ -95,7 +96,7 @@ export default async function EmailDashboardPage({
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-md border bg-card px-2 py-1 text-muted-foreground">
+            <span className="rounded-full border border-border/70 bg-card px-2.5 py-1 text-muted-foreground">
               {emailCenterConfig.realRecipientMode ? "正式发送" : "测试模式"}
             </span>
             {!emailCenterConfig.smtpConfigured && (
@@ -166,12 +167,14 @@ async function loadEmailDashboardData(
       resultEmailPreviews,
       interviewScheduleTemplates,
       interviewSchedulePreviews,
+      collectionInvitationTemplate,
     ] = await Promise.all([
       listEmailFlowOptions(),
       listEmailTemplateSettings(department),
       getResultEmailPreviews(department),
       listInterviewScheduleEmailTemplates(department),
       getInterviewScheduleEmailPreviews(department),
+      getCollectionInvitationTemplatePanel(),
     ]);
     return {
       flowOptions,
@@ -179,6 +182,7 @@ async function loadEmailDashboardData(
       resultEmailPreviews,
       interviewScheduleTemplates,
       interviewSchedulePreviews,
+      collectionInvitationTemplate,
     };
   }
 

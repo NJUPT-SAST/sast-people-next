@@ -1,8 +1,11 @@
 import "server-only";
 
-import { getLinkAccessTokenFromSession, MissingLinkAccessTokenError } from "@/lib/link/session";
+import {
+  getLinkAccessTokenFromSession,
+  MissingLinkAccessTokenError,
+} from "@/lib/link/session";
 import { toPeopleUserFromLinkProfile } from "@/lib/link/people-user";
-import { getCurrentUserProfile } from "@/lib/link/user";
+import { getCurrentUserProfileWithRefresh } from "@/lib/link/user";
 import {
   getSession,
   isIdentitySyncStale,
@@ -30,7 +33,7 @@ export async function refreshSessionIdentityIfStale(): Promise<boolean> {
     if (error instanceof MissingLinkAccessTokenError) return false;
     throw error;
   }
-  const linkProfile = await getCurrentUserProfile(accessToken);
+  const linkProfile = await getCurrentUserProfileWithRefresh(accessToken);
   if (!linkProfile) return false;
 
   /* 与 hooks/useUserInfo 同一套换算：Link 原始 profile → People 角色 + 部门列表 */

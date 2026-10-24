@@ -129,7 +129,7 @@ export const ManageTable = ({
         </div>
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="rounded-xl border border-border/70 bg-card shadow-card">
         {/* PC 端表格视图 */}
         <div className="hidden md:block overflow-x-auto">
           <Table className="min-w-[800px]">

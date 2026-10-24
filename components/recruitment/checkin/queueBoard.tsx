@@ -324,7 +324,7 @@ const StationCard = ({ station }: { station: CheckinStation }) => {
         occupant?.status === "interviewing"
           ? "border-violet-500/40 bg-violet-500/5"
           : occupant?.status === "called"
-            ? "border-primary/40 bg-primary/5"
+            ? "border-primary/40 bg-muted/60"
             : "border-border bg-muted/20",
         paused && "opacity-60",
       )}

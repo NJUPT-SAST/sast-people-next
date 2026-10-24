@@ -29,7 +29,7 @@ export const Operations = ({
         asChild
         size="sm"
         variant="ghost"
-        className={cn(operationButtonClass, "text-primary hover:bg-primary/10 hover:text-primary")}
+        className={cn(operationButtonClass, "text-primary hover:bg-muted hover:text-primary")}
       >
         <Link href={`/dashboard/flow/edit?id=${data.id}`}>查看流程</Link>
       </Button>

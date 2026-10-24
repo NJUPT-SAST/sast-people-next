@@ -95,15 +95,22 @@ describe("useFlowList", () => {
     ]);
   });
 
-  it("propagates Link lookup failures other than missing admin authorization", async () => {
-    const lookupError = new Error("Link is unavailable");
-    const mockWhere = jest.fn(() => ({ orderBy: jest.fn().mockResolvedValue([]) }));
-    mockSelect.mockReturnValueOnce({
-      from: jest.fn(() => ({ where: mockWhere })),
-    } as never);
-    mockListPeopleUsersByLinkIds.mockRejectedValue(lookupError);
+  it("keeps flows available when Link is unreachable", async () => {
+    const mockWhere = jest.fn(() => ({ orderBy: jest.fn().mockResolvedValue([
+      { id: 9, ownerId: 42, title: "Recruitment", isDeleted: false },
+    ]) }));
+    const mockFrom = jest.fn(() => ({ where: mockWhere }));
+    const mockStepOrderBy = jest.fn().mockResolvedValue([]);
+    const mockStepWhere = jest.fn(() => ({ orderBy: mockStepOrderBy }));
+    const mockStepFrom = jest.fn(() => ({ where: mockStepWhere }));
+    mockSelect
+      .mockReturnValueOnce({ from: mockFrom } as never)
+      .mockReturnValueOnce({ from: mockStepFrom } as never);
+    mockListPeopleUsersByLinkIds.mockRejectedValue(new Error("fetch failed"));
 
-    await expect(useFlowList()).rejects.toThrow(lookupError);
+    await expect(useFlowList()).resolves.toEqual([
+      expect.objectContaining({ id: 9, owner: "未知用户", steps: [] }),
+    ]);
   });
 
   it("keeps only flows that actually have problems in the reviewable list", async () => {

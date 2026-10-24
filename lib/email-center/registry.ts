@@ -224,6 +224,33 @@ export const emailTemplateDefinitions = [
       { key: "organizerName", label: "讲师姓名", required: false, example: "李四" },
     ],
   },
+  {
+    key: "collection.invitation",
+    category: "collection",
+    name: "收集表邀请通知",
+    description: "向被邀请成员发送收集表填写链接与截止时间；不包含邀请人姓名。",
+    defaultSubject: "【SAST People】邀请你填写「{formTitle}」",
+    variables: [
+      { key: "formTitle", label: "收集表标题", required: true, example: "社团成员信息收集表" },
+      { key: "deadline", label: "截止时间", required: false, example: "2026-10-30 18:00" },
+      { key: "formUrl", label: "填写链接", required: true, example: "https://people.sast.fun/collect/example" },
+      { key: "message", label: "邀请留言", required: false, example: "请在周五前完成填写" },
+    ],
+  },
+  {
+    key: "collection.return",
+    category: "collection",
+    name: "收集表退回通知",
+    description: "填写内容被部长退回时通知填写人修改后重新提交。",
+    defaultSubject: "【SAST People】「{formTitle}」的填写需要修改",
+    variables: [
+      { key: "name", label: "填写人姓名", required: true, example: "张三" },
+      { key: "formTitle", label: "收集表标题", required: true, example: "社团成员信息收集表" },
+      { key: "deadline", label: "截止时间", required: false, example: "2026-10-30 18:00" },
+      { key: "formUrl", label: "填写链接", required: true, example: "https://people.sast.fun/collect/example" },
+      { key: "message", label: "退回说明", required: false, example: "班级格式不对，请改为 B240101" },
+    ],
+  },
 ] satisfies EmailTemplateDefinition[];
 
 export function getEmailTemplateDefinition(templateKey: EmailTemplateKey) {

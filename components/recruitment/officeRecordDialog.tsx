@@ -30,8 +30,8 @@ const statusLabels: Record<string, string> = {
 
 const statusClassNames: Record<string, string> = {
   ongoing: "border-chart-3/30 bg-chart-3/10 text-chart-3",
-  passed: "border-primary/30 bg-primary/10 text-primary",
-  accepted: "border-primary/30 bg-primary/10 text-primary",
+  passed: "border-primary/30 bg-muted text-primary",
+  accepted: "border-primary/30 bg-muted text-primary",
   failed: "border-destructive/30 bg-destructive/10 text-destructive",
   rejected: "border-destructive/30 bg-destructive/10 text-destructive",
 };
@@ -69,7 +69,7 @@ function RoundSection({ round }: { round: OfficeRecordRound }) {
       ) : (
         <ul className="space-y-2">
           {round.evaluations.map((evaluation) => (
-            <li key={evaluation.id} className="rounded-md border bg-card p-3">
+            <li key={evaluation.id} className="rounded-xl border border-border/70 bg-card shadow-card p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <span className="text-sm font-medium">
                   {evaluation.authorName ?? "未知面试官"}

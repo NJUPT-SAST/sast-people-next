@@ -3,6 +3,7 @@ import { usePathname } from 'next/navigation';
 import {
   UserPen,
   Workflow,
+  ClipboardList,
   ClipboardPenLine,
   NotepadTextDashed,
   Users,
@@ -63,6 +64,12 @@ export const menuItems: MenuItem[] = [
     title: '我的流程',
     icon: Workflow,
     path: '/user-flow',
+    group: 'me',
+  },
+  {
+    title: '信息收集',
+    icon: ClipboardList,
+    path: '/collection',
     group: 'me',
   },
   {
@@ -280,7 +287,7 @@ export const PageTitle = ({
   const currentItem = useCurrentMenuItem();
 
   return (
-    <h1 className={cn('min-w-0 text-xl font-bold md:text-2xl', className)}>
+    <h1 className={cn('min-w-0 text-2xl font-semibold tracking-tight text-foreground md:text-[28px] md:leading-tight', className)}>
       {currentItem ? getMenuItemTitle(currentItem, role) : '工作台'}
     </h1>
   );

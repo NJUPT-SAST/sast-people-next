@@ -242,7 +242,7 @@ export function DataTable<TData, TValue>({
   };
 
   return (
-    <div className="min-w-0 rounded-lg border bg-card">
+    <div className="min-w-0 rounded-xl border border-border/70 bg-card shadow-card">
       <div className="sticky top-0 z-20 rounded-t-lg border-b bg-card/95 backdrop-blur-sm">
         <div className="flex flex-col gap-3 p-3 sm:p-4">
           <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4">
@@ -395,8 +395,8 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && 'selected'}
                   className={
                     isTargetRow(row)
-                      ? "scroll-mt-32 bg-primary/10 ring-1 ring-primary/30 hover:bg-primary/10"
-                      : "hover:bg-muted/30 data-[state=selected]:bg-primary/5"
+                      ? "scroll-mt-32 bg-muted ring-1 ring-primary/30 hover:bg-muted"
+                      : "hover:bg-muted/30 data-[state=selected]:bg-muted/60"
                   }
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -453,7 +453,7 @@ export function DataTable<TData, TValue>({
                 }
                 className={
                   isTargetRow(row)
-                    ? "flex scroll-mt-40 gap-3 bg-primary/10 px-4 py-3 ring-1 ring-primary/30"
+                    ? "flex scroll-mt-40 gap-3 bg-muted px-4 py-3 ring-1 ring-primary/30"
                     : "flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
                 }
               >

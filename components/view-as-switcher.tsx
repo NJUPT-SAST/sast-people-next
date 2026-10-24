@@ -91,7 +91,7 @@ export function ViewAsSwitcher({ viewAs }: { viewAs: SessionViewAs | null }) {
           size="sm"
           className={cn(
             "h-9 gap-1.5 px-2.5 text-xs",
-            viewAs && "bg-primary/15 text-primary hover:bg-primary/20",
+            viewAs && "bg-muted text-primary hover:bg-muted/70",
           )}
           title="切换身份查看"
         >

@@ -134,7 +134,12 @@ async function buildEmailDeliveryWhereConditions(
 
   const scopedFlowCondition = scopedDeliveryFlowCondition(scope);
   if (scopedFlowCondition) {
-    conditions.push(scopedFlowCondition);
+    /* 收集表不归属流程，但所有部长都能管理；部门账号也应能看到并重试这些投递 */
+    conditions.push(
+      scope.kind === "department"
+        ? or(eq(emailDelivery.category, "collection"), scopedFlowCondition)!
+        : scopedFlowCondition,
+    );
   }
 
   if (category) conditions.push(eq(emailDelivery.category, category));

@@ -217,14 +217,14 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
     }
   };
   const publicationBadge = published
-    ? { label: "已发布", className: "border-primary/30 bg-primary/10 text-primary" }
+    ? { label: "已发布", className: "border-primary/30 bg-muted text-primary" }
     : publicationInProgress
       ? { label: "发布中", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
       : summary.isOfficeFlow
         ? { label: `待确认名单（${officeRosterRows.length} 人）`, className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
         : counts.unfinished > 0
           ? { label: "有未完成结果", className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" }
-          : { label: "可以发布", className: "border-primary/30 bg-primary/10 text-primary" };
+          : { label: "可以发布", className: "border-primary/30 bg-muted text-primary" };
 
   /* 徽章已经是状态本身（已发布/发布中/待确认名单），句子只说徽章说不出的那部分 */
   const statusSentence = published
@@ -243,7 +243,7 @@ export function ResultPublicationPanel({ flowId, onStatusChange }: { flowId: num
     // One line at desktop: this is a once-per-flow action, it should not take a
     // block of prime space above the list. The template reminder lives in the
     // confirmation dialog, where the decision is actually made.
-    <section className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3 lg:flex-row lg:items-center lg:gap-4 lg:py-2.5">
+    <section className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card shadow-card px-4 py-3 lg:flex-row lg:items-center lg:gap-4 lg:py-2.5">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <LockKeyhole className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="text-sm font-medium">结果发布</span>

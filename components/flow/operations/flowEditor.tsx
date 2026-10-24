@@ -263,7 +263,7 @@ export const FlowEditor = forwardRef<FlowEditorHandle, { data: displayFlow; embe
           </div>
           <div className="mt-5 grid gap-4 xl:grid-cols-3">
             {editableSteps.map((step, index) => (
-              <fieldset key={`step-${step.order}`} className="rounded-xl border border-border/70 bg-background/40 p-4 transition-colors focus-within:border-primary/40 focus-within:bg-primary/[0.03]">
+              <fieldset key={`step-${step.order}`} className="rounded-xl border border-border/70 bg-background/40 p-4 transition-colors focus-within:border-primary/40 focus-within:bg-muted/40">
                 <legend className="px-1 text-sm font-medium text-muted-foreground">步骤 {index + 1}</legend>
                 <div className="mt-2 grid gap-4">
                   <div className="grid gap-2"><Label htmlFor={`flow-step-type-${step.order}`}>步骤类型</Label><Select value={step.type} disabled><SelectTrigger id={`flow-step-type-${step.order}`}><SelectValue placeholder="选择步骤类型" /></SelectTrigger><SelectContent>{Object.entries(stepTypeLabel).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>

@@ -8,13 +8,15 @@ import {
 
 export const LinkLogin = ({
   isBinding,
+  next,
 }: {
   isBinding: boolean;
+  next?: string;
 }) => {
   return (
     <Button
       className={`${isBinding ? "h-12" : "h-14"} w-full rounded-xl bg-[#18A058] px-5 text-base font-medium text-white shadow-none transition-colors hover:bg-[#159a52] active:bg-[#127a45]`}
-      onClick={async () => redirectSASTLink(isBinding)}
+      onClick={async () => redirectSASTLink(isBinding, next)}
     >
       <Image
         width={25}

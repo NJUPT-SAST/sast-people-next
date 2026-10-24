@@ -111,7 +111,7 @@ function detectableDifference(fit: GradingModelFit): number | null {
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-md border bg-card px-3 py-2">
+    <div className="rounded-xl border border-border/70 bg-card shadow-card px-3 py-2">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="text-base font-semibold tabular-nums">
         {value}
@@ -860,7 +860,7 @@ export function GradingFairnessDashboard({
               </CardContent>
             </Card>
 
-            <div className="grid min-w-0 gap-y-3 rounded-lg border bg-card px-6 py-5 text-sm leading-relaxed text-muted-foreground">
+            <div className="grid min-w-0 gap-y-3 rounded-xl border border-border/70 bg-card shadow-card px-6 py-5 text-sm leading-relaxed text-muted-foreground">
               <p>
                 <span className="font-medium text-foreground">宽严是相对量。</span>
                 它表示「同考生同题目下，该讲师相对全体加权平均的系统性偏移」，不是「判错了多少」。
