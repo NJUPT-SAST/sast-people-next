@@ -21,6 +21,7 @@ overrides:
   '@swc/helpers': 0.5.15
 
 allowBuilds:
+  '@parcel/watcher': false
   '@sentry/cli': false
   esbuild: false
   inngest-cli: true
