@@ -1,46 +1,18 @@
-/* eslint-disable @next/next/no-img-element */
 import * as React from "react";
 
-type ElementProps<T extends keyof React.JSX.IntrinsicElements> =
-  React.ComponentPropsWithoutRef<T>;
-
-const Html = ({ children }: { children: React.ReactNode }) => (
-  <html>{children}</html>
-);
-const Body = ({ children, ...props }: ElementProps<"body">) => (
-  <body {...props}>{children}</body>
-);
-const Container = ({ children, ...props }: ElementProps<"div">) => (
-  <div {...props}>{children}</div>
-);
-const Section = ({ children, ...props }: ElementProps<"div">) => (
-  <div {...props}>{children}</div>
-);
-const Heading = ({ children, ...props }: ElementProps<"h1">) => (
-  <h1 {...props}>{children}</h1>
-);
-const Text = ({ children, ...props }: ElementProps<"p">) => (
-  <p {...props}>{children}</p>
-);
-const Preview = ({ children }: { children: React.ReactNode }) => (
-  <div
-    style={{
-      display: "none",
-      maxHeight: 0,
-      maxWidth: 0,
-      opacity: 0,
-      overflow: "hidden",
-    }}
-  >
-    {children}
-  </div>
-);
-const Img = ({ alt = "", ...props }: ElementProps<"img">) => (
-  <img alt={alt} {...props} />
-);
-const Link = ({ children, ...props }: ElementProps<"a">) => (
-  <a {...props}>{children}</a>
-);
+import {
+  DEFAULT_EMAIL_FRAME,
+  type EmailBlock,
+  type EmailFrameStyle,
+} from "../lib/email/blocks";
+import { EmailBlockList, EmailShell } from "../lib/email/email-shell";
+import {
+  DEFAULT_INTERVIEW_EMAIL_THEME_COLOR,
+  defaultInterviewEmailBlocks,
+  dropEmptyInterviewBlockRows,
+  interviewEmailTemplateKeyByKind,
+} from "../lib/email/interview-email-blocks";
+import { resolveEmailTheme } from "../lib/email/theme";
 
 export type InterviewScheduleEmailProps = {
   kind?: "created" | "rescheduled" | "cancelled" | "withdrawn" | "change_rejected";
@@ -67,13 +39,17 @@ export type InterviewScheduleEmailProps = {
   flowUrl?: string;
   footerText?: string;
   logoUrl?: string;
+  /**
+   * 正文区块。为空时按模板键回落到内置版式（状态徽章 + 眉标 + 正文 + 日程卡 +
+   * 元信息卡 + 页脚说明），保证没有自定义版式的模板渲染结果与改造前一致。
+   */
+  blocks?: EmailBlock[];
+  /** 邮件外框（背景、内容卡、logo、页眉、页脚）：空字段回落内置外观 */
+  frame?: EmailFrameStyle;
+  /** 主题色（#RRGGBB）：空值 = 沿用面试邮件的中性灰 */
+  themeColor?: string;
 };
 
-/**
- * Quiet calendar invitation style.
- * Distinct from result/offer mail (no Georgia, no green result panel).
- * One cool slate theme for all kinds — status differs by label only.
- */
 const statusLabel = {
   created: "已预约",
   rescheduled: "已改约",
@@ -82,11 +58,10 @@ const statusLabel = {
   change_rejected: "暂不改期",
 } as const;
 
-type MetaItem = {
-  label: string;
-  value: string;
-};
-
+/**
+ * 面试通知邮件：外壳 + 正文区块，与结果邮件同一套渲染。
+ * 外观与文案都来自模板设置，组件只负责把已渲染好的 props 交给区块渲染器。
+ */
 export const InterviewScheduleEmail = ({
   kind = "created",
   candidateName,
@@ -105,122 +80,58 @@ export const InterviewScheduleEmail = ({
   flowUrl,
   footerText = "南京邮电大学大学生科学技术协会",
   logoUrl = "https://storage.sast.fun/sast-logo.png",
+  blocks,
+  frame,
+  themeColor = "",
 }: InterviewScheduleEmailProps) => {
   const label = statusLabel[kind];
-  const isRejected = kind === "change_rejected";
-  const meta: MetaItem[] = [{ label: "流程", value: flowName }];
-  if (organizerName) {
-    meta.push({ label: organizerLabel, value: organizerName });
-  }
-  if (isRejected && requestedTimeText) {
-    meta.push({ label: "申请改到", value: requestedTimeText });
-  }
-  if (location) {
-    meta.push({ label: "地点", value: location });
-  }
-  if (note) {
-    meta.push({ label: "备注", value: note });
-  }
-
-  const defaultBody =
-    kind === "withdrawn"
-      ? `${candidateName} 同学，你好。你的 ${flowName} 面试报名已被退回，请根据退回理由补充或调整报名信息后重新报名。`
-      : kind === "change_rejected"
-        ? `${candidateName} 同学，你好。你申请的 ${flowName} 面试时间调整，本次暂不调整，面试仍按原安排进行；后续如有变化我们会另行通知。`
-        : kind === "cancelled"
-          ? `${candidateName} 同学，你好。你的 ${flowName} 面试预约已取消，后续安排请关注新的通知。`
-          : kind === "rescheduled"
-            ? `${candidateName} 同学，你好。你的 ${flowName} 面试时间已调整，请以本邮件中的新时间为准。`
-            : `${candidateName} 同学，你好。${flowName} 的线下面试安排已确认，请查看下方时间和地点并按时到达。`;
-  const timeCardLabel = kind === "withdrawn"
-    ? "退回理由"
-    : isRejected
-      ? "说明"
-      : (timeLabel ?? "面试时间");
-  const scheduleValue = kind === "withdrawn" || isRejected ? reason : startsAtText;
+  /* 版式里的 {变量} 就是组件已经拿到的这些值：区块渲染器只做替换，不再拼字符串 */
+  const variables = {
+    candidateName,
+    flowName,
+    organizerLabel: organizerName ? organizerLabel : "",
+    organizerName: organizerName ?? "",
+    startsAt: startsAtText ?? "",
+    endsAt: endsAtText ?? "",
+    timeLabel: timeLabel ?? "面试时间",
+    requestedTimeText: requestedTimeText ?? "",
+    location: location ?? "",
+    note: note ?? "",
+    reason: reason ?? "",
+    flowUrl: flowUrl ?? "",
+  };
+  const theme = resolveEmailTheme(
+    themeColor || DEFAULT_INTERVIEW_EMAIL_THEME_COLOR,
+    false,
+  );
+  const resolvedBlocks = dropEmptyInterviewBlockRows(
+    blocks && blocks.length > 0
+      ? blocks
+      : defaultInterviewEmailBlocks({
+          templateKey: interviewEmailTemplateKeyByKind[kind],
+          bodyText,
+        }),
+    variables,
+  );
+  /* 页脚文案仍是模板的历史字段 footerText：自定义外框没写页脚时不能把它丢掉 */
+  const resolvedFrame: EmailFrameStyle = {
+    ...DEFAULT_EMAIL_FRAME,
+    ...frame,
+    logoUrl: frame?.logoUrl?.trim() || logoUrl,
+    footerText: frame?.footerText?.trim() || footerText,
+  };
 
   return (
-    <Html>
-      <Preview>
-        {flowName} {label} {kind === "withdrawn" ? "" : startsAtText ?? ""}
-      </Preview>
-      <Body style={main}>
-        <Container style={container}>
-          <Section style={header}>
-            <table
-              role="presentation"
-              cellPadding={0}
-              cellSpacing={0}
-              style={headerTable}
-            >
-              <tbody>
-                <tr>
-                  <td style={headerBrandCell}>
-                    <Img src={logoUrl} width="28" alt="SAST" style={logo} />
-                    <Text style={brandName}>SAST People</Text>
-                  </td>
-                  <td style={headerChipCell}>
-                    <Text style={statusChip}>{label}</Text>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </Section>
-
-          <Section style={bodySection}>
-            <Text style={eyebrow}>{kind === "withdrawn" ? "面试报名" : "面试日程"}</Text>
-            <Heading style={title}>{titleText}</Heading>
-            <Text style={intro}>{bodyText ?? defaultBody}</Text>
-
-            <Section style={scheduleCard}>
-              <table
-                role="presentation"
-                cellPadding={0}
-                cellSpacing={0}
-                style={scheduleTable}
-              >
-                <tbody>
-                  <tr>
-                    <td style={scheduleContent}>
-                      <Text style={scheduleLabel}>{timeCardLabel}</Text>
-                      <Text style={scheduleStart}>{scheduleValue}</Text>
-                      {kind !== "withdrawn" && !isRejected && endsAtText && (
-                        <Text style={scheduleEnd}>至 {endsAtText}</Text>
-                      )}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </Section>
-
-            {kind === "withdrawn" && flowUrl && (
-              <Link href={flowUrl} style={flowLink}>
-                查看我的流程
-              </Link>
-            )}
-            <Section style={metaList}>
-              {meta.map((item, index) => (
-                <Section
-                  key={`${item.label}-${index}`}
-                  style={
-                    index === meta.length - 1 ? metaItemLast : metaItem
-                  }
-                >
-                  <Text style={metaLabel}>{item.label}</Text>
-                  <Text style={metaValue}>{item.value}</Text>
-                </Section>
-              ))}
-            </Section>
-
-          </Section>
-
-          <Section style={footer}>
-            <Text style={footerTextStyle}>{footerText}</Text>
-            <Text style={footerMeta}>面试通知 · SAST People 自动发送</Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+    <EmailShell
+      frame={resolvedFrame}
+      theme={theme}
+      title={titleText}
+      /* 面试邮件没有副标题文案：眉标（面试日程 / 面试报名）留在正文区块里，可编辑可删 */
+      subtitle=""
+      previewText={`${flowName} ${label} ${kind === "withdrawn" ? "" : startsAtText ?? ""}`}
+    >
+      <EmailBlockList blocks={resolvedBlocks} variables={variables} theme={theme} />
+    </EmailShell>
   );
 };
 
@@ -239,222 +150,3 @@ InterviewScheduleEmail.PreviewProps = {
 } as InterviewScheduleEmailProps;
 
 export default InterviewScheduleEmail;
-
-const fontStack =
-  '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif';
-
-/* Cool slate base — no brown stone, no offer-mail green cream */
-const main = {
-  margin: 0,
-  padding: "28px 14px",
-  backgroundColor: "#f3f5f8",
-  fontFamily: fontStack,
-};
-
-const container = {
-  width: "100%",
-  maxWidth: "540px",
-  margin: "0 auto",
-  backgroundColor: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: "14px",
-  overflow: "hidden" as const,
-  boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
-};
-
-const header = {
-  padding: "18px 26px 0",
-};
-
-const headerTable = {
-  width: "100%",
-  borderCollapse: "collapse" as const,
-};
-
-const headerBrandCell = {
-  verticalAlign: "middle" as const,
-};
-
-const headerChipCell = {
-  verticalAlign: "middle" as const,
-  textAlign: "right" as const,
-};
-
-const logo = {
-  display: "inline-block",
-  verticalAlign: "middle",
-  marginRight: "10px",
-  borderRadius: "6px",
-};
-
-const brandName = {
-  display: "inline-block",
-  margin: 0,
-  verticalAlign: "middle",
-  color: "#334155",
-  fontFamily: fontStack,
-  fontSize: "13px",
-  fontWeight: 600,
-  letterSpacing: "0.01em",
-  lineHeight: "20px",
-};
-
-const statusChip = {
-  display: "inline-block",
-  margin: 0,
-  padding: "5px 11px",
-  border: "1px solid #e2e8f0",
-  borderRadius: "999px",
-  backgroundColor: "#f1f5f9",
-  color: "#64748b",
-  fontFamily: fontStack,
-  fontSize: "11px",
-  fontWeight: 600,
-  letterSpacing: "0.04em",
-  lineHeight: "16px",
-};
-
-const bodySection = {
-  padding: "20px 26px 8px",
-};
-
-const eyebrow = {
-  margin: "0 0 8px",
-  color: "#94a3b8",
-  fontFamily: fontStack,
-  fontSize: "11px",
-  fontWeight: 600,
-  letterSpacing: "0.12em",
-  lineHeight: "16px",
-  textTransform: "uppercase" as const,
-};
-
-const title = {
-  margin: "0 0 12px",
-  color: "#0f172a",
-  fontFamily: fontStack,
-  fontSize: "24px",
-  fontWeight: 700,
-  letterSpacing: "-0.02em",
-  lineHeight: "32px",
-};
-
-const intro = {
-  margin: "0 0 22px",
-  color: "#64748b",
-  fontFamily: fontStack,
-  fontSize: "14px",
-  lineHeight: "24px",
-};
-
-const scheduleCard = {
-  margin: "0 0 22px",
-  border: "1px solid #e2e8f0",
-  borderRadius: "12px",
-  overflow: "hidden" as const,
-  backgroundColor: "#f8fafc",
-};
-
-const scheduleTable = {
-  width: "100%",
-  borderCollapse: "collapse" as const,
-};
-
-const scheduleContent = {
-  padding: "16px 18px",
-  verticalAlign: "top" as const,
-};
-
-const scheduleLabel = {
-  margin: "0 0 8px",
-  color: "#94a3b8",
-  fontFamily: fontStack,
-  fontSize: "11px",
-  fontWeight: 600,
-  letterSpacing: "0.08em",
-  lineHeight: "16px",
-};
-
-const scheduleStart = {
-  margin: "0 0 4px",
-  color: "#0f172a",
-  fontFamily: fontStack,
-  fontSize: "20px",
-  fontWeight: 700,
-  letterSpacing: "-0.01em",
-  lineHeight: "28px",
-};
-
-const scheduleEnd = {
-  margin: 0,
-  color: "#64748b",
-  fontFamily: fontStack,
-  fontSize: "14px",
-  lineHeight: "22px",
-};
-
-const metaList = {
-  margin: "0 0 22px",
-  padding: "4px 2px 0",
-};
-
-const metaItem = {
-  margin: "0 0 14px",
-};
-
-const metaItemLast = {
-  margin: 0,
-};
-
-const metaLabel = {
-  margin: "0 0 4px",
-  color: "#94a3b8",
-  fontFamily: fontStack,
-  fontSize: "11px",
-  fontWeight: 600,
-  letterSpacing: "0.06em",
-  lineHeight: "16px",
-};
-
-const metaValue = {
-  margin: 0,
-  color: "#1e293b",
-  fontFamily: fontStack,
-  fontSize: "14px",
-  fontWeight: 500,
-  lineHeight: "22px",
-};
-
-const footer = {
-  padding: "16px 26px 22px",
-  borderTop: "1px solid #eef2f7",
-};
-
-const footerTextStyle = {
-  margin: "0 0 4px",
-  color: "#64748b",
-  fontFamily: fontStack,
-  fontSize: "12px",
-  lineHeight: "18px",
-};
-
-const footerMeta = {
-  margin: 0,
-  color: "#94a3b8",
-  fontFamily: fontStack,
-  fontSize: "11px",
-  lineHeight: "16px",
-};
-const flowLink = {
-  display: "inline-block",
-  margin: "0 0 22px",
-  padding: "10px 16px",
-  color: "#ffffff",
-  backgroundColor: "#0f172a",
-  borderRadius: "6px",
-  fontFamily: fontStack,
-  fontSize: "14px",
-  fontWeight: 600,
-  lineHeight: "20px",
-  textDecoration: "none",
-};

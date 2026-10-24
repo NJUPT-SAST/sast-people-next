@@ -10,7 +10,19 @@ import {
   templateReadFilter,
 } from "@/lib/email-center/template-access";
 import { renderTemplateText } from "@/lib/email/template-settings";
+import type { EmailBlock, EmailFrameStyle } from "@/lib/email/blocks";
+import { parseEmailBlocks, parseEmailFrame } from "@/lib/email/blocks";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+
+/** 新增的区块/外观字段在未自定义时的取值 */
+const defaultInterviewBlockFields = {
+  bodyBlocks: null,
+  bodyFrame: null,
+  themeColor: "",
+} satisfies Pick<
+  InterviewScheduleTemplateSetting,
+  "bodyBlocks" | "bodyFrame" | "themeColor"
+>;
 
 export const INTERVIEW_SCHEDULE_TEMPLATE_KEY = "interview.schedule";
 export const interviewScheduleTemplateKeys = {
@@ -52,6 +64,12 @@ export type InterviewScheduleTemplateSetting = {
   titleTemplate: string;
   bodyTemplate: string;
   footerText: string;
+  /** 正文区块：null = 未自定义，渲染时回落到内置版式（lib/email/interview-email-blocks.ts） */
+  bodyBlocks: EmailBlock[] | null;
+  /** 邮件外框（背景、内容卡、logo、页眉、页脚）：null = 内置外观 */
+  bodyFrame: EmailFrameStyle | null;
+  /** 主题色（#RRGGBB）：空字符串 = 沿用内置配色 */
+  themeColor: string;
 };
 
 export type InterviewNotificationTemplateKey =
@@ -82,12 +100,15 @@ export type InterviewScheduleTemplateSettingsPayload = {
   scope: DepartmentScope;
 };
 
-/** 面试模板写入的四个文案字段 */
+/** 面试模板写入的字段：四个文案字段 + 正文区块 / 邮件外框 / 主题色（后三者缺省 = 未自定义） */
 export type InterviewScheduleTemplateValues = {
   subjectTemplate: string;
   titleTemplate: string;
   bodyTemplate: string;
   footerText: string;
+  bodyBlocks?: EmailBlock[] | null;
+  bodyFrame?: EmailFrameStyle | null;
+  themeColor?: string;
 };
 
 export const defaultInterviewWithdrawalTemplateSetting: InterviewScheduleTemplateSetting = {
@@ -97,6 +118,7 @@ export const defaultInterviewWithdrawalTemplateSetting: InterviewScheduleTemplat
   bodyTemplate:
     "{candidateName} 同学，你好。你的 {flowName} 面试报名已被退回，请根据说明补充或调整报名信息后重新报名。",
   footerText: "南京邮电大学大学生科学技术协会",
+  ...defaultInterviewBlockFields,
 };
 
 
@@ -111,6 +133,7 @@ export const defaultInterviewScheduleTemplateSettings: Record<
     bodyTemplate:
       "{candidateName} 同学，你好。{flowName} 的线下面试安排已确认，请查看下方的面试时间安排并按时到达。",
     footerText: "南京邮电大学大学生科学技术协会",
+    ...defaultInterviewBlockFields,
   },
   "interview.schedule.rescheduled": {
     templateKey: "interview.schedule.rescheduled",
@@ -119,6 +142,7 @@ export const defaultInterviewScheduleTemplateSettings: Record<
     bodyTemplate:
       "{candidateName} 同学，你的 {flowName} 面试时间已调整，请以本邮件中的新时间为准。",
     footerText: "南京邮电大学大学生科学技术协会",
+    ...defaultInterviewBlockFields,
   },
   "interview.schedule.cancelled": {
     templateKey: "interview.schedule.cancelled",
@@ -127,6 +151,7 @@ export const defaultInterviewScheduleTemplateSettings: Record<
     bodyTemplate:
       "{candidateName} 同学，你的 {flowName} 面试预约已取消，后续安排请关注新的通知。",
     footerText: "南京邮电大学大学生科学技术协会",
+    ...defaultInterviewBlockFields,
   },
   "interview.schedule.change.rejected": {
     templateKey: "interview.schedule.change.rejected",
@@ -135,6 +160,7 @@ export const defaultInterviewScheduleTemplateSettings: Record<
     bodyTemplate:
       "{candidateName} 同学，你好。你申请的 {flowName} 面试时间调整，本次暂不调整，面试仍按原安排进行；后续如有变化我们会另行通知。",
     footerText: "南京邮电大学大学生科学技术协会",
+    ...defaultInterviewBlockFields,
   },
 };
 
@@ -236,11 +262,22 @@ export async function getInterviewNotificationTemplateSetting(
     department,
   );
 
-  return {
+  const resolved = {
     ...getInterviewNotificationTemplateDefault(templateKey),
     ...(saved ?? null),
     templateKey,
     department: saved?.department ?? null,
+  };
+
+  return {
+    ...resolved,
+    /* 区块落库为空 = 未自定义，交给渲染层回落到内置版式 */
+    bodyBlocks: parseEmailBlocks(resolved.bodyBlocks),
+    /* 外框解析成完整值；老字段 footerText 作为页脚文案的种子（行里没存外框时仍然生效） */
+    bodyFrame: parseEmailFrame(
+      resolved.bodyFrame ?? { footerText: resolved.footerText },
+    ),
+    themeColor: resolved.themeColor ?? "",
   };
 }
 

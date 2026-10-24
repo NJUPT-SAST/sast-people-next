@@ -3,6 +3,7 @@ import "server-only";
 import { db } from "@/db/drizzle";
 import { emailTemplateSetting } from "@/db/schema";
 import { pickTemplateSettingRow } from "@/lib/email-center/template-access";
+import { parseEmailBlocks, parseEmailFrame } from "@/lib/email/blocks";
 import {
   defaultResultEmailTemplateSettings,
   type ResultEmailTemplateSetting,
@@ -48,6 +49,11 @@ export function mergeResultEmailTemplateSetting(
     memberFormLabel: saved.memberFormLabel,
     feishuGroupName: saved.feishuGroupName,
     groupNumber: saved.groupNumber ?? fallback.groupNumber,
+    /* 区块与主题色是「未设置即回落内置」的可选覆盖，不做空值填充 */
+    bodyBlocks: parseEmailBlocks(saved.bodyBlocks),
+    /* 外框解析成完整值：编辑器拿到的是当前生效外观，直接改就行 */
+    bodyFrame: parseEmailFrame(saved.bodyFrame),
+    themeColor: saved.themeColor ?? fallback.themeColor,
     department: saved.department ?? null,
   };
 }

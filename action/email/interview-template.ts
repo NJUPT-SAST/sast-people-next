@@ -14,6 +14,15 @@ import {
   type InterviewNotificationTemplateKey,
   type InterviewScheduleTemplateValues,
 } from "@/lib/email/interview-template-settings";
+import {
+  parseEmailBlocks,
+  parseEmailFrame,
+  validateEmailBlocks,
+  type EmailBlock,
+  type EmailFrameStyle,
+} from "@/lib/email/blocks";
+import { sanitizeEmailBlocks } from "@/lib/email/sanitize";
+import { isEmailThemeColor } from "@/lib/email/theme";
 import { renderInterviewScheduleEmailPreview } from "@/lib/email/interview-schedule";
 import { renderInterviewWithdrawalEmailPreview } from "@/lib/email-center/interview-withdrawal";
 import { resolveTemplateEditTarget } from "@/lib/email-center/template-access";
@@ -94,6 +103,52 @@ export async function getInterviewScheduleEmailPreviews(
   ]) as Record<InterviewNotificationTemplateKey, string>;
 }
 
+/**
+ * 面试模板编辑器的实时预览：用**尚未保存**的区块 / 外观 / 主题色渲染样张，
+ * 其余字段仍取当前解析后的模板设置（时间、地点、讲师等由预览函数自己造示例数据）。
+ */
+export async function previewInterviewScheduleEmailTemplateDraft(params: {
+  templateKey: string;
+  blocks: EmailBlock[] | null;
+  frame?: EmailFrameStyle | null;
+  themeColor: string;
+  department?: string | null;
+}): Promise<{ ok: true; html: string } | { ok: false; message: string }> {
+  const session = await getInterviewTemplateSession();
+  const normalizedTemplateKey = normalizeInterviewTemplateKey(params.templateKey);
+  const target = resolveTemplateReadDepartment(session.scope, params.department);
+  const setting = await getInterviewNotificationTemplateSetting(
+    normalizedTemplateKey,
+    target,
+  );
+  const parsedBlocks = parseEmailBlocks(params.blocks);
+  const override = {
+    bodyBlocks: parsedBlocks ? sanitizeEmailBlocks(parsedBlocks) : null,
+    bodyFrame: parseEmailFrame(params.frame ?? setting.bodyFrame),
+    themeColor: isEmailThemeColor(params.themeColor) ? params.themeColor.trim() : "",
+  };
+
+  try {
+    const html =
+      normalizedTemplateKey === INTERVIEW_WITHDRAWAL_TEMPLATE_KEY
+        ? await renderInterviewWithdrawalEmailPreview(target, override)
+        : await renderInterviewScheduleEmailPreview(
+            getInterviewScheduleEmailKindByTemplateKey(normalizedTemplateKey),
+            target,
+            override,
+          );
+    return { ok: true, html };
+  } catch (error) {
+    logServerError("email:previewInterviewTemplateDraft", error, {
+      path: "/dashboard/emails",
+      userId: session.uid,
+      action: "preview-interview-email-template-draft",
+      metadata: { templateKey: normalizedTemplateKey, department: target },
+    });
+    return { ok: false, message: "预览生成失败，请查看错误日志。" };
+  }
+}
+
 export async function updateInterviewScheduleEmailTemplate(
   templateKey: string,
   values: InterviewScheduleTemplateValues,
@@ -105,11 +160,18 @@ export async function updateInterviewScheduleEmailTemplate(
   const target = resolveTemplateEditTarget(session.scope, department);
   const targetDepartment = target.kind === "department" ? target.department : null;
 
-  const normalized = {
+  const parsedBlocks = parseEmailBlocks(values.bodyBlocks);
+  const normalized: InterviewScheduleTemplateValues = {
     subjectTemplate: values.subjectTemplate.trim(),
     titleTemplate: values.titleTemplate.trim(),
     bodyTemplate: values.bodyTemplate.trim(),
     footerText: values.footerText.trim(),
+    bodyBlocks: parsedBlocks ? sanitizeEmailBlocks(parsedBlocks) : null,
+    /* 外框没填的部分回落内置外观；老字段 footerText 作为页脚文案的种子 */
+    bodyFrame: parseEmailFrame(
+      values.bodyFrame ?? { footerText: values.footerText.trim() },
+    ),
+    themeColor: (values.themeColor ?? "").trim(),
   };
 
   if (!normalized.subjectTemplate) {
@@ -118,14 +180,23 @@ export async function updateInterviewScheduleEmailTemplate(
   if (!normalized.titleTemplate) {
     return { ok: false, message: "邮件主标题不能为空。" };
   }
-  if (!normalized.bodyTemplate) {
-    return { ok: false, message: "正文说明不能为空。" };
-  }
   if (!normalized.footerText) {
     return { ok: false, message: "落款不能为空。" };
   }
+  if (normalized.themeColor && !isEmailThemeColor(normalized.themeColor)) {
+    return { ok: false, message: "主题色需要是 #RRGGBB 形式的十六进制颜色。" };
+  }
+  if (normalized.bodyBlocks) {
+    const blocksError = validateEmailBlocks(normalized.bodyBlocks);
+    if (blocksError) return { ok: false, message: `${blocksError}。` };
+  }
   const requiredBodyVariables = ["candidateName", "flowName"];
-  if (!hasRequiredVariables(normalized.bodyTemplate, requiredBodyVariables)) {
+  /* 正文现在是区块：这个字段退化成「内置版式的开头说明种子」，
+     只有它非空（历史数据 / 未自定义版式）时才要求带上称呼与流程名 */
+  if (
+    normalized.bodyTemplate &&
+    !hasRequiredVariables(normalized.bodyTemplate, requiredBodyVariables)
+  ) {
     return {
       ok: false,
       message: "正文里需要包含 {candidateName} 和 {flowName}，方便系统替换候选人和流程名称。",

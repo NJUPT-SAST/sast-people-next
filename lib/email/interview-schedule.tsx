@@ -4,6 +4,7 @@ import { render } from "@react-email/render";
 import InterviewScheduleEmail from "@/emails/interview-schedule";
 import {
   type InterviewScheduleEmailKind,
+  type InterviewScheduleTemplateSetting,
   getInterviewScheduleTemplateSetting,
   renderInterviewScheduleTemplateText,
 } from "@/lib/email/interview-template-settings";
@@ -114,8 +115,14 @@ export async function renderInterviewScheduleEmail({
   location,
   note,
   department,
-}: InterviewScheduleEmailVariables & { department?: string | null }) {
-  const setting = await getInterviewScheduleTemplateSetting(kind, department);
+  /* 已解析的模板设置：预览「编辑中的草稿」时传入，缺省按 kind + 部门解析 */
+  setting: resolvedSetting,
+}: InterviewScheduleEmailVariables & {
+  department?: string | null;
+  setting?: InterviewScheduleTemplateSetting;
+}) {
+  const setting =
+    resolvedSetting ?? (await getInterviewScheduleTemplateSetting(kind, department));
   const variables = getTemplateVariables({
     candidateName,
     flowName,
@@ -144,6 +151,9 @@ export async function renderInterviewScheduleEmail({
       note={note}
       reason={reason ?? undefined}
       footerText={setting.footerText}
+      blocks={setting.bodyBlocks ?? undefined}
+      frame={setting.bodyFrame ?? undefined}
+      themeColor={setting.themeColor}
     />,
   );
 }
@@ -151,7 +161,14 @@ export async function renderInterviewScheduleEmail({
 export async function renderInterviewScheduleEmailPreview(
   kind: InterviewScheduleEmailKind = "created",
   department?: string | null,
+  /* 编辑中的草稿：盖在解析出的模板设置上，用于实时预览还没保存的版式 / 主题色 */
+  override?: Partial<InterviewScheduleTemplateSetting>,
 ) {
+  const setting = {
+    ...(await getInterviewScheduleTemplateSetting(kind, department)),
+    ...override,
+  };
+
   return renderInterviewScheduleEmail({
     kind,
     candidateName: "张三",
@@ -162,5 +179,6 @@ export async function renderInterviewScheduleEmailPreview(
     location: "仙林校区大学生活动中心 101",
     note: "请提前准备作品介绍。",
     department,
+    setting,
   });
 }
