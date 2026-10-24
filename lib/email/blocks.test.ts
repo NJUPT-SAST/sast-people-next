@@ -1,7 +1,10 @@
 import {
+  DEFAULT_EMAIL_FRAME,
+  EMAIL_BLOCK_LIMITS,
   cloneEmailBlocksWithNewIds,
   defaultResultEmailBlocks,
   parseEmailBlocks,
+  parseEmailFrame,
   validateEmailBlocks,
   type EmailBlock,
 } from "@/lib/email/blocks";
@@ -66,6 +69,33 @@ describe("validateEmailBlocks", () => {
       { id: "b2", type: "divider", enabled: true },
     ];
     expect(validateEmailBlocks(ok)).toBeNull();
+  });
+
+  it("keeps an over-limit block list for validation instead of dropping the layout", () => {
+    const many: EmailBlock[] = Array.from(
+      { length: EMAIL_BLOCK_LIMITS.blocks + 1 },
+      (_, index) => ({ id: `b${index + 1}`, type: "divider" as const, enabled: true }),
+    );
+    expect(parseEmailBlocks(many)).toHaveLength(EMAIL_BLOCK_LIMITS.blocks + 1);
+    expect(validateEmailBlocks(many)).toContain(String(EMAIL_BLOCK_LIMITS.blocks));
+  });
+});
+
+describe("parseEmailFrame", () => {
+  it("only keeps http(s) image URLs and falls back to the default frame otherwise", () => {
+    const frame = parseEmailFrame({
+      logoUrl: "javascript:alert(1)",
+      footerImageUrl: "//evil.example/x.png",
+    });
+    expect(frame.logoUrl).toBe(DEFAULT_EMAIL_FRAME.logoUrl);
+    expect(frame.footerImageUrl).toBe(DEFAULT_EMAIL_FRAME.footerImageUrl);
+
+    const kept = parseEmailFrame({
+      logoUrl: "https://example.com/logo.png",
+      footerImageUrl: "http://example.com/footer.png",
+    });
+    expect(kept.logoUrl).toBe("https://example.com/logo.png");
+    expect(kept.footerImageUrl).toBe("http://example.com/footer.png");
   });
 });
 
