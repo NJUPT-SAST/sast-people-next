@@ -26,13 +26,11 @@ export default async function RootLayout({
   /* 身份回源已挪到 verifySession 内按 TTL 执行；这里保留 useUserInfo 只为它的
      Link token 缺失 / 失效跳转，返回值不再参与同步。 */
   await getUserInfo();
-  /* verifySession 内部已按 TTL 回源 Link 身份；这里再读一次会话，
-     拿最新的部门与临时视角用于展示（verifySession 是请求级缓存，展示口径单独取） */
-  const latestSession = await getSession();
-  const role = latestSession?.role ?? session.role;
-  const displayDepartment = latestSession?.department ?? null;
-  const realRole = latestSession?.realRole ?? session.realRole;
-  const viewAs = latestSession?.viewAs ?? null;
+  /* verifySession 已在本请求内回写并重读会话，展示字段直接复用它，避免再打一次 people_session */
+  const role = session.role;
+  const displayDepartment = session.department;
+  const realRole = session.realRole;
+  const viewAs = session.viewAs ?? null;
   const sessionWithTokens = role >= 2
     ? await getSession({ includeLinkTokens: true })
     : null;

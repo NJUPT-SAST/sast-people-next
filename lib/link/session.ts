@@ -24,14 +24,16 @@ export class MissingLinkAdminAccessTokenError extends Error {
   }
 }
 
-export const getLinkAccessTokenFromSession = async (): Promise<string> =>
-  getLinkTokenFromSession("session");
+export const getLinkAccessTokenFromSession = async (
+  { forceRefresh = false }: { forceRefresh?: boolean } = {},
+): Promise<string> => getLinkTokenFromSession("session", { forceRefresh });
 
 export const getLinkAdminAccessTokenFromSession = async (): Promise<string> =>
   getLinkTokenFromSession("admin");
 
 const getLinkTokenFromSession = async (
   purpose: "session" | "admin",
+  { forceRefresh = false }: { forceRefresh?: boolean } = {},
 ): Promise<string> => {
   if (shouldUseMockLink()) {
     /* 本地 mock 用 token 标记登录用户，保证多账号演示时资料与部门不串号 */
@@ -59,7 +61,7 @@ const getLinkTokenFromSession = async (
 
   if (!token) return throwMissingTokenError(purpose);
 
-  if (!shouldRefreshLinkToken(expiresAt)) return token;
+  if (!forceRefresh && !shouldRefreshLinkToken(expiresAt)) return token;
   if (!refreshToken) return throwMissingTokenError(purpose);
 
   const storagePurpose = usesSessionTokenForAdmin ? "session" : purpose;
@@ -71,6 +73,7 @@ const getLinkTokenFromSession = async (
       sessionId: session.id,
       storagePurpose,
       refreshToken,
+      rejectedAccessToken: token,
     });
   if (!existingRefresh) refreshInFlight.set(refreshKey, refreshPromise);
   try {
@@ -92,6 +95,7 @@ const getLinkTokenFromSession = async (
 const readRotatedAccessToken = async (
   sessionId: string,
   storagePurpose: "session" | "admin",
+  rejectedAccessToken: string,
 ): Promise<string | null> => {
   let latestSession: Awaited<ReturnType<typeof getSession>> = null;
   try {
@@ -109,7 +113,11 @@ const readRotatedAccessToken = async (
     storagePurpose === "admin"
       ? latestSession.linkAdminAccessTokenExpiresAt
       : latestSession.linkAccessTokenExpiresAt;
-  return latestToken && !shouldRefreshLinkToken(latestExpiresAt)
+  /* forceRefresh 时待刷新 token 可能仍未到期：读回同一个值说明并没有别的实例轮换，
+     不能把它当成「新凭据」复用，否则会跳过失效凭据清理、继续拿被拒绝的 token 重试。 */
+  return latestToken &&
+    latestToken !== rejectedAccessToken &&
+    !shouldRefreshLinkToken(latestExpiresAt)
     ? latestToken
     : null;
 };
@@ -118,10 +126,12 @@ const refreshLinkToken = async ({
   sessionId,
   storagePurpose,
   refreshToken,
+  rejectedAccessToken,
 }: {
   sessionId: string;
   storagePurpose: "session" | "admin";
   refreshToken: string;
+  rejectedAccessToken: string;
 }) => {
   try {
     const refreshed = await refreshLinkOAuthToken(refreshToken);
@@ -135,7 +145,11 @@ const refreshLinkToken = async ({
     // Another application instance may have refreshed and rotated the token
     // between our read and refresh request. Reuse that newer credential when it
     // is already persisted; otherwise preserve the original error.
-    const rotated = await readRotatedAccessToken(sessionId, storagePurpose);
+    const rotated = await readRotatedAccessToken(
+      sessionId,
+      storagePurpose,
+      rejectedAccessToken,
+    );
     if (rotated) return rotated;
 
     // Link 整族撤销 refresh token 是终态（角色/密码变更、封禁、注销）：清掉本地死
@@ -150,7 +164,11 @@ const refreshLinkToken = async ({
       );
       if (!cleared) {
         // 期间已有实例写入并轮换出新凭据：复用它，不按失败处理。
-        const reused = await readRotatedAccessToken(sessionId, storagePurpose);
+        const reused = await readRotatedAccessToken(
+          sessionId,
+          storagePurpose,
+          rejectedAccessToken,
+        );
         if (reused) return reused;
       }
     }

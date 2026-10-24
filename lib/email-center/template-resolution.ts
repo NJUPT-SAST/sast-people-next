@@ -7,9 +7,10 @@ import {
   defaultResultEmailTemplateSettings,
   type ResultEmailTemplateSetting,
 } from "@/lib/email/template-settings";
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 
-type EmailTemplateSettingRecord = typeof emailTemplateSetting.$inferSelect;
+export type EmailTemplateSettingRecord =
+  typeof emailTemplateSetting.$inferSelect;
 
 /** 解析后的结果模板：`department` 为命中覆盖行的归属部门，NULL = 落到全局默认 / 内置默认 */
 export type ResultEmailTemplateResolvedSetting = ResultEmailTemplateSetting & {
@@ -63,11 +64,51 @@ export async function readResultEmailTemplateSetting(
   templateKey: string,
   department?: string | null,
 ): Promise<ResultEmailTemplateResolvedSetting> {
-  const rows = await db
+  const settings = await readResultEmailTemplateSettings([templateKey], department);
+  return settings.get(templateKey)!;
+}
+
+/**
+ * 一次取回多个模板的候选行（模板 × 全局/部门覆盖），供调用方在内存里逐项解析。
+ * 模板页要渲染十几个模板，逐键查询会把同一张表打十几次（Sentry N+1）。
+ */
+export async function loadResultEmailTemplateSettingRows(
+  templateKeys: readonly string[],
+): Promise<EmailTemplateSettingRecord[]> {
+  const uniqueKeys = [...new Set(templateKeys)];
+  if (uniqueKeys.length === 0) return [];
+
+  return db
     .select()
     .from(emailTemplateSetting)
-    .where(eq(emailTemplateSetting.templateKey, templateKey));
-  const saved = pickTemplateSettingRow(rows, department);
+    .where(inArray(emailTemplateSetting.templateKey, uniqueKeys));
+}
 
-  return mergeResultEmailTemplateSetting(templateKey, saved);
+/** 纯解析：从已取回的候选行里按模板键 + 部门取覆盖行，不访问数据库 */
+export function resolveResultEmailTemplateSetting(
+  templateKey: string,
+  department: string | null | undefined,
+  rows: EmailTemplateSettingRecord[],
+): ResultEmailTemplateResolvedSetting {
+  const candidates = rows.filter((row) => row.templateKey === templateKey);
+  return mergeResultEmailTemplateSetting(
+    templateKey,
+    pickTemplateSettingRow(candidates, department),
+  );
+}
+
+/** 批量解析：同一部门下多个模板，只查一次库 */
+export async function readResultEmailTemplateSettings(
+  templateKeys: readonly string[],
+  department?: string | null,
+): Promise<Map<string, ResultEmailTemplateResolvedSetting>> {
+  const uniqueKeys = [...new Set(templateKeys)];
+  const rows = await loadResultEmailTemplateSettingRows(uniqueKeys);
+
+  return new Map(
+    uniqueKeys.map((templateKey) => [
+      templateKey,
+      resolveResultEmailTemplateSetting(templateKey, department, rows),
+    ]),
+  );
 }

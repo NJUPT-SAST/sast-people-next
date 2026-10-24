@@ -282,7 +282,7 @@ cp .env.example .env.local
 | `FEISHU_APPROVAL_CHAT_ID` | 可选：管理员审批通知群 |
 | `FEISHU_FEEDBACK_CHAT_ID` | 可选：关于页开发者反馈通知群 |
 | `FEEDBACK_FEISHU_GROUP_URL` | 关于页展示的飞书群邀请链接（邀请 token 不要入库） |
-| `INNGEST_DEV` | 本地置 `1`；生产必须改用 `INNGEST_SIGNING_KEY` |
+| `INNGEST_DEV` / `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` | 本地置 `INNGEST_DEV=1`。生产缺 `INNGEST_EVENT_KEY` 时 `mqClient.send` 无法发送事件（面试提醒、邮件队列不会触发）；缺 `INNGEST_SIGNING_KEY` 时 Inngest 回调验签失败，事件可能已发出但函数不会执行 |
 | `EMAIL_*` | SMTP、重试策略（`EMAIL_RETRY_*`）、限流（`EMAIL_SEND_RATE_LIMIT_PER_MINUTE`）、投递记录保留（`EMAIL_ATTEMPT_RETENTION_DAYS`）、回调密钥（`EMAIL_WEBHOOK_SECRET`）与非生产收件人保护（`EMAIL_TEST_RECIPIENT`） |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | 运行时错误上报 |
 | `SENTRY_BUILD_PLUGIN` | 仅在确需 Sentry 构建期处理时置 `true` |
