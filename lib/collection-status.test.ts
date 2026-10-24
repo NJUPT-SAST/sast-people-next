@@ -1,6 +1,10 @@
 /** @jest-environment node */
 
-import { collectionFormPhase, isCollectionFormOpen } from "./collection-status";
+import {
+  collectionFormPhase,
+  isCollectionDeadlinePassed,
+  isCollectionFormOpen,
+} from "./collection-status";
 
 const now = new Date("2026-10-22T10:00:00+08:00");
 
@@ -67,5 +71,21 @@ describe("collectionFormPhase", () => {
         now,
       ),
     ).toBe(false);
+  });
+
+  it("treats only a passed deadline as deadline-ended", () => {
+    expect(isCollectionDeadlinePassed(null, now)).toBe(false);
+    expect(
+      isCollectionDeadlinePassed(
+        new Date("2026-10-30T23:59:00+08:00"),
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isCollectionDeadlinePassed(
+        new Date("2026-10-21T23:59:00+08:00"),
+        now,
+      ),
+    ).toBe(true);
   });
 });

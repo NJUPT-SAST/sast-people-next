@@ -44,19 +44,22 @@ const SelectProblem = ({
         .filter((id): id is number => typeof id === 'number'),
     [safeFlowList],
   );
-  const storedRange = useMemo(() => {
-    const result = readReviewRangeFromStorage(activeFlowIds);
-    if (result.cleared) {
-      window.dispatchEvent(new Event('reviewRangeUpdated'));
-      toast.error(
-        result.reason === 'inactive-flow'
-          ? '已删除的流程不可继续阅卷，请重新设置阅卷范围'
-          : '阅卷范围记录异常，请重新设置',
-      );
-      return null;
-    }
-    return result.range;
-  }, [activeFlowIds]);
+  const storedRangeRead = useMemo(
+    () => readReviewRangeFromStorage(activeFlowIds),
+    [activeFlowIds],
+  );
+  const storedRange = storedRangeRead.cleared ? null : storedRangeRead.range;
+  /* 清空 / 失效的提示不能写在 useMemo 里：dispatch 会让订阅者（范围显示、扫码入口）
+     在渲染阶段 setState。读取保持纯，通知放到副作用里。 */
+  useEffect(() => {
+    if (!storedRangeRead.cleared) return;
+    window.dispatchEvent(new Event('reviewRangeUpdated'));
+    toast.error(
+      storedRangeRead.reason === 'inactive-flow'
+        ? '已删除的流程不可继续阅卷，请重新设置阅卷范围'
+        : '阅卷范围记录异常，请重新设置',
+    );
+  }, [storedRangeRead]);
   const [probList, setProbList] = useState<displayProblemType[] | null>(null);
   const [selectedProbs, setSelectedProbs] = useState<
     selectProbType['problemList']
@@ -131,6 +134,10 @@ const SelectProblem = ({
   }, [storedRange]);
 
   const handleUpdateStorageProbs = () => {
+    if (selectedProbs.length === 0) {
+      toast.error('请至少选择一道要批改的题目');
+      return;
+    }
     const result = selectProbSchema.safeParse({
       flowTypeId: Number.parseInt(selectedFlow, 10),
       flowTitle: currentFlow?.title,

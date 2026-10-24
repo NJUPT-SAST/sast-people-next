@@ -34,12 +34,28 @@ jest.mock("./probCheckBox", () => ({
   default: ({
     handleSave,
     probList,
+    setSelectedProbs,
   }: {
     handleSave: () => void;
-    probList: Array<{ title: string }>;
+    probList: Array<{ id: number; title: string; score: number }>;
+    setSelectedProbs: (value: Array<{ id: number; name: string; maxPoint: number }>) => void;
   }) => (
     <div>
       <div>{probList.map((item) => item.title).join(",")}</div>
+      <button
+        type="button"
+        onClick={() =>
+          setSelectedProbs(
+            probList.map((item) => ({
+              id: item.id,
+              name: item.title,
+              maxPoint: item.score,
+            })),
+          )
+        }
+      >
+        选择全部
+      </button>
       <button type="button" onClick={handleSave}>
         保存范围
       </button>
@@ -100,6 +116,7 @@ describe("SelectProblem", () => {
       expect(screen.getByText("算法题")).toBeInTheDocument();
     });
 
+    await user.click(screen.getByRole("button", { name: "选择全部" }));
     await user.click(screen.getByRole("button", { name: "保存范围" }));
 
     expect(toastSuccess).toHaveBeenCalledWith("保存成功");

@@ -25,6 +25,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -285,10 +286,14 @@ function LabeledInput({
   placeholder?: string;
   onChange: (value: string) => void;
 }) {
+  const inputId = useId();
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <Label className="text-[11px] text-muted-foreground">{label}</Label>
+      <Label htmlFor={inputId} className="text-[11px] text-muted-foreground">
+        {label}
+      </Label>
       <Input
+        id={inputId}
         value={value}
         placeholder={placeholder}
         maxLength={EMAIL_BLOCK_LIMITS.shortText}
@@ -1639,7 +1644,7 @@ export function EmailCanvas({
     immediatelyRender: false,
     editable,
     extensions: [
-      ...createEmailInlineExtensions({ undoRedo: false }),
+      ...createEmailInlineExtensions({ undoRedo: false, document: false }),
       EmailBlockNode,
       EmailTextNode,
       EmailDocument,
@@ -1771,6 +1776,9 @@ export function EmailCanvas({
     <EmailCanvasContext.Provider value={contextValue}>
       <EmailVariablesProvider variables={variables}>
       <div
+        /* 只读浏览：整块画布设为 inert —— 正文里嵌套的富文本 / 卡片行 / 就地编辑仍有 contenteditable，
+           只挡 updateAt 的话用户能打字、看起来像改了，实际既不会落库也没有「未保存」提示。 */
+        inert={!editable}
         /* 画布固定按浅色令牌渲染：邮件本身是浅色的，暗色主题下不能让提示/分隔线翻成浅灰 */
         className="email-canvas-theme rounded-lg pb-8 pt-4"
         style={{ ...main, backgroundColor: frame.pageBackground }}

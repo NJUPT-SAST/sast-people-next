@@ -301,16 +301,43 @@ export async function getResultEmailPreviews(department?: string | null) {
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
+/** 预览可覆盖的「字段」值：与编辑器字段面板一一对应（收件箱标题不参与正文渲染）。 */
+const PREVIEW_FIELD_KEYS = [
+  "memberInfoFormUrl",
+  "feishuGroupUrl",
+  "calendarUrl",
+  "feishuRegisterHelpUrl",
+  "contactEmail",
+  "memberFormLabel",
+  "feishuGroupName",
+  "groupNumber",
+] as const;
+
+function pickPreviewFieldOverrides(
+  fields: Record<string, unknown> | undefined,
+): Record<string, string> {
+  const overrides: Record<string, string> = {};
+  if (!fields) return overrides;
+  for (const key of PREVIEW_FIELD_KEYS) {
+    const value = fields[key];
+    if (typeof value === "string") overrides[key] = value.slice(0, 2000);
+  }
+  return overrides;
+}
+
 /**
- * 编辑器的实时预览：用**尚未保存**的区块与主题色渲染一份样张，
- * 其余字段（标题、按钮文案、群号…）仍取当前解析后的模板设置，
- * 因此样张能反映「改完保存后会发出去什么」。
+ * 编辑器的实时预览：用**尚未保存**的区块、外观、主题色、主副标题与「字段」值渲染一份样张，
+ * 其余字段仍取当前解析后的模板设置，因此样张能反映「改完保存后会发出去什么」。
+ * 之前只覆盖区块/外观/主题色，画布与成品预览会对同一份草稿给出不同结果。
  */
 export async function previewResultEmailTemplateDraft(params: {
   templateKey: string;
   blocks: EmailBlock[] | null;
   frame?: EmailFrameStyle | null;
   themeColor: string;
+  title?: string;
+  subtitle?: string;
+  fields?: Record<string, string | null | undefined>;
   department?: string | null;
 }): Promise<{ ok: true; html: string } | { ok: false; message: string }> {
   const session = await verifyRole(3);
@@ -325,6 +352,21 @@ export async function previewResultEmailTemplateDraft(params: {
 
   const setting = await readResultEmailTemplateSetting(params.templateKey, target);
   const parsedBlocks = parseEmailBlocks(params.blocks);
+  const previewSetting = {
+    ...setting,
+    ...(typeof params.title === "string"
+      ? { titleTemplate: params.title.slice(0, 500) }
+      : {}),
+    ...(typeof params.subtitle === "string"
+      ? { subtitleTemplate: params.subtitle.slice(0, 500) }
+      : {}),
+    ...pickPreviewFieldOverrides(params.fields),
+    bodyBlocks: parsedBlocks ? sanitizeEmailBlocks(parsedBlocks) : null,
+    bodyFrame: parseEmailFrame(params.frame ?? setting.bodyFrame),
+    themeColor: isEmailThemeColor(params.themeColor)
+      ? params.themeColor.trim()
+      : "",
+  };
 
   try {
     const rendered = await renderEmailTemplate({
@@ -333,15 +375,8 @@ export async function previewResultEmailTemplateDraft(params: {
         name: session.name?.trim() || "张三",
         flowName: "示例流程",
         department: departmentLabel(target, "办公室"),
-        groupNumber: setting.groupNumber,
-        setting: {
-          ...setting,
-          bodyBlocks: parsedBlocks ? sanitizeEmailBlocks(parsedBlocks) : null,
-          bodyFrame: parseEmailFrame(params.frame ?? setting.bodyFrame),
-          themeColor: isEmailThemeColor(params.themeColor)
-            ? params.themeColor.trim()
-            : "",
-        },
+        groupNumber: previewSetting.groupNumber,
+        setting: previewSetting,
       },
       department: target,
     });

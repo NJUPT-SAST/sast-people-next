@@ -24,3 +24,9 @@ export const isCollectionFormOpen = (
   form: CollectionFormTiming,
   now = new Date(),
 ): boolean => collectionFormPhase(form, now) === "open";
+
+/** 截止时间是否已过：详情页的「恢复收集」是否可用由它决定。 */
+export const isCollectionDeadlinePassed = (
+  deadline: Date | null,
+  now = new Date(),
+): boolean => Boolean(deadline && deadline.getTime() <= now.getTime());

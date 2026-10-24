@@ -117,6 +117,11 @@ export function EmailInterviewTemplateDialog({
   const [pane, setPane] = useState<"canvas" | "appearance" | "fields">("canvas");
   const isWithdrawalTemplate =
     setting.templateKey === "interview.application.withdrawn";
+  /* 变量提示跟着注册表走：每个模板认得的变量不同，写死一份会把不支持的变量宣传出去 */
+  const variableHint =
+    variables.length > 0
+      ? variables.map((variable) => `{${variable.key}}`).join("、")
+      : INTERVIEW_VARIABLES;
   const targetLabel = department ? `「${departmentLabel(department)}」` : "全局默认";
 
   const [subjectTemplate, setSubjectTemplate] = useState(setting.subjectTemplate);
@@ -177,13 +182,18 @@ export function EmailInterviewTemplateDialog({
         blocks,
         frame,
         themeColor,
+        title,
         department,
       }).then((result) => {
-        if (result.ok) setDraftHtml(result.html);
+        if (result.ok) {
+          setDraftHtml(result.html);
+        } else {
+          toast.error(result.message, { id: "email-preview-error" });
+        }
       });
     }, 600);
     return () => clearTimeout(timer);
-  }, [open, blocks, frame, themeColor, setting.templateKey, department]);
+  }, [open, blocks, frame, themeColor, title, setting.templateKey, department]);
 
   /** 保存成功后把「上次保存的样子」推进到当前草稿 */
   const markSaved = () => {
@@ -442,21 +452,26 @@ export function EmailInterviewTemplateDialog({
                 />
               </div>
             ) : pane === "appearance" ? (
-              <div className="mx-auto grid max-w-3xl gap-3 p-4 lg:p-6">
-                <EmailThemeColorField value={themeColor} onChange={setThemeColor} autoLabel="通知灰" />
-                <EmailFrameFields idPrefix={setting.templateKey} frame={frame} onChange={setFrame} />
+              <div className="mx-auto max-w-3xl p-4 lg:p-6">
+                {/* 只读浏览：面板同样不可编辑，否则脏标记会亮起、关窗又只能「放弃修改」 */}
+                <fieldset disabled={!writable} className="grid min-w-0 gap-3">
+                  <EmailThemeColorField value={themeColor} onChange={setThemeColor} autoLabel="通知灰" />
+                  <EmailFrameFields idPrefix={setting.templateKey} frame={frame} onChange={setFrame} />
+                </fieldset>
               </div>
             ) : pane === "fields" ? (
-              <div className="mx-auto grid max-w-3xl gap-3 p-4 lg:p-6">
-                <TemplateField
-                  id={`${setting.templateKey}-subject`}
-                  label="收件箱标题"
-                  value={subjectTemplate}
-                  onValueChange={setSubjectTemplate}
-                />
-                <p className="text-[11px] leading-5 text-muted-foreground">
-                  标题与画布上的区块都可用变量：{INTERVIEW_VARIABLES}。
-                </p>
+              <div className="mx-auto max-w-3xl p-4 lg:p-6">
+                <fieldset disabled={!writable} className="grid min-w-0 gap-3">
+                  <TemplateField
+                    id={`${setting.templateKey}-subject`}
+                    label="收件箱标题"
+                    value={subjectTemplate}
+                    onValueChange={setSubjectTemplate}
+                  />
+                  <p className="text-[11px] leading-5 text-muted-foreground">
+                    标题与画布上的区块都可用变量：{variableHint}。
+                  </p>
+                </fieldset>
               </div>
             ) : (
               <EmailCanvas

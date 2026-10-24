@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
 import {
@@ -15,6 +16,7 @@ import {
 import { unregister } from "@/action/user-flow/unregister";
 
 export const CancelRegistration = ({ userFlowId }: { userFlowId: number }) => {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -28,6 +30,8 @@ export const CancelRegistration = ({ userFlowId }: { userFlowId: number }) => {
       }
       toast.success("已取消报名");
       setOpen(false);
+      /* 列表是服务端渲染：立刻刷新，卡片与空状态才跟得上 */
+      router.refresh();
     } catch {
       toast.error("取消失败，请稍后重试");
     } finally {

@@ -18,6 +18,9 @@ import { Calendar } from '@/components/ui/calendar';
 
 type DateTimeInputProps = {
   className?: string;
+  /** 关联外部 <Label htmlFor>；会落在真正可聚焦的输入上 */
+  id?: string;
+  "aria-label"?: string;
   value?: Date;
   onChange?: (date?: Date) => void;
   format?: string;
@@ -27,6 +30,8 @@ type DateTimeInputProps = {
   hideCalendarIcon?: boolean;
   onCalendarClick?: () => void;
   native?: boolean;
+  /** 分段输入不完整时（例如只填到分钟）通知外层，避免提交时静默丢掉这个值 */
+  onValidityChange?: (state: "empty" | "valid" | "invalid") => void;
   ref?: React.Ref<HTMLDivElement>;
 };
 
@@ -81,6 +86,8 @@ function DateTimeInput({ ref, ...options }: DateTimeInputProps) {
         onChange={options.onChange}
         disabled={options.disabled}
         className={options.className}
+        id={options.id}
+        aria-label={options["aria-label"]}
       />
     );
   }
@@ -163,6 +170,19 @@ function SegmentedDateTimeInput({
       onChange?.(inputValue);
     }
   }, [inputValue, onChange, value]);
+
+  /* 分段输入只有「全部分段都有值」才会提交；半截输入必须让外层知道，否则表单会当作没填 */
+  const validityRef = useRef<"empty" | "valid" | "invalid">("empty");
+  useEffect(() => {
+    const next = inputValue
+      ? "valid"
+      : areAllSegmentsEmpty
+        ? "empty"
+        : "invalid";
+    if (validityRef.current === next) return;
+    validityRef.current = next;
+    options.onValidityChange?.(next);
+  }, [inputValue, areAllSegmentsEmpty, options]);
 
 
   const onClick = useEventCallback(
@@ -327,7 +347,7 @@ function SegmentedDateTimeInput({
       {!options.hideCalendarIcon && (
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon">
+            <Button type="button" variant="ghost" size="icon" aria-label="选择日期">
               <CalendarIcon className="size-4 text-muted-foreground" />
             </Button>
           </PopoverTrigger>
@@ -355,6 +375,8 @@ function SegmentedDateTimeInput({
       )}
       <input
         ref={inputRef}
+        id={options.id}
+        aria-label={options["aria-label"]}
         className="font-mono flex-grow min-w-0 bg-transparent py-1 pe-2 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
@@ -392,12 +414,16 @@ const NativeDateTimeInput = ({
   onChange,
   disabled,
   className,
+  id,
+  "aria-label": ariaLabel,
 }: {
   ref?: React.Ref<HTMLDivElement>;
   value?: Date;
   onChange?: (date?: Date) => void;
   disabled?: boolean;
   className?: string;
+  id?: string;
+  "aria-label"?: string;
 }) => {
   const current = value ? formatBeijingDateTime(value).replace(" ", "T").slice(0, 16) : "";
   const [initialDateValue, initialTimeValue] = current.split("T");
@@ -434,9 +460,10 @@ const NativeDateTimeInput = ({
     >
       <input
         type="date"
+        id={id}
         value={dateValue}
         disabled={disabled}
-        aria-label="日期"
+        aria-label={ariaLabel ?? "日期"}
         onChange={(event) => updateValue(event.target.value, timeValue)}
         className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />

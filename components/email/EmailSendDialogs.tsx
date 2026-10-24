@@ -30,10 +30,7 @@ import { toast } from "sonner";
 
 import { hiddenScrollbar } from "./emailDashboardConstants";
 import { PreviewDialog } from "./emailDashboardDialogs";
-import type {
-  FlowTarget,
-  ResultEmailDeliveryState,
-} from "@/components/email/emailDashboardTypes";
+import type { FlowTarget } from "@/components/email/emailDashboardTypes";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export function RecipientsDialog({
@@ -112,7 +109,8 @@ export function SendConfirmDialog({
   subject: string;
   previewHtml: string | null;
   recipients: FlowTarget["passed"];
-  deliveries: ResultEmailDeliveryState[];
+  /** 按 (流程, 结果) 聚合后的投递状态；status 为本次发送实际会处理的状态 */
+  deliveries: Array<{ userFlowId: number | null; status: string }>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -139,8 +137,32 @@ export function SendConfirmDialog({
   const skipped = preflight.alreadyCreatedCount;
   const invalidCount = preflight.invalidRecipients.length;
   const excludedCount = excludedUserIds.length;
-  const deliveryUserFlowIds = useMemo(
-    () => new Set(deliveries.map((delivery) => delivery.userFlowId)),
+  /* 投递记录里只有 sent / sending 才算「已发送」；pending / failed / dead 会被重新入队，
+     所以它们在名单里必须保持可勾选，否则弹窗一边说「将发送 N 人」、一边把人标成「已发送」 */
+  const deliveredUserFlowIds = useMemo(
+    () =>
+      new Set(
+        deliveries
+          .filter(
+            (delivery) =>
+              delivery.status === "sent" || delivery.status === "sending",
+          )
+          .map((delivery) => delivery.userFlowId),
+      ),
+    [deliveries],
+  );
+  const retryUserFlowIds = useMemo(
+    () =>
+      new Set(
+        deliveries
+          .filter(
+            (delivery) =>
+              delivery.status === "pending" ||
+              delivery.status === "failed" ||
+              delivery.status === "dead",
+          )
+          .map((delivery) => delivery.userFlowId),
+      ),
     [deliveries],
   );
 
@@ -201,7 +223,8 @@ export function SendConfirmDialog({
                 <p className="px-2 py-3 text-sm text-muted-foreground">暂无可发送名单</p>
               ) : (
                 safeRecipients.map((recipient) => {
-                  const alreadyDelivered = deliveryUserFlowIds.has(recipient.userFlowId);
+                  const alreadyDelivered = deliveredUserFlowIds.has(recipient.userFlowId);
+                  const isRetry = retryUserFlowIds.has(recipient.userFlowId);
                   const excluded = excludedSet.has(recipient.userId);
                   return (
                     <label
@@ -231,6 +254,11 @@ export function SendConfirmDialog({
                       </span>
                       {alreadyDelivered && (
                         <span className="shrink-0 text-xs text-muted-foreground">已发送</span>
+                      )}
+                      {!alreadyDelivered && isRetry && (
+                        <span className="shrink-0 text-xs text-warning-foreground">
+                          将重试
+                        </span>
                       )}
                     </label>
                   );

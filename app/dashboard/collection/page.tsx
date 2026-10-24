@@ -68,7 +68,7 @@ export default async function CollectionPage() {
               {activeForms.map((form) => {
                 const phase = collectionFormPhase(form);
                 const phaseLabel =
-                  phase === "open" ? "收集中" : phase === "upcoming" ? "未开始" : "已截止";
+                  phase === "open" ? "收集中" : phase === "upcoming" ? "未开始" : "已结束";
                 return (
                   <Card key={form.id} className="flex h-full flex-col gap-0">
                     <CardHeader className="gap-2">
@@ -114,6 +114,14 @@ export default async function CollectionPage() {
                           <Badge variant="outline">
                             {form.submissionId ? "我已填写" : "我未填写"}
                           </Badge>
+                          {form.submissionReturnedAt && (
+                            <Badge
+                              variant="outline"
+                              className="border-destructive/30 text-destructive"
+                            >
+                              已退回
+                            </Badge>
+                          )}
                           {canManage && (
                             <span className="text-xs text-muted-foreground">
                               共 {form.submissionCount} 人填写
@@ -159,9 +167,11 @@ export default async function CollectionPage() {
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {ended ? "已结束" : "未开始"}
-                          {form.submissionUpdatedAt
-                            ? ` · 填写于 ${formatBeijingDateTime(form.submissionUpdatedAt)}`
-                            : ""}
+                          {form.submissionReturnedAt
+                            ? ` · 已退回${form.submissionUpdatedAt ? `（原填写于 ${formatBeijingDateTime(form.submissionUpdatedAt)}）` : ""}`
+                            : form.submissionUpdatedAt
+                              ? ` · 填写于 ${formatBeijingDateTime(form.submissionUpdatedAt)}`
+                              : ""}
                         </p>
                       </div>
                       <Button asChild size="sm" variant="outline">

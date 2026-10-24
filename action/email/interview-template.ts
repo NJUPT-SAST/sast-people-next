@@ -104,7 +104,7 @@ export async function getInterviewScheduleEmailPreviews(
 }
 
 /**
- * 面试模板编辑器的实时预览：用**尚未保存**的区块 / 外观 / 主题色渲染样张，
+ * 面试模板编辑器的实时预览：用**尚未保存**的区块 / 外观 / 主题色 / 主标题渲染样张，
  * 其余字段仍取当前解析后的模板设置（时间、地点、讲师等由预览函数自己造示例数据）。
  */
 export async function previewInterviewScheduleEmailTemplateDraft(params: {
@@ -112,6 +112,7 @@ export async function previewInterviewScheduleEmailTemplateDraft(params: {
   blocks: EmailBlock[] | null;
   frame?: EmailFrameStyle | null;
   themeColor: string;
+  title?: string;
   department?: string | null;
 }): Promise<{ ok: true; html: string } | { ok: false; message: string }> {
   const session = await getInterviewTemplateSession();
@@ -123,6 +124,9 @@ export async function previewInterviewScheduleEmailTemplateDraft(params: {
   );
   const parsedBlocks = parseEmailBlocks(params.blocks);
   const override = {
+    ...(typeof params.title === "string"
+      ? { titleTemplate: params.title.slice(0, 500) }
+      : {}),
     bodyBlocks: parsedBlocks ? sanitizeEmailBlocks(parsedBlocks) : null,
     bodyFrame: parseEmailFrame(params.frame ?? setting.bodyFrame),
     themeColor: isEmailThemeColor(params.themeColor) ? params.themeColor.trim() : "",

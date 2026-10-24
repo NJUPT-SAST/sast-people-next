@@ -198,7 +198,7 @@ export async function saveCollectionSubmission(
     return failure("你不在本表的填写范围内");
   }
   if (!isCollectionFormOpen(form)) {
-    return failure("该收集表已截止，无法继续填写");
+    return failure("该收集表已结束，无法继续填写");
   }
 
   const parsed = collectionSubmissionSchema.safeParse(input);
@@ -254,6 +254,16 @@ export async function setCollectionFormStatus(
   const form = await getCollectionFormById(parsedFormId.data);
   if (!form) return failure("收集表不存在");
 
+  /* 截止时间已过时把 status 设回 open 不会让表单重新可填（phase 仍由 deadline 判定），
+     先延长截止时间再恢复，避免「提示成功但依旧填写不了」。 */
+  if (
+    parsedStatus.data === "open" &&
+    form.deadline &&
+    form.deadline.getTime() <= Date.now()
+  ) {
+    return failure("截止时间已过，请先编辑收集表延长截止时间");
+  }
+
   await db
     .update(collectionForm)
     .set({ status: parsedStatus.data, updatedAt: new Date() })
@@ -299,6 +309,8 @@ export async function duplicateCollectionForm(
       shareToken: crypto.randomBytes(18).toString("base64url"),
       allowedRoles: form.allowedRoles,
       allowedFlowIds: form.allowedFlowIds,
+      startsAt: form.startsAt,
+      deadline: form.deadline,
       status: "open",
       createdBy: session.uid,
     })

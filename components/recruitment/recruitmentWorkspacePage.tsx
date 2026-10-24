@@ -83,6 +83,13 @@ export async function RecruitmentWorkspacePage({
   const selectableFlows = flowTypes.filter((item) =>
     isDepartmentEnabled(item.department),
   );
+  /* 办公类面试只对部长开放：讲师账号连入口都不展示，避免选中后只得到「加载失败」 */
+  const roleVisibleFlows =
+    isInterviewWorkspace && session.role < MANAGER_ROLE
+      ? selectableFlows.filter(
+          (item) => item.type !== OFFICE_INTERVIEW_FLOW_TYPE,
+        )
+      : selectableFlows;
   const requestedFlowId = parsePositiveInteger(params.flowId);
   /* 「上次使用的流程」：显式 flowId 链接优先，其次本浏览器上次点选的流程（Cookie），
      否则回落最新流程；记忆的 id 也要在本次会话可见的流程里才算数 */
@@ -93,11 +100,11 @@ export async function RecruitmentWorkspacePage({
   const resolvedFlowId = resolveWorkspaceFlowId({
     requestedFlowId,
     rememberedFlowId,
-    selectableFlowIds: selectableFlows.map((item) => item.id),
+    selectableFlowIds: roleVisibleFlows.map((item) => item.id),
   });
   const defaultFlow =
-    selectableFlows.find((item) => item.id === resolvedFlowId) ??
-    selectableFlows[0];
+    roleVisibleFlows.find((item) => item.id === resolvedFlowId) ??
+    roleVisibleFlows[0];
   const defaultFlowId = defaultFlow?.id.toString();
   /* 办公类流程由部长操作：讲师账号不加载该流程的候选人（action 也会再次拒绝） */
   const canLoadDefaultCandidates =
@@ -126,7 +133,7 @@ export async function RecruitmentWorkspacePage({
       <div className="mt-5">
         <RecruitmentContent
           mode={mode}
-          flowTypes={selectableFlows}
+          flowTypes={roleVisibleFlows}
           initialData={initialData}
           initialEvalData={initialEvalData}
           defaultFlowId={defaultFlowId}

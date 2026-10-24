@@ -120,7 +120,11 @@ const ProbCheckBox: React.FC<ProbCheckBoxProps> = ({
         })}
       </div>
       <div className="flex justify-end">
-        <Button type="button" onClick={handleSave}>
+        <Button
+          type="button"
+          onClick={handleSave}
+          disabled={safeSelectedProbs.length === 0}
+        >
           保存范围
         </Button>
       </div>

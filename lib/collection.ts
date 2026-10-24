@@ -151,6 +151,7 @@ export const listVisibleCollectionForms = async (session: VerifiedSession) => {
       createdAt: collectionForm.createdAt,
       submissionId: collectionSubmission.id,
       submissionUpdatedAt: collectionSubmission.updatedAt,
+      submissionReturnedAt: collectionSubmission.returnedAt,
       submissionCount: sql<number>`(
         select count(*)::int from ${collectionSubmission}
         where ${collectionSubmission.fkFormId} = ${collectionForm.id}

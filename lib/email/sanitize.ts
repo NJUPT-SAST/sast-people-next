@@ -44,10 +44,26 @@ const RICH_TEXT_TAGS = [
   /* 富文本里也能插图与做高亮（TipTap 的 Image / Highlight 产物） */
   "img",
   "mark",
+  /* 工具栏提供了上标 / 下标；不清洗掉，否则保存后文字会被压平 */
+  "sup",
+  "sub",
 ];
 
 /** 卡片标题这类「只能内联」的字段 */
-const INLINE_ONLY_TAGS = ["br", "strong", "b", "em", "i", "u", "s", "span", "a", "small"];
+const INLINE_ONLY_TAGS = [
+  "br",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "u",
+  "s",
+  "span",
+  "a",
+  "small",
+  "sup",
+  "sub",
+];
 
 /** 自定义代码区块额外允许的排版标签：整段版式需要表格与图片 */
 const CODE_BLOCK_TAGS = [

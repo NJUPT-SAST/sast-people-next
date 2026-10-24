@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMediaDevices } from "react-media-devices";
 import { useZxing } from "react-zxing";
 import { Camera, Pause, QrCode, RefreshCw } from "lucide-react";
@@ -66,6 +66,8 @@ const CheckinScanner = ({
   const [pendingUserFlowId, setPendingUserFlowId] = useState<number | null>(null);
   const [lookup, setLookup] = useState<CheckinCandidateLookup | null>(null);
   const [showDialog, setShowDialog] = useState(false);
+  /* 成功解码会先暂停摄像头；关闭结果弹窗后要接着扫下一个人，否则「扫一个就熄火」 */
+  const resumeAfterDialogRef = useRef(false);
 
   const filteredDevices = useMemo(
     () => devices?.filter((value) => value.deviceId) ?? [],
@@ -102,6 +104,7 @@ const CheckinScanner = ({
     }
 
     setLookup(resolved);
+    resumeAfterDialogRef.current = true;
     setShowDialog(true);
   };
 
@@ -121,7 +124,8 @@ const CheckinScanner = ({
         }
         await handleDecodedUid(uid);
       } catch {
-        toast.error("二维码内容无效，请重试");
+        /* 摄像头此时已暂停，别提示「请重试」却什么都不发生 */
+        toast.error("二维码内容无效，请点击「开启摄像头」重试");
       } finally {
         setIsResolving(false);
       }
@@ -289,7 +293,13 @@ const CheckinScanner = ({
         open={showDialog}
         onOpenChange={(open) => {
           setShowDialog(open);
-          if (!open) setLookup(null);
+          if (!open) {
+            setLookup(null);
+            if (resumeAfterDialogRef.current && selectedDevice) {
+              resumeAfterDialogRef.current = false;
+              setPaused(false);
+            }
+          }
         }}
       >
         <DialogContent>
