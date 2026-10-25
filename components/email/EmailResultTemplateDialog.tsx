@@ -261,6 +261,9 @@ export function EmailResultTemplateDialog({
   /* 成品预览：服务端渲染（与真实发送同一链路），600ms 防抖 */
   useEffect(() => {
     if (!open) return;
+    /* 防抖只挡住尚未发出的请求；已发出的旧请求仍可能后返回并覆盖新样张，
+       用本次 effect 的取消标记只接受最新一次结果 */
+    let cancelled = false;
     const timer = setTimeout(() => {
       void previewResultEmailTemplateDraft({
         templateKey: setting.templateKey,
@@ -271,15 +274,29 @@ export function EmailResultTemplateDialog({
         subtitle,
         fields: values,
         department,
-      }).then((result) => {
-        if (result.ok) {
-          setDraftHtml(result.html);
-        } else {
-          toast.error(result.message, { id: "email-preview-error" });
-        }
-      });
+      })
+        .then((result) => {
+          if (cancelled) return;
+          if (result.ok) {
+            setDraftHtml(result.html);
+          } else {
+            setDraftHtml(null);
+            toast.error(result.message, { id: "email-preview-error" });
+          }
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          setDraftHtml(null);
+          toast.error(
+            error instanceof Error ? error.message : "预览生成失败，请稍后重试",
+            { id: "email-preview-error" },
+          );
+        });
     }, 600);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [
     open,
     blocks,

@@ -70,6 +70,7 @@ import {
   type EmailColumnCell,
   type EmailFrameStyle,
 } from "@/lib/email/blocks";
+import { EmailBlockList } from "@/lib/email/email-shell";
 import {
   badgeStyle,
   blockStyleOverrides,
@@ -1589,7 +1590,7 @@ export type EmailCanvasProps = {
  * 不再有「把手互相压住 / 点不到」这类自研交互的问题。
  * 数据仍是 `EmailBlock[]`（落库与渲染完全没变），文档只是它的另一种视图。
  */
-export function EmailCanvas({
+function EditableEmailCanvas({
   blocks,
   onBlocksChange,
   frame,
@@ -1776,9 +1777,6 @@ export function EmailCanvas({
     <EmailCanvasContext.Provider value={contextValue}>
       <EmailVariablesProvider variables={variables}>
       <div
-        /* 只读浏览：整块画布设为 inert —— 正文里嵌套的富文本 / 卡片行 / 就地编辑仍有 contenteditable，
-           只挡 updateAt 的话用户能打字、看起来像改了，实际既不会落库也没有「未保存」提示。 */
-        inert={!editable}
         /* 画布固定按浅色令牌渲染：邮件本身是浅色的，暗色主题下不能让提示/分隔线翻成浅灰 */
         className="email-canvas-theme rounded-lg pb-8 pt-4"
         style={{ ...main, backgroundColor: frame.pageBackground }}
@@ -2049,4 +2047,122 @@ export function EmailCanvas({
       </EmailVariablesProvider>
     </EmailCanvasContext.Provider>
   );
+}
+
+type ReadOnlyEmailCanvasProps = Pick<
+  EmailCanvasProps,
+  "blocks" | "frame" | "themeColor" | "title" | "subtitle" | "accept"
+> & { variables?: readonly EmailTemplateVariable[] };
+
+/**
+ * 只读画布：其他部门的覆盖只能查看。
+ *
+ * 不走 TipTap：整块 `inert` 会把正文移出无障碍树、也挡住选中复制；这里改用与
+ * 真实发送相同的静态区块渲染，保留阅读与复制能力，同时没有任何可编辑控件。
+ */
+function ReadOnlyEmailCanvas({
+  blocks,
+  frame,
+  themeColor,
+  title,
+  subtitle,
+  accept,
+  variables = [],
+}: ReadOnlyEmailCanvasProps) {
+  const theme = resolveEmailTheme(themeColor, accept);
+  /* 只读时保留模板里的 `{变量}` 写法（与编辑器所见一致），不替换成示例值 */
+  const resolvedVariables = useMemo(
+    () =>
+      Object.fromEntries(
+        variables.map((variable) => [variable.key, `{${variable.key}}`]),
+      ),
+    [variables],
+  );
+  const logoWidth = frame.logoWidth.trim();
+
+  return (
+    <div
+      /* 画布固定按浅色令牌渲染：邮件本身是浅色的，暗色主题下不能让提示/分隔线翻成浅灰 */
+      className="email-canvas-theme rounded-lg pb-8 pt-4"
+      style={{ ...main, backgroundColor: frame.pageBackground }}
+    >
+      <div className="mx-auto mb-3 flex w-full max-w-[560px] items-center justify-between gap-2 px-1">
+        <span className="text-[11px] font-medium text-muted-foreground">
+          邮件正文 · {frame.cardWidth || "560px"} · 只读浏览
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          其他部门的覆盖只能查看，切回自己的归属才能编辑
+        </span>
+      </div>
+
+      <div
+        style={{
+          ...container,
+          backgroundColor: frame.cardBackground,
+          border: frame.cardBorder,
+          borderRadius: frame.cardRadius,
+          maxWidth: frame.cardWidth,
+          overflow: "visible",
+          boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+        }}
+        className="mx-auto"
+      >
+        <div style={{ ...topBar, backgroundColor: theme.primary, borderRadius: "18px 18px 0 0" }} />
+
+        <div style={{ ...header, backgroundColor: frame.cardBackground }}>
+          {frame.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={frame.logoUrl}
+              alt="Logo"
+              width={/^\d+$/.test(logoWidth) ? logoWidth : undefined}
+              style={logo}
+              className="rounded"
+            />
+          ) : null}
+          {frame.eyebrowText ? <p style={eyebrow}>{frame.eyebrowText}</p> : null}
+          <p style={titleStyle}>{title}</p>
+          {subtitle ? <p style={subtitleStyle}>{subtitle}</p> : null}
+        </div>
+
+        <div style={content}>
+          <EmailBlockList blocks={blocks} variables={resolvedVariables} theme={theme} />
+        </div>
+
+        <div style={{ ...footer, backgroundColor: frame.cardBackground }}>
+          {frame.footerImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={frame.footerImageUrl}
+              alt="SAST - Igniting the thought"
+              width="180"
+              style={footerImage}
+              className="mx-auto rounded"
+            />
+          ) : null}
+          <p style={footerText}>{frame.footerText}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function EmailCanvas({
+  editable = true,
+  ...props
+}: EmailCanvasProps & { variables?: readonly EmailTemplateVariable[] }) {
+  if (!editable) {
+    return (
+      <ReadOnlyEmailCanvas
+        blocks={props.blocks}
+        frame={props.frame}
+        themeColor={props.themeColor}
+        title={props.title}
+        subtitle={props.subtitle}
+        accept={props.accept}
+        variables={props.variables}
+      />
+    );
+  }
+  return <EditableEmailCanvas {...props} editable />;
 }

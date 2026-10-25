@@ -1,10 +1,15 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 
 import type { ResultEmailTemplateSettingRow } from "@/action/email/template";
-import { updateEmailTemplateSetting } from "@/action/email/template";
+import {
+  previewResultEmailTemplateDraft,
+  updateEmailTemplateSetting,
+} from "@/action/email/template";
 import { updateInterviewScheduleEmailTemplate } from "@/action/email/interview-template";
 import type { InterviewScheduleTemplateSettingsPayload } from "@/lib/email/interview-template-settings";
+
+import { toast } from "sonner";
 
 import { EmailTemplateManagementSection } from "./EmailTemplateManagementSection";
 import type {
@@ -693,12 +698,42 @@ describe("EmailTemplateManagementSection", () => {
     await openTemplateDialog(user, "多媒体部笔试通过结果通知");
     await screen.findByText(/只读浏览其他部门的覆盖，保存与恢复按钮已隐藏/);
 
-    /* 正文照常渲染出来，但「插入区块 / 插入样式 / 存为版式 / 恢复内置版式」全部禁用 */
-    expect(document.querySelectorAll("[data-email-block]").length).toBeGreaterThan(0);
+    /* 正文照常静态渲染出来（可阅读 / 可复制），但已没有任何可编辑控件；
+       「插入区块 / 插入样式 / 存为版式 / 恢复内置版式」全部禁用 */
+    expect(screen.getByText("主标题")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "邮件主标题" })).toBeNull();
     expect(screen.getByRole("button", { name: /^插入区块$/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /^插入样式$/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /^存为版式$/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /恢复内置版式/ })).toBeDisabled();
+  });
+
+  it("预览请求被拒绝时提示错误，而不是继续显示旧样张", async () => {
+    const user = userEvent.setup();
+    const preview = previewResultEmailTemplateDraft as jest.Mock;
+    const toastError = toast.error as jest.Mock;
+    toastError.mockClear();
+    preview.mockRejectedValueOnce(new Error("网络中断"));
+
+    renderSection({
+      templateSettings: {
+        rows: [createResultRow("recruitment.result.accepted", "software", true, true)],
+        departments: ["software"],
+        scope: { kind: "department", department: "software" },
+      },
+      department: "software",
+    });
+
+    await openTemplateDialog(user, "软件研发部笔试通过结果通知");
+
+    await waitFor(
+      () => {
+        expect(toastError).toHaveBeenCalledWith("网络中断", {
+          id: "email-preview-error",
+        });
+      },
+      { timeout: 3000 },
+    );
   });
 
   it("可以从工具栏往画布里加一个自定义 HTML 区块", async () => {

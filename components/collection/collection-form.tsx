@@ -627,9 +627,8 @@ function ExtraFieldInput({
       const rating = Number(textValue) || 0;
       return (
         <div
-          role="radiogroup"
+          role="group"
           aria-label={field.label}
-          aria-required={field.required || undefined}
           className="flex items-center gap-1"
         >
           {Array.from({ length: COLLECTION_RATING_MAX }, (_, index) => index + 1).map(
@@ -639,6 +638,7 @@ function ExtraFieldInput({
                 type="button"
                 onClick={() => onChange(String(score))}
                 aria-label={`${score} 星`}
+                aria-pressed={rating === score}
                 className="rounded-md p-1 transition-colors hover:bg-accent"
               >
                 <Star

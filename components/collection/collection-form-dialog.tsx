@@ -278,6 +278,9 @@ export function CollectionFormDialog({
     );
     setExpandedFields(new Set());
     setActiveTab("basic");
+    /* 时间输入随页签卸载后不会再把状态报回来；重置时一并清掉，避免空值仍阻止提交 */
+    setStartsAtInvalid(false);
+    setDeadlineInvalid(false);
     setNewTemplateName("");
     setStartsAtValue(
       form?.startsAt
@@ -497,6 +500,12 @@ export function CollectionFormDialog({
                 type="button"
                 onClick={(event) => {
                   setActiveTab(tab.key);
+                  /* 未填完的时间输入会随页签卸载，且重新挂载时不会补发 empty；
+                     旧值不落库，清除无效标记，避免空输入仍被阻止提交 */
+                  if (tab.key !== "access") {
+                    setStartsAtInvalid(false);
+                    setDeadlineInvalid(false);
+                  }
                   const dialog = event.currentTarget.closest('[role="dialog"]');
                   if (dialog instanceof HTMLElement) {
                     dialog.scrollTo({ top: 0 });

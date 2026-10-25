@@ -158,6 +158,15 @@ const CheckinScanner = ({
     }
   };
 
+  const closeResultDialog = () => {
+    setShowDialog(false);
+    setLookup(null);
+    if (resumeAfterDialogRef.current && selectedDevice) {
+      resumeAfterDialogRef.current = false;
+      setPaused(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
@@ -292,14 +301,8 @@ const CheckinScanner = ({
       <Dialog
         open={showDialog}
         onOpenChange={(open) => {
-          setShowDialog(open);
-          if (!open) {
-            setLookup(null);
-            if (resumeAfterDialogRef.current && selectedDevice) {
-              resumeAfterDialogRef.current = false;
-              setPaused(false);
-            }
-          }
+          if (open) setShowDialog(true);
+          else closeResultDialog();
         }}
       >
         <DialogContent>
@@ -354,7 +357,7 @@ const CheckinScanner = ({
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>
+            <Button variant="outline" onClick={closeResultDialog}>
               完成
             </Button>
           </DialogFooter>

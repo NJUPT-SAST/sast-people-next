@@ -146,9 +146,10 @@ export function CollectionManageActions({
           className="w-full"
           onClick={toggleStatus}
           loading={pending}
-          disabled={deadlineEnded}
+          /* 截止后「恢复收集」是空操作；但把仍为 open 的表手动结束仍应允许 */
+          disabled={deadlineEnded && !isOpen}
         >
-          {deadlineEnded ? "已截止" : isOpen ? "结束收集" : "恢复收集"}
+          {isOpen ? "结束收集" : deadlineEnded ? "已截止" : "恢复收集"}
         </Button>
         <Button variant="outline" className="w-full" asChild>
           <a href={exportHref}>导出数据</a>
@@ -164,8 +165,10 @@ export function CollectionManageActions({
 
       {deadlineEnded && (
         <p className="text-xs leading-5 text-warning-foreground">
-          截止时间已过，请先编辑收集表延长截止时间
-          {isOpen ? "（保存后会自动恢复接收）" : "，再点「恢复收集」"}。
+          截止时间已过，表单已停止接收。
+          {isOpen
+            ? "可手动结束收集，或编辑收集表延长截止时间后自动恢复接收。"
+            : "请先编辑收集表延长截止时间，再点「恢复收集」。"}
         </p>
       )}
 
