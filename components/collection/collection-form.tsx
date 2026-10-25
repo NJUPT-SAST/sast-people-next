@@ -154,6 +154,26 @@ export function CollectionForm({
     event.preventDefault();
     if (!editable) return;
 
+    /* 多选 / 评分 / 年月没有原生 required：先在前端挡住，别等服务器回一条 toast */
+    const missing = fields.find((field) => {
+      if (!field.required || field.fixedValue) return false;
+      const value = values[field.id];
+      switch (field.type) {
+        case "checkbox":
+          return !Array.isArray(value) || value.length === 0;
+        case "rating":
+          return !Number(value);
+        case "month":
+          return typeof value !== "string" || value.trim() === "";
+        default:
+          return false;
+      }
+    });
+    if (missing) {
+      toast.error(`请填写「${missing.label}」`);
+      return;
+    }
+
     setSubmitting(true);
     try {
       const result = await saveCollectionSubmission(formId, {
@@ -238,6 +258,12 @@ export function CollectionForm({
         <div className="grid gap-5 sm:grid-cols-2">
           {fields.map((field) => {
             const inputId = `collection-extra-${field.id}`;
+            /* 评分 / 单选 / 多选是一组控件，没有单一可关联的输入：组本身带 aria-label，
+               外层标签用 span，避免 <label for> 指向不存在的控件 */
+            const groupedField =
+              field.type === "rating" ||
+              field.type === "radio" ||
+              field.type === "checkbox";
             return (
               <div
                 key={field.id}
@@ -248,12 +274,21 @@ export function CollectionForm({
                 }
               >
                 <div className="space-y-1">
-                  <Label htmlFor={inputId}>
-                    {field.label}
-                    {field.required && !field.fixedValue && (
-                      <span className="text-destructive"> *</span>
-                    )}
-                  </Label>
+                  {groupedField ? (
+                    <span className="text-sm font-medium leading-none">
+                      {field.label}
+                      {field.required && !field.fixedValue && (
+                        <span className="text-destructive"> *</span>
+                      )}
+                    </span>
+                  ) : (
+                    <Label htmlFor={inputId}>
+                      {field.label}
+                      {field.required && !field.fixedValue && (
+                        <span className="text-destructive"> *</span>
+                      )}
+                    </Label>
+                  )}
                   {field.description && (
                     <p className="text-xs leading-5 text-muted-foreground">
                       {field.description}
@@ -306,14 +341,24 @@ function MonthInput({
   }, [value]);
 
   const year = Number(yearPart);
+  /* 触发按钮只显示「已提交」的年月：上/下一年只改弹层里的草稿，没选月就关掉不能改掉显示值 */
+  const [committedYear, committedMonth] = value.split("-");
   const selectMonth = (month: string) => {
     setMonthPart(month);
     onChange(`${yearPart}-${month}`);
     setOpen(false);
   };
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      const [savedYear, savedMonth] = value.split("-");
+      setYearPart(savedYear || String(currentYear - 20));
+      setMonthPart(savedMonth ?? "");
+    }
+    setOpen(next);
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           id={id}
@@ -323,8 +368,8 @@ function MonthInput({
           aria-required={required}
         >
           <CalendarDays className="size-4 text-muted-foreground" />
-          {yearPart && monthPart
-            ? `${yearPart} 年 ${Number(monthPart)} 月`
+          {committedYear && committedMonth
+            ? `${committedYear} 年 ${Number(committedMonth)} 月`
             : "选择年月"}
         </Button>
       </PopoverTrigger>
@@ -581,7 +626,11 @@ function ExtraFieldInput({
     case "rating": {
       const rating = Number(textValue) || 0;
       return (
-        <div className="flex items-center gap-1">
+        <div
+          role="group"
+          aria-label={field.label}
+          className="flex items-center gap-1"
+        >
           {Array.from({ length: COLLECTION_RATING_MAX }, (_, index) => index + 1).map(
             (score) => (
               <button
@@ -589,6 +638,7 @@ function ExtraFieldInput({
                 type="button"
                 onClick={() => onChange(String(score))}
                 aria-label={`${score} 星`}
+                aria-pressed={rating === score}
                 className="rounded-md p-1 transition-colors hover:bg-accent"
               >
                 <Star

@@ -51,12 +51,16 @@ export const EmailImage = Image.extend({
  */
 export function createEmailInlineExtensions({
   undoRedo = true,
+  document = true,
 }: {
   /** 画布外层用自己的草稿历史，关掉 ProseMirror 自带的 history */
   undoRedo?: boolean;
+  /** 画布外层自带 `EmailDocument`（限制块级节点），不能再注册 StarterKit 的默认 doc */
+  document?: boolean;
 } = {}) {
   return [
     StarterKit.configure({
+      ...(document ? {} : { document: false as const }),
       undoRedo: undoRedo ? undefined : false,
       heading: { levels: [2, 3, 4] },
       link: {

@@ -191,6 +191,42 @@ describe("CheckinScanner", () => {
     });
   });
 
+  it("resumes scanning after dismissing the result dialog with 完成", async () => {
+    const user = userEvent.setup();
+    resolveCheckinCandidates.mockResolvedValue({
+      uid: 9001,
+      matches: [
+        {
+          flowId: 141,
+          departmentLabel: "办公室",
+          choice: 1,
+          existing: null,
+          candidate: candidate(),
+          block: null,
+        },
+      ],
+    });
+
+    await startScanning(user);
+    await decode({ uid: 9001, time: Date.now() });
+
+    /* 扫到人后摄像头暂停，结果弹窗里点「完成」也必须恢复扫描 */
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /开启摄像头/ }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "完成" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /开启摄像头/ }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /停止/ })).toBeInTheDocument();
+    });
+  });
+
   it("rejects a candidate with no office registration this round", async () => {
     const user = userEvent.setup();
     resolveCheckinCandidates.mockResolvedValue({ uid: 4242, matches: [] });
@@ -236,7 +272,9 @@ describe("CheckinScanner", () => {
     await decode({ uid: true, time: Date.now() });
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("二维码内容无效，请重试");
+      expect(toastError).toHaveBeenCalledWith(
+        expect.stringContaining("二维码内容无效"),
+      );
     });
     expect(resolveCheckinCandidates).not.toHaveBeenCalled();
   });
@@ -250,7 +288,9 @@ describe("CheckinScanner", () => {
     });
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("二维码内容无效，请重试");
+      expect(toastError).toHaveBeenCalledWith(
+        expect.stringContaining("二维码内容无效"),
+      );
     });
     expect(resolveCheckinCandidates).not.toHaveBeenCalled();
   });

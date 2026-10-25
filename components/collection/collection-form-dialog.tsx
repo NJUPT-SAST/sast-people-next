@@ -145,6 +145,8 @@ export function CollectionFormDialog({
   const [templateKey, setTemplateKey] = useState("member");
   const [newTemplateName, setNewTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [pendingDeleteTemplate, setPendingDeleteTemplate] =
+    useState<CollectionTemplateOption | null>(null);
   const [title, setTitle] = useState(COLLECTION_DEFAULT_TITLE);
   const [instructions, setInstructions] = useState(
     COLLECTION_DEFAULT_INSTRUCTIONS,
@@ -153,6 +155,8 @@ export function CollectionFormDialog({
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
   const [startsAtValue, setStartsAtValue] = useState("");
   const [deadlineValue, setDeadlineValue] = useState("");
+  const [startsAtInvalid, setStartsAtInvalid] = useState(false);
+  const [deadlineInvalid, setDeadlineInvalid] = useState(false);
   const [unrestricted, setUnrestricted] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<number[]>([1, 2, 3, 4]);
   const [selectedFlowIds, setSelectedFlowIds] = useState<number[]>([]);
@@ -274,6 +278,9 @@ export function CollectionFormDialog({
     );
     setExpandedFields(new Set());
     setActiveTab("basic");
+    /* 时间输入随页签卸载后不会再把状态报回来；重置时一并清掉，避免空值仍阻止提交 */
+    setStartsAtInvalid(false);
+    setDeadlineInvalid(false);
     setNewTemplateName("");
     setStartsAtValue(
       form?.startsAt
@@ -366,7 +373,11 @@ export function CollectionFormDialog({
       const result = await deleteCollectionTemplate(current.id);
       if (!result.success) throw new Error(result.message);
       setTemplateOptions((items) => items.filter((item) => item.id !== current.id));
+      /* 当前模板已不存在：收集项必须一起清空，否则下拉显示「空白收集表」但字段还是被删模板的 */
       setTemplateKey("blank");
+      setExtraFields([]);
+      setExpandedFields(new Set());
+      setPendingDeleteTemplate(null);
       toast.success("模板已删除");
       router.refresh();
     } catch (error) {
@@ -385,6 +396,14 @@ export function CollectionFormDialog({
     event.preventDefault();
     const rawStartsAt = startsAtValue.trim();
     const rawDeadline = deadlineValue.trim();
+    if (startsAtInvalid || deadlineInvalid) {
+      toast.error(
+        startsAtInvalid
+          ? "开始时间还没填完整，请补全年月日与时分秒，或清空该字段。"
+          : "截止时间还没填完整，请补全年月日与时分秒，或清空该字段。",
+      );
+      return;
+    }
     const startsAt = rawStartsAt ? parseBeijingDateTime(rawStartsAt) : null;
     const deadline = rawDeadline ? parseBeijingDateTime(rawDeadline) : null;
     if (rawStartsAt && !startsAt) {
@@ -442,7 +461,12 @@ export function CollectionFormDialog({
     }
   }
 
+  const currentTemplate = templateOptions.find(
+    (option) => option.key === templateKey,
+  );
+
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         {mode === "edit" ? (
@@ -476,6 +500,12 @@ export function CollectionFormDialog({
                 type="button"
                 onClick={(event) => {
                   setActiveTab(tab.key);
+                  /* 未填完的时间输入会随页签卸载，且重新挂载时不会补发 empty；
+                     旧值不落库，清除无效标记，避免空输入仍被阻止提交 */
+                  if (tab.key !== "access") {
+                    setStartsAtInvalid(false);
+                    setDeadlineInvalid(false);
+                  }
                   const dialog = event.currentTarget.closest('[role="dialog"]');
                   if (dialog instanceof HTMLElement) {
                     dialog.scrollTo({ top: 0 });
@@ -514,21 +544,20 @@ export function CollectionFormDialog({
                   </SelectContent>
                 </Select>
               </div>
-              {templateOptions.find((option) => option.key === templateKey)?.id ? (
+              {currentTemplate?.id ? (
                 <Button
                   type="button"
                   variant="ghost"
                   className="text-muted-foreground hover:text-destructive"
                   loading={savingTemplate}
-                  onClick={handleDeleteTemplate}
+                  onClick={() => setPendingDeleteTemplate(currentTemplate)}
                 >
                   <Trash2 /> 删除模板
                 </Button>
               ) : null}
             </div>
             <p className="text-xs text-muted-foreground">
-              {templateOptions.find((option) => option.key === templateKey)
-                ?.description ??
+              {currentTemplate?.description ??
                 "切换模板会替换下面的收集项；已提交的答案按字段 ID 保留。"}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -566,9 +595,11 @@ export function CollectionFormDialog({
           </TabPanel>
           <TabPanel active={activeTab === "access"}>
           <div className="flex flex-col gap-2">
-            <Label>开始时间（北京时间）</Label>
+            <Label htmlFor="collection-form-starts-at">开始时间（北京时间）</Label>
             <DateTimeInput
+              id="collection-form-starts-at"
               value={parseBeijingDateTime(startsAtValue) ?? undefined}
+              onValidityChange={(state) => setStartsAtInvalid(state === "invalid")}
               onChange={(date) =>
                 setStartsAtValue(
                   date ? format(toBeijingWallClockDate(date), "yyyy-MM-dd'T'HH:mm") : "",
@@ -581,9 +612,11 @@ export function CollectionFormDialog({
             </p>
           </div>
           <div className="flex flex-col gap-2">
-            <Label>截止时间（北京时间）</Label>
+            <Label htmlFor="collection-form-deadline">截止时间（北京时间）</Label>
             <DateTimeInput
+              id="collection-form-deadline"
               value={parseBeijingDateTime(deadlineValue) ?? undefined}
+              onValidityChange={(state) => setDeadlineInvalid(state === "invalid")}
               onChange={(date) =>
                 setDeadlineValue(
                   date ? format(toBeijingWallClockDate(date), "yyyy-MM-dd'T'HH:mm") : "",
@@ -603,20 +636,26 @@ export function CollectionFormDialog({
                 直接勾选允许填写的身份；不勾选任何限制时所有登录用户都可填写。
               </p>
             </div>
-            <label className="flex w-fit items-center gap-2 text-sm text-foreground">
+            <Label
+              htmlFor="collection-unrestricted"
+              className="flex w-fit items-center gap-2 text-sm font-normal text-foreground"
+            >
               <Checkbox
+                id="collection-unrestricted"
                 checked={unrestricted}
                 onCheckedChange={(checked) => setUnrestricted(checked === true)}
               />
               不限制身份（所有登录用户）
-            </label>
+            </Label>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               {COLLECTION_FILL_ROLE_OPTIONS.map((option) => (
-                <label
+                <Label
                   key={option.value}
-                  className="flex w-fit items-center gap-2 text-sm text-foreground"
+                  htmlFor={`collection-role-${option.value}`}
+                  className="flex w-fit items-center gap-2 text-sm font-normal text-foreground"
                 >
                   <Checkbox
+                    id={`collection-role-${option.value}`}
                     checked={!unrestricted && selectedRoles.includes(option.value)}
                     disabled={unrestricted}
                     onCheckedChange={(checked) =>
@@ -624,7 +663,7 @@ export function CollectionFormDialog({
                     }
                   />
                   {option.label}
-                </label>
+                </Label>
               ))}
             </div>
           </div>
@@ -885,7 +924,7 @@ export function CollectionFormDialog({
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>类型</Label>
+                    <Label htmlFor={`extra-type-${field.id}`}>类型</Label>
                     <Select
                       value={field.type}
                       onValueChange={(value) => {
@@ -898,7 +937,7 @@ export function CollectionFormDialog({
                         });
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id={`extra-type-${field.id}`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -913,7 +952,9 @@ export function CollectionFormDialog({
 
                   {COLLECTION_PREFILLABLE_FIELD_TYPES[field.type] && (
                     <div className="space-y-2">
-                      <Label>自动读取 SAST Link</Label>
+                      <Label htmlFor={`extra-prefill-${field.id}`}>
+                        自动读取 SAST Link
+                      </Label>
                       <Select
                         value={field.prefillFrom}
                         onValueChange={(value) =>
@@ -922,7 +963,7 @@ export function CollectionFormDialog({
                           })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id={`extra-prefill-${field.id}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -955,15 +996,19 @@ export function CollectionFormDialog({
                   </div>
                 )}
 
-                <label className="flex w-fit items-center gap-2 text-sm text-foreground">
+                <Label
+                  htmlFor={`extra-required-${field.id}`}
+                  className="flex w-fit items-center gap-2 text-sm font-normal text-foreground"
+                >
                   <Checkbox
+                    id={`extra-required-${field.id}`}
                     checked={field.required}
                     onCheckedChange={(checked) =>
                       updateField(field.id, { required: checked === true })
                     }
                   />
                   必填
-                </label>
+                </Label>
                 </div>
               </div>
               );
@@ -982,5 +1027,41 @@ export function CollectionFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+
+    <Dialog
+      open={pendingDeleteTemplate !== null}
+      onOpenChange={(next) => {
+        if (!next) setPendingDeleteTemplate(null);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            删除模板「{pendingDeleteTemplate?.name ?? ""}」？
+          </DialogTitle>
+          <DialogDescription>
+            删除后该模板无法恢复；已经使用它创建的收集表不受影响。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPendingDeleteTemplate(null)}
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            loading={savingTemplate}
+            onClick={handleDeleteTemplate}
+          >
+            确认删除
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

@@ -105,7 +105,7 @@ const CheckinConsole = ({
 
   const initialKey = `/api/interview/checkin?round=${initial.round}`;
   const key = `/api/interview/checkin?round=${round}`;
-  const { data, mutate } = useSWR<VenueApiResponse>(key, fetcher, {
+  const { data, mutate, isLoading } = useSWR<VenueApiResponse>(key, fetcher, {
     fallback: { [initialKey]: { success: true, venue: initial } },
     refreshInterval: POLL_INTERVAL_MS,
   });
@@ -124,6 +124,9 @@ const CheckinConsole = ({
   const [pendingCheckinId, setPendingCheckinId] = useState<number | null>(null);
   const [pendingStationId, setPendingStationId] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<CheckinStation | null>(null);
+  const [deletingStation, setDeletingStation] = useState<CheckinStation | null>(
+    null,
+  );
   /* 现场随手写面评：不离开本页；入口只在**本部门**（面评按部门归属）且面试已开始/已结束时出现 */
   const [recordTarget, setRecordTarget] = useState<OfficeRecordTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -174,6 +177,15 @@ const CheckinConsole = ({
     setDeptFilter(value);
     const query = new URLSearchParams({ round: String(round) });
     if (value !== "all") query.set("dept", value);
+    router.replace(`/dashboard/checkin?${query.toString()}`, { scroll: false });
+  };
+
+  const selectRound = (value: number) => {
+    if (value === round) return;
+    setRound(value);
+    /* 轮次也是可分享 / 可刷新的状态：同步到 URL，和大屏链接保持一致 */
+    const query = new URLSearchParams({ round: String(value) });
+    if (deptFilter !== "all") query.set("dept", deptFilter);
     router.replace(`/dashboard/checkin?${query.toString()}`, { scroll: false });
   };
 
@@ -258,14 +270,22 @@ const CheckinConsole = ({
     await mutate();
   };
 
-  const handleDeleteStation = async (station: CheckinStation) => {
-    const result = await deleteCheckinStation(station.id);
-    if (!result.success) {
-      toast.error(result.error.message);
-      return;
+  const handleDeleteStation = async () => {
+    if (!deletingStation) return;
+    const station = deletingStation;
+    setPendingStationId(station.id);
+    try {
+      const result = await deleteCheckinStation(station.id);
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      setDeletingStation(null);
+      toast.success(`已删除 ${station.label}`);
+      await mutate();
+    } finally {
+      setPendingStationId(null);
     }
-    toast.success(`已删除 ${station.label}`);
-    await mutate();
   };
 
   const submitRename = async () => {
@@ -327,7 +347,7 @@ const CheckinConsole = ({
                   key={value}
                   type="button"
                   aria-pressed={value === round}
-                  onClick={() => setRound(value)}
+                  onClick={() => selectRound(value)}
                   className={cn(
                     "h-8 touch-manipulation rounded-md px-3 text-xs font-medium transition-colors",
                     value === round
@@ -433,24 +453,34 @@ const CheckinConsole = ({
             </Button>
           </div>
 
-          {visibleDepartments.map((dept) => (
-            <DepartmentBlock
-              key={dept.flowId}
-              department={dept}
-              pendingStationId={pendingStationId}
-              pendingCheckinId={pendingCheckinId}
-              onCall={handleCallNext}
-              onOccupantAction={handleOccupantAction}
-              onOpenRecord={setRecordTarget}
-              onRename={(station) => {
-                setRenaming(station);
-                setRenameValue(station.label);
-              }}
-              onToggle={handleToggleStation}
-              onDelete={handleDeleteStation}
-              onTransition={handleTransition}
-            />
-          ))}
+          {!venue || isLoading ? (
+            <p className="rounded-xl border border-dashed bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+              正在加载现场信息…
+            </p>
+          ) : visibleDepartments.length === 0 ? (
+            <p className="rounded-xl border border-dashed bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+              暂无启用的办公部门。请先在「流程管理」创建办公类部门面试流程。
+            </p>
+          ) : (
+            visibleDepartments.map((dept) => (
+              <DepartmentBlock
+                key={dept.flowId}
+                department={dept}
+                pendingStationId={pendingStationId}
+                pendingCheckinId={pendingCheckinId}
+                onCall={handleCallNext}
+                onOccupantAction={handleOccupantAction}
+                onOpenRecord={setRecordTarget}
+                onRename={(station) => {
+                  setRenaming(station);
+                  setRenameValue(station.label);
+                }}
+                onToggle={handleToggleStation}
+                onDelete={setDeletingStation}
+                onTransition={handleTransition}
+              />
+            ))
+          )}
         </section>
 
         <section
@@ -480,7 +510,13 @@ const CheckinConsole = ({
             <div className="flex max-h-[420px] flex-col gap-1.5 overflow-y-auto">
               {filteredAwaiting.length === 0 ? (
                 <p className="py-6 text-center text-xs text-muted-foreground">
-                  {awaitingRows.length === 0 ? "本轮候选人都已签到" : "没有匹配的候选人"}
+                  {awaitingRows.length === 0
+                    ? !venue || isLoading
+                      ? "正在加载现场信息…"
+                      : visibleDepartments.length === 0
+                        ? "暂无启用的办公部门"
+                        : "本轮候选人都已签到"
+                    : "没有匹配的候选人"}
                 </p>
               ) : (
                 filteredAwaiting.map((row) => (
@@ -602,6 +638,37 @@ const CheckinConsole = ({
             </Button>
             <Button onClick={submitRename} disabled={!renameValue.trim()}>
               保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deletingStation !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingStation(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>删除面试位「{deletingStation?.label ?? ""}」？</DialogTitle>
+            <DialogDescription>
+              删除后该面试位不再出现在签到叫号与大屏上；正在面试或排队的人不会被取消签到。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingStation(null)}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              loading={
+                deletingStation !== null &&
+                pendingStationId === deletingStation.id
+              }
+              onClick={handleDeleteStation}
+            >
+              确认删除
             </Button>
           </DialogFooter>
         </DialogContent>

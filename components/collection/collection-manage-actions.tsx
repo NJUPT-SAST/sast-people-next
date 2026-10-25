@@ -24,19 +24,28 @@ import { Label } from "@/components/ui/label";
 export function CollectionManageActions({
   formId,
   status,
+  phase,
+  deadlinePassed,
   exportHref,
   shareToken,
 }: {
   formId: number;
   status: string;
+  /** 展示口径的阶段：手动状态为 open 也可能因截止时间已过而结束 */
+  phase: "upcoming" | "open" | "closed";
+  deadlinePassed: boolean;
   exportHref: string;
   shareToken: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState(`/collect/${shareToken}`);
   const isOpen = status === "open";
+  /* 截止时间已过时「恢复收集」是空操作：status 仍是 open，但 phase 仍为 closed。
+     按钮直接禁用并说明必须先延长截止时间，避免 toast 成功但表单依旧不可填。 */
+  const deadlineEnded = phase !== "open" && deadlinePassed;
 
   useEffect(() => {
     setShareUrl(`${window.location.origin}/collect/${shareToken}`);
@@ -70,6 +79,7 @@ export function CollectionManageActions({
     try {
       const result = await duplicateCollectionForm(formId);
       if (!result.success) throw new Error(result.message);
+      setDuplicateOpen(false);
       toast.success("已复制收集表");
       router.push(`/dashboard/collection/${result.data?.id}`);
     } catch (error) {
@@ -123,11 +133,23 @@ export function CollectionManageActions({
       </div>
 
       <div className="grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
-        <Button variant="outline" className="w-full" onClick={duplicate} loading={pending}>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setDuplicateOpen(true)}
+          loading={pending}
+        >
           <CopyPlus /> 复制表单
         </Button>
-        <Button variant="outline" className="w-full" onClick={toggleStatus} loading={pending}>
-          {isOpen ? "结束收集" : "恢复收集"}
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={toggleStatus}
+          loading={pending}
+          /* 截止后「恢复收集」是空操作；但把仍为 open 的表手动结束仍应允许 */
+          disabled={deadlineEnded && !isOpen}
+        >
+          {isOpen ? "结束收集" : deadlineEnded ? "已截止" : "恢复收集"}
         </Button>
         <Button variant="outline" className="w-full" asChild>
           <a href={exportHref}>导出数据</a>
@@ -140,6 +162,38 @@ export function CollectionManageActions({
           <Trash2 /> 删除
         </Button>
       </div>
+
+      {deadlineEnded && (
+        <p className="text-xs leading-5 text-warning-foreground">
+          截止时间已过，表单已停止接收。
+          {isOpen
+            ? "可手动结束收集，或编辑收集表延长截止时间后自动恢复接收。"
+            : "请先编辑收集表延长截止时间，再点「恢复收集」。"}
+        </p>
+      )}
+
+      <Dialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>复制这张收集表？</DialogTitle>
+            <DialogDescription>
+              副本会沿用原表的填写身份、收集项与开始/截止时间；如果原表正在收集，副本也会立即出现在成员的列表里。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDuplicateOpen(false)}
+            >
+              取消
+            </Button>
+            <Button type="button" loading={pending} onClick={duplicate}>
+              确认复制
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>

@@ -276,7 +276,10 @@ const SubmitRegister = ({
                         {isBeforeStart && `未开始 (${originalDayjs(flow.startedAt).format('YYYY-MM-DD HH:mm')})`}
                         {isAfterEnd && `已结束 (${originalDayjs(flow.endedAt).format('YYYY-MM-DD HH:mm')})`}
                         {!isAfterEnd && isClosed && `报名已截止`}
-                        {isActive && `进行中 (${originalDayjs(flow.endedAt).format('YYYY-MM-DD HH:mm')} 截止)`}
+                        {isActive &&
+                          (flow.endedAt
+                            ? `进行中 (${originalDayjs(flow.endedAt).format('YYYY-MM-DD HH:mm')} 截止)`
+                            : '进行中')}
                       </span>
                     </div>
                   </SelectItem>

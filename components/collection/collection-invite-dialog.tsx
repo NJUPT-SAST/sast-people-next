@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Search, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -93,6 +93,17 @@ export function CollectionInviteDialog({
   const allVisibleSelected =
     candidates.length > 0 &&
     candidates.every((candidate) => selectedIds.has(candidate.id));
+
+  /* 换了筛选条件后，之前选中但不在当前结果里的人仍会被邀请；必须显式告诉操作者 */
+  const hiddenSelectedCount = useMemo(() => {
+    if (selectedIds.size === 0) return 0;
+    const visibleIds = new Set(candidates.map((candidate) => candidate.id));
+    let hidden = 0;
+    for (const id of selectedIds) {
+      if (!visibleIds.has(id)) hidden += 1;
+    }
+    return hidden;
+  }, [selectedIds, candidates]);
 
   const toggleAllVisible = () => {
     setSelectedIds((current) => {
@@ -259,9 +270,25 @@ export function CollectionInviteDialog({
                 全选当前结果
               </Label>
             </div>
-            <p className="text-xs text-muted-foreground">
-              已选 {selectedIds.size} 人
-            </p>
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  清空已选
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                已选 {selectedIds.size} 人
+                {hiddenSelectedCount > 0
+                  ? `（其中 ${hiddenSelectedCount} 人不在当前筛选结果中）`
+                  : ""}
+              </p>
+            </div>
           </div>
 
           <div className="max-h-72 overflow-y-auto rounded-lg border border-border/70">

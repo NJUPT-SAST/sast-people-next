@@ -261,19 +261,53 @@ export function EmailResultTemplateDialog({
   /* 成品预览：服务端渲染（与真实发送同一链路），600ms 防抖 */
   useEffect(() => {
     if (!open) return;
+    /* 防抖只挡住尚未发出的请求；已发出的旧请求仍可能后返回并覆盖新样张，
+       用本次 effect 的取消标记只接受最新一次结果 */
+    let cancelled = false;
     const timer = setTimeout(() => {
       void previewResultEmailTemplateDraft({
         templateKey: setting.templateKey,
         blocks,
         frame,
         themeColor,
+        title,
+        subtitle,
+        fields: values,
         department,
-      }).then((result) => {
-        if (result.ok) setDraftHtml(result.html);
-      });
+      })
+        .then((result) => {
+          if (cancelled) return;
+          if (result.ok) {
+            setDraftHtml(result.html);
+          } else {
+            setDraftHtml(null);
+            toast.error(result.message, { id: "email-preview-error" });
+          }
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          setDraftHtml(null);
+          toast.error(
+            error instanceof Error ? error.message : "预览生成失败，请稍后重试",
+            { id: "email-preview-error" },
+          );
+        });
     }, 600);
-    return () => clearTimeout(timer);
-  }, [open, blocks, frame, themeColor, setting.templateKey, department]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    open,
+    blocks,
+    frame,
+    themeColor,
+    title,
+    subtitle,
+    values,
+    setting.templateKey,
+    department,
+  ]);
 
   const setField = (field: keyof ResultTemplateFieldValues, value: string) =>
     setValues((current) => ({ ...current, [field]: value }));
@@ -538,16 +572,20 @@ export function EmailResultTemplateDialog({
                 />
               </div>
             ) : pane === "appearance" ? (
-              <div className="mx-auto grid max-w-3xl gap-3 p-4 lg:p-6">
-                <EmailThemeColorField
-                  value={themeColor}
-                  onChange={setThemeColor}
-                  autoLabel={isAcceptedTemplate ? "通过绿" : "不通过橙"}
-                />
-                <EmailFrameFields idPrefix={setting.templateKey} frame={frame} onChange={setFrame} />
+              <div className="mx-auto max-w-3xl p-4 lg:p-6">
+                {/* 只读浏览：面板同样不可编辑，否则脏标记会亮起、关窗又只能「放弃修改」 */}
+                <fieldset disabled={!writable} className="grid min-w-0 gap-3">
+                  <EmailThemeColorField
+                    value={themeColor}
+                    onChange={setThemeColor}
+                    autoLabel={isAcceptedTemplate ? "通过绿" : "不通过橙"}
+                  />
+                  <EmailFrameFields idPrefix={setting.templateKey} frame={frame} onChange={setFrame} />
+                </fieldset>
               </div>
             ) : pane === "fields" ? (
-              <div className="mx-auto grid max-w-3xl gap-3 p-4 lg:p-6">
+              <div className="mx-auto max-w-3xl p-4 lg:p-6">
+                <fieldset disabled={!writable} className="grid min-w-0 gap-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <TemplateField
                     id={`${setting.templateKey}-subject`}
@@ -621,10 +659,11 @@ export function EmailResultTemplateDialog({
                   )}
                 </div>
                 <p className="text-[11px] leading-5 text-muted-foreground">
-                  这些值会被画布上的 {"{"}{"变量"}{"}"} 引用：{"{flowName}"}、{"{department}"}、
+                  这些值会被画布上的 {"{"}{"变量"}{"}"} 引用：{"{name}"}、{"{flowName}"}、{"{department}"}、
                   {"{contactEmail}"}、{"{memberInfoFormUrl}"}、{"{feishuGroupUrl}"}、
                   {"{calendarUrl}"}、{"{memberFormLabel}"}、{"{feishuGroupName}"}、{"{groupNumber}"}。
                 </p>
+                </fieldset>
               </div>
             ) : (
               <EmailCanvas
