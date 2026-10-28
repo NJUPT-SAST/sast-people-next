@@ -19,6 +19,7 @@ import {
   listEmailFlowTargets,
 } from "@/action/email/workspace";
 import { EmailDashboardClient } from "@/components/email/emailDashboardClient";
+import { listCustomEmailWorkspace } from "@/lib/email-center/custom-message";
 import { PageTitle } from "@/components/route";
 import { getEmailCenterConfigSummary } from "@/lib/email-center/config";
 import {
@@ -80,6 +81,9 @@ export default async function EmailDashboardPage({
   const initialFlowId = parseOptionalPositiveInt(
     getSearchParam(awaitedSearchParams, "flowId"),
   );
+  const initialCustomMessageId = parseOptionalPositiveInt(
+    getSearchParam(awaitedSearchParams, "messageId"),
+  );
 
   return (
     <>
@@ -92,7 +96,7 @@ export default async function EmailDashboardPage({
             <div className="min-w-0">
               <PageTitle />
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                统一管理系统邮件模板、发送任务和发送记录
+                统一管理系统邮件模板、发送任务、发送记录与自定义邮件
               </p>
             </div>
           </div>
@@ -118,6 +122,7 @@ export default async function EmailDashboardPage({
           canManageTemplates={canManageTemplates}
           department={selectedDepartment}
           initialFlowId={initialFlowId}
+          initialCustomMessageId={initialCustomMessageId}
         />
       </div>
     </>
@@ -151,6 +156,13 @@ async function loadEmailDashboardData(
       listResultEmailDeliveryStates(),
     ]);
     return { batches, flowTargets, resultDeliveryStates };
+  }
+
+  if (activeTab === "compose") {
+    const session = await verifyRole(3);
+    return {
+      customEmailWorkspace: await listCustomEmailWorkspace(session),
+    };
   }
 
   if (activeTab === "records") {

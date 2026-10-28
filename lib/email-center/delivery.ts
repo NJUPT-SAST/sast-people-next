@@ -34,6 +34,7 @@ export type SendEmailDeliveryTrigger =
   | "test"
   | "interview_immediate"
   | "immediate"
+  | "custom"
   | "unknown";
 
 export type SendEmailDeliveryOptions = {

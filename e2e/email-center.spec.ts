@@ -16,9 +16,10 @@ test.describe("email center", () => {
     await page.goto("/dashboard/emails");
 
     await expect(
-      page.getByText("统一管理系统邮件模板、发送任务和发送记录"),
+      page.getByText("统一管理系统邮件模板、发送任务、发送记录与自定义邮件"),
     ).toBeVisible();
     await expect(page.getByRole("link", { name: /发结果通知/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /写信/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /发送记录/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /系统状态/ })).toBeVisible();
     /* 模板管理按「role >= 3 + 部门 scope」开放，管理员同样可见 */

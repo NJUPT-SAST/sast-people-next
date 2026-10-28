@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db/drizzle";
-import { emailBatch, emailDelivery, flow } from "@/db/schema";
-import { verifyManager } from "@/lib/authz";
+import { emailBatch, emailCustomMessage, emailDelivery, flow } from "@/db/schema";
+import { isAdmin, verifyManager } from "@/lib/authz";
 import { requirePositiveIntegerInput } from "@/lib/email-center/action-input";
 import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { assertFlowEditable } from "@/lib/flow-access";
@@ -32,11 +32,17 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
         category: emailDelivery.category,
         status: emailDelivery.status,
         department: sql<string | null>`coalesce(${flow.department}, ${batchFlow.department})`,
+        customCreatedBy: emailCustomMessage.createdBy,
+        customDepartment: emailCustomMessage.department,
       })
       .from(emailDelivery)
       .leftJoin(emailBatch, eq(emailBatch.id, emailDelivery.fkEmailBatchId))
       .leftJoin(flow, eq(flow.id, emailDelivery.fkFlowId))
       .leftJoin(batchFlow, eq(batchFlow.id, emailBatch.fkFlowId))
+      .leftJoin(
+        emailCustomMessage,
+        eq(emailCustomMessage.id, emailDelivery.fkCustomMessageId),
+      )
       .where(eq(emailDelivery.id, deliveryId))
       .limit(1);
 
@@ -48,9 +54,13 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
     }
 
     /* 与列表可见性保持一致：投递自身未记录流程时回退到批次的流程；
-       收集表投递不属于任何流程，所有部长都可重试 */
-    department = delivery.department;
-    if (delivery.category !== "collection") {
+       收集表投递不属于任何流程，所有部长都可重试；自定义邮件按作者隔离 */
+    department = delivery.department ?? delivery.customDepartment;
+    if (delivery.category === "custom") {
+      if (!isAdmin(session.role) && delivery.customCreatedBy !== session.uid) {
+        throw new Error("无权操作其他人创建的自定义邮件");
+      }
+    } else if (delivery.category !== "collection") {
       assertFlowEditable(session.scope, department, "无权操作其他部门的邮件");
     }
 

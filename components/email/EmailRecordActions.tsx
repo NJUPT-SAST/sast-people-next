@@ -101,6 +101,9 @@ function EmailDeliveryDetailDialog({
   const batchHref = delivery.batchId
     ? `/dashboard/emails?tab=tasks&batchId=${delivery.batchId}`
     : null;
+  const customMessageHref = delivery.customMessageId
+    ? `/dashboard/emails?tab=compose&messageId=${delivery.customMessageId}`
+    : null;
 
   return (
     <Dialog>
@@ -277,6 +280,12 @@ function EmailDeliveryDetailDialog({
               label="批量任务"
               value={delivery.batchId ? `#${delivery.batchId}` : null}
               href={batchHref ?? undefined}
+              mono
+            />
+            <DetailItem
+              label="自定义邮件"
+              value={delivery.customMessageId ? `#${delivery.customMessageId}` : null}
+              href={customMessageHref ?? undefined}
               mono
             />
             <DetailItem

@@ -65,7 +65,7 @@ const keyRoutes: Array<{
   },
   {
     path: "/dashboard/emails",
-    marker: "统一管理系统邮件模板、发送任务和发送记录",
+    marker: "统一管理系统邮件模板、发送任务、发送记录与自定义邮件",
     user: "admin",
   },
   {
