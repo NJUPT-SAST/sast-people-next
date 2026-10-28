@@ -175,6 +175,62 @@ describe("custom email delivery service", () => {
     ]);
   });
 
+  it("ignores deliveries for recipients removed from the message", async () => {
+    const [row] = await db
+      .insert(emailCustomMessage)
+      .values({
+        subject: "移除收件人状态集成测试",
+        htmlBody: "<p>正文</p>",
+        recipientUserIds: [],
+        manualAddresses: ["kept@example.com", "removed@example.com"],
+        recipientCount: 2,
+        createdBy: 990001,
+      })
+      .returning({ id: emailCustomMessage.id });
+    createdMessageIds.push(row.id);
+
+    await sendCustomMessageById(row.id);
+    const deliveries = await db
+      .select()
+      .from(emailDelivery)
+      .where(eq(emailDelivery.fkCustomMessageId, row.id));
+    const kept = deliveries.find(
+      (delivery) => delivery.toAddress === "kept@example.com",
+    )!;
+    const removed = deliveries.find(
+      (delivery) => delivery.toAddress === "removed@example.com",
+    )!;
+
+    await db
+      .update(emailDelivery)
+      .set({ status: "sent", sentAt: new Date() })
+      .where(eq(emailDelivery.id, kept.id));
+    await db
+      .update(emailDelivery)
+      .set({
+        status: "failed",
+        nextRetryAt: null,
+        errorMessage: "removed recipient failure",
+      })
+      .where(eq(emailDelivery.id, removed.id));
+    await db
+      .update(emailCustomMessage)
+      .set({
+        status: "failed",
+        manualAddresses: ["kept@example.com"],
+        recipientCount: 1,
+      })
+      .where(eq(emailCustomMessage.id, row.id));
+
+    await expect(refreshCustomMessageStatus(row.id)).resolves.toBe("sent");
+    const [message] = await db
+      .select()
+      .from(emailCustomMessage)
+      .where(eq(emailCustomMessage.id, row.id));
+    expect(message.status).toBe("sent");
+    expect(message.lastError).toBeNull();
+  });
+
   it("rewrites queueable snapshots when an edited failed message is resent", async () => {
     const messageId = await insertCustomMessage();
     await sendCustomMessageById(messageId);

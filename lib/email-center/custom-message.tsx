@@ -518,6 +518,8 @@ export async function refreshCustomMessageStatus(
     .select({
       id: emailCustomMessage.id,
       status: emailCustomMessage.status,
+      recipientUserIds: emailCustomMessage.recipientUserIds,
+      manualAddresses: emailCustomMessage.manualAddresses,
     })
     .from(emailCustomMessage)
     .where(eq(emailCustomMessage.id, id))
@@ -530,6 +532,10 @@ export async function refreshCustomMessageStatus(
 
   const deliveries = await db
     .select({
+      id: emailDelivery.id,
+      fkUserId: emailDelivery.fkUserId,
+      toAddress: emailDelivery.toAddress,
+      createdAt: emailDelivery.createdAt,
       status: emailDelivery.status,
       nextRetryAt: emailDelivery.nextRetryAt,
       errorMessage: emailDelivery.errorMessage,
@@ -538,7 +544,37 @@ export async function refreshCustomMessageStatus(
     .from(emailDelivery)
     .where(eq(emailDelivery.fkCustomMessageId, id));
 
-  if (deliveries.length === 0) {
+  /* 编辑邮件时移除的收件人不应继续影响状态；同一收件人保留最后一次投递 */
+  const recipientUserIds = new Set(message.recipientUserIds);
+  const manualAddresses = new Set(
+    message.manualAddresses.map((address) => address.trim().toLowerCase()),
+  );
+  const latestByRecipient = new Map<string, (typeof deliveries)[number]>();
+  for (const delivery of deliveries) {
+    const manualAddress = delivery.toAddress.trim().toLowerCase();
+    const recipientKey =
+      delivery.fkUserId !== null
+        ? recipientUserIds.has(delivery.fkUserId)
+          ? `user:${delivery.fkUserId}`
+          : null
+        : manualAddresses.has(manualAddress)
+          ? `address:${manualAddress}`
+          : null;
+    if (!recipientKey) continue;
+
+    const existing = latestByRecipient.get(recipientKey);
+    if (
+      !existing ||
+      delivery.createdAt > existing.createdAt ||
+      (delivery.createdAt.getTime() === existing.createdAt.getTime() &&
+        delivery.id > existing.id)
+    ) {
+      latestByRecipient.set(recipientKey, delivery);
+    }
+  }
+  const activeDeliveries = Array.from(latestByRecipient.values());
+
+  if (activeDeliveries.length === 0) {
     if (message.status === "sending" && allowEmptyFailure) {
       await db
         .update(emailCustomMessage)
@@ -553,7 +589,7 @@ export async function refreshCustomMessageStatus(
     return message.status;
   }
 
-  const inFlight = deliveries.filter(
+  const inFlight = activeDeliveries.filter(
     (delivery) =>
       delivery.status === "pending" ||
       delivery.status === "sending" ||
@@ -571,8 +607,8 @@ export async function refreshCustomMessageStatus(
     return "sending";
   }
 
-  if (deliveries.every((delivery) => delivery.status === "sent")) {
-    const sentAt = deliveries.reduce<Date | null>((latest, delivery) => {
+  if (activeDeliveries.every((delivery) => delivery.status === "sent")) {
+    const sentAt = activeDeliveries.reduce<Date | null>((latest, delivery) => {
       if (!delivery.sentAt) return latest;
       return !latest || delivery.sentAt > latest ? delivery.sentAt : latest;
     }, null);
@@ -588,7 +624,9 @@ export async function refreshCustomMessageStatus(
     return "sent";
   }
 
-  const firstError = deliveries.find((delivery) => delivery.errorMessage)?.errorMessage;
+  const firstError = activeDeliveries.find(
+    (delivery) => delivery.errorMessage,
+  )?.errorMessage;
   await db
     .update(emailCustomMessage)
     .set({

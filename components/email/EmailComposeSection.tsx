@@ -313,38 +313,34 @@ export function EmailComposeSection({
           if (cancelled || !result.ok) return;
           const message = result.data.message;
           setStatus(message.status);
-          setMailbox((current) => ({
-            ...current,
-            drafts: current.drafts.filter((item) => item.id !== message.id),
-            scheduled: current.scheduled.filter(
-              (item) => item.id !== message.id,
-            ),
-            recent: current.recent.some((item) => item.id === message.id)
-              ? current.recent.map((item) =>
-                  item.id === message.id
-                    ? {
-                        ...item,
-                        status: message.status,
-                        sentAt: message.sentAt,
-                        lastError: message.lastError,
-                        updatedAt: message.updatedAt,
-                      }
-                    : item,
-                )
-              : [
-                  {
-                    id: message.id,
-                    status: message.status,
-                    subject: message.subject,
-                    recipientCount: message.recipientCount,
-                    scheduledAt: message.scheduledAt,
-                    sentAt: message.sentAt,
-                    updatedAt: message.updatedAt,
-                    lastError: message.lastError,
-                  },
-                  ...current.recent,
-                ],
-          }));
+          setMailbox((current) => {
+            const without = (items: CustomEmailMessageSummary[]) =>
+              items.filter((item) => item.id !== message.id);
+            const summary: CustomEmailMessageSummary = {
+              id: message.id,
+              status: message.status,
+              subject: message.subject,
+              recipientCount: message.recipientCount,
+              scheduledAt: message.scheduledAt,
+              sentAt: message.sentAt,
+              updatedAt: message.updatedAt,
+              lastError: message.lastError,
+            };
+            return {
+              drafts:
+                message.status === "draft"
+                  ? [summary, ...without(current.drafts)]
+                  : without(current.drafts),
+              scheduled:
+                message.status === "scheduled"
+                  ? [summary, ...without(current.scheduled)]
+                  : without(current.scheduled),
+              recent:
+                message.status === "draft" || message.status === "scheduled"
+                  ? without(current.recent)
+                  : [summary, ...without(current.recent)],
+            };
+          });
         });
       },
       shouldPollSending ? 3000 : 60_000,
