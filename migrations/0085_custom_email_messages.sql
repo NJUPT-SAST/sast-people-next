@@ -60,7 +60,9 @@ BEGIN
       FOREIGN KEY ("fk_custom_message_id")
       REFERENCES "public"."email_custom_message"("id")
       ON DELETE SET NULL
-      ON UPDATE NO ACTION;
+      ON UPDATE NO ACTION
+      /* 新列全部为 NULL，跳过全表校验，避免锁住高频写入的 email_delivery */
+      NOT VALID;
   END IF;
 END $$;
 

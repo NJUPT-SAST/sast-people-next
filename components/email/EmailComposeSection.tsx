@@ -165,9 +165,7 @@ export function EmailComposeSection({
   initialMessageId?: number;
 }) {
   const router = useRouter();
-  const [messageId, setMessageId] = useState<number | null>(
-    initialMessageId ?? null,
-  );
+  const [messageId, setMessageId] = useState<number | null>(null);
   const [status, setStatus] = useState<CustomEmailStatus>("draft");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
@@ -191,7 +189,18 @@ export function EmailComposeSection({
   const [mailboxOpen, setMailboxOpen] = useState(false);
   /* 信封列表先本地更新：保存草稿 / 定时 / 删除后立刻可见，不等服务端整页刷新 */
   const [mailbox, setMailbox] = useState(workspace);
+  const [syncedWorkspace, setSyncedWorkspace] = useState(workspace);
+  const lastMutationAtRef = useRef(0);
   const searchRequestRef = useRef(0);
+
+  /* 服务端刷新后同步信封列表；刚完成本地操作时短暂跳过，避免旧 RSC 响应覆盖乐观状态 */
+  useEffect(() => {
+    if (workspace === syncedWorkspace) return;
+    setSyncedWorkspace(workspace);
+    if (Date.now() - lastMutationAtRef.current > 5000) {
+      setMailbox(workspace);
+    }
+  }, [syncedWorkspace, workspace]);
 
   const selectedUserIds = useMemo(
     () =>
@@ -247,6 +256,8 @@ export function EmailComposeSection({
     try {
       const result = await getCustomEmailMessageAction(id);
       if (!result.ok) {
+        /* 深链加载失败时不能继续把空表单绑定到原 messageId，否则保存会覆盖原草稿 */
+        resetForm();
         toast.error(result.message);
         return;
       }
@@ -290,12 +301,9 @@ export function EmailComposeSection({
 
   useEffect(() => {
     if (!messageId) return;
-    const scheduledDate = parseBeijingDateTime(scheduledAt);
     const shouldPollSending = status === "sending";
-    const shouldPollScheduled =
-      status === "scheduled" &&
-      scheduledDate !== null &&
-      scheduledDate.getTime() - Date.now() <= 2 * 60 * 1000;
+    /* 定时邮件始终低频轮询：打开时可能离发送时间还很远 */
+    const shouldPollScheduled = status === "scheduled";
     if (!shouldPollSending && !shouldPollScheduled) return;
 
     let cancelled = false;
@@ -339,13 +347,13 @@ export function EmailComposeSection({
           }));
         });
       },
-      shouldPollSending ? 3000 : 10_000,
+      shouldPollSending ? 3000 : 60_000,
     );
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [messageId, scheduledAt, status]);
+  }, [messageId, status]);
 
   useEffect(() => {
     const requestId = searchRequestRef.current + 1;
@@ -492,6 +500,7 @@ export function EmailComposeSection({
         toast.error(result.message);
         return;
       }
+      lastMutationAtRef.current = Date.now();
       const nextStatus = result.data.status as CustomEmailStatus;
       const nextScheduledAt =
         mode === "schedule"
@@ -579,6 +588,7 @@ export function EmailComposeSection({
       toast.error(result.message);
       return;
     }
+    lastMutationAtRef.current = Date.now();
     setStatus("draft");
     setScheduledAt("");
     setMailbox((current) => {
@@ -611,6 +621,7 @@ export function EmailComposeSection({
       toast.error(result.message);
       return;
     }
+    lastMutationAtRef.current = Date.now();
     const deletedId = messageId;
     resetForm();
     setMailbox((current) => ({
@@ -629,6 +640,7 @@ export function EmailComposeSection({
       toast.error(result.message);
       return;
     }
+    lastMutationAtRef.current = Date.now();
     setStatus("sending");
     setMailbox((current) => ({
       ...current,

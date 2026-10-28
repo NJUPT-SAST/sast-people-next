@@ -4,6 +4,7 @@ import { db } from "@/db/drizzle";
 import { emailBatch, emailCustomMessage, emailDelivery, flow } from "@/db/schema";
 import { isAdmin, verifyManager } from "@/lib/authz";
 import { requirePositiveIntegerInput } from "@/lib/email-center/action-input";
+import { refreshCustomMessageStatus } from "@/lib/email-center/custom-message";
 import { sendEmailDelivery } from "@/lib/email-center/delivery";
 import { assertFlowEditable } from "@/lib/flow-access";
 import { writeOperationAudit } from "@/lib/operation-audit";
@@ -31,6 +32,7 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
         id: emailDelivery.id,
         category: emailDelivery.category,
         status: emailDelivery.status,
+        customMessageId: emailDelivery.fkCustomMessageId,
         department: sql<string | null>`coalesce(${flow.department}, ${batchFlow.department})`,
         customCreatedBy: emailCustomMessage.createdBy,
         customDepartment: emailCustomMessage.department,
@@ -64,10 +66,35 @@ export async function retryEmailDelivery(deliveryIdInput: unknown) {
       assertFlowEditable(session.scope, department, "无权操作其他部门的邮件");
     }
 
+    const refreshCustomParent = async () => {
+      if (!delivery.customMessageId) return;
+      await refreshCustomMessageStatus(delivery.customMessageId).catch(
+        (refreshError) => {
+          logServerError(
+            "email:retryDelivery:refreshCustomMessage",
+            refreshError,
+            {
+              action: "refresh-custom-message-after-retry",
+              metadata: {
+                deliveryId: delivery.id,
+                customMessageId: delivery.customMessageId,
+              },
+            },
+          );
+        },
+      );
+    };
+
     const result = await sendEmailDelivery(delivery.id, {
       trigger: "manual_retry",
       triggeredBy: session.uid,
+    }).catch(async (error) => {
+      /* 手动重试失败也要把父邮件状态从 sending/failed 重新算一遍 */
+      await refreshCustomParent();
+      throw error;
     });
+
+    await refreshCustomParent();
 
     await writeOperationAudit({
       actorId: session.uid,

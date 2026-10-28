@@ -459,33 +459,61 @@ export async function deleteCustomEmailMessage(
     return;
   }
 
-  const [updated] = await db
-    .update(emailCustomMessage)
-    .set({
-      status: "canceled",
-      scheduledAt: null,
-      updatedBy: session.uid,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(emailCustomMessage.id, id),
-        inArray(emailCustomMessage.status, [
-          "draft",
-          "scheduled",
-          "failed",
-          "canceled",
-        ]),
-      ),
-    )
-    .returning({ id: emailCustomMessage.id });
+  const deletedAt = new Date();
+  await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(emailCustomMessage)
+      .set({
+        status: "canceled",
+        scheduledAt: null,
+        updatedBy: session.uid,
+        updatedAt: deletedAt,
+      })
+      .where(
+        and(
+          eq(emailCustomMessage.id, id),
+          inArray(emailCustomMessage.status, [
+            "draft",
+            "scheduled",
+            "failed",
+            "canceled",
+          ]),
+        ),
+      )
+      .returning({ id: emailCustomMessage.id });
 
-  if (!updated) {
-    throw new Error("邮件已经开始发送，无法删除");
-  }
+    if (!updated) {
+      throw new Error("邮件已经开始发送，无法删除");
+    }
+
+    /* 删除后不能再让自动重试把旧投递发出去 */
+    await tx
+      .update(emailDelivery)
+      .set({
+        status: "dead",
+        nextRetryAt: null,
+        deadLetteredAt: deletedAt,
+        errorMessage: "自定义邮件已删除，停止重试。",
+        updatedAt: deletedAt,
+      })
+      .where(
+        and(
+          eq(emailDelivery.fkCustomMessageId, id),
+          inArray(emailDelivery.status, ["pending", "failed"]),
+        ),
+      );
+  });
 }
 
-export async function refreshCustomMessageStatus(id: number) {
+export async function refreshCustomMessageStatus(
+  id: number,
+  {
+    allowEmptyFailure = true,
+  }: {
+    /* 刚认领的 sending 可能还在解析收件人/渲染正文，不能仅凭「还没有投递」判定失败 */
+    allowEmptyFailure?: boolean;
+  } = {},
+) {
   const [message] = await db
     .select({
       id: emailCustomMessage.id,
@@ -503,6 +531,7 @@ export async function refreshCustomMessageStatus(id: number) {
   const deliveries = await db
     .select({
       status: emailDelivery.status,
+      nextRetryAt: emailDelivery.nextRetryAt,
       errorMessage: emailDelivery.errorMessage,
       sentAt: emailDelivery.sentAt,
     })
@@ -510,7 +539,7 @@ export async function refreshCustomMessageStatus(id: number) {
     .where(eq(emailDelivery.fkCustomMessageId, id));
 
   if (deliveries.length === 0) {
-    if (message.status === "sending") {
+    if (message.status === "sending" && allowEmptyFailure) {
       await db
         .update(emailCustomMessage)
         .set({
@@ -525,7 +554,11 @@ export async function refreshCustomMessageStatus(id: number) {
   }
 
   const inFlight = deliveries.filter(
-    (delivery) => delivery.status === "pending" || delivery.status === "sending",
+    (delivery) =>
+      delivery.status === "pending" ||
+      delivery.status === "sending" ||
+      /* 失败但还有下一次自动重试，邮件整体仍算发送中 */
+      (delivery.status === "failed" && delivery.nextRetryAt !== null),
   ).length;
 
   if (inFlight > 0) {
@@ -597,7 +630,8 @@ export async function sendCustomMessageById(
     .set({
       status: "sending",
       lastError: null,
-      updatedAt: now,
+      /* 用实际认领时间，避免调度扫描时间早于真正开始执行 */
+      updatedAt: new Date(),
     })
     .where(and(eq(emailCustomMessage.id, id), claimable))
     .returning();
@@ -749,6 +783,26 @@ export async function sendCustomMessageById(
     .where(eq(emailCustomMessage.id, id));
 
   if (queueableIds.length > 0) {
+    /* 渲染/建投递期间用户可能把邮件改回草稿：此时不能再把旧内容入队 */
+    const [latest] = await db
+      .select({ status: emailCustomMessage.status })
+      .from(emailCustomMessage)
+      .where(eq(emailCustomMessage.id, id))
+      .limit(1);
+    if (latest?.status !== "sending") {
+      return { queuedCount: 0, status: latest?.status ?? null, skipped: true };
+    }
+
+    /* 编辑失败邮件后重发：已有投递也必须换成这次渲染的新主题/正文快照 */
+    await db
+      .update(emailDelivery)
+      .set({
+        subject: rendered.subject,
+        htmlSnapshot: rendered.html,
+        updatedAt: new Date(),
+      })
+      .where(inArray(emailDelivery.id, queueableIds));
+
     /* 用户主动重发时把上一轮失败/死信的尝试次数清掉，避免刚重发就再次进入死信 */
     await db
       .update(emailDelivery)
@@ -862,9 +916,17 @@ export async function refreshSendingCustomMessages({
   now = new Date(),
   limit = 50,
 } = {}) {
+  /* 10 秒后再刷新状态，避免刚认领、还在建投递的邮件被重复扫描 */
   const staleBefore = new Date(now.getTime() - 10 * 1000);
+  /* 没有投递的 sending 只有超过 10 分钟才判失败：收件人解析 + 渲染可能很慢 */
+  const emptyFailureBefore = new Date(
+    now.getTime() - STALE_SENDING_MINUTES * 60 * 1000,
+  );
   const rows = await db
-    .select({ id: emailCustomMessage.id })
+    .select({
+      id: emailCustomMessage.id,
+      updatedAt: emailCustomMessage.updatedAt,
+    })
     .from(emailCustomMessage)
     .where(
       and(
@@ -878,7 +940,9 @@ export async function refreshSendingCustomMessages({
   let refreshedCount = 0;
   for (const row of rows) {
     try {
-      await refreshCustomMessageStatus(row.id);
+      await refreshCustomMessageStatus(row.id, {
+        allowEmptyFailure: row.updatedAt < emptyFailureBefore,
+      });
       refreshedCount += 1;
     } catch (error) {
       logServerError("email:custom:refreshStatus", error, {

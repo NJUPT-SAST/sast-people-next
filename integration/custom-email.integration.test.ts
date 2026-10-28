@@ -1,10 +1,21 @@
 import { db } from "@/db/drizzle";
 import { emailCustomMessage, emailDelivery } from "@/db/schema";
 import {
+  deleteCustomEmailMessage,
   refreshCustomMessageStatus,
   sendCustomMessageById,
 } from "@/lib/email-center/custom-message";
 import { eq } from "drizzle-orm";
+
+const ownerSession = {
+  isAuth: true as const,
+  uid: 990001,
+  role: 4,
+  realRole: 4,
+  viewAs: null,
+  name: "测试管理员",
+  department: "software",
+};
 
 jest.mock("server-only", () => ({}));
 jest.mock("@/event", () => ({
@@ -79,6 +90,27 @@ describe("custom email delivery service", () => {
     });
     expect(retried).toMatchObject({ skipped: true, status: "sending" });
 
+    /* 还有下一次自动重试的 failed 投递仍算进行中，不能提前显示失败 */
+    await db
+      .update(emailDelivery)
+      .set({
+        status: "failed",
+        nextRetryAt: new Date(Date.now() + 60_000),
+        errorMessage: "temporary SMTP error",
+      })
+      .where(eq(emailDelivery.id, deliveries[0].id));
+    await expect(refreshCustomMessageStatus(messageId)).resolves.toBe("sending");
+
+    await db
+      .update(emailDelivery)
+      .set({
+        status: "failed",
+        nextRetryAt: null,
+        errorMessage: "permanent failure",
+      })
+      .where(eq(emailDelivery.id, deliveries[0].id));
+    await expect(refreshCustomMessageStatus(messageId)).resolves.toBe("failed");
+
     await db
       .update(emailDelivery)
       .set({ status: "sent", sentAt: new Date() })
@@ -141,5 +173,83 @@ describe("custom email delivery service", () => {
       `custom:${row.id}:first@example.com`,
       `custom:${row.id}:second@example.com`,
     ]);
+  });
+
+  it("rewrites queueable snapshots when an edited failed message is resent", async () => {
+    const messageId = await insertCustomMessage();
+    await sendCustomMessageById(messageId);
+
+    const [delivery] = await db
+      .select()
+      .from(emailDelivery)
+      .where(eq(emailDelivery.fkCustomMessageId, messageId));
+    await db
+      .update(emailDelivery)
+      .set({
+        status: "failed",
+        subject: "旧主题",
+        htmlSnapshot: "<p>旧正文</p>",
+        nextRetryAt: new Date(),
+        errorMessage: "old failure",
+      })
+      .where(eq(emailDelivery.id, delivery.id));
+    await db
+      .update(emailCustomMessage)
+      .set({
+        status: "failed",
+        subject: "  edited subject  ",
+        htmlBody: "<p>edited body</p>",
+        updatedAt: new Date(),
+      })
+      .where(eq(emailCustomMessage.id, messageId));
+
+    await sendCustomMessageById(messageId);
+
+    const [updated] = await db
+      .select()
+      .from(emailDelivery)
+      .where(eq(emailDelivery.id, delivery.id));
+    expect(updated.status).toBe("pending");
+    expect(updated.subject).toBe("edited subject");
+    expect(updated.attemptCount).toBe(0);
+    expect(updated.htmlSnapshot).toContain("custom email");
+  });
+
+  it("dead-letters queueable deliveries when deleting a custom message", async () => {
+    const messageId = await insertCustomMessage();
+    await sendCustomMessageById(messageId);
+
+    const [delivery] = await db
+      .select()
+      .from(emailDelivery)
+      .where(eq(emailDelivery.fkCustomMessageId, messageId));
+    await db
+      .update(emailDelivery)
+      .set({
+        status: "failed",
+        nextRetryAt: new Date(Date.now() + 60_000),
+        errorMessage: "retry me",
+      })
+      .where(eq(emailDelivery.id, delivery.id));
+    await db
+      .update(emailCustomMessage)
+      .set({ status: "failed" })
+      .where(eq(emailCustomMessage.id, messageId));
+
+    await deleteCustomEmailMessage(ownerSession, messageId);
+
+    const [message] = await db
+      .select()
+      .from(emailCustomMessage)
+      .where(eq(emailCustomMessage.id, messageId));
+    expect(message.status).toBe("canceled");
+
+    const [updated] = await db
+      .select()
+      .from(emailDelivery)
+      .where(eq(emailDelivery.id, delivery.id));
+    expect(updated.status).toBe("dead");
+    expect(updated.nextRetryAt).toBeNull();
+    expect(updated.errorMessage).toContain("已删除");
   });
 });
