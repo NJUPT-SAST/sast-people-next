@@ -18,10 +18,10 @@ test.describe("email center prelaunch", () => {
 
     await page.goto("/dashboard/emails");
     await expect(
-      page.getByText("统一管理系统邮件模板、发送任务和发送记录"),
+      page.getByText("统一管理系统邮件模板、发送任务、发送记录与自定义邮件"),
     ).toBeVisible();
 
-    for (const tab of ["发结果通知", "发送记录", "模板管理", "系统状态"]) {
+    for (const tab of ["发结果通知", "写信", "发送记录", "模板管理", "系统状态"]) {
       await expect(page.getByRole("link", { name: tab })).toBeVisible();
     }
 

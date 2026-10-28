@@ -110,6 +110,7 @@
 - 结果模板 key 由「流程类型 + 轮次 + 通过与否」推导：`getResultEmailTemplateKey(flowKind, accept, round)`（`lib/email/result-email.tsx:40`），`office_interview` 类型按 `round` 取 `office_round1` / `office_round2`。
 - 面试预约、改约与取消分别使用 `interview.schedule.created`、`interview.schedule.rescheduled`、`interview.schedule.cancelled`；改约申请暂不调整时用 `interview.schedule.change.rejected`，报名退回用 `interview.application.withdrawn`（`lib/email-center/registry.ts` 中各有独立条目，预览、测试与文案管理互不影响）。
 - 测试发送不注册独立模板：走 `createRenderedTestEmailDelivery`（`lib/email-center/delivery.ts:169`），以 `category = "test"`、`templateKey = 原模板键 + ".test"` 落 `email_delivery`（`lib/email-center/delivery.ts:176-177`），示例变量由 `createTestRenderRequest` 构造（`lib/email-center/test-render.ts:29`）。
+- **自定义邮件（`custom`）** 不进入模板注册表：正文由写信页直接编辑，保存时按富文本白名单清洗；发送时同样逐人创建 `email_delivery`（`templateKey = "custom.message"`），因此速率限制、重试、正文快照与发送记录口径不变。草稿、定时、发送状态落在 `email_custom_message`，`email_delivery.fk_custom_message_id` 关联；定时任务 `email/custom.scheduler` 每分钟扫描到点邮件，定时期间编辑会直接更新正文，任务执行时以最新内容为准。
 
 ## 5. UI 信息架构
 

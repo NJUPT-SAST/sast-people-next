@@ -19,6 +19,7 @@ export const emailCategoryText: Record<string, string> = {
   result: "结果通知",
   interview: "面试通知",
   collection: "收集表通知",
+  custom: "自定义邮件",
   test: "测试邮件",
 };
 
@@ -29,6 +30,7 @@ export const EMAIL_REFRESH_MAX_ATTEMPTS = 20;
 /** Primary workbench tabs. Order = usage frequency. */
 export const emailCenterTabs = [
   { value: "tasks", label: "发结果通知" },
+  { value: "compose", label: "写信" },
   { value: "records", label: "发送记录" },
   { value: "templates", label: "模板管理" },
   { value: "status", label: "系统状态" },

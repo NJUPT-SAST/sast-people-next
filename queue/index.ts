@@ -9,9 +9,11 @@ import {
   retryDueEmailDeliveriesJob,
 } from "./emailMaintenance";
 import { cleanupExpiredSessionsJob } from "./sessionMaintenance";
+import { customEmailSchedulerJob } from "./customEmail";
 
 const queueFunctions = [
   sendEmail,
+  customEmailSchedulerJob,
   interviewScheduleCancellation,
   interviewScheduleCancellationOutboxDispatcher,
   interviewScheduleReminder,

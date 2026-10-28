@@ -129,17 +129,30 @@ async function buildEmailDeliveryWhereConditions(
     query,
   }: NormalizedEmailDeliveryListParams,
   scope: DepartmentScope,
+  viewerUid: number,
 ) {
   const conditions: SQL<unknown>[] = [];
 
   const scopedFlowCondition = scopedDeliveryFlowCondition(scope);
-  if (scopedFlowCondition) {
+  /* 自定义邮件不归属流程：部长只能看到自己写的，管理员看全部 */
+  const ownCustomCondition = and(
+    eq(emailDelivery.category, "custom"),
+    eq(emailDelivery.createdBy, viewerUid),
+  )!;
+
+  if (scope.kind === "none") {
+    conditions.push(ownCustomCondition);
+  } else if (scope.kind === "department") {
     /* 收集表不归属流程，但所有部长都能管理；部门账号也应能看到并重试这些投递 */
     conditions.push(
-      scope.kind === "department"
-        ? or(eq(emailDelivery.category, "collection"), scopedFlowCondition)!
-        : scopedFlowCondition,
+      or(
+        eq(emailDelivery.category, "collection"),
+        ownCustomCondition,
+        scopedFlowCondition,
+      )!,
     );
+  } else if (scopedFlowCondition) {
+    conditions.push(scopedFlowCondition);
   }
 
   if (category) conditions.push(eq(emailDelivery.category, category));
@@ -282,11 +295,15 @@ export async function listEmailBatches() {
 }
 
 export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}) {
-  await verifyRole(3);
+  const session = await verifyRole(3);
   const scope = await getDepartmentScope();
 
   const filters = normalizeEmailDeliveryListParams(params);
-  const whereConditions = await buildEmailDeliveryWhereConditions(filters, scope);
+  const whereConditions = await buildEmailDeliveryWhereConditions(
+    filters,
+    scope,
+    session.uid,
+  );
 
   const totalCountResult = await db
     .select({ value: count() })
@@ -323,6 +340,7 @@ export async function listEmailDeliveryPage(params: EmailDeliveryListParams = {}
       flowId: emailDelivery.fkFlowId,
       userFlowId: emailDelivery.fkUserFlowId,
       batchId: emailDelivery.fkEmailBatchId,
+      customMessageId: emailDelivery.fkCustomMessageId,
       relatedScheduleId: emailDelivery.relatedScheduleId,
       createdById: emailDelivery.createdBy,
       batchName: emailBatch.name,
@@ -445,9 +463,18 @@ export async function listResultEmailDeliveryStates() {
 }
 
 export async function getEmailStatusOverview() {
-  await verifyRole(3);
+  const session = await verifyRole(3);
   const scope = await getDepartmentScope();
-  const scopedCondition = scopedDeliveryFlowCondition(scope);
+  const flowCondition = scopedDeliveryFlowCondition(scope);
+  /* 自定义邮件不归属流程：部门账号的系统状态只统计自己写的那些 */
+  const customOwnCondition = and(
+    eq(emailDelivery.category, "custom"),
+    eq(emailDelivery.createdBy, session.uid),
+  )!;
+  const scopedCondition =
+    scope.kind === "all"
+      ? undefined
+      : or(flowCondition, customOwnCondition)!;
 
   const { start: todayStart, end: todayEnd } = getBeijingDayRange();
   const [todaySent, todayFailed, pendingOrSending, recentFailures] =

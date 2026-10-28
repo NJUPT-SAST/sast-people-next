@@ -125,6 +125,12 @@ export const emailDeliveryStatusEnum = pgEnum("email_delivery_status_enum", [
   "dead",
 ]);
 
+/* 自定义邮件（写信）的状态：草稿 / 已定时 / 正在发送 / 已发送 / 有失败 / 已取消 */
+export const emailCustomMessageStatusEnum = pgEnum(
+  "email_custom_message_status_enum",
+  ["draft", "scheduled", "sending", "sent", "failed", "canceled"],
+);
+
 export const interviewScheduleStatusEnum = pgEnum("interview_schedule_status_enum", [
   "created",
   "cancelled",
@@ -323,6 +329,44 @@ export const flowResultPublication = pgTable("flow_result_publication", {
   statusIdx: index("flow_result_publication_status_idx").on(table.status),
 }));
 
+/**
+ * 自定义邮件（写信）：一封邮件的草稿 / 定时 / 发送状态。
+ *
+ * 收件人拆成 Link 用户 ID 与手填邮箱两组：Link 用户发送时重新解析邮箱，
+ * 手填邮箱按原样投递。每次发送为每位收件人创建一条 `email_delivery`，
+ * 因此失败重试、正文快照与发送记录仍由邮件中心统一负责。
+ */
+export const emailCustomMessage = pgTable("email_custom_message", {
+  id: serial("id").primaryKey(),
+  status: emailCustomMessageStatusEnum("status").notNull().default("draft"),
+  subject: varchar("subject", { length: 255 }).notNull().default(""),
+  htmlBody: text("html_body").notNull().default(""),
+  recipientUserIds: jsonb("recipient_user_ids").$type<number[]>().notNull().default([]),
+  manualAddresses: jsonb("manual_addresses").$type<string[]>().notNull().default([]),
+  recipientCount: integer("recipient_count").notNull().default(0),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdBy: integer("created_by").notNull(),
+  updatedBy: integer("updated_by"),
+  department: varchar("department", { length: 64 }),
+  lastError: text("last_error"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`),
+}, (table) => ({
+  statusScheduledAtIdx: index("email_custom_message_status_scheduled_at_idx").on(
+    table.status,
+    table.scheduledAt,
+  ),
+  createdByUpdatedAtIdx: index("email_custom_message_created_by_updated_at_idx").on(
+    table.createdBy,
+    table.updatedAt,
+  ),
+}));
+
 export const emailBatch = pgTable("email_batch", {
   id: serial("id").primaryKey(),
   idempotencyKey: varchar("idempotency_key", { length: 160 }),
@@ -365,6 +409,8 @@ export const emailDelivery = pgTable("email_delivery", {
   deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true }),
   fkEmailBatchId: integer("fk_email_batch_id")
     .references(() => emailBatch.id, { onDelete: "cascade" }),
+  fkCustomMessageId: integer("fk_custom_message_id")
+    .references(() => emailCustomMessage.id, { onDelete: "set null" }),
   fkFlowId: integer("fk_flow_id")
     .references(() => flow.id, { onDelete: "restrict" }),
   fkUserFlowId: integer("fk_user_flow_id")
@@ -392,6 +438,10 @@ export const emailDelivery = pgTable("email_delivery", {
   flowIdIdx: index("email_delivery_fk_flow_id_idx").on(table.fkFlowId),
   batchCreatedAtIdx: index("email_delivery_batch_created_at_idx").on(
     table.fkEmailBatchId,
+    table.createdAt,
+  ),
+  customMessageCreatedAtIdx: index("email_delivery_custom_message_created_at_idx").on(
+    table.fkCustomMessageId,
     table.createdAt,
   ),
   attemptStatusIdx: index("email_delivery_attempt_status_idx").on(

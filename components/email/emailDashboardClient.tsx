@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Library,
   ListChecks,
+  MailPlus,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -13,6 +14,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { EmailStylePresetRow } from "@/action/email/style-preset";
+import { EmailComposeSection } from "./EmailComposeSection";
 import { EmailRecordsSection } from "./EmailRecordsSection";
 import { EmailSendingTasksSection } from "./EmailSendingTasksSection";
 import {
@@ -43,9 +45,11 @@ import type {
   ResultEmailDeliveryState,
   TemplateSettingsResult,
 } from "./emailDashboardTypes";
+import type { CustomEmailWorkspace } from "@/lib/email-center/custom-message-types";
 
 const tabIcons: Record<EmailCenterTab, LucideIcon> = {
   tasks: ListChecks,
+  compose: MailPlus,
   records: ClipboardList,
   templates: Library,
   status: Activity,
@@ -150,6 +154,12 @@ const emptyInterviewTemplateSettings: InterviewTemplateSettingsResult = {
   scope: { kind: "none" },
 };
 
+const emptyCustomEmailWorkspace: CustomEmailWorkspace = {
+  drafts: [],
+  scheduled: [],
+  recent: [],
+};
+
 export function EmailDashboardClient({
   batches = [],
   recordDeliveryPage = emptyDeliveryPage,
@@ -163,6 +173,8 @@ export function EmailDashboardClient({
   interviewSchedulePreviews = {} as InterviewSchedulePreviews,
   stylePresets = [],
   collectionInvitationTemplate,
+  customEmailWorkspace = emptyCustomEmailWorkspace,
+  initialCustomMessageId,
   emailCenterConfig,
   templateDefinitions,
   activeTab,
@@ -182,6 +194,8 @@ export function EmailDashboardClient({
   interviewSchedulePreviews?: InterviewSchedulePreviews;
   stylePresets?: EmailStylePresetRow[];
   collectionInvitationTemplate?: CollectionInvitationTemplatePanel;
+  customEmailWorkspace?: CustomEmailWorkspace;
+  initialCustomMessageId?: number;
   emailCenterConfig: EmailCenterConfig;
   templateDefinitions: EmailTemplateDefinition[];
   activeTab?: string;
@@ -260,8 +274,16 @@ export function EmailDashboardClient({
       safeDeliveries.some(
         (delivery) => delivery.status === "pending" || delivery.status === "sending",
       ) ||
+      customEmailWorkspace.recent.some(
+        (message) => message.status === "sending",
+      ) ||
       (statusOverview?.pendingOrSendingCount ?? 0) > 0,
-    [safeBatches, safeDeliveries, statusOverview?.pendingOrSendingCount],
+    [
+      customEmailWorkspace.recent,
+      safeBatches,
+      safeDeliveries,
+      statusOverview?.pendingOrSendingCount,
+    ],
   );
   const activeEmailWorkKey = useMemo(() => {
     const batchKey = safeBatches
@@ -272,8 +294,16 @@ export function EmailDashboardClient({
     const deliveryKey = safeDeliveries
       .map((delivery) => `${delivery.id}:${delivery.status}:${delivery.attemptCount}`)
       .join(";");
-    return `${batchKey}::${deliveryKey}::${statusOverview?.pendingOrSendingCount ?? 0}`;
-  }, [safeBatches, safeDeliveries, statusOverview?.pendingOrSendingCount]);
+    const customKey = customEmailWorkspace.recent
+      .map((message) => `${message.id}:${message.status}:${message.updatedAt}`)
+      .join(";");
+    return `${batchKey}::${deliveryKey}::${customKey}::${statusOverview?.pendingOrSendingCount ?? 0}`;
+  }, [
+    customEmailWorkspace.recent,
+    safeBatches,
+    safeDeliveries,
+    statusOverview?.pendingOrSendingCount,
+  ]);
   const filteredFlows = useMemo(() => {
     const query = flowQuery.trim().toLowerCase();
     if (!query) return safeFlowTargets;
@@ -337,7 +367,14 @@ export function EmailDashboardClient({
 
   let content;
 
-  if (resolvedActiveTab === "records") {
+  if (resolvedActiveTab === "compose") {
+    content = (
+      <EmailComposeSection
+        workspace={customEmailWorkspace}
+        initialMessageId={initialCustomMessageId}
+      />
+    );
+  } else if (resolvedActiveTab === "records") {
     content = (
       <EmailRecordsSection
         deliveryPage={recordDeliveryPage}

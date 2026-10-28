@@ -88,6 +88,12 @@ export const operationAuditActionGroups = {
     "email.test_send",
     "email.template.update",
     "email.template.reset",
+    "email.custom.draft_save",
+    "email.custom.send",
+    "email.custom.schedule",
+    "email.custom.cancel",
+    "email.custom.delete",
+    "email.custom.retry",
   ],
   evaluation: [
     "evaluation.create",

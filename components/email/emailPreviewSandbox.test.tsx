@@ -43,6 +43,7 @@ const delivery: EmailDeliveryRecord = {
   flowId: 7,
   userFlowId: 42,
   batchId: 9,
+  customMessageId: null,
   relatedScheduleId: null,
   createdById: 3,
   batchName: "批次",
